@@ -20,10 +20,6 @@
   <ItemGroup>
     <PackageReference Include="Autofocus" Version="5.0.0" />
     <PackageReference Include="Config.Net" Version="5.1.5" />
-    <PackageReference Include="GitVersion.MsBuild" Version="5.12.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
     <PackageReference Include="MySqlConnector" Version="2.3.3" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.1" />
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.0" />

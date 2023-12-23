@@ -519,21 +519,6 @@ namespace makefoxbot
         {
             Console.WriteLine("Hello, World!");
 
-            // Get the current assembly
-            Assembly assembly = Assembly.GetExecutingAssembly();
-
-            // Get the version of the current assembly (AssemblyVersion attribute)
-            Version assemblyVersion = assembly.GetName().Version;
-            Console.WriteLine($"Assembly Version: {assemblyVersion}");
-
-            // Get the file version of the current assembly (AssemblyFileVersion attribute)
-            FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
-            Console.WriteLine($"File Version: {fvi.FileVersion}");
-
-            // Get the informational version of the current assembly (AssemblyInformationalVersion attribute)
-            string informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
-            Console.WriteLine($"Informational Version: {informationalVersion}");
-
             Console.Write("Loading configuration... ");
             try {
                 LoadSettings();
