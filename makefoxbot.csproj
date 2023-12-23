@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="makefoxbot.zip" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Autofocus" Version="5.0.0" />
     <PackageReference Include="Config.Net" Version="5.1.5" />
     <PackageReference Include="MySqlConnector" Version="2.3.3" />
