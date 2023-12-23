@@ -32,22 +32,24 @@ namespace makefoxbot
         public string? TelegramUniqueID = null;
         public string? TelegramFullFileID = null;
         public string? TelegramFullUniqueID = null;
+        public long? TelegramChatID = null;
+        public long? TelegramMessageID = null;
         public DateTime DateAdded;
 
         public byte[] Image = null;
 
-        public static async Task<FoxImage> Create(ulong user_id, byte[] image, ImageType type, string? filename = null, string ? tele_fileid = null, string? tele_uniqueid = null)
+        public static async Task<FoxImage> Create(ulong user_id, byte[] image, ImageType type, string? filename = null, string ? tele_fileid = null, string? tele_uniqueid = null, long? tele_chatid = null, long? tele_msgid = null)
         {
             var img = new FoxImage();
 
             img.UserID = user_id;
 
-            img.ID = await img.Save(type, image, filename, tele_fileid, tele_uniqueid);
+            img.ID = await img.Save(type, image, filename, tele_fileid, tele_uniqueid, tele_chatid, tele_msgid);
 
             return img;
         }
 
-        public async Task<ulong> Save(ImageType? type = null, byte[]? image = null, string? filename = null, string? tele_fileid = null, string? tele_uniqueid = null)
+        public async Task<ulong> Save(ImageType? type = null, byte[]? image = null, string? filename = null, string? tele_fileid = null, string? tele_uniqueid = null, long? tele_chatid = null, long? tele_msgid = null)
         {
             if (type is not null)
                 this.Type = (ImageType)type;
@@ -59,6 +61,10 @@ namespace makefoxbot
                 this.TelegramFileID = tele_fileid;
             if (tele_uniqueid is not null)
                 this.TelegramUniqueID = tele_uniqueid;
+            if (tele_chatid is not null)
+                this.TelegramChatID = tele_chatid;
+            if (tele_msgid is not null)
+                this.TelegramMessageID = tele_msgid;
 
             this.SHA1Hash = sha1hash(this.Image);
             this.DateAdded = DateTime.Now;
@@ -69,7 +75,7 @@ namespace makefoxbot
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "INSERT INTO images (type, user_id, filename, filesize, image, sha1hash, date_added, telegram_fileid, telegram_uniqueid) VALUES (@type, @user_id, @filename, @filesize, @image, @hash, @now, @tele_fileid, @tele_uniqueid)";
+                    cmd.CommandText = "INSERT INTO images (type, user_id, filename, filesize, image, sha1hash, date_added, telegram_fileid, telegram_uniqueid, telegram_chatid, telegram_msgid) VALUES (@type, @user_id, @filename, @filesize, @image, @hash, @now, @tele_fileid, @tele_uniqueid, @tele_chatid, @tele_msgid)";
 
                     cmd.Parameters.AddWithValue("type", this.Type.ToString());
                     cmd.Parameters.AddWithValue("user_id", this.UserID);
@@ -79,6 +85,8 @@ namespace makefoxbot
                     cmd.Parameters.AddWithValue("hash", this.SHA1Hash);
                     cmd.Parameters.AddWithValue("tele_fileid", this.TelegramFileID);
                     cmd.Parameters.AddWithValue("tele_uniqueid", this.TelegramUniqueID);
+                    cmd.Parameters.AddWithValue("tele_chatid", this.TelegramChatID);
+                    cmd.Parameters.AddWithValue("tele_msgid", this.TelegramMessageID);
                     cmd.Parameters.AddWithValue("now", this.DateAdded);
 
                     await cmd.ExecuteNonQueryAsync();
@@ -90,16 +98,36 @@ namespace makefoxbot
             }
         }
 
-        public static async Task<FoxImage?> LoadFromTelegramUniqueId(ulong userId, string telegramUniqueID)
+        public static async Task<FoxImage?> LoadFromTelegramUniqueId(ulong userId, string telegramUniqueID, long telegramChatID)
         {
             using var SQL = new MySqlConnection(Program.MySqlConnectionString);
 
             await SQL.OpenAsync();
 
-            using (var cmd = new MySqlCommand("SELECT id FROM images WHERE user_id = @uid AND telegram_uniqueid = @id LIMIT 1", SQL))
+            using (var cmd = new MySqlCommand("SELECT id FROM images WHERE user_id = @uid AND telegram_uniqueid = @id AND (telegram_chatid = @chatid OR telegram_chatid IS NULL) ORDER BY date_added DESC LIMIT 1", SQL))
             {
                 cmd.Parameters.AddWithValue("uid", userId);
                 cmd.Parameters.AddWithValue("id", telegramUniqueID);
+                cmd.Parameters.AddWithValue("chatid", telegramChatID);
+                var result = await cmd.ExecuteScalarAsync();
+
+                if (result is not null && result is not DBNull)
+                    return await FoxImage.Load(Convert.ToUInt64(result));
+            }
+
+            return null;
+        }
+
+        public static async Task<FoxImage?> LoadLastUploaded(FoxUser user, long tele_chatid)
+        {
+            using var SQL = new MySqlConnection(Program.MySqlConnectionString);
+
+            await SQL.OpenAsync();
+
+            using (var cmd = new MySqlCommand("SELECT id FROM images WHERE user_id = @uid AND telegram_chatid = @chatid ORDER BY date_added DESC LIMIT 1", SQL))
+            {
+                cmd.Parameters.AddWithValue("uid", user.UID);
+                cmd.Parameters.AddWithValue("chatid", tele_chatid);
                 var result = await cmd.ExecuteScalarAsync();
 
                 if (result is not null && result is not DBNull)
@@ -211,6 +239,10 @@ namespace makefoxbot
                         img.TelegramFullFileID = Convert.ToString(r["telegram_full_fileid"]);
                     if (!(r["telegram_full_uniqueid"] is DBNull))
                         img.TelegramFullUniqueID = Convert.ToString(r["telegram_full_uniqueid"]);
+                    if (!(r["telegram_chatid"] is DBNull))
+                        img.TelegramChatID = Convert.ToInt64(r["telegram_chatid"]);
+                    if (!(r["telegram_msgid"] is DBNull))
+                        img.TelegramMessageID = Convert.ToInt64(r["telegram_msgid"]);
                     if (!(r["filename"] is DBNull))
                         img.Filename = Convert.ToString(r["filename"]);
                     img.ID = image_id;

@@ -371,11 +371,17 @@ namespace makefoxbot
                             if (photo is null)
                                 throw new Exception("Unexpected null photo object received from Telegram");
 
-                            var img = await FoxImage.LoadFromTelegramUniqueId(user.UID, photo.FileUniqueId);
+                            var img = await FoxImage.LoadFromTelegramUniqueId(user.UID, photo.FileUniqueId, message.Chat.Id);
 
                             if (img is not null)
                             {
                                 Console.WriteLine("Image found by Telegram unique ID.  ID: " + img.ID);
+                                if (message.Chat.Id != img.TelegramChatID)
+                                {
+                                    var newimg = await FoxImage.Create(user.UID, img.Image, FoxImage.ImageType.INPUT, img.Filename, img.TelegramFileID, img.TelegramUniqueID, message.Chat.Id, message.MessageId);
+
+                                    img = newimg;
+                                }
                             }
                             else
                             {
@@ -384,24 +390,27 @@ namespace makefoxbot
 
                                 var file = await botClient.GetInfoAndDownloadFileAsync(photo.FileId, imgStream);
 
-                                img = await FoxImage.Create(user.UID, imgStream.ToArray(), FoxImage.ImageType.INPUT, file.FilePath, file.FileId, file.FileUniqueId);
+                                img = await FoxImage.Create(user.UID, imgStream.ToArray(), FoxImage.ImageType.INPUT, file.FilePath, file.FileId, file.FileUniqueId, message.Chat.Id, message.MessageId);
 
                                 Console.WriteLine("Image saved.  ID: " + img.ID);
 
                             }
 
-                            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+                            if (message.From.Id == message.Chat.Id) //Only save & notify outside of groups.
+                            {
+                                var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
 
-                            settings.selected_image = img.ID;
+                                settings.selected_image = img.ID;
 
-                            await settings.Save();
+                                await settings.Save();
 
-                            Message waitMsg = await botClient.SendTextMessageAsync(
-                                chatId: message.Chat.Id,
-                                text: "✅ Image saved and selected as input for /img2img",
-                                replyToMessageId: update.Message.MessageId,
-                                cancellationToken: cancellationToken
-                            );
+                                Message waitMsg = await botClient.SendTextMessageAsync(
+                                    chatId: message.Chat.Id,
+                                    text: "✅ Image saved and selected as input for /img2img",
+                                    replyToMessageId: update.Message.MessageId,
+                                    cancellationToken: cancellationToken
+                                );
+                            }
                         }
                     }
 

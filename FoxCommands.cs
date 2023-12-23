@@ -11,6 +11,7 @@ using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 using System.IO;
 using System.Reflection.Metadata;
+using System.Linq.Expressions;
 
 namespace makefoxbot
 {
@@ -46,6 +47,7 @@ namespace makefoxbot
             { "/size",        CmdSetSize },
             //--------------- -----------------
             { "/current",     CmdCurrent },
+            { "/select",      CmdSelect },
             //--------------- -----------------
             { "/help",        CmdHelp },
         };
@@ -422,6 +424,47 @@ namespace makefoxbot
             Program.semaphore.Release();
         }
 
+        [CommandDescription("Select your last uploaded image as the input for /img2img")]
+        private static async Task CmdSelect(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        {
+            var img = await FoxImage.LoadLastUploaded(user, message.Chat.Id);
+
+            if (img is null)
+            {
+                await botClient.SendTextMessageAsync(
+                        chatId: message.Chat.Id,
+                        text: "❌ Error: You must upload an image first.",
+                        replyToMessageId: message.MessageId,
+                        cancellationToken: cancellationToken
+                        );
+
+                return;
+            }
+
+            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+
+            settings.selected_image = img.ID;
+
+            await settings.Save();
+
+            try {
+                Message waitMsg = await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "✅ Image saved and selected as input for /img2img",
+                    replyToMessageId: (int)img.TelegramMessageID,
+                    cancellationToken: cancellationToken
+                );
+            } catch {
+                Message waitMsg = await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "✅ Image saved and selected as input for /img2img",
+                    replyToMessageId: message.MessageId,
+                    cancellationToken: cancellationToken
+                );
+            }
+
+        }
+        
         private static async Task CmdHelp(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
         {
             var commandGroups = CommandMap
