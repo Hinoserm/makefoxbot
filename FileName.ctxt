@@ -1,0 +1,127 @@
+   using (var saveImageStream = new MemoryStream())
+                    {
+
+                        var file = await botClient.GetInfoAndDownloadFileAsync(fileId, saveImageStream);
+
+                        var imgbytes = saveImageStream.ToArray();
+
+                        long img_id = 0;
+
+                        using (var cmd = new MySqlCommand())
+                        {
+                            cmd.Connection = SQL;
+                            cmd.CommandText = "SELECT id FROM input_images WHERE sha1hash = @sha1hash";
+                            cmd.Parameters.AddWithValue("sha1hash", sha1hash(imgbytes));
+                            await using var reader = await cmd.ExecuteReaderAsync();
+                            if (reader.HasRows)
+                            {
+                                await reader.ReadAsync();
+                                img_id = reader.GetInt64(0);
+
+                                Console.WriteLine("Image found.  ID: " + img_id);
+                            }
+                        }
+
+                        if (img_id <= 0)
+                        {
+                            using (var cmd = new MySqlCommand())
+                            {
+                                cmd.Connection = SQL;
+                                cmd.CommandText = "INSERT INTO input_images (image, sha1hash, filename, filesize, tele_fileid, tele_uniqueid, date_added) VALUES (@image, @sha1hash, @filename, @filesize, @tele_fileid, @tele_uniqueid, CURRENT_TIMESTAMP())";
+                                cmd.Parameters.AddWithValue("image", imgbytes);
+                                cmd.Parameters.AddWithValue("sha1hash", sha1hash(imgbytes));
+                                cmd.Parameters.AddWithValue("filename", file.FilePath);
+                                cmd.Parameters.AddWithValue("filesize", file.FileSize);
+                                cmd.Parameters.AddWithValue("tele_fileid", file.FileId);
+                                cmd.Parameters.AddWithValue("tele_uniqueid", file.FileUniqueId);
+                                await cmd.ExecuteNonQueryAsync();
+                                img_id = cmd.LastInsertedId;
+                            }
+
+                            Console.WriteLine("Image saved.  ID: " + img_id);
+                        }
+
+                        saveImageStream.Position = 0;
+
+
+
+                        var api = new StableDiffusion("http://10.0.2.2:7860/");
+                        await api.Ping();
+
+                        //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
+
+                        var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
+                        var sampler = await api.Sampler("DPM++ 2S a Karras");
+
+                        var img = new Base64EncodedImage(saveImageStream.ToArray());
+
+                        var img2img = await api.Image2Image(
+                            new()
+                            {
+                                Images = {
+                                    img
+                                },
+
+                                Model = model,
+
+                                Prompt = new()
+                                {
+                                    Positive = "anthro fox, <lora:furtastic:2>",
+                                    Negative = "text, signature, watermark, logo",
+                                },
+
+                                Seed = new()
+                                {
+                                    Seed = -1,
+                                },
+
+                                DenoisingStrength = 0.75,
+
+                                Sampler = new()
+                                {
+                                    Sampler = sampler,
+                                    SamplingSteps = 30,
+                                    CfgScale = 11
+                                },
+                            }
+                        );
+
+                        saveImageStream.Position = 0;
+
+                        using (var outimg = new MemoryStream(img2img.Images.Last().Data.ToArray()))
+                        {
+                            IAlbumInputMedia[] inputMedia = {
+                                new InputMediaPhoto(new InputFileStream(saveImageStream, "input"))
+                                {
+                                    Caption = $"Foxification complete.\r\nFor: {message.From.Username}"
+                                },
+                                new InputMediaPhoto(new InputFileStream(outimg, "output"))
+                            };
+
+                            await botClient.SendMediaGroupAsync(
+                                chatId: -1002039506384,
+                                media: inputMedia,
+                                cancellationToken: cancellationToken
+                                );
+
+                            /* await botClient.SendPhotoAsync(
+                                chatId: -1002039506384,
+                                photo: InputFile.FromStream(outimg),
+                                caption: $"Foxification complete. For: {message.From.Username}",
+                                cancellationToken: cancellationToken
+                                ); */
+                        }
+
+                        botClient.DeleteMessageAsync(message.Chat.Id, waitMsg.MessageId);
+
+                        using (var outimg = new MemoryStream(img2img.Images.Last().Data.ToArray()))
+                        {
+                            await botClient.SendPhotoAsync(
+                            chatId: message.Chat.Id,
+                            photo: InputFile.FromStream(outimg),
+                            caption: "Foxification complete.",
+                            replyToMessageId: update.Message.MessageId,
+                            cancellationToken: cancellationToken
+                            );
+                        }
+                    }
