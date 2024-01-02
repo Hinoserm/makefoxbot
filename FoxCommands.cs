@@ -504,11 +504,11 @@ namespace makefoxbot
                 await settings.Save();
             }
 
-            if (settings.selected_image <= 0)
+            if (settings.selected_image <= 0 || await FoxImage.Load(settings.selected_image) is null)
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "❌You must send an image first to use img2img functions.",
+                    text: "❌You must upload or /select an image first to use img2img functions.",
                     replyToMessageId: message.MessageId,
                     cancellationToken: cancellationToken
                 );

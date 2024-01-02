@@ -162,11 +162,15 @@ namespace makefoxbot
                                 q.input_image = await FoxImage.Load(settings.selected_image);
 
                                 if (q.input_image is null)
+                                {
+                                    await q.Finish();
                                     throw new Exception("The selected image was unable to be located");
+                                }
 
                                 //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
-                                var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
+                                //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
+                                var model = await api.StableDiffusionModel("indigoFurryMix_v105Hybrid");
                                 var sampler = await api.Sampler("DPM++ 2M Karras");
 
                                 var img = new Base64EncodedImage(q.input_image.Image);
@@ -209,7 +213,8 @@ namespace makefoxbot
                             {
                                 //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
-                                var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
+                                //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
+                                var model = await api.StableDiffusionModel("indigoFurryMix_v105Hybrid");
                                 var sampler = await api.Sampler("DPM++ 2M Karras");
 
                                 var txt2img = await api.TextToImage(
@@ -588,6 +593,7 @@ namespace makefoxbot
             await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
 
             _ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.30:7860/"));
+            _ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.30:7861/"));
             _ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.2:7860/"));
 
             Console.WriteLine($"Start listening for @{me.Username}");
