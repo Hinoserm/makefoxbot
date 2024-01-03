@@ -381,7 +381,7 @@ namespace makefoxbot
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = $"SELECT COUNT(id) FROM queue WHERE (status = 'PENDING' OR status = 'ERROR') AND uid = " + user.UID;
+                    cmd.CommandText = $"SELECT COUNT(id) FROM queue WHERE (status = 'PENDING' OR status = 'ERROR' OR status = 'PROCESSING') AND uid = " + user.UID;
 
                     await using var reader = await cmd.ExecuteReaderAsync();
                     if (reader.HasRows && await reader.ReadAsync())
