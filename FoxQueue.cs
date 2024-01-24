@@ -288,21 +288,28 @@ namespace makefoxbot
                         {
                             cmd.Connection = SQL;
                             cmd.Transaction = transaction;
-                            cmd.CommandText = cmd.CommandText = @"
-                                    SELECT *
-                                    FROM queue 
-                                    WHERE 
-                                        status IN ('PENDING', 'ERROR')
-                                    ORDER BY 
-                                        CASE 
-                                            WHEN status = 'PENDING' THEN 1
-                                            WHEN status = 'ERROR' AND (date_failed IS NULL OR date_failed < @now - INTERVAL 20 SECOND) THEN 0
-                                            WHEN status = 'ERROR' AND (SELECT COUNT(*) FROM queue WHERE status = 'PENDING') = 0 THEN 2
-                                            ELSE 3
-                                        END,
-                                        date_added ASC 
-                                    LIMIT 1 
-                                    FOR UPDATE;";
+                            cmd.CommandText = @"
+    SELECT q.*
+    FROM queue q
+    INNER JOIN users u ON q.uid = u.id
+    WHERE 
+        q.status IN ('PENDING', 'ERROR')
+    ORDER BY 
+        CASE 
+            WHEN q.status = 'PENDING' THEN 1
+            WHEN q.status = 'ERROR' AND (q.date_failed IS NULL OR q.date_failed < @now - INTERVAL 20 SECOND) THEN 0
+            WHEN q.status = 'ERROR' AND (SELECT COUNT(*) FROM queue WHERE status = 'PENDING') = 0 THEN 2
+            ELSE 3
+        END,
+        CASE 
+            WHEN u.access_level = 'ADMIN' THEN 0
+            WHEN u.access_level = 'PREMIUM' THEN 1
+            ELSE 2
+        END,
+        q.date_added ASC 
+    LIMIT 1 
+    FOR UPDATE;";
+
                             cmd.Parameters.AddWithValue("now", DateTime.Now);
 
                             await using var r = await cmd.ExecuteReaderAsync();
@@ -470,6 +477,19 @@ namespace makefoxbot
             }
         }
 
+        private static int GetRandomInt32()
+        {
+            Random random = new Random();
+            int number;
+            do
+            {
+                number = random.Next(int.MinValue, int.MaxValue);
+            }
+            while (number == -1 || number == 0);
+
+            return number;
+        }
+
         public static async Task<FoxQueue?> Add(FoxUser user, FoxUserSettings settings, string type, int msg_id, long? reply_msg = null)
         {
             using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
@@ -485,6 +505,9 @@ namespace makefoxbot
                 q.creation_time = DateTime.Now;
                 q.link_token = await CreateLinkToken();
                 q.type = type;
+
+                if (settings.seed == -1)
+                    settings.seed = GetRandomInt32();
 
                 q.settings = settings;
 

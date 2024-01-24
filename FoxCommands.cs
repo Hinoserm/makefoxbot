@@ -50,6 +50,9 @@ namespace makefoxbot
             { "/select",      CmdSelect },
             //--------------- -----------------
             { "/help",        CmdHelp },
+            //--------------- -----------------
+            { "/seed",        CmdSetSeed },
+            { "/setseed",     CmdSetSeed },
         };
 
         public static async Task HandleCommand(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
@@ -287,7 +290,7 @@ namespace makefoxbot
                           $"🪜Sampler Steps: {q.settings.steps}\r\n" +
                           $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
                           $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
-                          $"🌱Default Seed: {q.settings.seed}\r\n",
+                          $"🌱Seed: {q.settings.seed}\r\n",
                     messageId: update.CallbackQuery.Message.MessageId,
                     replyMarkup: inlineKeyboard,
                     cancellationToken: cancellationToken
@@ -681,6 +684,51 @@ namespace makefoxbot
             }
         }
 
+        [CommandDescription("Set the seed value for the next generation. Default: -1 (random)")]
+        [CommandArguments("[<value>]")]
+        private static async Task CmdSetSeed(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        {
+
+            int seed = 0;
+
+            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+
+            if (argument is null || argument.Length <= 0)
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "Current Seed: " + settings.seed,
+                    replyToMessageId: message.MessageId,
+                    cancellationToken: cancellationToken
+                );
+                return;
+            }
+
+            if (!int.TryParse(argument, out seed))
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "❌You must provide a numeric value.",
+                    replyToMessageId: message.MessageId,
+                    cancellationToken: cancellationToken
+                );
+
+                return;
+            }
+
+            settings.seed = seed;
+
+            await settings.Save();
+
+            await botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: $"✅ Seed set to {seed}.",
+                replyToMessageId: message.MessageId,
+                cancellationToken: cancellationToken
+            );
+        }
+
+
         [CommandDescription("Set or view your CFG Scale for this chat or group. Range 0 - 99.0.")]
         [CommandArguments("[<value>]")]
         private static async Task CmdSetCFG(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
@@ -873,7 +921,7 @@ namespace makefoxbot
                       $"🪜Sampler Steps: {settings.steps}\r\n" +
                       $"🧑‍🎨CFG Scale: {settings.cfgscale}\r\n" +
                       $"👂Denoising Strength: {settings.denoising_strength}\r\n" +
-                      $"🌱Default Seed: {settings.seed}\r\n",
+                      $"🌱Seed: {settings.seed}\r\n",
                 replyToMessageId: message.MessageId,
                 cancellationToken: cancellationToken
             );

@@ -59,7 +59,7 @@ namespace makefoxbot
                             $"🪜Sampler Steps: {q.settings.steps}\r\n" +
                             $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
                             $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
-                            $"🌱Default Seed: {q.settings.seed}\r\n",
+                            $"🌱Seed: {q.settings.seed}\r\n",
                         //ParseMode = ParseMode.Html
                         },
                         new InputMediaPhoto(new InputFileStream(new MemoryStream(q.output_image.Image), "output"))
@@ -84,7 +84,7 @@ namespace makefoxbot
                                  $"🖥️ Size: {q.settings.width}x{q.settings.height}\r\n" +
                                  $"🪜Sampler Steps: {q.settings.steps}\r\n" +
                                  $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
-                                 $"🌱Default Seed: {q.settings.seed}\r\n"
+                                 $"🌱Seed: {q.settings.seed}\r\n"
                         );
 
                     output_fileid = msg.Photo.First().FileId;
