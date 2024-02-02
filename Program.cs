@@ -589,7 +589,7 @@ namespace makefoxbot
 
             var teleOptions = new TelegramBotClientOptions(
                 token: settings.TelegramBotToken,
-                baseUrl: settings.TelegramApiUrl is null ? "https://api.telegram.org" : settings.TelegramApiUrl
+                baseUrl: settings.TelegramApiUrl //Might be null, and that's okay.
             );
 
             var botClient = new TelegramBotClient(teleOptions);
@@ -610,7 +610,6 @@ namespace makefoxbot
                 receiverOptions: receiverOptions,
                 cancellationToken: cts.Token
             );
-
 
             await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
 
