@@ -22,6 +22,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 
 public interface IMySettings
 {
@@ -396,6 +397,8 @@ namespace makefoxbot
 
                                     using var imgStream = new MemoryStream();
 
+                                    //Console.WriteLine(botClient.GetInfo)
+
                                     var file = await botClient.GetInfoAndDownloadFileAsync(photo.FileId, imgStream);
 
                                     img = await FoxImage.Create(user.UID, imgStream.ToArray(), FoxImage.ImageType.INPUT, file.FilePath, file.FileId, file.FileUniqueId, message.Chat.Id, message.MessageId);
@@ -571,7 +574,12 @@ namespace makefoxbot
             if (settings.TelegramBotToken is null)
                 throw new Exception("BOT_TOKEN setting not set.");
 
-            var botClient = new TelegramBotClient(settings.TelegramBotToken);
+            var teleOptions = new TelegramBotClientOptions(
+                token: settings.TelegramBotToken,
+                baseUrl: "http://10.0.2.40:8081"
+            );
+
+            var botClient = new TelegramBotClient(teleOptions);
 
             using CancellationTokenSource cts = new();
 
@@ -581,6 +589,8 @@ namespace makefoxbot
                 AllowedUpdates = Array.Empty<UpdateType>() // receive all update types except ChatMember related updates
             };
 
+            Program.me = await botClient.GetMeAsync();
+
             botClient.StartReceiving(
                 updateHandler: HandleUpdateAsync,
                 pollingErrorHandler: HandlePollingErrorAsync,
@@ -588,7 +598,6 @@ namespace makefoxbot
                 cancellationToken: cts.Token
             );
 
-            Program.me = await botClient.GetMeAsync();
 
             await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
 
