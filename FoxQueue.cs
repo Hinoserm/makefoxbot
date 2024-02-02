@@ -149,6 +149,9 @@ namespace makefoxbot
         private static CancellationTokenSource notify_cts = new CancellationTokenSource();
         public static async Task NotifyUserPositions(ITelegramBotClient botClient)
         {
+
+            return;
+
             try
             {
                 notify_cts.Cancel();

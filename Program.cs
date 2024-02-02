@@ -594,7 +594,7 @@ namespace makefoxbot
 
             _ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.30:7860/"));
             _ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.30:7861/"));
-            //_ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.2:7860/"));
+            _ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.2:7860/"));
 
             Console.WriteLine($"Start listening for @{me.Username}");
             Console.WriteLine($"Bot ID: {me.Id}");
