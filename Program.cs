@@ -30,6 +30,9 @@ public interface IMySettings
     [Option(Alias = "Telegram.BOT_TOKEN")]
     string TelegramBotToken { get; }
 
+    [Option(Alias = "Telegram.API_URL")]
+    string TelegramApiUrl { get; }
+
     [Option(Alias = "MySQL.USERNAME")]
     string MySQLUsername { get; }
     [Option(Alias = "MySQL.PASSWORD")]
@@ -586,7 +589,7 @@ namespace makefoxbot
 
             var teleOptions = new TelegramBotClientOptions(
                 token: settings.TelegramBotToken,
-                baseUrl: "http://10.0.2.40:8081"
+                baseUrl: settings.TelegramApiUrl is null ? "https://api.telegram.org" : settings.TelegramApiUrl
             );
 
             var botClient = new TelegramBotClient(teleOptions);
