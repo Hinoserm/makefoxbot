@@ -400,6 +400,8 @@ namespace makefoxbot
                                         var file = await botClient.GetFileAsync(photo.FileId);
 
                                         img = await FoxImage.Create(user.UID, System.IO.File.ReadAllBytes(file.FilePath), FoxImage.ImageType.INPUT, file.FilePath, file.FileId, file.FileUniqueId, message.Chat.Id, message.MessageId);
+
+                                        System.IO.File.Delete(file.FilePath);
                                     }
                                     else
                                     {
@@ -408,6 +410,7 @@ namespace makefoxbot
                                         var file = await botClient.GetInfoAndDownloadFileAsync(photo.FileId, imgStream);
 
                                         img = await FoxImage.Create(user.UID, imgStream.ToArray(), FoxImage.ImageType.INPUT, file.FilePath, file.FileId, file.FileUniqueId, message.Chat.Id, message.MessageId);
+
                                     }
 
                                     Console.WriteLine("Image saved.  ID: " + img.ID);
