@@ -12,6 +12,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.InlineQueryResults;
 using Telegram.Bot.Types.ReplyMarkups;
+using System;
 using System.IO;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -394,14 +395,20 @@ namespace makefoxbot
                                 }
                                 else
                                 {
+                                    if (botClient.LocalBotServer)
+                                    {
+                                        var file = await botClient.GetFileAsync(photo.FileId);
 
-                                    using var imgStream = new MemoryStream();
+                                        img = await FoxImage.Create(user.UID, System.IO.File.ReadAllBytes(file.FilePath), FoxImage.ImageType.INPUT, file.FilePath, file.FileId, file.FileUniqueId, message.Chat.Id, message.MessageId);
+                                    }
+                                    else
+                                    {
+                                        using var imgStream = new MemoryStream();
 
-                                    //Console.WriteLine(botClient.GetInfo)
+                                        var file = await botClient.GetInfoAndDownloadFileAsync(photo.FileId, imgStream);
 
-                                    var file = await botClient.GetInfoAndDownloadFileAsync(photo.FileId, imgStream);
-
-                                    img = await FoxImage.Create(user.UID, imgStream.ToArray(), FoxImage.ImageType.INPUT, file.FilePath, file.FileId, file.FileUniqueId, message.Chat.Id, message.MessageId);
+                                        img = await FoxImage.Create(user.UID, imgStream.ToArray(), FoxImage.ImageType.INPUT, file.FilePath, file.FileId, file.FileUniqueId, message.Chat.Id, message.MessageId);
+                                    }
 
                                     Console.WriteLine("Image saved.  ID: " + img.ID);
 
