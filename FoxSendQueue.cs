@@ -11,6 +11,7 @@ using Telegram.Bot;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
+using System.Text.RegularExpressions;
 
 namespace makefoxbot
 {
@@ -109,58 +110,84 @@ namespace makefoxbot
                 // new InputFileId(output_fileid)
 
 
-                try
+                bool success = false;
+                while (!success)
                 {
-                    var u = await FoxTelegramUser.Get(q.TelegramUserID);
-                    var c = (q.TelegramUserID != q.TelegramChatID ? await FoxTelegramChat.Get(q.TelegramChatID) : null);
-
-                    if (q.input_image is not null)
+                    try
                     {
-                        IAlbumInputMedia[] inputMedia = {
-                        new InputMediaPhoto(new InputFileStream(ConvertImageToJpeg(new MemoryStream(q.input_image.Image)), "input"))
+                        // Attempt to run the operation that might fail
+                        var u = await FoxTelegramUser.Get(q.TelegramUserID);
+                        var c = (q.TelegramUserID != q.TelegramChatID ? await FoxTelegramChat.Get(q.TelegramChatID) : null);
+
+                        if (q.input_image is not null)
                         {
-                            //Caption = $"(<a href=\"http://makefox.bot/q/{q.link_token}\">Click for Details</a>)",
-                            Caption =
-                                (u is null ? "" : $"👤User: {u.display_name}\r\n") +
-                                (c is null ? "" : $"💬Chat: {c.title}\r\n") +
-                                $"🖤Prompt: " + q.settings.prompt.Left(600) + "\r\n" +
-                                $"🐊Negative: " + q.settings.negative_prompt.Left(200) + "\r\n" +
-                                $"🖥️ Size: {q.settings.width}x{q.settings.height}\r\n" +
-                                $"🪜Sampler Steps: {q.settings.steps}\r\n" +
-                                $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
-                                $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
-                                $"🌱Seed: {q.settings.seed}\r\n",
-                            //ParseMode = ParseMode.Html
-                            },
-                            new InputMediaPhoto(new InputFileId(output_fileid))
-                        };
+                            IAlbumInputMedia[] inputMedia = {
+                            new InputMediaPhoto(new InputFileStream(ConvertImageToJpeg(new MemoryStream(q.input_image.Image)), "input"))
+                            {
+                                //Caption = $"(<a href=\"http://makefox.bot/q/{q.link_token}\">Click for Details</a>)",
+                                Caption =
+                                    (u is null ? "" : $"👤User: {u.display_name}\r\n") +
+                                    (c is null ? "" : $"💬Chat: {c.title}\r\n") +
+                                    $"🖤Prompt: " + q.settings.prompt.Left(600) + "\r\n" +
+                                    $"🐊Negative: " + q.settings.negative_prompt.Left(200) + "\r\n" +
+                                    $"🖥️ Size: {q.settings.width}x{q.settings.height}\r\n" +
+                                    $"🪜Sampler Steps: {q.settings.steps}\r\n" +
+                                    $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
+                                    $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
+                                    $"🌱Seed: {q.settings.seed}\r\n",
+                                //ParseMode = ParseMode.Html
+                                },
+                                new InputMediaPhoto(new InputFileId(output_fileid))
+                            };
 
-                        await botClient.SendMediaGroupAsync(
-                            chatId: -1002039506384,
-                            media: inputMedia
-                            );
+                            await botClient.SendMediaGroupAsync(
+                                chatId: -1002039506384,
+                                media: inputMedia
+                                );
 
+                        }
+                        else
+                        {
+                            await botClient.SendPhotoAsync(
+                                chatId: -1002039506384,
+                                photo: new InputFileId(output_fileid),
+                                caption: (u is null ? "" : $"👤User: {u.display_name}\r\n") +
+                                         (c is null ? "" : $"💬Chat: {c.title}\r\n") +
+                                         $"🖤Prompt: " + q.settings.prompt.Left(600) + "\r\n" +
+                                         $"🐊Negative: " + q.settings.negative_prompt.Left(200) + "\r\n" +
+                                         $"🖥️ Size: {q.settings.width}x{q.settings.height}\r\n" +
+                                         $"🪜Sampler Steps: {q.settings.steps}\r\n" +
+                                         $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
+                                         $"🌱Seed: {q.settings.seed}\r\n"
+                                );
+                        }
+
+                        success = true;
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        await botClient.SendPhotoAsync(
-                            chatId: -1002039506384,
-                            photo: new InputFileId(output_fileid),
-                            caption: (u is null ? "" : $"👤User: {u.display_name}\r\n") +
-                                     (c is null ? "" : $"💬Chat: {c.title}\r\n") +
-                                     $"🖤Prompt: " + q.settings.prompt.Left(600) + "\r\n" +
-                                     $"🐊Negative: " + q.settings.negative_prompt.Left(200) + "\r\n" +
-                                     $"🖥️ Size: {q.settings.width}x{q.settings.height}\r\n" +
-                                     $"🪜Sampler Steps: {q.settings.steps}\r\n" +
-                                     $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
-                                     $"🌱Seed: {q.settings.seed}\r\n"
-                            );
+                        // Pattern to match "Too Many Requests: retry after XX"
+                        string pattern = @"Too Many Requests: retry after (\d+)";
+                        Match match = Regex.Match(ex.Message, pattern);
+
+                        if (match.Success)
+                        {
+                            // If the message matches, extract the number
+                            int retryAfterSeconds = int.Parse(match.Groups[1].Value) + 3;
+                            Console.WriteLine($"Rate limit exceeded. Retrying after {retryAfterSeconds} seconds...");
+
+                            // Wait for the specified number of seconds before retrying
+                            await Task.Delay(retryAfterSeconds * 1000);
+                        }
+                        else
+                        {
+                            // If the message doesn't match the expected format, rethrow the exception
+                            throw;
+                        }
                     }
+
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("ERROR SENDING TO GROUP !!!!! " + ex.Message);
-                }
+
             } else {
                 try
                 {
@@ -169,6 +196,7 @@ namespace makefoxbot
                         messageId: q.msg_id,
                         text: $"❌ An unexpected error occured.  Please try again."
                     );
+                    Console.WriteLine("SendQueue: Unexpected error; output image was null.");
                 }
                 catch { } //We don't care if editing fails.
             }

@@ -417,7 +417,6 @@ namespace makefoxbot
                                     }
 
                                     Console.WriteLine("Image saved.  ID: " + img.ID);
-
                                 }
 
                                 if (message.From.Id == message.Chat.Id) //Only save & notify outside of groups.
