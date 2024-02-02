@@ -54,14 +54,21 @@ namespace makefoxbot
                 {
                     if (ex.Message.Contains("Bad Request: message to reply not found"))
                     {
-                        var msg = await botClient.SendPhotoAsync(
-                            chatId: q.TelegramChatID,
-                            photo: InputFile.FromStream(ConvertImageToJpeg(new MemoryStream(q.output_image.Image)))
-                            );
-                        output_fileid = msg.Photo.First().FileId;
+                        try
+                        {
+                            var msg = await botClient.SendPhotoAsync(
+                                chatId: q.TelegramChatID,
+                                photo: InputFile.FromStream(ConvertImageToJpeg(new MemoryStream(q.output_image.Image)))
+                                );
+                            output_fileid = msg.Photo.First().FileId;
+                        }
+                        catch (Exception ex2)
+                        {
+                            Console.WriteLine("ERROR SENDING !!!!! " + ex2.Message);
+                        }
                     }
                     else
-                        throw;
+                        throw ex;
                 }
 
                 try
