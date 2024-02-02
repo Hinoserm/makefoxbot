@@ -186,7 +186,7 @@ namespace makefoxbot
                 image.SaveAsJpeg(outputStream, new JpegEncoder { Quality = quality });
                 outputStream.Position = 0;
 
-                Console.WriteLine($"ConvertImagetoJpeg({quality}%): " + Math.Round(inputImageStream.Length / 1024.0, 2) + "kb > " + Math.Round(outputStream.Length / 1024.0, 2) + "kb");
+                //Console.WriteLine($"ConvertImagetoJpeg({quality}%): " + Math.Round(inputImageStream.Length / 1024.0, 2) + "kb > " + Math.Round(outputStream.Length / 1024.0, 2) + "kb");
                 return outputStream;
             }
         }

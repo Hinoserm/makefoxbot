@@ -119,7 +119,7 @@ namespace makefoxbot
 
                     while ((q = await FoxQueue.Pop()) is not null) //Work until the queue is empty
                     {
-                        Console.WriteLine($"Starting image {q.id}...");
+                        //Console.WriteLine($"Starting image {q.id}...");
 
                         try
                         {
@@ -253,7 +253,7 @@ namespace makefoxbot
                             _ = FoxQueue.NotifyUserPositions(botClient);
 
 
-                            Console.WriteLine($"Finished image {q.id}.");
+                            //Console.WriteLine($"Finished image {q.id}.");
 
                         }
                         catch (Exception ex)
