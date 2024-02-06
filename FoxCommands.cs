@@ -883,11 +883,29 @@ namespace makefoxbot
 
             steps = Int16.Parse(stepstr[1]);
 
-            if (steps < 5 || steps > 40)
+            if (steps > 20 && user.AccessLevel != "PREMIUM" && user.AccessLevel != "ADMIN")
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "❌Value must be above 5 and below 40.",
+                    text: "❌ Only premium users can exceed 20 steps.",
+                    replyToMessageId: message.MessageId,
+                    cancellationToken: cancellationToken
+                );
+
+                if (settings.steps > 20)
+                {
+                    settings.steps = 20;
+
+                    await settings.Save();
+
+                }
+                return;
+            }
+            else if (steps < 1 || steps > 60)
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "❌ Value must be above 1 and below 60.",
                     replyToMessageId: message.MessageId,
                     cancellationToken: cancellationToken
                 );
@@ -971,11 +989,20 @@ namespace makefoxbot
                 return;
             }
 
-            if (width > 1280 || height > 1280)
+            if ((width > 1280 || height > 1280) && user.AccessLevel != "PREMIUM" && user.AccessLevel != "ADMIN")
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "❌ Dimenion must be no greater than 1200.",
+                    text: "❌ Only premium users can exceed 1024 pixels in any direction.",
+                    replyToMessageId: message.MessageId,
+                    cancellationToken: cancellationToken
+                );
+                return;
+            } else if (width > 1280 || height > 1280)
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "❌ Dimension cannot be greater than 1280.",
                     replyToMessageId: message.MessageId,
                     cancellationToken: cancellationToken
                 );
