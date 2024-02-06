@@ -989,7 +989,7 @@ namespace makefoxbot
                 return;
             }
 
-            if ((width > 1280 || height > 1280) && user.AccessLevel != "PREMIUM" && user.AccessLevel != "ADMIN")
+            if ((width > 1024 || height > 1024) && user.AccessLevel != "PREMIUM" && user.AccessLevel != "ADMIN")
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
