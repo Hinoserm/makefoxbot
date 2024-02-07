@@ -29,6 +29,9 @@ namespace makefoxbot
 
             if (q.output_image is not null)
             {
+
+                await q.SetSending();
+
                 try
                 {
                     await botClient.EditMessageTextAsync(
@@ -109,6 +112,7 @@ namespace makefoxbot
 
                 // new InputFileId(output_fileid)
 
+                await q.Finish();
 
                 bool success = false;
                 while (!success)
@@ -200,8 +204,6 @@ namespace makefoxbot
                 }
                 catch { } //We don't care if editing fails.
             }
-
-            await q.Finish();
 
             //Console.WriteLine("Upload Complete");
         }

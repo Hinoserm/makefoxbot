@@ -40,6 +40,7 @@ namespace makefoxbot
         public string type;
         public int msg_id;
         public DateTime creation_time;
+        public DateTime? date_sent = null;
         public string? link_token = null;
 
         public long position = 0;
@@ -456,6 +457,23 @@ namespace makefoxbot
                 {
                     cmd.Connection = SQL;
                     cmd.CommandText = $"UPDATE queue SET status = 'FINISHED', date_finished = @now WHERE id = @id";
+                    cmd.Parameters.AddWithValue("id", this.id);
+                    cmd.Parameters.AddWithValue("now", DateTime.Now);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+        }
+
+        public async Task SetSending()
+        {
+            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = $"UPDATE queue SET date_sent = @now WHERE id = @id";
                     cmd.Parameters.AddWithValue("id", this.id);
                     cmd.Parameters.AddWithValue("now", DateTime.Now);
                     await cmd.ExecuteNonQueryAsync();

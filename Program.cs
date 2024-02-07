@@ -512,7 +512,7 @@ namespace makefoxbot
                 Console.WriteLine("Unexpected type of update received from Telegram: " + update.Type);
                 return;
             }
-            Console.WriteLine("Update Type: " + update.Type);
+            //Console.WriteLine("Update Type: " + update.Type);
 
             _ = Task.Run(() => RunHandlerThread(botClient, update, cancellationToken), cancellationToken);
         }
