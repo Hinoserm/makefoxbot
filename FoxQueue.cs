@@ -481,6 +481,24 @@ namespace makefoxbot
             }
         }
 
+        public async Task SetWorker(string worker)
+        {
+            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = $"UPDATE queue SET worker = @worker, date_worker_start = @now WHERE id = @id";
+                    cmd.Parameters.AddWithValue("id", this.id);
+                    cmd.Parameters.AddWithValue("worker", worker);
+                    cmd.Parameters.AddWithValue("now", DateTime.Now);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+        }
+
         public async Task Finish(Exception ex)
         {
             using (var SQL = new MySqlConnection(Program.MySqlConnectionString))

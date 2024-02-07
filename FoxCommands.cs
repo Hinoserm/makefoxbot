@@ -1071,11 +1071,10 @@ This bot and the content generated are for research and educational purposes onl
                     settings.steps = 20;
 
                     await settings.Save();
-
                 }
                 return;
             }
-            else if (steps < 1 || steps > 60)
+            else if (steps < 1 || (steps > 60 && user.AccessLevel != "ADMIN"))
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,

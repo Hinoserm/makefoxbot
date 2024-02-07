@@ -128,6 +128,8 @@ namespace makefoxbot
 
                         try
                         {
+                            await q.SetWorker(address);
+
                             await api.Ping();
 
                             try
