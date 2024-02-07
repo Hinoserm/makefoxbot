@@ -17,6 +17,30 @@ namespace makefoxbot
 {
     internal class FoxCommandHandler
     {
+
+        private static string help_welcomestr = @"
+Hi, I’m Makefoxbot. I can help you generate furry pictures through AI.
+
+At the bottom left you’ll notice a blue menu button with various commands. Here’s what they do and the order in which you should use them to get started:
+
+/setprompt followed by your prompt sets the image description. It’s generally good practice to use e621 tags separated by commas. You can also use parentheses for emphasis, e.g. (red ears:1.3) 
+
+/setnegative sets your negative prompt, i.e. things you don’t want in your generation. It works the same as /setprompt. 
+
+/setscale lets you define how closely the AI will follow your prompt. Default is at 7.5; generally you shouldn’t go above ~18 or you’ll get weird outputs.
+
+/generate will then generate an image using the above input. If you’d like to skip the above you can also type /generate or /gen directly followed by your prompt.
+
+If you prefer to use an input image with your prompt, just send me that image, define your prompt using /setprompt and /setnegative, then use /img2img to generate the output image.
+
+/setdenoise lets you define how closely the AI will follow your input image. The default is at 0.75. 0 means the AI will copy the input image exactly, 1 means it will ignore it entirely.
+
+All your settings and input images are stored by the bot until you replace them, so there is no need to input everything again for the same prompt. Either /generate or /img2img will work on their own.
+
+Enjoy, and if you have any questions feel free to ask them in @toomanyfoxes
+
+View a full list of commands: /commands";
+
         private static readonly Dictionary<string, Func<ITelegramBotClient, Message, CancellationToken, FoxUser, String?, Task>> CommandMap = new Dictionary<string, Func<ITelegramBotClient, Message, CancellationToken, FoxUser, String?, Task>>
         {
             { "/pizza",       CmdTest },
@@ -49,7 +73,12 @@ namespace makefoxbot
             { "/current",     CmdCurrent },
             { "/select",      CmdSelect },
             //--------------- -----------------
+            { "/start",       CmdWelcome },
+            //--------------- -----------------
             { "/help",        CmdHelp },
+            //--------------- -----------------
+            { "/commands",    CmdCmdList },
+            { "/cmdlist",     CmdCmdList },
             //--------------- -----------------
             { "/seed",        CmdSetSeed },
             { "/setseed",     CmdSetSeed },
@@ -270,7 +299,7 @@ namespace makefoxbot
                     InlineKeyboardButton.WithCallbackData("👎", "/vote down " + q.id),
                     InlineKeyboardButton.WithCallbackData("💾", "/download " + q.id),
                     InlineKeyboardButton.WithCallbackData("🎨", "/select " + q.id),
-                    
+
                 },
                 //new[]
                 //{
@@ -387,7 +416,7 @@ namespace makefoxbot
                 settings.selected_image = (ulong)q.image_id;
 
                 await settings.Save();
-                
+
                 try
                 {
                     Message waitMsg = await botClient.SendTextMessageAsync(
@@ -467,8 +496,9 @@ namespace makefoxbot
             }
 
         }
-        
-        private static async Task CmdHelp(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+
+        [CommandDescription("Show list of available commands")]
+        private static async Task CmdCmdList(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
         {
             var commandGroups = CommandMap
                 .GroupBy(pair => pair.Value, pair => pair.Key)
@@ -490,6 +520,23 @@ namespace makefoxbot
             await botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
                 text: string.Join(Environment.NewLine, helpEntries),
+                replyToMessageId: message.MessageId,
+                cancellationToken: cancellationToken
+            );
+        }
+
+
+        private static async Task CmdWelcome(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        {
+            await CmdHelp(botClient, message, cancellationToken, user, argument);
+        }
+
+        [CommandDescription("Show helpful information")]
+        private static async Task CmdHelp(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        {
+            await botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: help_welcomestr,
                 replyToMessageId: message.MessageId,
                 cancellationToken: cancellationToken
             );
@@ -945,7 +992,8 @@ namespace makefoxbot
             );
         }
 
-        [CommandDescription("Not Yet Implemented")]
+        [CommandDescription("Change the size of the output, e.g. /setsize 768x768")]
+        [CommandArguments("<width>x<height>")]
         private static async Task CmdSetSize(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
         {
             int width;
@@ -978,11 +1026,11 @@ namespace makefoxbot
                 return;
             }
 
-            if (width < 100 || height < 100)
+            if (width < 32 || height < 32)
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "❌ Dimenion should be at least 100 pixels.",
+                    text: "❌ Dimenion should be at least 32 pixels.",
                     replyToMessageId: message.MessageId,
                     cancellationToken: cancellationToken
                 );
