@@ -630,10 +630,19 @@ This bot and the content generated are for research and educational purposes onl
 
         private static async Task CmdWelcome(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
         {
+            var inlineKeyboard = new InlineKeyboardMarkup(new[]
+                {
+                    new[]
+                    {
+                        InlineKeyboardButton.WithCallbackData("More Help", "/help 2"),
+                    }
+                });
+
             await botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
                 text: text_help[0] + "\r\n" + text_legal,
                 replyToMessageId: message.MessageId,
+                replyMarkup: inlineKeyboard,
                 cancellationToken: cancellationToken
             );
 
