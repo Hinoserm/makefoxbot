@@ -168,7 +168,7 @@
 
     internal class Program
     {
-        public static string MySqlConnectionString = $"Server=;User ID=;Password=;Database=;charset=utf8mb4;keepalive=60;minpoolsize=2";
+        public static string MySqlConnectionString = $"Server=;User ID=c;Password=;Database=;charset=utf8mb4;keepalive=60;minpoolsize=2";
 
         static async Task Main(string[] args)
         {
