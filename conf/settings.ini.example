@@ -1,0 +1,8 @@
+[mysql]
+server=
+database=
+username=
+password=
+
+[telegram]
+bot_token=
