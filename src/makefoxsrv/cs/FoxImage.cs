@@ -69,7 +69,7 @@ namespace makefoxbot
             this.SHA1Hash = sha1hash(this.Image);
             this.DateAdded = DateTime.Now;
 
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
                 using (var cmd = new MySqlCommand())
@@ -100,7 +100,7 @@ namespace makefoxbot
 
         public static async Task<FoxImage?> LoadFromTelegramUniqueId(ulong userId, string telegramUniqueID, long telegramChatID)
         {
-            using var SQL = new MySqlConnection(Program.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -120,7 +120,7 @@ namespace makefoxbot
 
         public static async Task<FoxImage?> LoadLastUploaded(FoxUser user, long tele_chatid)
         {
-            using var SQL = new MySqlConnection(Program.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -145,7 +145,7 @@ namespace makefoxbot
             if (telegramUniqueId is not null)
                 this.TelegramUniqueID = telegramUniqueId;
 
-            using var SQL = new MySqlConnection(Program.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -169,7 +169,7 @@ namespace makefoxbot
             if (telegramUniqueId is not null)
                 this.TelegramFullUniqueID = telegramUniqueId;
 
-            using var SQL = new MySqlConnection(Program.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -189,7 +189,7 @@ namespace makefoxbot
         {
             var img = new FoxImage();
 
-            using var SQL = new MySqlConnection(Program.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
             await SQL.OpenAsync();
 

@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.3.32929.385
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "makefoxbot", "makefoxbot.csproj", "{B2DE3024-B555-42F7-B459-71AC62EB822B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "makefoxbot", "src\makefoxsrv\makefoxbot.csproj", "{CDE2AF31-371F-470B-89A3-0276D79A6787}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "gpustats", "src\gpu_stats\gpustats.csproj", "{66C2E5B2-3C0F-4E5E-B73D-3F7F89F82147}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,10 +13,14 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{B2DE3024-B555-42F7-B459-71AC62EB822B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B2DE3024-B555-42F7-B459-71AC62EB822B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B2DE3024-B555-42F7-B459-71AC62EB822B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B2DE3024-B555-42F7-B459-71AC62EB822B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CDE2AF31-371F-470B-89A3-0276D79A6787}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CDE2AF31-371F-470B-89A3-0276D79A6787}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CDE2AF31-371F-470B-89A3-0276D79A6787}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CDE2AF31-371F-470B-89A3-0276D79A6787}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66C2E5B2-3C0F-4E5E-B73D-3F7F89F82147}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66C2E5B2-3C0F-4E5E-B73D-3F7F89F82147}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66C2E5B2-3C0F-4E5E-B73D-3F7F89F82147}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66C2E5B2-3C0F-4E5E-B73D-3F7F89F82147}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

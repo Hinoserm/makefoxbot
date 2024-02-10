@@ -81,7 +81,7 @@ namespace makefoxbot
         }
     }
 
-    internal class Program
+    internal class FoxMain
     {
         public static IMySettings? settings = new ConfigurationBuilder<IMySettings>()
         .UseIniFile("settings.ini")
@@ -299,7 +299,7 @@ namespace makefoxbot
             if (user is null)
                 return;
 
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -323,7 +323,7 @@ namespace makefoxbot
             if (chat is null)
                 return;
 
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -455,7 +455,7 @@ namespace makefoxbot
 
                         try
                         {
-                            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+                            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                             {
                                 await SQL.OpenAsync();
 
@@ -573,7 +573,7 @@ namespace makefoxbot
             try
             {
 
-                var SQL = new MySqlConnection(Program.MySqlConnectionString);
+                var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
                 await SQL.OpenAsync();
             }
             catch (Exception ex)
@@ -603,7 +603,7 @@ namespace makefoxbot
                 AllowedUpdates = Array.Empty<UpdateType>() // receive all update types except ChatMember related updates
             };
 
-            Program.me = await botClient.GetMeAsync();
+            FoxMain.me = await botClient.GetMeAsync();
 
             botClient.StartReceiving(
                 updateHandler: HandleUpdateAsync,

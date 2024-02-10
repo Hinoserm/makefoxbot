@@ -162,7 +162,7 @@ This bot and the content generated are for research and educational purposes onl
             var c = command.Split('@', 2);
             if (c.Count() == 2)
             {
-                if (c[1] != Program.me.Username)
+                if (c[1] != FoxMain.me.Username)
                     return; // Not for us, skip it.
 
                 command = c[0];
@@ -555,7 +555,7 @@ This bot and the content generated are for research and educational purposes onl
 
             await FoxQueue.Add(user, settings, "TXT2IMG", waitMsg.MessageId, message.MessageId);
 
-            Program.semaphore.Release();
+            FoxMain.semaphore.Release();
         }
 
         [CommandDescription("Select your last uploaded image as the input for /img2img")]
@@ -730,7 +730,7 @@ This bot and the content generated are for research and educational purposes onl
 
             await q.CheckPosition(); // Load the queue position and total.
 
-            Program.semaphore.Release();
+            FoxMain.semaphore.Release();
 
             try
             {
@@ -793,7 +793,7 @@ This bot and the content generated are for research and educational purposes onl
 
             await q.CheckPosition(); // Load the queue position and total.
 
-            Program.semaphore.Release();
+            FoxMain.semaphore.Release();
 
             try
             {

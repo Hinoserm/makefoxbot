@@ -20,7 +20,7 @@ namespace makefoxbot
 
         public static async Task<FoxTelegramUser?> Get(long tele_userid)
         {
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -76,7 +76,7 @@ namespace makefoxbot
 
         public static async Task<FoxTelegramChat?> Get(long tele_userid)
         {
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -136,7 +136,7 @@ namespace makefoxbot
         {
             FoxUser? user = null;
 
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -183,7 +183,7 @@ namespace makefoxbot
         {
             ulong user_id = 0;
 
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -208,7 +208,7 @@ namespace makefoxbot
 
         public async Task UpdateTimestamps()
         {
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 

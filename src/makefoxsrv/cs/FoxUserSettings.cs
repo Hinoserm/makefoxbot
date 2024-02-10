@@ -29,7 +29,7 @@ namespace makefoxbot
 
         public async Task Save()
         {
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -65,7 +65,7 @@ namespace makefoxbot
             settings.TelegramUserID = tuser.Id;
             settings.User = user;
 
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 

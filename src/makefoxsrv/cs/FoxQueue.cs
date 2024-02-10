@@ -83,7 +83,7 @@ namespace makefoxbot
 
             string token;
 
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -108,7 +108,7 @@ namespace makefoxbot
         }
         public async Task<long> CheckPosition()
         {
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -158,7 +158,7 @@ namespace makefoxbot
                 notify_cts.Cancel();
                 notify_cts = new CancellationTokenSource();
 
-                using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+                using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                 {
                     await SQL.OpenAsync();
 
@@ -217,7 +217,7 @@ namespace makefoxbot
             var settings = new FoxUserSettings();
             var q = new FoxQueue();
 
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -280,7 +280,7 @@ namespace makefoxbot
             var settings = new FoxUserSettings();
             var q = new FoxQueue();
 
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -385,7 +385,7 @@ namespace makefoxbot
 
         public static async Task<int> GetCountByUser(FoxUser user)
         {
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -412,7 +412,7 @@ namespace makefoxbot
                 
             this.output_image = await FoxImage.Create(this.UID, img, FoxImage.ImageType.OUTPUT, fname);
 
-            using var SQL = new MySqlConnection(Program.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
             
             await SQL.OpenAsync();
 
@@ -429,7 +429,7 @@ namespace makefoxbot
         public async Task<FoxImage?> LoadOutputImage()
         {
 
-            using var SQL = new MySqlConnection(Program.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
             await SQL.OpenAsync();
 
 
@@ -449,7 +449,7 @@ namespace makefoxbot
 
         public async Task Finish()
         {
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -466,7 +466,7 @@ namespace makefoxbot
 
         public async Task SetSending()
         {
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -483,7 +483,7 @@ namespace makefoxbot
 
         public async Task SetWorker(string worker)
         {
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -501,7 +501,7 @@ namespace makefoxbot
 
         public async Task Finish(Exception ex)
         {
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
                 using (var cmd = new MySqlCommand())
@@ -531,7 +531,7 @@ namespace makefoxbot
 
         public static async Task<FoxQueue?> Add(FoxUser user, FoxUserSettings settings, string type, int msg_id, long? reply_msg = null)
         {
-            using (var SQL = new MySqlConnection(Program.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
 
