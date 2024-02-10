@@ -677,7 +677,7 @@ This bot and the content generated are for research and educational purposes onl
 
             if (!string.IsNullOrEmpty(argument))
             {
-                settings.prompt = argument.Replace("\n", ", ");
+                settings.prompt = argument; //.Replace("\n", ", ");
                 await settings.Save();
             }
 
@@ -752,9 +752,10 @@ This bot and the content generated are for research and educational purposes onl
 
             if (!string.IsNullOrEmpty(argument))
             {
-                settings.prompt = argument.Replace("\n", ", ");
+                settings.prompt = argument; //.Replace("\n", ", ");
                 await settings.Save();
             }
+
 
             int q_limit = 2;
             switch (user.AccessLevel)
@@ -813,7 +814,7 @@ This bot and the content generated are for research and educational purposes onl
             var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
 
             if (!string.IsNullOrEmpty(argument))
-                settings.negative_prompt = argument.Replace("\n", ", ");
+                settings.negative_prompt = argument; //.Replace("\n", ", ");
             else
                 settings.negative_prompt = "";
 
@@ -836,7 +837,7 @@ This bot and the content generated are for research and educational purposes onl
             if (!string.IsNullOrEmpty(argument))
             {
 
-                settings.prompt = argument.Replace("\n", ", ");
+                settings.prompt = argument; //.Replace("\n", ", ");
 
                 await settings.Save();
 
