@@ -8,6 +8,12 @@
     <PublishAot>False</PublishAot>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <!-- Adjust this as necessary -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Remove="logs\**" />
     <EmbeddedResource Remove="logs\**" />
@@ -26,5 +32,9 @@
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.0" />
     <PackageReference Include="Telegram.Bot" Version="20.0.0-alpha.1" />
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(Configuration)'=='Release'">
+    <Exec Command="move &quot;$(TargetDir)$(TargetFileName)&quot; &quot;$(SolutionDir)bin\$(TargetFileName)&quot;" />
+  </Target>
 
 </Project>

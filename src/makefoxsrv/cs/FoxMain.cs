@@ -84,7 +84,7 @@ namespace makefoxbot
     internal class FoxMain
     {
         public static IMySettings? settings = new ConfigurationBuilder<IMySettings>()
-        .UseIniFile("settings.ini")
+        .UseIniFile("../conf/settings.ini")
         .Build();
 
         public static string MySqlConnectionString = $"Server={settings.MySQLServer};User ID={settings.MySQLUsername};Password={settings.MySQLPassword};Database={settings.MySQLDatabase};charset=utf8mb4;keepalive=60;minpoolsize=2";
@@ -557,6 +557,9 @@ namespace makefoxbot
         static async Task Main(string[] args)
         {
             Console.WriteLine("Hello, World!");
+
+            string currentDirectory = Directory.GetCurrentDirectory();
+            Console.WriteLine($"Current Working Directory: {currentDirectory}");
 
             Console.Write("Loading configuration... ");
             try {

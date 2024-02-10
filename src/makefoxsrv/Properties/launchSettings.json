@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "makefoxbot": {
+      "commandName": "Project",
+      "workingDirectory": "../../bin"
+    }
+  }
+}
