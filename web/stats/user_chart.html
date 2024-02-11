@@ -14,40 +14,30 @@
         let chart;
 
         async function fetchData() {
-            const url = 'http://makefox.bot/stats/users_simple.php';
-			const response = await fetch(url);
-            const data = await response.text();
-            const rows = data.split('\n').slice(1); // Remove header
-            const processedData = rows.reduce((acc, row) => {
-                const parts = row.split(',').map(part => part.replace(/"/g, ''));
-                if (parts.length > 1) {
-                    const dateAdded = parts[0].split('.')[0];
-                    const uniqueUs = parseInt(parts[1] || '0', 10);
-                    const totalUs = parseInt(parts[2] || '0', 10);
-					const reqUs = parseInt(parts[3] || '0', 10) / 100;
-					const peruserUs = parseInt(parts[4] || '0', 10) / 10;
-                    acc.push({
-                        time: dateAdded,
-                        uniqueUs,
-						totalUs,
-						reqUs,
-						peruserUs
-                    });
-                }
-                return acc;
-            }, []);
+            const url = '/stats/api/user-chart.php';
+            const response = await fetch(url);
+            const jsonData = await response.json();
+            const processedData = jsonData['user-stats'].map(item => ({
+                time: item.date_added, // Assuming you only need the date part
+                uniqueUs: parseInt(item.UniqueUsersCount, 10),
+                totalUs: parseInt(item.TotalUsers, 10),
+                reqUs: parseInt(item.RequestCount, 10),
+                peruserUs: parseFloat(item.AvgRequestsPerUser)
+            }));
 
             const labels = processedData.map(item => item.time);
             const uniqueData = processedData.map(item => item.uniqueUs);
             const totalData = processedData.map(item => item.totalUs);
-			const requestData = processedData.map(item => item.reqUs);
-			const peruserData = processedData.map(item => item.peruserUs);
+            const requestData = processedData.map(item => item.reqUs);
+            const peruserData = processedData.map(item => item.peruserUs);
 
-            return { labels, uniqueData, totalData, requestData, peruserData};
+            return { labels, uniqueData, totalData, requestData, peruserData };
         }
 
         async function updateChart() {
-            const {labels, uniqueData, totalData, requestData, peruserData} = await fetchData();
+            const { labels, uniqueData, totalData, requestData, peruserData } = await fetchData();
+
+            console.log(labels);
 
             if (chart) {
                 chart.data.labels = labels;

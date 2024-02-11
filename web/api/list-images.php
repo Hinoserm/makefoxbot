@@ -62,7 +62,7 @@ $images = [];
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $images[$row['id']] = $row; // Assign the entire row to the array
 
-    $images[$row['id']]['imageUrl'] = "/api/img-get.php?imageId=" . $row['image_id'];
+    $images[$row['id']]['imageUrl'] = "/api/get-img.php?imageId=" . $row['image_id'];
 }
 
 header('Content-Type: application/json');

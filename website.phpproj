@@ -8,7 +8,7 @@
     <WebRoot>./web</WebRoot>
     <RuntimeVersion>8.0</RuntimeVersion>
     <SaveServerSettingsInUserFile>false</SaveServerSettingsInUserFile>
-    <PHPDevHostName>127.0.0.1</PHPDevHostName>
+    <PHPDevHostName>0.0.0.0</PHPDevHostName>
     <PHPDevAutoPort>false</PHPDevAutoPort>
     <PHPDevRouting />
     <PHPDevPort>80</PHPDevPort>

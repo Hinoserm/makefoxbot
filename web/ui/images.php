@@ -288,7 +288,7 @@ function showNextImage() {
 				if (isLoading) return reject('Already loading images.');
 				isLoading = true;
 				let queryParam = `lastImageId=${action === 'new' ? highestImageId : lastImageId}`;
-				fetch(`/api/img-list.php?action=${action}&${queryParam}&uid=<?php echo $uid; ?>`)
+				fetch(`/api/list-images.php?action=${action}&${queryParam}&uid=<?php echo $uid; ?>`)
 					.then(response => response.json())
 					.then(data => {
 						if (data && data.images) {

@@ -13,40 +13,34 @@
     <script>
 		let chart, chart2;
 
-        async function fetchData(url) {
-            const response = await fetch(url);
-            const data = await response.text();
-            const rows = data.split('\n').slice(1); // Remove header
-            const processedData = rows.reduce((acc, row) => {
-                const parts = row.split(',').map(part => part.replace(/"/g, ''));
-                if (parts.length > 1) {
-                    const dateAdded = parts[0].split('.')[0];
-                    const queueSec = parseFloat(parts[1] || '0');
-                    const gpuSec = parseFloat(parts[2] || '0');
-                    const uploadSec = parseFloat(parts[3] || '0');
-					const totalSec = parseFloat(parts[4] || '0');
-                    acc.push({
-                        time: dateAdded,
-                        queueSec,
-                        gpuSec,
-                        uploadSec,
-						totalSec
-                    });
-                }
-                return acc;
-            }, []);
+async function fetchData(url) {
+    const response = await fetch(url);
+    const data = await response.json(); // Fetch JSON data
+    const userStats = data['user-stats']; // Access the 'user-stats' property
+    console.log(userStats);
 
-            const labels = processedData.map(item => item.time);
-            const queueData = processedData.map(item => item.queueSec);
-            const processingData = processedData.map(item => item.gpuSec);
-            const uploadData = processedData.map(item => item.uploadSec);
-			const totalData = processedData.map(item => item.totalSec);
+    const processedData = userStats.map(stat => ({
+        time: stat.TimeSlot.split('.')[0],
+        queueSec: parseFloat(stat.QueueSec),
+        gpuSec: parseFloat(stat.GPUSec),
+        uploadSec: parseFloat(stat.UploadSec),
+        totalSec: parseFloat(stat.TotalSec)
+    }));
 
-            return { labels, queueData, processingData, uploadData, totalData };
-        }
+    const labels = processedData.map(item => item.time);
+    const queueData = processedData.map(item => item.queueSec);
+    const processingData = processedData.map(item => item.gpuSec);
+    const uploadData = processedData.map(item => item.uploadSec);
+    const totalData = processedData.map(item => item.totalSec);
+
+    return { labels, queueData, processingData, uploadData, totalData };
+}
+
 
         async function updateChart(ctx, url, chartInstance, chartTitle) {
             const { labels, queueData, processingData, uploadData, totalData } = await fetchData(url);
+
+            console.log(labels);
 
             if (chartInstance) {
                 chartInstance.data.labels = labels;
@@ -165,8 +159,8 @@
 		window.onload = async () => {
 			adjustCanvasSize();
 			const chartConfigurations = [
-				{refresh: 300000, ctx: document.getElementById('processingStageChart').getContext('2d'), url: "http://makefox.bot/stats/wait_times_simple.php?hours=30&div=15", chart: chart, title: 'Average Time Spent in Each Processing Stage per 15 Minute Interval Over the Last 30 Hours'},
-				{refresh: 20000, ctx: document.getElementById('processingStageChart2').getContext('2d'), url: "http://makefox.bot/stats/wait_times_simple.php?hours=1&div=1", chart: chart2, title: 'Average Time Spent in Each Processing Stage per Minute Over the Last Hour'}
+				{refresh: 300000, ctx: document.getElementById('processingStageChart').getContext('2d'), url: "/stats/api/wait-times.php?hours=30&div=15", chart: chart, title: 'Average Time Spent in Each Processing Stage per 15 Minute Interval Over the Last 30 Hours'},
+				{refresh: 20000, ctx: document.getElementById('processingStageChart2').getContext('2d'), url: "/stats/api/wait-times.php?hours=1&div=1", chart: chart2, title: 'Average Time Spent in Each Processing Stage per Minute Over the Last Hour'}
 			];
 
 			chartConfigurations.forEach(async (config) => {

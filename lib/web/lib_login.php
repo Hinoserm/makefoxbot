@@ -19,7 +19,7 @@ session_set_save_handler(
 		$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 		$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
-        $stmt = $pdo->prepare("SELECT session_data FROM sessions WHERE session_id = :session_id");
+        $stmt = $pdo->prepare("SELECT session_data FROM sessions WHERE session_id = :session_id AND (date_deleted IS NULL OR date_deleted > NOW() - INTERVAL 10 MINUTE)");
         $stmt->execute(['session_id' => $session_id]);
         $row = $stmt->fetch();
         return $row ? $row['session_data'] : '';
@@ -50,12 +50,17 @@ session_set_save_handler(
 		$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 		$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
-        $stmt = $pdo->prepare("DELETE FROM sessions WHERE session_id = :session_id");
+        //Was: $stmt = $pdo->prepare("DELETE FROM sessions WHERE session_id = :session_id");
+
+        $stmt = $pdo->prepare("UPDATE sessions SET date_deleted = NOW(2) WHERE session_id = :session_id");
         return $stmt->execute(['session_id' => $session_id]);
     },
 
     function ($maxlifetime) {
         // Garbage Collection
+
+        $stmt = $pdo->prepare("DELETE FROM sessions WHERE date_deleted < NOW() - INTERVAL 1 DAY LIMIT 5");
+        $stmt->execute();
 
         return true;
     }
@@ -98,7 +103,7 @@ function checkTelegramAuthorization($auth_data) {
   return $auth_data;
 }
 
-function saveTelegramUserData($t)
+function saveTelegramUserData($t, $silent)
 {
 	global $user;
 
@@ -111,7 +116,8 @@ function saveTelegramUserData($t)
 	$u = $stmt->fetch();
 
 	if ($u === false) {
-		echo "You are not currently a user of makefoxbot.  Please start a conversation with the bot on Telegram and send /start before logging in here.\r\n";
+        if (!$silent)
+		    echo "You are not currently a user of makefoxbot.  Please start a conversation with the bot on Telegram and send /start before logging in here.\r\n";
 
 		return false;
 	} else {
@@ -119,8 +125,10 @@ function saveTelegramUserData($t)
 			header('HTTP/1.1 403 Forbidden');
 			exit;
 
-			return false; 
+			return false;
 		}
+
+        session_regenerate_id(true);
 
 		$_SESSION['uid'] = $u['id'];
 		$_SESSION['telegram'] = $t;
@@ -132,7 +140,6 @@ function saveTelegramUserData($t)
 }
 
 function promptUserLogin() {
-    $bot_username = BOT_USERNAME;
     echo '<!DOCTYPE html>';
     echo '<html>';
     echo '<head>';
@@ -146,12 +153,23 @@ function promptUserLogin() {
     echo '</html>';
 }
 
-function checkUserLogin()
+function checkUserLogin($silent = false)
 {
 	global $user;
 
-	if (!isset($_SESSION) || !isset($_SESSION['uid'])) {
-		promptUserLogin();
+    if (isset($_GET['hash']) && isset($_GET['auth_date']) && isset($_GET['id'])) {
+        try {
+            $auth_data = checkTelegramAuthorization($_GET);
+            if (!saveTelegramUserData($auth_data, $silent))
+                exit;
+        } catch (Exception $e) {
+            die($e->getMessage());
+        }
+    }
+
+    if (!isset($_SESSION) || !isset($_SESSION['uid'])) {
+        if (!$silent)
+		    promptUserLogin();
 
 		return false;
 	}
@@ -171,7 +189,8 @@ function checkUserLogin()
 		session_destroy(); //Couldn't find that UID, so this session is clearly invalid.  Destroy it.
 		unset($_SESSION);  //Not sure if we really need to do this.
 
-		promptUserLogin();
+        if (!$silent)
+		    promptUserLogin();
 
 		return false;
 	} else {
@@ -182,7 +201,7 @@ function checkUserLogin()
 			header('HTTP/1.1 403 Forbidden');
 			exit;
 
-			return false; 
+			return false;
 		}
 
 		$_SESSION['uid'] = $u['id'];
@@ -192,16 +211,6 @@ function checkUserLogin()
 	}
 
 	return false;
-}
-
-if (isset($_GET['hash']) && isset($_GET['auth_date']) && isset($_GET['id'])) {
-	try {
-	  $auth_data = checkTelegramAuthorization($_GET);
-	  if (!saveTelegramUserData($auth_data))
-		  exit;
-	} catch (Exception $e) {
-	  die ($e->getMessage());
-	}
 }
 
 ?>
