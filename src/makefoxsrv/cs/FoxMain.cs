@@ -375,13 +375,15 @@ namespace makefoxsrv
             }
             Console.WriteLine("done.");
 
+            MySqlConnection sql;
+
 
             Console.Write("Connecting to database... ");
             try
             {
 
-                var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
-                await SQL.OpenAsync();
+                sql = new MySqlConnection(FoxMain.MySqlConnectionString);
+                await sql.OpenAsync();
             }
             catch (Exception ex)
             {
@@ -427,8 +429,21 @@ namespace makefoxsrv
 
             await FoxWorker.StartWorkers(botClient);
 
+
+            using (var cmd = new MySqlCommand($"UPDATE queue SET status = 'PENDING' WHERE status = 'PROCESSING'", sql))
+            {
+                long stuck_count = await cmd.ExecuteNonQueryAsync();
+                Console.WriteLine($"Unstuck {stuck_count} queue items.");
+            }
+
             Console.WriteLine($"Start listening for @{me.Username}");
             Console.WriteLine($"Bot ID: {me.Id}");
+
+
+
+
+
+
             Console.ReadLine();
 
             //await botClient.LogOutAsync();

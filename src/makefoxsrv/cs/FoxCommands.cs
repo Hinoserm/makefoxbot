@@ -781,7 +781,7 @@ This bot and the content generated are for research and educational purposes onl
                 return;
             }
 
-            if (await FoxWorker.GetWorkersForModel(argument) is null)
+            if (await FoxWorker.GetWorkersForModel(settings.model) is null)
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
@@ -903,7 +903,7 @@ This bot and the content generated are for research and educational purposes onl
                 return;
             }
 
-            if (await FoxWorker.GetWorkersForModel(argument) is null)
+            if (await FoxWorker.GetWorkersForModel(settings.model) is null)
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
