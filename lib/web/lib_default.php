@@ -8,7 +8,7 @@ error_reporting(E_ALL);
 define('BASE_PATH', __DIR__);
 
 // Include the settings
-$config = parse_ini_file(BASE_PATH . '\..\..\conf\settings.ini', true);
+$config = parse_ini_file(BASE_PATH . '/../../conf/settings.ini', true);
 
 // Check if the file was successfully parsed
 if ($config === false) {
