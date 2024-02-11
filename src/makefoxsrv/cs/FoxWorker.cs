@@ -10,9 +10,12 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
+using Newtonsoft.Json.Linq;
+using static makefoxsrv.FoxWorker;
 
 namespace makefoxsrv
 {
@@ -64,11 +67,12 @@ namespace makefoxsrv
                     int id = reader.GetInt32("id");
                     string url = reader.GetString("url");
 
-                    Console.WriteLine($"Starting worker {id} - {url}\r\n");
+                    Console.WriteLine($"Starting worker {id} - {url}");
 
                     var worker = CreateWorker(botClient, id, url);
 
                     await worker.LoadModelInfo();
+                    await worker.GetLoRAInfo();
                     await worker.SetStartDate();
 
                     _ = worker.Run(botClient);
@@ -96,6 +100,7 @@ namespace makefoxsrv
 
         public async Task LoadModelInfo()
         {
+            long model_count = 0;
             var api = await ConnectAPI();
 
             if (api is null)
@@ -116,7 +121,7 @@ namespace makefoxsrv
 
             foreach (var model in models)
             {
-                Console.WriteLine($"Worker {id} - Model: {model.ModelName}");
+                //Console.WriteLine($"  Worker {id} - Model {model_count}: {model.ModelName}");
 
                 using (var cmd = new MySqlCommand($"INSERT INTO worker_models (worker_id, model_name, model_hash, model_sha256, model_title, model_filename, model_config) VALUES (@id, @model_name, @model_hash, @model_sha256, @model_title, @model_filename, @model_config)", SQL))
                 {
@@ -129,8 +134,205 @@ namespace makefoxsrv
                     cmd.Parameters.AddWithValue("@model_config", model.Config);
                     await cmd.ExecuteNonQueryAsync();
                 }
+
+                model_count++;
+            }
+
+            Console.WriteLine($"  Worker {id} - Loaded {model_count} available models");
+        }
+
+        public class Lora
+        {
+            public string Name { get; set; }
+            public string Alias { get; set; }
+            public string Path { get; set; }
+            public JsonElement Metadata { get; set; }
+        }
+
+        public async Task GetLoRAInfo()
+        {
+            long lora_count = 0;
+            long lora_tag_count = 0;
+
+            using var httpClient = new HttpClient();
+            var apiUrl = address + "/sdapi/v1/loras";
+
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            await SQL.OpenAsync();
+
+            using var transaction = SQL.BeginTransaction();
+
+            try
+            {
+                var response = await httpClient.GetAsync(apiUrl);
+                response.EnsureSuccessStatusCode();
+                var jsonString = await response.Content.ReadAsStringAsync();
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var loras = JsonSerializer.Deserialize<List<Lora>>(jsonString, options);
+
+
+
+                // Fetch existing LoRAs for the worker to identify deletions
+                var lorasToKeep = new HashSet<string>(loras.Select(l => l.Name));
+                var loraNames = string.Join(",", lorasToKeep.Select(n => $"'{n.Replace("'", "''")}'"));
+
+                var cmd = new MySqlCommand($"DELETE FROM worker_loras WHERE worker_id = @workerId AND name NOT IN ({loraNames})", SQL, transaction);
+                cmd.Parameters.AddWithValue("@workerId", id);
+
+                await cmd.ExecuteNonQueryAsync();
+
+
+                foreach (var lora in loras)
+                {
+                    // Attempt to insert, or update if exists
+                    var insertOrUpdateCmd = new MySqlCommand(@"
+                        INSERT INTO worker_loras (worker_id, name, alias, path)
+                        VALUES (@workerId, @name, @alias, @path)
+                        ON DUPLICATE KEY UPDATE alias=VALUES(alias), path=VALUES(path);", SQL, transaction);
+                    insertOrUpdateCmd.Parameters.AddWithValue("@workerId", id);
+                    insertOrUpdateCmd.Parameters.AddWithValue("@name", lora.Name);
+                    insertOrUpdateCmd.Parameters.AddWithValue("@alias", lora.Alias ?? "");
+                    insertOrUpdateCmd.Parameters.AddWithValue("@path", lora.Path);
+                    await insertOrUpdateCmd.ExecuteNonQueryAsync();
+
+                    // Retrieve the lora_id
+                    var getLoraIdCmd = new MySqlCommand(@"
+                        SELECT lora_id FROM worker_loras
+                        WHERE worker_id = @workerId AND name = @name;", SQL, transaction);
+                    getLoraIdCmd.Parameters.AddWithValue("@workerId", id);
+                    getLoraIdCmd.Parameters.AddWithValue("@name", lora.Name);
+                    var loraId = Convert.ToInt64(await getLoraIdCmd.ExecuteScalarAsync());
+
+                    var deleteOldTagCmd = new MySqlCommand($"DELETE FROM worker_lora_tags WHERE lora_id = @id", SQL, transaction);
+                    deleteOldTagCmd.Parameters.AddWithValue("@id", loraId);
+
+                    await deleteOldTagCmd.ExecuteNonQueryAsync();
+
+                    lora_count++;
+
+                    Dictionary<string, int> tagFrequencies = new Dictionary<string, int>();
+
+                    if (lora.Metadata.TryGetProperty("ss_tag_frequency", out var ssTagFrequency) && ssTagFrequency.ValueKind == JsonValueKind.Object)
+                    {
+                        // Iterate over each category in the ss_tag_frequency
+                        foreach (var category in ssTagFrequency.EnumerateObject())
+                        {
+                            if (category.Value.ValueKind == JsonValueKind.Object)
+                            {
+                                // Iterate over each tag within the category
+                                foreach (var tag in category.Value.EnumerateObject())
+                                {
+                                    // Check if the value is a string or an integer
+                                    if (tag.Value.ValueKind == JsonValueKind.Number)
+                                    {
+                                        // Add the tag name and count to the dictionary
+                                        tagFrequencies[tag.Name] = tag.Value.GetInt32();
+                                    }
+                                    //else if (tag.Value.ValueKind == JsonValueKind.String)
+                                    //{
+                                    //    // If it's a string, enter it with a value of 1
+                                    //    tagFrequencies[tag.Name] = 1;
+                                    //}
+                                }
+                            }
+                            else if (category.Value.ValueKind == JsonValueKind.String)
+                            {
+                                // Handle the case where the entire category is a string
+                                //tagFrequencies[category.Name] = 1;
+                            }
+                        }
+                    }
+                    else if (ssTagFrequency.ValueKind == JsonValueKind.String)
+                    {
+                        // Handle the case where ss_tag_frequency itself is a string
+                        string tagName = ssTagFrequency.GetString();
+                        if (!string.IsNullOrEmpty(tagName))
+                        {
+                            //tagFrequencies[tagName] = 1;
+                        }
+                    }
+
+                    lora_tag_count += tagFrequencies.Count();
+
+                    // Start a transaction
+
+                    var values = tagFrequencies.Select(tag => $"({loraId}, {id}, '{tag.Key.Replace("'", "''")}', {tag.Value})");
+                    var insertTagsCmdText = $"INSERT INTO worker_lora_tags (lora_id, worker_id, tag_name, frequency) VALUES {string.Join(", ", values)} ON DUPLICATE KEY UPDATE frequency=VALUES(frequency);";
+                    if (values.Any())
+                    {
+                        var insertTagsCmd = new MySqlCommand(insertTagsCmdText, SQL, transaction);
+                        await insertTagsCmd.ExecuteNonQueryAsync();
+                    }
+                }
+
+                // Commit the transaction
+                await transaction.CommitAsync();
+
+                Console.WriteLine($"  Worker {id} - Loaded {lora_count} LoRAs with {lora_tag_count} tags.");
+            }
+            catch (HttpRequestException e)
+            {
+                Console.WriteLine($"Error fetching LoRAs: {e.Message}");
+
+                await transaction.RollbackAsync();
             }
         }
+
+
+        public async Task LoadEmbeddingInfo()
+        {
+            var api = await ConnectAPI();
+
+            if (api is null)
+                throw new Exception("Unable to connect to host.");
+
+            var embeddings = await api.Embeddings(cts.Token); // Get embeddings instead of models
+
+            Console.WriteLine("Embeddings Information:");
+            foreach (var embedding in embeddings.All)
+            {
+                Console.WriteLine($"Name: {embedding.Value.Name}");
+                Console.WriteLine($"Step: {embedding.Value.Step}");
+                Console.WriteLine($"Checkpoint: {embedding.Value.Checkpoint}");
+                Console.WriteLine($"Checkpoint Name: {embedding.Value.CheckpointName}");
+                Console.WriteLine($"Shape: {embedding.Value.Shape}");
+                Console.WriteLine($"Vectors: {embedding.Value.Vectors}");
+                Console.WriteLine("----------");
+            }
+
+            /*
+
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+
+            await SQL.OpenAsync();
+
+            // Assuming you have a similar table structure for embeddings, adjust the table name and fields as necessary.
+            // Clear the list for this worker and start fresh.
+            using (var cmd = new MySqlCommand($"DELETE FROM worker_loras WHERE worker_id = @id", SQL))
+            {
+                cmd.Parameters.AddWithValue("id", id);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Iterate over the embeddings and insert their details into the database.
+            foreach (var embedding in embeddings.All)
+            {
+                Console.WriteLine($"Worker {id} - Embedding: {embedding.Value.Name}");
+
+                using (var cmd = new MySqlCommand($"INSERT INTO worker_loras (worker_id, embedding_name, step, checkpoint, checkpoint_name, shape, vectors) VALUES (@id, @embedding_name, @step, @checkpoint, @checkpoint_name, @shape, @vectors)", SQL))
+                {
+                    cmd.Parameters.AddWithValue("@id", id);
+                    cmd.Parameters.AddWithValue("@embedding_name", embedding.Value.Name);
+                    cmd.Parameters.AddWithValue("@step", embedding.Value.Step ?? (object)DBNull.Value); // Handling nullable int
+                    cmd.Parameters.AddWithValue("@checkpoint", embedding.Value.Checkpoint);
+                    cmd.Parameters.AddWithValue("@checkpoint_name", embedding.Value.CheckpointName);
+                    cmd.Parameters.AddWithValue("@shape", embedding.Value.Shape);
+                    cmd.Parameters.AddWithValue("@vectors", embedding.Value.Vectors);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            } */
+        }
+
         public static async Task<Dictionary<string, List<int>>> GetModels()
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);

@@ -414,6 +414,10 @@ namespace makefoxsrv
 
             FoxMain.me = await botClient.GetMeAsync();
 
+
+            //Start workers BEFORE processing input from telegram.
+            await FoxWorker.StartWorkers(botClient);
+
             botClient.StartReceiving(
                 updateHandler: HandleUpdateAsync,
                 pollingErrorHandler: HandlePollingErrorAsync,
@@ -427,7 +431,7 @@ namespace makefoxsrv
             //_ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.30:7861/"));
             //_ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.2:7860/"));
 
-            await FoxWorker.StartWorkers(botClient);
+            
 
 
             using (var cmd = new MySqlCommand($"UPDATE queue SET status = 'PENDING' WHERE status = 'PROCESSING'", sql))
@@ -438,10 +442,6 @@ namespace makefoxsrv
 
             Console.WriteLine($"Start listening for @{me.Username}");
             Console.WriteLine($"Bot ID: {me.Id}");
-
-
-
-
 
 
             Console.ReadLine();
