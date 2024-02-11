@@ -26,8 +26,17 @@ namespace makefoxsrv
         private readonly string address;
         private static SemaphoreSlim semaphore = new SemaphoreSlim(0);
         private StableDiffusion? api;
+        private bool online = true;
 
         private static ConcurrentDictionary<int, FoxWorker> workers = new ConcurrentDictionary<int, FoxWorker>();
+
+        private class Lora
+        {
+            public string Name { get; set; }
+            public string Alias { get; set; }
+            public string Path { get; set; }
+            public JsonElement Metadata { get; set; }
+        }
 
 
         // Constructor to initialize the botClient and address
@@ -79,7 +88,7 @@ namespace makefoxsrv
                 }
             }
         }
-        private async Task<StableDiffusion?> ConnectAPI()
+        private async Task<StableDiffusion?> ConnectAPI(bool throw_error = true)
         {
             try
             {
@@ -93,6 +102,9 @@ namespace makefoxsrv
             } catch (Exception ex)
             {
                 await SetFailedDate(ex);
+
+                if (throw_error)
+                    throw;
             }
 
             return null;
@@ -139,14 +151,6 @@ namespace makefoxsrv
             }
 
             Console.WriteLine($"  Worker {id} - Loaded {model_count} available models");
-        }
-
-        public class Lora
-        {
-            public string Name { get; set; }
-            public string Alias { get; set; }
-            public string Path { get; set; }
-            public JsonElement Metadata { get; set; }
         }
 
         public async Task GetLoRAInfo()
@@ -299,38 +303,6 @@ namespace makefoxsrv
                 Console.WriteLine($"Vectors: {embedding.Value.Vectors}");
                 Console.WriteLine("----------");
             }
-
-            /*
-
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
-
-            await SQL.OpenAsync();
-
-            // Assuming you have a similar table structure for embeddings, adjust the table name and fields as necessary.
-            // Clear the list for this worker and start fresh.
-            using (var cmd = new MySqlCommand($"DELETE FROM worker_loras WHERE worker_id = @id", SQL))
-            {
-                cmd.Parameters.AddWithValue("id", id);
-                await cmd.ExecuteNonQueryAsync();
-            }
-
-            // Iterate over the embeddings and insert their details into the database.
-            foreach (var embedding in embeddings.All)
-            {
-                Console.WriteLine($"Worker {id} - Embedding: {embedding.Value.Name}");
-
-                using (var cmd = new MySqlCommand($"INSERT INTO worker_loras (worker_id, embedding_name, step, checkpoint, checkpoint_name, shape, vectors) VALUES (@id, @embedding_name, @step, @checkpoint, @checkpoint_name, @shape, @vectors)", SQL))
-                {
-                    cmd.Parameters.AddWithValue("@id", id);
-                    cmd.Parameters.AddWithValue("@embedding_name", embedding.Value.Name);
-                    cmd.Parameters.AddWithValue("@step", embedding.Value.Step ?? (object)DBNull.Value); // Handling nullable int
-                    cmd.Parameters.AddWithValue("@checkpoint", embedding.Value.Checkpoint);
-                    cmd.Parameters.AddWithValue("@checkpoint_name", embedding.Value.CheckpointName);
-                    cmd.Parameters.AddWithValue("@shape", embedding.Value.Shape);
-                    cmd.Parameters.AddWithValue("@vectors", embedding.Value.Vectors);
-                    await cmd.ExecuteNonQueryAsync();
-                }
-            } */
         }
 
         public static async Task<Dictionary<string, List<int>>> GetModels()
@@ -506,6 +478,14 @@ namespace makefoxsrv
             }
         }
 
+        private async Task HandleError(Exception ex)
+        {
+            online = false;
+            Console.WriteLine($"Worker {id} is offline!\r\n  Error: " + ex.Message);
+            await SetOnlineStatus(false);
+            await SetFailedDate(ex);
+        }
+
         // Example instance method for running the worker thread logic
         private async Task Run(TelegramBotClient botClient)
         {
@@ -513,15 +493,39 @@ namespace makefoxsrv
             {
                 try
                 {
-
                     FoxQueue? q;
+                    StableDiffusion? api;
 
-                    var api = await ConnectAPI();
+                    if (!online)
+                    {
+                        //Worker is in offline mode, just check for a working connection.
+                        api = await ConnectAPI(false);
 
-                    if (api is null)
-                        throw new Exception("Connection lost");
+                        if (api is null)
+                        {
+                            //Still offline.  Wait a while and try again.
 
-                    await SetOnlineStatus(true); //Appears to be working.
+                            await Task.Delay(3000, cts.Token);
+                            continue;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Worker {id} is back online!");
+                            await SetOnlineStatus(true);
+                            online = true;
+
+                            await LoadModelInfo(); //Reload in case it changed.
+                        }
+                    }
+
+                    api = await ConnectAPI();
+
+                    if (!online) {
+                        await SetOnlineStatus(true); //Appears to be working now.
+                        online = true;
+
+                        Console.WriteLine($"Worker {id} came back online unexpectedly");
+                    }
 
                     var status = await api.QueueStatus();
                     var progress = await api.Progress(true);
@@ -529,7 +533,7 @@ namespace makefoxsrv
                     if (status.QueueSize > 0 || progress.State.JobCount > 0)
                     {
                         //Console.WriteLine($"Queue busy, waiting 800ms...");
-                        await Task.Delay(800);
+                        await Task.Delay(800, cts.Token);
                         continue;
                     }
 
@@ -539,9 +543,10 @@ namespace makefoxsrv
 
                         try
                         {
-                            await q.SetWorker(address);
 
-                            await api.Ping();
+                            api = await ConnectAPI(true); // It's been a while, we should ping the API again.
+
+                            await q.SetWorker(id);
 
                             await SetUsedDate(q.id);
 
@@ -678,12 +683,10 @@ namespace makefoxsrv
 
                         }
                         catch (Exception ex)
-                        {
-                            Console.WriteLine("Worker error: " + ex.Message);
-
+                        { 
                             try
                             {
-                                await q.Finish(ex);
+                                await q.Finish(ex); //Mark it as ERROR'd.
                             }
                             catch { }
 
@@ -696,16 +699,21 @@ namespace makefoxsrv
                                 );
                             }
                             catch { }
+
+                            await HandleError(ex);
+
+                            break; //Leave the queue loop.
                         }
                     }
 
-                    await semaphore.WaitAsync(2000, cts.Token);
+                    //await semaphore.WaitAsync(2000, cts.Token);
                     //Console.WriteLine("Worker Tick...");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("Error worker: " + ex.Message);
-                    await Task.Delay(3000);
+                    await HandleError(ex);
+                    //Console.WriteLine("Error worker: " + ex.Message);
+                    //await Task.Delay(3000, cts.Token);
                 }
             }
         }

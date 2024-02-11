@@ -488,7 +488,7 @@ namespace makefoxsrv
             }
         }
 
-        public async Task SetWorker(string worker)
+        public async Task SetWorker(int worker)
         {
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {

@@ -259,7 +259,11 @@ function showNextImage() {
 				'<div><strong>Sampler Steps:</strong> ' + q.steps + '<br></div>' +
 				'<div><strong>CFG Scale:</strong> ' + q.cfgscale + '<br></div>' +
 				'<div><strong>Denoising Strength:</strong> ' + q.denoising_strength + '<br></div>' +
+				'<div><strong>Model:</strong> ' + q.model + '<br></div>' +
 				'<div><strong>Seed:</strong> ' + q.seed + '<br></div>' +
+<?php if ($user['access_level'] == 'ADMIN'): ?>
+                '<div><strong>Worker:</strong> ' + q.worker_name + '<br></div>' +
+<?php endif; ?>
 				'<div>' + dateAdded.toFormat('dd LLL yyyy hh:mm:ss a ZZZZ') + '</div>'; // Appending the formatted timestamp with timezone
 
 				const textElement = document.createElement('div');

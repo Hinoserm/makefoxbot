@@ -1248,7 +1248,7 @@ This bot and the content generated are for research and educational purposes onl
                       $"🪜Sampler Steps: {settings.steps}\r\n" +
                       $"🧑‍🎨CFG Scale: {settings.cfgscale}\r\n" +
                       $"👂Denoising Strength: {settings.denoising_strength}\r\n" +
-                      $"🧠Model: {q.settings.model}\r\n" +
+                      $"🧠Model: {settings.model}\r\n" +
                       $"🌱Seed: {settings.seed}\r\n",
                 replyToMessageId: message.MessageId,
                 cancellationToken: cancellationToken
