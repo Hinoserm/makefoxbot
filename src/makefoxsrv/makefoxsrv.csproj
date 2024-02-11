@@ -34,9 +34,6 @@
   </ItemGroup>
 
 <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <!-- For Windows -->
-    <Exec Command="move &quot;$(TargetDir)$(TargetFileName)&quot; &quot;$(SolutionDir)bin\$(TargetFileName)&quot;" Condition="'$(OS)' == 'Windows_NT'" />
-
     <!-- For Linux -->
 <Exec Command="mv &quot;$(TargetDir)makefoxsrv&quot; &quot;$(MSBuildProjectDirectory)/../../bin/makefoxsrv&quot;" Condition="'$(OS)' != 'Windows_NT'" />
 <Exec Command="mv &quot;$(TargetDir)makefoxsrv.dll&quot; &quot;$(MSBuildProjectDirectory)/../../bin/makefoxsrv.dll&quot;" Condition="'$(OS)' != 'Windows_NT'" />
