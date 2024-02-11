@@ -33,8 +33,13 @@
     <PackageReference Include="Telegram.Bot" Version="20.0.0-alpha.1" />
   </ItemGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(Configuration)'=='Release'">
-    <Exec Command="move &quot;$(TargetDir)$(TargetFileName)&quot; &quot;$(SolutionDir)bin\$(TargetFileName)&quot;" />
-  </Target>
+<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <!-- For Windows -->
+    <Exec Command="move &quot;$(TargetDir)$(TargetFileName)&quot; &quot;$(SolutionDir)bin\$(TargetFileName)&quot;" Condition="'$(OS)' == 'Windows_NT'" />
+
+    <!-- For Linux -->
+<Exec Command="mv &quot;$(TargetDir)makefoxsrv&quot; &quot;$(MSBuildProjectDirectory)/../../bin/makefoxsrv&quot;" Condition="'$(OS)' != 'Windows_NT'" />
+<Exec Command="mv &quot;$(TargetDir)makefoxsrv.dll&quot; &quot;$(MSBuildProjectDirectory)/../../bin/makefoxsrv.dll&quot;" Condition="'$(OS)' != 'Windows_NT'" />
+</Target>
 
 </Project>
