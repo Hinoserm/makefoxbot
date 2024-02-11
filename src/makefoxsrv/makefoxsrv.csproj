@@ -35,8 +35,7 @@
 
 <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <!-- For Linux -->
-<Exec Command="mv &quot;$(TargetDir)makefoxsrv&quot; &quot;$(MSBuildProjectDirectory)/../../bin/makefoxsrv&quot;" Condition="'$(OS)' != 'Windows_NT'" />
-<Exec Command="mv &quot;$(TargetDir)makefoxsrv.dll&quot; &quot;$(MSBuildProjectDirectory)/../../bin/makefoxsrv.dll&quot;" Condition="'$(OS)' != 'Windows_NT'" />
+<Exec Command="mv &quot;$(PublishDir)makefoxsrv&quot; &quot;$(MSBuildProjectDirectory)/../../bin/makefoxsrv&quot;" Condition="'$(OS)' != 'Windows_NT'" />
 </Target>
 
 </Project>
