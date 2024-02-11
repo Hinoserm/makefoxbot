@@ -21,8 +21,8 @@
                 time: item.date_added, // Assuming you only need the date part
                 uniqueUs: parseInt(item.UniqueUsersCount, 10),
                 totalUs: parseInt(item.TotalUsers, 10),
-                reqUs: parseInt(item.RequestCount, 10),
-                peruserUs: parseFloat(item.AvgRequestsPerUser)
+                reqUs: parseInt(item.RequestCount, 10) / 100, 
+                peruserUs: parseFloat(item.AvgRequestsPerUser) / 10
             }));
 
             const labels = processedData.map(item => item.time);
