@@ -10,7 +10,7 @@ using System.Runtime.CompilerServices;
 using SixLabors.ImageSharp.Memory;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace makefoxbot
+namespace makefoxsrv
 {
     internal class FoxImage
     {

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Telegram.Bot.Types;
 
 
-namespace makefoxbot
+namespace makefoxsrv
 {
     internal class FoxTelegramUser
     {

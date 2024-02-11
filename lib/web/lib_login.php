@@ -58,6 +58,10 @@ session_set_save_handler(
 
     function ($maxlifetime) {
         // Garbage Collection
+    
+        $pdo = new PDO("mysql:host=" . MYSQL_HOST . ";dbname=" . MYSQL_DBNAME . ";charset=utf8mb4", MYSQL_USERNAME, MYSQL_PASSWORD);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
         $stmt = $pdo->prepare("DELETE FROM sessions WHERE date_deleted < NOW() - INTERVAL 1 DAY LIMIT 5");
         $stmt->execute();
@@ -66,21 +70,27 @@ session_set_save_handler(
     }
 );
 
-register_shutdown_function('session_write_close');
-session_start();
+function checkLogout($silent = false) {
+    if (isset($_GET['logout'])) {
+        $session_id = session_id();
 
-function getTelegramUserData() {
-  if (isset($_COOKIE['tg_user'])) {
-    $auth_data_json = urldecode($_COOKIE['tg_user']);
-    $auth_data = json_decode($auth_data_json, true);
-    return $auth_data;
-  }
-  return false;
-}
+        setcookie(session_id(), "", time() - 3600);
+        session_destroy();
+        session_write_close();
 
-if (isset($_GET['logout'])) {
-  session_destroy();
-  unset($_SESSION);
+        $pdo = new PDO("mysql:host=" . MYSQL_HOST . ";dbname=" . MYSQL_DBNAME . ";charset=utf8mb4", MYSQL_USERNAME, MYSQL_PASSWORD);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+        $stmt = $pdo->prepare("DELETE FROM sessions WHERE session_id = :session_id");
+        $stmt->execute(['session_id' => $session_id]);
+
+        unset($_SESSION);
+        unset($user);
+
+        //echo "Logged out.\r\n";
+        //exit;
+    }
 }
 
 function checkTelegramAuthorization($auth_data) {
@@ -105,41 +115,46 @@ function checkTelegramAuthorization($auth_data) {
 
 function saveTelegramUserData($t, $silent)
 {
-	global $user;
+    global $user;
 
-	$pdo = new PDO("mysql:host=" . MYSQL_HOST . ";dbname=" . MYSQL_DBNAME . ";charset=utf8mb4", MYSQL_USERNAME, MYSQL_PASSWORD);
-	$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $pdo = new PDO("mysql:host=" . MYSQL_HOST . ";dbname=" . MYSQL_DBNAME . ";charset=utf8mb4", MYSQL_USERNAME, MYSQL_PASSWORD);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
-	$stmt = $pdo->prepare("SELECT * FROM users WHERE telegram_id = :telegram_id");
-	$stmt->execute(['telegram_id' => $t['id']]);
-	$u = $stmt->fetch();
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE telegram_id = :telegram_id");
+    $stmt->execute(['telegram_id' => $t['id']]);
+    $u = $stmt->fetch();
 
-	if ($u === false) {
+    if ($u === false) {
         if (!$silent)
-		    echo "You are not currently a user of makefoxbot.  Please start a conversation with the bot on Telegram and send /start before logging in here.\r\n";
+            echo "You are not currently a user of makefoxbot.  Please start a conversation with the bot on Telegram and send /start before logging in here.\r\n";
 
-		return false;
-	} else {
-		if ($u['access_level'] == 'BANNED') { //Don't allow banned users to do anything.
-			header('HTTP/1.1 403 Forbidden');
-			exit;
+        return false;
+    } else {
+        if ($u['access_level'] == 'BANNED') { //Don't allow banned users to do anything.
+            header('HTTP/1.1 403 Forbidden');
+            exit;
 
-			return false;
-		}
+            return false;
+        }
 
         session_regenerate_id(true);
 
-		$_SESSION['uid'] = $u['id'];
-		$_SESSION['telegram'] = $t;
+        $_SESSION['uid'] = $u['id'];
+        $_SESSION['telegram'] = $t;
 
-		return true; //Successful login
-	}
+        header('Location: ' . $_SERVER['PHP_SELF']);
+        exit;
 
-	return false;
+        return true; //Successful login
+    }
+
+    return false;
 }
 
-function promptUserLogin() {
+
+function promptUserLogin()
+{
     echo '<!DOCTYPE html>';
     echo '<html>';
     echo '<head>';
@@ -156,6 +171,11 @@ function promptUserLogin() {
 function checkUserLogin($silent = false)
 {
 	global $user;
+
+    register_shutdown_function('session_write_close');
+    session_start();
+
+    checkLogout($silent);
 
     if (isset($_GET['hash']) && isset($_GET['auth_date']) && isset($_GET['id'])) {
         try {

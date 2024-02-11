@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace makefoxbot
+namespace makefoxsrv
 {
     internal class FoxQueue
     {
@@ -254,6 +254,8 @@ namespace makefoxbot
                             settings.denoising_strength = Convert.ToDecimal(r["denoising_strength"]);
                         if (!(r["seed"] is DBNull))
                             settings.seed = Convert.ToInt32(r["seed"]);
+                        if (!(r["model"] is DBNull))
+                            settings.model = Convert.ToString(r["model"]);
                         if (!(r["reply_msg"] is DBNull))
                             q.reply_msg = Convert.ToInt32(r["reply_msg"]);
                         if (!(r["msg_id"] is DBNull))
@@ -275,7 +277,7 @@ namespace makefoxbot
             return null;
         }
 
-        public static async Task<FoxQueue?> Pop()
+        public static async Task<FoxQueue?> Pop(int worker_id)
         {
             var settings = new FoxUserSettings();
             var q = new FoxQueue();
@@ -296,6 +298,7 @@ namespace makefoxbot
     SELECT q.*
     FROM queue q
     INNER JOIN users u ON q.uid = u.id
+    INNER JOIN worker_models wm ON q.model = wm.model_name AND wm.worker_id = @worker_id
     WHERE 
         q.status IN ('PENDING', 'ERROR')
     ORDER BY 
@@ -314,7 +317,9 @@ namespace makefoxbot
     LIMIT 1 
     FOR UPDATE;";
 
+
                             cmd.Parameters.AddWithValue("now", DateTime.Now);
+                            cmd.Parameters.AddWithValue("worker_id", worker_id);
 
                             await using var r = await cmd.ExecuteReaderAsync();
                             if (r.HasRows && await r.ReadAsync())
@@ -343,6 +348,8 @@ namespace makefoxbot
                                     settings.denoising_strength = Convert.ToDecimal(r["denoising_strength"]);
                                 if (!(r["seed"] is DBNull))
                                     settings.seed = Convert.ToInt32(r["seed"]);
+                                if (!(r["model"] is DBNull))
+                                    settings.model = Convert.ToString(r["model"]);
                                 if (!(r["reply_msg"] is DBNull))
                                     q.reply_msg = Convert.ToInt32(r["reply_msg"]);
                                 if (!(r["msg_id"] is DBNull))
@@ -553,7 +560,8 @@ namespace makefoxbot
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "INSERT INTO queue (status, type, uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed, reply_msg, msg_id, date_added, link_token) VALUES ('PENDING', @type, " + user.UID + ", @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @reply_msg, @msg_id, @now, @token)";
+                    cmd.CommandText = "INSERT INTO queue (status, type, uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed, reply_msg, msg_id, date_added, link_token, model) VALUES ('PENDING', @type, @uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @reply_msg, @msg_id, @now, @token, @model)";
+                    cmd.Parameters.AddWithValue("uid", user.UID);
                     cmd.Parameters.AddWithValue("type", q.type);
                     cmd.Parameters.AddWithValue("tele_id", q.TelegramUserID);
                     cmd.Parameters.AddWithValue("tele_chatid", q.TelegramChatID);
@@ -570,6 +578,7 @@ namespace makefoxbot
                     cmd.Parameters.AddWithValue("msg_id", msg_id);
                     cmd.Parameters.AddWithValue("now", q.creation_time);
                     cmd.Parameters.AddWithValue("token", q.link_token);
+                    cmd.Parameters.AddWithValue("model", settings.model);
 
                     await cmd.ExecuteNonQueryAsync();
 

@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Telegram.Bot.Types;
 
-namespace makefoxbot
+namespace makefoxsrv
 {
     internal class FoxUserSettings
     {
@@ -21,6 +21,7 @@ namespace makefoxbot
         public uint height = 768;
         public decimal denoising_strength = 0.75M;
         public int seed = -1;
+        public string model = "indigoFurryMix_v105Hybrid"; //Default model
 
         public long TelegramUserID = 0;
         public long TelegramChatID = 0;
@@ -36,7 +37,7 @@ namespace makefoxbot
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "REPLACE INTO telegram_user_settings (uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed) VALUES (@uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed)";
+                    cmd.CommandText = "REPLACE INTO telegram_user_settings (uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed, model) VALUES (@uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @model)";
                     cmd.Parameters.AddWithValue("uid", User.UID);
                     cmd.Parameters.AddWithValue("tele_id", TelegramUserID);
                     cmd.Parameters.AddWithValue("tele_chatid", TelegramChatID);
@@ -49,6 +50,7 @@ namespace makefoxbot
                     cmd.Parameters.AddWithValue("height", this.height);
                     cmd.Parameters.AddWithValue("denoising_strength", this.denoising_strength);
                     cmd.Parameters.AddWithValue("seed", this.seed);
+                    cmd.Parameters.AddWithValue("model", this.model);
 
                     await cmd.ExecuteNonQueryAsync();
                 }
@@ -98,6 +100,8 @@ namespace makefoxbot
                                 settings.denoising_strength = Convert.ToDecimal(reader["denoising_strength"]);
                             if (!(reader["seed"] is DBNull))
                                 settings.seed = Convert.ToInt32(reader["seed"]);
+                            if (!(reader["model"] is DBNull))
+                                settings.model = Convert.ToString(reader["model"]);
 
                             return settings;
                         }
@@ -129,6 +133,8 @@ namespace makefoxbot
                             settings.denoising_strength = Convert.ToDecimal(reader["denoising_strength"]);
                         if (!(reader["seed"] is DBNull))
                             settings.seed = Convert.ToInt32(reader["seed"]);
+                        if (!(reader["model"] is DBNull))
+                            settings.model = Convert.ToString(reader["model"]);
 
                         return settings;
                     }
@@ -159,6 +165,8 @@ namespace makefoxbot
                             settings.denoising_strength = Convert.ToDecimal(reader["denoising_strength"]);
                         if (!(reader["seed"] is DBNull))
                             settings.seed = Convert.ToInt32(reader["seed"]);
+                        if (!(reader["model"] is DBNull))
+                            settings.model = Convert.ToString(reader["model"]); ;
 
                         return settings;
                     }

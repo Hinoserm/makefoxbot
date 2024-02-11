@@ -13,8 +13,9 @@ using System.IO;
 using System.Reflection.Metadata;
 using System.Linq.Expressions;
 using System.Drawing;
+using MySqlConnector;
 
-namespace makefoxbot
+namespace makefoxsrv
 {
     internal class FoxCommandHandler
     {
@@ -142,6 +143,8 @@ This bot and the content generated are for research and educational purposes onl
             //--------------- -----------------
             { "/seed",        CmdSetSeed },
             { "/setseed",     CmdSetSeed },
+            //--------------- -----------------
+            { "/model",       CmdModel },
         };
 
         public static async Task HandleCommand(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
@@ -327,10 +330,71 @@ This bot and the content generated are for research and educational purposes onl
                 case "/select":
                     await CallbackCmdSelect(botClient, update, cancellationToken, user, argument);
                     break;
+                case "/model":
+                    await CallbackCmdModel(botClient, update, cancellationToken, user, argument);
+                    break;
                 case "/help":
                     await CallbackCmdHelp(botClient, update, cancellationToken, user, argument);
                     break;
             }
+        }
+
+        private static async Task CallbackCmdModel(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user, string? argument = null)
+        {
+
+            long info_id = 0;
+
+            if (argument is null || argument.Length <= 0)
+            {
+                /* await botClient.EditMessageTextAsync(
+                    chatId: update.CallbackQuery.Message.Chat.Id,
+                    text: "Invalid request",
+                    messageId: update.CallbackQuery.Message.MessageId,
+                    cancellationToken: cancellationToken
+                ); */
+
+                return;
+            }
+
+            if (argument == "cancel")
+            {
+                await botClient.EditMessageTextAsync(
+                        chatId: update.CallbackQuery.Message.Chat.Id,
+                        text: "✅ Operation cancelled.",
+                        messageId: update.CallbackQuery.Message.MessageId,
+                        cancellationToken: cancellationToken
+                    );
+            } else {
+                if (argument == "default")
+                    argument = "indigoFurryMix_v105Hybrid"; //Current default
+
+
+                if (await FoxWorker.GetWorkersForModel(argument) is null)
+                {
+                    await botClient.EditMessageTextAsync(
+                        chatId: update.CallbackQuery.Message.Chat.Id,
+                        text: "❌ There are no workers currently available that can handle that model.  Please try again later.",
+                        messageId: update.CallbackQuery.Message.MessageId,
+                        cancellationToken: cancellationToken
+                    );
+                } else {
+                    var settings = await FoxUserSettings.GetTelegramSettings(user, update.CallbackQuery.From, update.CallbackQuery.Message.Chat);
+
+                    settings.model = argument;
+
+                    settings.Save();
+
+                    await botClient.EditMessageTextAsync(
+                            chatId: update.CallbackQuery.Message.Chat.Id,
+                            text: "✅ Model selected: " + argument,
+                            messageId: update.CallbackQuery.Message.MessageId,
+                            cancellationToken: cancellationToken
+                        );
+                }
+
+
+            }
+
         }
 
         private static async Task CallbackCmdInfo(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user, string? argument = null)
@@ -382,6 +446,7 @@ This bot and the content generated are for research and educational purposes onl
                           $"🪜Sampler Steps: {q.settings.steps}\r\n" +
                           $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
                           $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
+                          $"🧠Model: {q.settings.model}\r\n" +
                           $"🌱Seed: {q.settings.seed}\r\n",
                     messageId: update.CallbackQuery.Message.MessageId,
                     replyMarkup: inlineKeyboard,
@@ -555,7 +620,7 @@ This bot and the content generated are for research and educational purposes onl
 
             await FoxQueue.Add(user, settings, "TXT2IMG", waitMsg.MessageId, message.MessageId);
 
-            FoxMain.semaphore.Release();
+            FoxWorker.Ping();
         }
 
         [CommandDescription("Select your last uploaded image as the input for /img2img")]
@@ -716,6 +781,18 @@ This bot and the content generated are for research and educational purposes onl
                 return;
             }
 
+            if (await FoxWorker.GetWorkersForModel(argument) is null)
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: $"❌ There are no workers available to handle your currently selected model ({settings.model}).\r\n\r\nPlease try again later or select a different /model.",
+                    replyToMessageId: message.MessageId,
+                    cancellationToken: cancellationToken
+                );
+
+                return;
+            }
+
             Message waitMsg = await botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
 
@@ -730,7 +807,7 @@ This bot and the content generated are for research and educational purposes onl
 
             await q.CheckPosition(); // Load the queue position and total.
 
-            FoxMain.semaphore.Release();
+            FoxWorker.Ping();
 
             try
             {
@@ -742,6 +819,52 @@ This bot and the content generated are for research and educational purposes onl
             }
             catch { }
 
+        }
+
+        private static async Task CmdModel(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String argument)
+        {
+            List<List<InlineKeyboardButton>> keyboardRows = new List<List<InlineKeyboardButton>>();
+            //List<InlineKeyboardButton> currentRow = new List<InlineKeyboardButton>();
+
+            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+
+            var models = await FoxWorker.GetModels(); // Use the GetModels function here
+
+            if (models.Count == 0)
+            {
+                throw new Exception("No models available.");
+            }
+
+            keyboardRows.Add(new List<InlineKeyboardButton> { InlineKeyboardButton.WithCallbackData("Default", "/model default") });
+
+            foreach (var model in models)
+            {
+                string modelName = model.Key;
+                int workerCount = model.Value.Count; // Assuming you want the count of workers per model
+
+                var buttonLabel = $"{modelName} ({workerCount})";
+                var buttonData = $"/model {modelName}"; // Or any unique data you need to pass
+
+                if (modelName == settings.model)
+                    buttonLabel += " ✅";
+
+                var button = InlineKeyboardButton.WithCallbackData(buttonLabel, buttonData);
+
+                // Add each button as a new row for a single column layout
+                keyboardRows.Add(new List<InlineKeyboardButton> { button });
+            }
+
+            keyboardRows.Add(new List<InlineKeyboardButton> { InlineKeyboardButton.WithCallbackData("❌ Cancel", "/model cancel") });
+
+            var inlineKeyboard = new InlineKeyboardMarkup(keyboardRows);
+
+            // Send the message with the inline keyboard
+            await botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: "Select a model:",
+                replyMarkup: inlineKeyboard,
+                cancellationToken: cancellationToken
+            );
         }
 
         [CommandDescription("Run a standard txt2img generation.")]
@@ -780,6 +903,18 @@ This bot and the content generated are for research and educational purposes onl
                 return;
             }
 
+            if (await FoxWorker.GetWorkersForModel(argument) is null)
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: $"❌ There are no workers available to handle your currently selected model ({settings.model}).\r\n\r\nPlease try again later or select a different /model.",
+                    replyToMessageId: message.MessageId,
+                    cancellationToken: cancellationToken
+                );
+
+                return;
+            }
+
             Message waitMsg = await botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
                 text: $"⏳ Adding to queue...",
@@ -793,7 +928,7 @@ This bot and the content generated are for research and educational purposes onl
 
             await q.CheckPosition(); // Load the queue position and total.
 
-            FoxMain.semaphore.Release();
+            FoxWorker.Ping();
 
             try
             {

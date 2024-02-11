@@ -3,8 +3,7 @@
 require_once("../../../lib/web/lib_default.php");
 require_once("../../../lib/web/lib_login.php");
 
-if (!checkUserLogin())
-    exit;
+//checkUserLogin();
 
 $pdo = new PDO("mysql:host=" . MYSQL_HOST . ";dbname=" . MYSQL_DBNAME . ";charset=utf8mb4", MYSQL_USERNAME, MYSQL_PASSWORD);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

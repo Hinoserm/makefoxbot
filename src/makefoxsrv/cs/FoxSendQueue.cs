@@ -13,7 +13,7 @@ using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
 using System.Text.RegularExpressions;
 
-namespace makefoxbot
+namespace makefoxsrv
 {
     internal class FoxSendQueue
     {
@@ -138,6 +138,7 @@ namespace makefoxbot
                                     $"🪜Sampler Steps: {q.settings.steps}\r\n" +
                                     $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
                                     $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
+                                    $"🧠Model: {q.settings.model}\r\n" +
                                     $"🌱Seed: {q.settings.seed}\r\n",
                                 //ParseMode = ParseMode.Html
                                 },
@@ -162,6 +163,7 @@ namespace makefoxbot
                                          $"🖥️ Size: {q.settings.width}x{q.settings.height}\r\n" +
                                          $"🪜Sampler Steps: {q.settings.steps}\r\n" +
                                          $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
+                                         $"🧠Model: {q.settings.model}\r\n" +
                                          $"🌱Seed: {q.settings.seed}\r\n"
                                 );
                         }

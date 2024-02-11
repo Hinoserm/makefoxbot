@@ -65,7 +65,7 @@ public static class TimeSpanExtensions
     }
 }
 
-namespace makefoxbot
+namespace makefoxsrv
 {
 
     public static class StringExtensions
@@ -96,203 +96,7 @@ namespace makefoxbot
             return Convert.ToHexString(sha1.ComputeHash(input));
         }
 
-        public static SemaphoreSlim semaphore = new SemaphoreSlim(0);
-
         public static User me;
-
-        static async Task RunWorkerThread(TelegramBotClient botClient, string address)
-        {
-            while (true)
-            {
-                try
-                {
-
-                    FoxQueue? q;
-
-                    var api = new StableDiffusion(address);
-
-                    await api.Ping();
-                    var status = await api.QueueStatus();
-                    var progress = await api.Progress(true);
-
-                    if (status.QueueSize > 0 || progress.State.JobCount > 0)
-                    {
-                        //Console.WriteLine($"Queue busy, waiting 800ms...");
-                        await Task.Delay(800);
-                        continue;
-                    }
-
-                    while ((q = await FoxQueue.Pop()) is not null) //Work until the queue is empty
-                    {
-                        //Console.WriteLine($"Starting image {q.id}...");
-
-                        try
-                        {
-                            await q.SetWorker(address);
-
-                            await api.Ping();
-
-                            try
-                            {
-                                await botClient.EditMessageTextAsync(
-                                    chatId: q.TelegramChatID,
-                                    messageId: q.msg_id,
-                                    text: $"⏳ Generating now..."
-                                );
-                            } catch { } //We don't care if editing fails.
-
-                            var settings = q.settings;
-
-                            /*
-
-                            CancellationTokenSource progress_cts = new CancellationTokenSource();
-
-                            _ = Task.Run(async () =>
-                            {
-                                while (!progress_cts.IsCancellationRequested)
-                                {
-                                    var progress = api.Progress().Result.Progress * 100;
-
-                                    await botClient.EditMessageTextAsync(
-                                        chatId: q.TelegramChatID,
-                                        messageId: q.msg_id,
-                                        text: $"⏳ Generating now ({progress})..."
-                                        );
-                                    await Task.Delay(500);
-
-                                }
-                            });
-                            */
-
-                            if (q.type == "IMG2IMG")
-                            {
-                                q.input_image = await FoxImage.Load(settings.selected_image);
-
-                                if (q.input_image is null)
-                                {
-                                    await q.Finish();
-                                    throw new Exception("The selected image was unable to be located");
-                                }
-
-                                //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
-
-                                //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
-                                var model = await api.StableDiffusionModel("indigoFurryMix_v105Hybrid");
-                                var sampler = await api.Sampler("DPM++ 2M Karras");
-
-                                var img = new Base64EncodedImage(q.input_image.Image);
-
-                                var img2img = await api.Image2Image(
-                                    new()
-                                    {
-                                        Images = { img },
-
-                                        Model = model,
-
-                                        Prompt = new()
-                                        {
-                                            Positive = settings.prompt,
-                                            Negative = settings.negative_prompt,
-                                        },
-
-                                        Width = settings.width,
-                                        Height = settings.height,
-
-                                        Seed = new()
-                                        {
-                                            Seed = settings.seed,
-                                        },
-
-                                        DenoisingStrength = (double)settings.denoising_strength,
-
-                                        Sampler = new()
-                                        {
-                                            Sampler = sampler,
-                                            SamplingSteps = settings.steps,
-                                            CfgScale = (double)settings.cfgscale
-                                        },
-                                    }
-                                );
-
-                                await q.SaveOutputImage(img2img.Images.Last().Data.ToArray());
-                            }
-                            else if (q.type == "TXT2IMG")
-                            {
-                                //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
-
-                                //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
-                                var model = await api.StableDiffusionModel("indigoFurryMix_v105Hybrid");
-                                var sampler = await api.Sampler("DPM++ 2M Karras");
-
-                                var txt2img = await api.TextToImage(
-                                    new()
-                                    {
-                                        Model = model,
-
-                                        Prompt = new()
-                                        {
-                                            Positive = settings.prompt,
-                                            Negative = settings.negative_prompt,
-                                        },
-
-                                        Seed = new()
-                                        {
-                                            Seed = settings.seed,
-                                        },
-
-                                        Width = settings.width,
-                                        Height = settings.height,
-
-                                        Sampler = new()
-                                        {
-                                            Sampler = sampler,
-                                            SamplingSteps = settings.steps,
-                                            CfgScale = (double)settings.cfgscale
-                                        },
-                                    }
-                                );
-
-                                await q.SaveOutputImage(txt2img.Images.Last().Data.ToArray());
-                            }
-
-                            await q.Finish();
-                            _ = FoxSendQueue.Enqueue(botClient, q);
-                            _ = FoxQueue.NotifyUserPositions(botClient);
-
-
-                            //Console.WriteLine($"Finished image {q.id}.");
-
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine("Worker error: " + ex.Message);
-
-                            try
-                            {
-                                await q.Finish(ex);
-                            } catch { }
-
-                            try
-                            {
-                                await botClient.EditMessageTextAsync(
-                                    chatId: q.TelegramChatID,
-                                    messageId: q.msg_id,
-                                    text: $"⏳ Error (will re-attempt soon)"
-                                );
-                            } catch { }
-                        }
-                    }
-
-                    await semaphore.WaitAsync(2000);
-                        //Console.WriteLine("Worker Tick...");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Error worker: " + ex.Message);
-                    await Task.Delay(3000);
-                }
-            }
-        }
 
         static async Task updateTelegramUsers(User? user)
         {
@@ -617,9 +421,11 @@ namespace makefoxbot
 
             await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
 
-            _ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.30:7860/"));
-            _ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.30:7861/"));
-            _ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.2:7860/"));
+            //_ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.30:7860/"));
+            //_ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.30:7861/"));
+            //_ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.2:7860/"));
+
+            await FoxWorker.StartWorkers(botClient);
 
             Console.WriteLine($"Start listening for @{me.Username}");
             Console.WriteLine($"Bot ID: {me.Id}");
