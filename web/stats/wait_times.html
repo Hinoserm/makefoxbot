@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Processing Stage Times</title>
+    <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+</head>
+<body>
+    <canvas id="processingStageChart"></canvas>
+	<canvas id="processingStageChart2"></canvas>
+    <script>
+		let chart, chart2;
+
+        async function fetchData(url) {
+            const response = await fetch(url);
+            const data = await response.text();
+            const rows = data.split('\n').slice(1); // Remove header
+            const processedData = rows.reduce((acc, row) => {
+                const parts = row.split(',').map(part => part.replace(/"/g, ''));
+                if (parts.length > 1) {
+                    const dateAdded = parts[0].split('.')[0];
+                    const queueSec = parseFloat(parts[1] || '0');
+                    const gpuSec = parseFloat(parts[2] || '0');
+                    const uploadSec = parseFloat(parts[3] || '0');
+					const totalSec = parseFloat(parts[4] || '0');
+                    acc.push({
+                        time: dateAdded,
+                        queueSec,
+                        gpuSec,
+                        uploadSec,
+						totalSec
+                    });
+                }
+                return acc;
+            }, []);
+
+            const labels = processedData.map(item => item.time);
+            const queueData = processedData.map(item => item.queueSec);
+            const processingData = processedData.map(item => item.gpuSec);
+            const uploadData = processedData.map(item => item.uploadSec);
+			const totalData = processedData.map(item => item.totalSec);
+
+            return { labels, queueData, processingData, uploadData, totalData };
+        }
+
+        async function updateChart(ctx, url, chartInstance, chartTitle) {
+            const { labels, queueData, processingData, uploadData, totalData } = await fetchData(url);
+
+            if (chartInstance) {
+                chartInstance.data.labels = labels;
+                chartInstance.data.datasets[0].data = queueData;
+                chartInstance.data.datasets[1].data = processingData;
+                chartInstance.data.datasets[2].data = uploadData;
+				chartInstance.data.datasets[3].data = totalData;
+                chartInstance.update();
+            } else {
+                chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Queue Time',
+                                data: queueData,
+                                borderColor: 'red',
+                                backgroundColor: 'rgba(255, 0, 0, 0.5)',
+                                fill: true,
+								pointRadius: 0,
+                            },
+                            {
+                                label: 'Processing Time',
+                                data: processingData,
+                                borderColor: 'green',
+                                backgroundColor: 'rgba(0, 255, 0, 0.5)',
+                                fill: true,
+								pointRadius: 0,
+                            },
+                            {
+                                label: 'Upload Time',
+                                data: uploadData,
+                                borderColor: 'blue',
+                                backgroundColor: 'rgba(0, 0, 255, 0.5)',
+                                fill: true,
+								pointRadius: 0,
+                            },
+							{
+								label: 'Total Time',
+								data: totalData, // Your array of data for the hidden dataset
+								borderColor: 'grey',
+                                backgroundColor: 'rgba(128, 128, 128, 0.5)',
+								fill: true,
+								pointRadius: 0,
+								hidden:true,
+							}
+                        ]
+                    },
+                    options: {
+						aspectRatio: 4,
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    parser: 'yyyy-MM-dd HH:mm:ss',
+                                    tooltipFormat: 'yyyy-MM-dd HH:mm:ss',
+                                    unit: 'hour',
+                                    displayFormats: {
+                                        hour: 'yyyy-MM-dd HH:mm'
+                                    }
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Time'
+                                }
+                            },
+                            y: {
+								stacked: true,
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Time (seconds)'
+                                }
+                            }
+                        },
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                            },
+							title: {
+								display: true,
+								text: chartTitle,
+								position: 'top', // This can be 'top', 'left', 'bottom', 'right'
+								font: {
+									size: 18 // You can adjust the size as needed
+								},
+								padding: {
+									top: 5,
+									bottom: 5 // Adjust padding as needed
+								}
+							},
+                        }
+                    }
+                });
+            }
+
+			return chartInstance;
+        }
+
+		function adjustCanvasSize() {
+			const vh = window.innerHeight * 0.01;
+			const canvasHeight = vh * 48; // 45% of the viewport height
+			const canvases = document.querySelectorAll('canvas');
+			canvases.forEach(canvas => {
+				canvas.style.height = `${canvasHeight}px`;
+				canvas.style.width = '100%';
+			});
+		}
+
+		window.onload = async () => {
+			adjustCanvasSize();
+			const chartConfigurations = [
+				{refresh: 300000, ctx: document.getElementById('processingStageChart').getContext('2d'), url: "http://makefox.bot/stats/wait_times_simple.php?hours=30&div=15", chart: chart, title: 'Average Time Spent in Each Processing Stage per 15 Minute Interval Over the Last 30 Hours'},
+				{refresh: 20000, ctx: document.getElementById('processingStageChart2').getContext('2d'), url: "http://makefox.bot/stats/wait_times_simple.php?hours=1&div=1", chart: chart2, title: 'Average Time Spent in Each Processing Stage per Minute Over the Last Hour'}
+			];
+
+			chartConfigurations.forEach(async (config) => {
+				config.chart = await updateChart(config.ctx, config.url, config.chart, config.title);
+				setInterval(async () => {
+					config.chart = await updateChart(config.ctx, config.url, config.chart, config.title);
+				}, config.refresh);
+			});
+		};
+    </script>
+</body>
+</html>

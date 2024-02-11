@@ -3,9 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.3.32929.385
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "makefoxbot", "src\makefoxsrv\makefoxbot.csproj", "{CDE2AF31-371F-470B-89A3-0276D79A6787}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "makefoxsrv", "src\makefoxsrv\makefoxsrv.csproj", "{CDE2AF31-371F-470B-89A3-0276D79A6787}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "gpustats", "src\gpu_stats\gpustats.csproj", "{66C2E5B2-3C0F-4E5E-B73D-3F7F89F82147}"
+EndProject
+Project("{13B669BE-BB05-4DDF-9536-439F39A36129}") = "website", "website.phpproj", "{6D9D569F-901C-4DAA-8507-71642311C268}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{66C2E5B2-3C0F-4E5E-B73D-3F7F89F82147}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{66C2E5B2-3C0F-4E5E-B73D-3F7F89F82147}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{66C2E5B2-3C0F-4E5E-B73D-3F7F89F82147}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D9D569F-901C-4DAA-8507-71642311C268}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D9D569F-901C-4DAA-8507-71642311C268}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D9D569F-901C-4DAA-8507-71642311C268}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D9D569F-901C-4DAA-8507-71642311C268}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

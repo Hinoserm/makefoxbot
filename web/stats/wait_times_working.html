@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Processing Stage Times</title>
+    <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+</head>
+<body>
+    <canvas id="processingStageChart"></canvas>
+    <script>
+        const ctx = document.getElementById('processingStageChart').getContext('2d');
+
+        async function fetchData() {
+            const url = 'http://makefox.bot/stats/wait_times.php?days=1';
+            const username = 'user';
+            const password = 'crabcakes22';
+            const headers = new Headers();
+            headers.set('Authorization', 'Basic ' + btoa(username + ":" + password));
+
+            const response = await fetch(url, {headers: headers});
+            const data = await response.text();
+            const rows = data.split('\n').slice(1); // Remove header
+            const processedData = rows.reduce((acc, row) => {
+                const parts = row.split(',').map(part => part.replace(/"/g, ''));
+                if (parts.length > 1) {
+                    const dateAdded = parts[0].split('.')[0];
+                    const queueSec = parseFloat(parts[10] || '0');
+                    const gpuSec = parseFloat(parts[11] || '0');
+                    const uploadSec = parseFloat(parts[12] || '0');
+                    acc.push({
+                        time: dateAdded,
+                        queueSec,
+                        gpuSec,
+                        uploadSec
+                    });
+                }
+                return acc;
+            }, []);
+
+            const labels = processedData.map(item => item.time);
+            const queueData = processedData.map(item => item.queueSec);
+            const processingData = processedData.map(item => item.gpuSec);
+            const uploadData = processedData.map(item => item.uploadSec);
+
+            return { labels, queueData, processingData, uploadData };
+        }
+
+        async function updateChart() {
+            const { labels, queueData, processingData, uploadData } = await fetchData();
+
+ if (ctx) {
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Queue Time',
+                                data: queueData,
+                                borderColor: 'red',
+                                backgroundColor: 'rgba(255, 0, 0, 0.5)',
+                                fill: true,
+                            },
+                            {
+                                label: 'Processing Time',
+                                data: processingData,
+                                borderColor: 'green',
+                                backgroundColor: 'rgba(0, 255, 0, 0.5)',
+                                fill: true,
+                            },
+                            {
+                                label: 'Upload Time',
+                                data: uploadData,
+                                borderColor: 'blue',
+                                backgroundColor: 'rgba(0, 0, 255, 0.5)',
+                                fill: true,
+                            }
+                        ]
+                    },
+                    options: {
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    parser: 'yyyy-MM-dd HH:mm:ss',
+                                    tooltipFormat: 'yyyy-MM-dd HH:mm:ss',
+                                    unit: 'hour',
+                                    displayFormats: {
+                                        hour: 'yyyy-MM-dd HH:mm'
+                                    }
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Time'
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Time (seconds)'
+                                }
+                            }
+                        },
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                            },
+                        }
+                    }
+                });
+            }	
+        }
+
+        updateChart();
+    </script>
+</body>
+</html>

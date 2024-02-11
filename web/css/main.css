@@ -1,0 +1,103 @@
+.image-wrapper {
+	width: 300px;
+	margin: 10px;
+	box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+	display: inline-block;
+	vertical-align: top;
+	background: white;
+	border-radius: 5px;
+	overflow: hidden;
+}
+
+.image-wrapper:hover {
+	transform: scale(1.05);
+	transition: transform 0.3s ease;
+}
+
+img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+.caption {
+	padding: 10px;
+	font-size: 14px;
+	text-align: center;
+	background: #f9f9f9;
+	border-top: 1px solid #eee;
+	min-height: 100px;
+	box-sizing: border-box;
+}
+
+.shorten {
+	/* nothing here */
+}
+
+.can-expand {
+	color: #007bff;
+	cursor: pointer;
+}
+
+.close-btn {
+	position: fixed;
+	top: 20px;
+	right: 40px;
+	font-size: 30px;
+	color: white;
+	cursor: pointer;
+	user-select: none;
+}
+
+.image-container {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	margin: auto;
+}
+
+#loading {
+	display: none;
+	text-align: center;
+}
+
+#imageContainer {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	gap: 20px;
+	padding: 20px;
+}
+
+#lightbox img {
+	max-width: 100%;
+	max-height: 80vh;
+	object-fit: contain;
+	border-radius: 8px;
+}
+
+#lightbox {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 1000;
+	background-color: rgba(0, 0, 0, 0.8);
+}
+
+/* Specific styles for caption within lightbox */
+#lightbox .caption {
+	color: white;
+	background: rgba(0, 0, 0, 1); /* Opaque black background */
+	padding: 10px;
+	border-radius: 5px;
+	margin-top: 10px;
+	word-wrap: break-word;
+	max-width: 80%; /* Ensure caption width aligns with image width */
+	box-sizing: border-box;
+	text-align: center;
+	border-top: none; /* Remove any inherited or unintended top border */
+}

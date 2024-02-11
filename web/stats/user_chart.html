@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Count Over Time</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+</head>
+<body>
+    <canvas id="userCountChart"></canvas>
+    <script>
+        const ctx = document.getElementById('userCountChart').getContext('2d');
+        let chart;
+
+        async function fetchData() {
+            const url = 'http://makefox.bot/stats/users_simple.php';
+			const response = await fetch(url);
+            const data = await response.text();
+            const rows = data.split('\n').slice(1); // Remove header
+            const processedData = rows.reduce((acc, row) => {
+                const parts = row.split(',').map(part => part.replace(/"/g, ''));
+                if (parts.length > 1) {
+                    const dateAdded = parts[0].split('.')[0];
+                    const uniqueUs = parseInt(parts[1] || '0', 10);
+                    const totalUs = parseInt(parts[2] || '0', 10);
+					const reqUs = parseInt(parts[3] || '0', 10) / 100;
+					const peruserUs = parseInt(parts[4] || '0', 10) / 10;
+                    acc.push({
+                        time: dateAdded,
+                        uniqueUs,
+						totalUs,
+						reqUs,
+						peruserUs
+                    });
+                }
+                return acc;
+            }, []);
+
+            const labels = processedData.map(item => item.time);
+            const uniqueData = processedData.map(item => item.uniqueUs);
+            const totalData = processedData.map(item => item.totalUs);
+			const requestData = processedData.map(item => item.reqUs);
+			const peruserData = processedData.map(item => item.peruserUs);
+
+            return { labels, uniqueData, totalData, requestData, peruserData};
+        }
+
+        async function updateChart() {
+            const {labels, uniqueData, totalData, requestData, peruserData} = await fetchData();
+
+            if (chart) {
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = totalData;
+                chart.update();
+            } else {
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Cumulative User Count',
+                            data: totalData,
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1,
+							pointRadius: 0,
+                        },
+						{
+							label: 'Unique Active Users',
+                            data: uniqueData,
+                            borderColor: 'rgb(128, 192, 42)',
+                            tension: 0.1,
+							pointRadius: 0,
+						},
+						{
+							label: 'Total Requests (/100)',
+                            data: requestData,
+                            borderColor: 'rgb(230, 80, 0)',
+                            tension: 0.1,
+							pointRadius: 0,
+						},
+						{
+							label: 'Avg Requests Per User (/10)',
+                            data: peruserData,
+                            borderColor: 'rgb(128, 128, 255)',
+                            tension: 0.1,
+							pointRadius: 0,
+						}]
+                    },
+                    options: {
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    parser: 'yyyy-MM-dd HH:mm:ss',
+                                    tooltipFormat: 'yyyy-MM-dd HH:mm:ss',
+                                    unit: 'hour',
+                                    displayFormats: {
+                                        hour: 'yyyy-MM-dd HH:mm'
+                                    }
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Date'
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Cumulative User Count'
+                                }
+                            }
+                        },
+						plugins: {
+							tooltip: {
+								mode: 'index',
+                                intersect: false,
+								callbacks: {
+									label: function(context) {
+										const datasetLabel = context.dataset.label || '';
+										const label = datasetLabel + ': ';
+										// Check if this is the "Special Dataset" using context.datasetIndex
+										if (context.datasetIndex === 3) { // Assuming the special dataset is at index 1
+											// Multiply the value by 100 to get the original value
+											const originalValue = Math.round(context.parsed.y * 10);
+											return 'Avg Reqs/User: ' + originalValue;
+										} else if (context.datasetIndex === 2) { // Assuming the special dataset is at index 1
+											// Multiply the value by 100 to get the original value
+											const originalValue = Math.round(context.parsed.y * 100);
+											return 'Total Requests: ' + originalValue;
+										} else {
+											// For other datasets, show the value as it is
+											return label + context.parsed.y;
+										}
+									}
+									// Optionally, add more callbacks for additional customization
+								}
+							}
+						}
+                    }
+                });
+            }
+        }
+
+        updateChart();
+        setInterval(updateChart, 10000); // Refresh the data every 10 seconds
+    </script>
+</body>
+</html>

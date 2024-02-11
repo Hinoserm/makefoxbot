@@ -1,0 +1,20 @@
+﻿<Project Sdk="Devsense.Php.Sdk">
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>6d9d569f-901c-4daa-8507-71642311c268</ProjectGuid>
+  </PropertyGroup>
+  <PropertyGroup>
+    <EnvName>PHPDev</EnvName>
+    <RootNamespace>website</RootNamespace>
+    <WebRoot>./web</WebRoot>
+    <RuntimeVersion>8.0</RuntimeVersion>
+    <SaveServerSettingsInUserFile>false</SaveServerSettingsInUserFile>
+    <PHPDevHostName>127.0.0.1</PHPDevHostName>
+    <PHPDevAutoPort>false</PHPDevAutoPort>
+    <PHPDevRouting />
+    <PHPDevPort>80</PHPDevPort>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Remove="bin\**" />
+    <Content Remove="src\**" />
+  </ItemGroup>
+</Project>
