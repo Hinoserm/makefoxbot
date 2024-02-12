@@ -12,16 +12,22 @@
     <script>
         const ctx = document.getElementById('userCountChart').getContext('2d');
         let chart;
+        let currentHours = 24; // Default to 24 hours
+        let currentDiv = 1; // Default interval
+        let isUpdating = false;
 
-        async function fetchData() {
-            const url = '/stats/api/user-chart.php';
+        document.addEventListener('wheel', handleScroll, {passive: false});
+
+        async function fetchData(hours = currentHours, div = currentDiv) {
+            const url = `/stats/api/user-chart.php?hours=${hours}&div=${div}`;
             const response = await fetch(url);
             const jsonData = await response.json();
+
             const processedData = jsonData['user-stats'].map(item => ({
-                time: item.date_added, // Assuming you only need the date part
+                time: item.date_added,
                 uniqueUs: parseInt(item.UniqueUsersCount, 10),
                 totalUs: parseInt(item.TotalUsers, 10),
-                reqUs: parseInt(item.RequestCount, 10) / 100, 
+                reqUs: parseInt(item.RequestCount, 10) / 100,
                 peruserUs: parseFloat(item.AvgRequestsPerUser) / 10
             }));
 
@@ -34,14 +40,31 @@
             return { labels, uniqueData, totalData, requestData, peruserData };
         }
 
-        async function updateChart() {
-            const { labels, uniqueData, totalData, requestData, peruserData } = await fetchData();
+        async function updateChart(hours, div) {
+            if (isUpdating) return; // Prevent update if already updating
+            isUpdating = true;
 
-            console.log(labels);
+            let chartTitle = `User stats over ${hours} hours (${div} hour intervals)`;
+
+            if (hours > 72) {
+                const days = Math.round(hours / 24);
+                chartTitle = `User stats over ${days.toFixed(1)} days (in ${div} hour intervals)`;
+            }
+
+            const { labels, uniqueData, totalData, requestData, peruserData } = await fetchData(hours, div);
+
+            const minDate = labels[0];
+                 const maxDate = labels[labels.length - 1];
 
             if (chart) {
                 chart.data.labels = labels;
                 chart.data.datasets[0].data = totalData;
+                chart.data.datasets[1].data = uniqueData;
+                chart.data.datasets[2].data = requestData;
+                chart.data.datasets[3].data = peruserData;
+                chart.options.scales.x.min = minDate;
+                chart.options.scales.x.max = maxDate;
+                chart.options.plugins.title.text = chartTitle;
                 chart.update();
             } else {
                 chart = new Chart(ctx, {
@@ -53,29 +76,26 @@
                             data: totalData,
                             borderColor: 'rgb(75, 192, 192)',
                             tension: 0.1,
-							pointRadius: 0,
-                        },
-						{
-							label: 'Unique Active Users',
+                            pointRadius: 0,
+                        }, {
+                            label: 'Unique Active Users',
                             data: uniqueData,
                             borderColor: 'rgb(128, 192, 42)',
                             tension: 0.1,
-							pointRadius: 0,
-						},
-						{
-							label: 'Total Requests (/100)',
+                            pointRadius: 0,
+                        }, {
+                            label: 'Total Requests (/100)',
                             data: requestData,
                             borderColor: 'rgb(230, 80, 0)',
                             tension: 0.1,
-							pointRadius: 0,
-						},
-						{
-							label: 'Avg Requests Per User (/10)',
+                            pointRadius: 0,
+                        }, {
+                            label: 'Avg Requests Per User (/10)',
                             data: peruserData,
                             borderColor: 'rgb(128, 128, 255)',
                             tension: 0.1,
-							pointRadius: 0,
-						}]
+                            pointRadius: 0,
+                        }]
                     },
                     options: {
                         scales: {
@@ -92,49 +112,64 @@
                                 title: {
                                     display: true,
                                     text: 'Date'
-                                }
+                                },
+                                min: minDate,
+                                max: maxDate
                             },
                             y: {
                                 beginAtZero: true,
                                 title: {
                                     display: true,
-                                    text: 'Cumulative User Count'
+                                    text: 'Value'
                                 }
                             }
                         },
-						plugins: {
-							tooltip: {
-								mode: 'index',
-                                intersect: false,
-								callbacks: {
-									label: function(context) {
-										const datasetLabel = context.dataset.label || '';
-										const label = datasetLabel + ': ';
-										// Check if this is the "Special Dataset" using context.datasetIndex
-										if (context.datasetIndex === 3) { // Assuming the special dataset is at index 1
-											// Multiply the value by 100 to get the original value
-											const originalValue = Math.round(context.parsed.y * 10);
-											return 'Avg Reqs/User: ' + originalValue;
-										} else if (context.datasetIndex === 2) { // Assuming the special dataset is at index 1
-											// Multiply the value by 100 to get the original value
-											const originalValue = Math.round(context.parsed.y * 100);
-											return 'Total Requests: ' + originalValue;
-										} else {
-											// For other datasets, show the value as it is
-											return label + context.parsed.y;
-										}
-									}
-									// Optionally, add more callbacks for additional customization
-								}
-							}
-						}
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: chartTitle
+                            }
+                        }
                     }
                 });
             }
+            isUpdating = false;
         }
 
-        updateChart();
-        setInterval(updateChart, 10000); // Refresh the data every 10 seconds
+
+        function handleScroll(event) {
+            event.preventDefault();
+
+            const delta = event.deltaY < 0 ? 1 : -1;
+            currentHours = Math.max(24, currentHours + delta * 24); // Only scroll in 24 hour increments, never going below 24
+
+            let div = 1;
+
+            console.log(currentHours);
+
+            if (currentHours > 72 && currentHours <= 144) {
+                div = 2;
+            } else if (currentHours > 250 && currentHours < 720) {
+                div = 12;
+            } else if (currentHours >= 720 && currentHours < 1440 ) {
+                div = 24;
+            } else if (currentHours > 1440) {
+                div = Math.round(currentHours / 720) * 24;
+            }
+
+            if (isUpdating) {
+                // Delay updating the chart by 250ms
+                setTimeout(() => {
+                    updateChart(currentHours, div);
+                }, 300);
+            } else {
+                updateChart(currentHours, div);
+            }
+        }
+
+        currentHours = 72;
+
+        updateChart(72,1);
     </script>
 </body>
 </html>

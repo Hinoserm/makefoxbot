@@ -15,24 +15,24 @@ $div = isset($_GET['div']) && is_numeric($_GET['div']) && $_GET['div'] > 0 ? $_G
 //header('Content-Disposition: attachment; filename=users.csv');
 
 $sql = "SELECT
-    DATE_FORMAT(q.date_finished, '%Y-%m-%d %H:00:00') AS date_added,
-    COUNT(DISTINCT uid) AS UniqueUsersCount,
-    (SELECT COUNT(*) FROM users u WHERE u.date_added <= q.date_finished) AS TotalUsers,
-    COUNT(id) as RequestCount,
+    DATE_FORMAT(MIN(q.date_finished), '%Y-%m-%d %H:00:00') AS date_added,
+    COUNT(DISTINCT q.uid) AS UniqueUsersCount,
+    (SELECT COUNT(*) FROM users u WHERE u.date_added <= MAX(q.date_finished)) AS TotalUsers,
+    COUNT(q.id) AS RequestCount,
     CASE
-        WHEN COUNT(DISTINCT uid) > 0 THEN CAST(COUNT(id) AS DECIMAL) / COUNT(DISTINCT uid)
+        WHEN COUNT(DISTINCT q.uid) > 0 THEN CAST(COUNT(q.id) AS DECIMAL) / COUNT(DISTINCT q.uid)
         ELSE 0
     END AS AvgRequestsPerUser
 FROM
     queue q
 WHERE
     q.status = 'FINISHED' AND
-    q.date_finished >= NOW() - INTERVAL :hours HOUR
+    q.date_finished BETWEEN NOW() - INTERVAL :hours HOUR AND NOW() - INTERVAL 1 HOUR
 GROUP BY
-    DATE(q.date_finished),
-    HOUR(q.date_finished) DIV :div
+    FLOOR((UNIX_TIMESTAMP(q.date_finished) - UNIX_TIMESTAMP(NOW() - INTERVAL :hours HOUR)) / (:div * 3600))
 ORDER BY
-    q.date_finished ASC;";
+    MIN(q.date_finished) ASC
+";
 
 $output = [];
 
