@@ -57,15 +57,14 @@
                  const maxDate = labels[labels.length - 1];
 
             if (chart) {
+
                 chart.data.labels = labels;
                 chart.data.datasets[0].data = totalData;
                 chart.data.datasets[1].data = uniqueData;
                 chart.data.datasets[2].data = requestData;
                 chart.data.datasets[3].data = peruserData;
-                chart.options.scales.x.min = minDate;
-                chart.options.scales.x.max = maxDate;
                 chart.options.plugins.title.text = chartTitle;
-                chart.update();
+                chart.update('none');
             } else {
                 chart = new Chart(ctx, {
                     type: 'line',
@@ -75,29 +74,26 @@
                             label: 'Cumulative User Count',
                             data: totalData,
                             borderColor: 'rgb(75, 192, 192)',
-                            tension: 0.1,
-                            pointRadius: 0,
+                            pointRadius: 1,
                         }, {
                             label: 'Unique Active Users',
                             data: uniqueData,
                             borderColor: 'rgb(128, 192, 42)',
-                            tension: 0.1,
-                            pointRadius: 0,
+                            pointRadius: 1,
                         }, {
                             label: 'Total Requests (/100)',
                             data: requestData,
                             borderColor: 'rgb(230, 80, 0)',
-                            tension: 0.1,
-                            pointRadius: 0,
+                            pointRadius: 1,
                         }, {
                             label: 'Avg Requests Per User (/10)',
                             data: peruserData,
                             borderColor: 'rgb(128, 128, 255)',
-                            tension: 0.1,
-                            pointRadius: 0,
+                            pointRadius: 1,
                         }]
                     },
                     options: {
+                        aspectRatio: 4,
                         scales: {
                             x: {
                                 type: 'time',
@@ -112,9 +108,7 @@
                                 title: {
                                     display: true,
                                     text: 'Date'
-                                },
-                                min: minDate,
-                                max: maxDate
+                                }
                             },
                             y: {
                                 beginAtZero: true,
@@ -124,11 +118,48 @@
                                 }
                             }
                         },
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
                         plugins: {
                             title: {
                                 display: true,
-                                text: chartTitle
-                            }
+                                text: chartTitle,
+                                display: true,
+								position: 'top', // This can be 'top', 'left', 'bottom', 'right'
+								font: {
+									size: 18 // You can adjust the size as needed
+								},
+								padding: {
+									top: 5,
+									bottom: 5 // Adjust padding as needed
+								}
+                            },
+                            tooltip: {
+								mode: 'index',
+                                intersect: false,
+								callbacks: {
+									label: function(context) {
+										const datasetLabel = context.dataset.label || '';
+										const label = datasetLabel + ': ';
+										// Check if this is the "Special Dataset" using context.datasetIndex
+										if (context.datasetIndex === 3) { // Assuming the special dataset is at index 1
+											// Multiply the value by 100 to get the original value
+											const originalValue = Math.round(context.parsed.y * 10);
+											return 'Avg Reqs/User: ' + originalValue;
+										} else if (context.datasetIndex === 2) { // Assuming the special dataset is at index 1
+											// Multiply the value by 100 to get the original value
+											const originalValue = Math.round(context.parsed.y * 100);
+											return 'Total Requests: ' + originalValue;
+										} else {
+											// For other datasets, show the value as it is
+											return label + context.parsed.y;
+										}
+									}
+									// Optionally, add more callbacks for additional customization
+								}
+							}
                         }
                     }
                 });
@@ -150,8 +181,6 @@
 
             let div = 1;
 
-            console.log(currentHours);
-
             if (currentHours > 72 && currentHours <= 144) {
                 div = 2;
             } else if (currentHours > 250 && currentHours < 720) {
@@ -161,6 +190,11 @@
             } else if (currentHours > 1440) {
                 div = Math.round(currentHours / 720) * 24;
             }
+
+            currentDiv = div;
+
+            //chart.destroy(); // Destroy the existing chart
+            //chart = null; // Reset the chart variable
 
             if (isUpdating) {
                 // Delay updating the chart by 250ms
@@ -174,7 +208,11 @@
 
         currentHours = 72;
 
-        updateChart(72,1);
+        updateChart(72, 1);
+
+        setInterval(() => {
+            updateChart(currentHours, currentDiv);
+        }, 10000);
     </script>
 </body>
 </html>
