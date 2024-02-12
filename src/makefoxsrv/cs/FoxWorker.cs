@@ -721,8 +721,6 @@ namespace makefoxsrv
 
                             await q.Finish();
                             _ = FoxSendQueue.Enqueue(botClient, q);
-                            _ = FoxQueue.NotifyUserPositions(botClient);
-
 
                             //Console.WriteLine($"Finished image {q.id}.");
 
@@ -776,7 +774,7 @@ namespace makefoxsrv
                         qitem = null;
                     }
 
-                    //await semaphore.WaitAsync(2000, cts.Token);
+                    await semaphore.WaitAsync(2000, cts.Token);
                     //Console.WriteLine("Worker Tick...");
                 }
                 catch (Exception ex)

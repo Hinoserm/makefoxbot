@@ -28,6 +28,8 @@ namespace makefoxsrv
             ERROR
         }
 
+        private static SemaphoreSlim semaphore = new SemaphoreSlim(0);
+
         public QueueStatus status = QueueStatus.PROCESSING;
 
         public FoxUserSettings? settings = null;
@@ -148,67 +150,79 @@ namespace makefoxsrv
         }
 
         private static CancellationTokenSource notify_cts = new CancellationTokenSource();
-        public static async Task NotifyUserPositions(ITelegramBotClient botClient)
+        public static async Task NotifyUserPositions(ITelegramBotClient botClient, CancellationTokenSource notify_cts)
         {
 
-            return;
+            //return;
 
-            try
+            while(true)
             {
-                notify_cts.Cancel();
-                notify_cts = new CancellationTokenSource();
-
-                using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+                try
                 {
-                    await SQL.OpenAsync();
-
-                    long totalPending = 0;
-
-                    using (var totalCmd = new MySqlCommand())
+                    using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                     {
-                        totalCmd.Connection = SQL;
-                        totalCmd.CommandText = "SELECT COUNT(*) FROM queue WHERE status = 'PENDING'";
-                        totalPending = Convert.ToInt64(await totalCmd.ExecuteScalarAsync());
-                    }
+                        await SQL.OpenAsync(notify_cts.Token);
 
-                    using (var cmd = new MySqlCommand())
-                    {
-                        cmd.Connection = SQL;
-                        cmd.CommandText = cmd.CommandText = @"
-                            SELECT
-                                id,
-                                msg_id,
-                                tele_chatid,
-                                ROW_NUMBER() OVER (ORDER BY date_added ASC) AS position_in_queue
-                            FROM
-                                queue
-                            WHERE
-                                status = 'PENDING';
-                            ";
+                        long totalPending = 0;
 
-                        await using var r = await cmd.ExecuteReaderAsync();
-                        while (await r.ReadAsync() && !notify_cts.IsCancellationRequested)
+                        using (var totalCmd = new MySqlCommand())
                         {
-                            var id = Convert.ToInt64(r["id"]);
-                            var position = Convert.ToInt64(r["position_in_queue"]);
-                            var msg_id = Convert.ToInt32(r["msg_id"]);
-                            var chatid = Convert.ToInt64(r["tele_chatid"]);
-
-                            try
-                            {
-                                await botClient.EditMessageTextAsync(
-                                    chatId: chatid,
-                                    messageId: msg_id,
-                                    text: $"⏳ In queue ({position} of {totalPending})..."
-                                );
-                            }
-                            catch { } //We don't care if editing fails.
+                            totalCmd.Connection = SQL;
+                            totalCmd.CommandText = "SELECT COUNT(*) FROM queue WHERE status = 'PENDING'";
+                            totalPending = Convert.ToInt64(await totalCmd.ExecuteScalarAsync(notify_cts.Token));
                         }
+
+                        using (var cmd = new MySqlCommand())
+                        {
+                            cmd.Connection = SQL;
+                            cmd.CommandText = cmd.CommandText = @"
+                                SELECT
+                                    id,
+                                    msg_id,
+                                    tele_chatid,
+                                    ROW_NUMBER() OVER (ORDER BY date_added ASC) AS position_in_queue
+                                FROM
+                                    queue
+                                WHERE
+                                    status = 'PENDING';
+                                ";
+
+                            await using var r = await cmd.ExecuteReaderAsync(notify_cts.Token);
+                            while (await r.ReadAsync(notify_cts.Token) && !notify_cts.IsCancellationRequested)
+                            {
+                                var id = Convert.ToInt64(r["id"]);
+                                var position = Convert.ToInt64(r["position_in_queue"]);
+                                var msg_id = Convert.ToInt32(r["msg_id"]);
+                                var chatid = Convert.ToInt64(r["tele_chatid"]);
+
+                                try
+                                {
+                                    await botClient.EditMessageTextAsync(
+                                        chatId: chatid,
+                                        messageId: msg_id,
+                                        text: $"⏳ In queue ({position} of {totalPending})...",
+                                        cancellationToken: notify_cts.Token
+                                    );
+
+                                }
+                                catch (Exception ex) {
+                                    //We don't care if editing fails.
+                                    //Console.WriteLine(ex.Message);
+                                }
+
+                                await Task.Delay(800, notify_cts.Token);
+                            }
+                        }
+
                     }
                 }
-            } catch (Exception ex)
-            {
-                Console.WriteLine("Error in NotifyUserPositions(): " + ex.Message);
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error in NotifyUserPositions(): " + ex.Message);
+                }
+
+                await semaphore.WaitAsync(3000, notify_cts.Token);
+                //await Task.Delay(2000, notify_cts.Token);
             }
         }
 
@@ -387,6 +401,8 @@ namespace makefoxsrv
                 q.settings = settings;
             }
 
+            semaphore.Release();
+
             return q;
         }
 
@@ -469,6 +485,8 @@ namespace makefoxsrv
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
+
+            semaphore.Release();
         }
 
         public async Task SetSending()
@@ -583,6 +601,8 @@ namespace makefoxsrv
                     await cmd.ExecuteNonQueryAsync();
 
                     q.id = (ulong)cmd.LastInsertedId;
+
+                    semaphore.Release();
 
                     return q;
                 }

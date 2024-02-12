@@ -443,6 +443,8 @@ namespace makefoxsrv
             Console.WriteLine($"Start listening for @{me.Username}");
             Console.WriteLine($"Bot ID: {me.Id}");
 
+            _ = FoxQueue.NotifyUserPositions(botClient, cts);
+
 
             Console.ReadLine();
 
