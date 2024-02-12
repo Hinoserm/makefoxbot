@@ -153,7 +153,7 @@ namespace makefoxsrv
         public static async Task NotifyUserPositions(ITelegramBotClient botClient, CancellationTokenSource notify_cts)
         {
 
-            //return;
+            return;
 
             while(true)
             {

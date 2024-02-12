@@ -591,7 +591,9 @@ namespace makefoxsrv
                                     text: $"⏳ Generating now..."
                                 );
                             }
-                            catch { } //We don't care if editing fails.
+                            catch (Exception ex) {
+                                Console.WriteLine("ping1 " + ex.Message);
+                            } //We don't care if editing fails.
 
                             var settings = q.settings;
 
@@ -599,7 +601,7 @@ namespace makefoxsrv
 
                             CancellationTokenSource progress_cts = new CancellationTokenSource();
 
-                            _ = Task.Run(async () =>
+                            /* _ = Task.Run(async () =>
                             {
                                 while (!progress_cts.IsCancellationRequested)
                                 {
@@ -623,7 +625,7 @@ namespace makefoxsrv
                                         //Don't care about errors
                                     }
                                 }
-                            });
+                            }); */
                             
 
                             if (q.type == "IMG2IMG")

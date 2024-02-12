@@ -40,7 +40,11 @@ namespace makefoxsrv
                         text: $"⏳ Uploading..."
                     );
                 }
-                catch { } //We don't care if editing fails.
+                catch (Exception ex) {
+
+                    Console.WriteLine(ex.Message);
+
+                } //We don't care if editing fails.
 
                 string? output_fileid = null;
 
