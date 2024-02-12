@@ -145,6 +145,8 @@ This bot and the content generated are for research and educational purposes onl
             { "/setseed",     CmdSetSeed },
             //--------------- -----------------
             { "/model",       CmdModel },
+            //--------------- -----------------
+            { "/cancel",      CmdCancel },
         };
 
         public static async Task HandleCommand(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
@@ -821,6 +823,8 @@ This bot and the content generated are for research and educational purposes onl
 
         }
 
+        [CommandDescription("Change current AI model.")]
+        [CommandArguments("")]
         private static async Task CmdModel(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String argument)
         {
             List<List<InlineKeyboardButton>> keyboardRows = new List<List<InlineKeyboardButton>>();
@@ -1253,6 +1257,97 @@ This bot and the content generated are for research and educational purposes onl
                 replyToMessageId: message.MessageId,
                 cancellationToken: cancellationToken
             );
+        }
+
+        [CommandDescription("Cancel all pending requests.")]
+        [CommandArguments("")]
+        private static async Task CmdCancel(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        {
+            int count = 0;
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+
+            await SQL.OpenAsync();
+
+            List<ulong> pendingIds = new List<ulong>();
+
+            using (var cmd2 = new MySqlCommand("SELECT id,msg_id,tele_chatid FROM queue WHERE uid = @id AND status = 'PENDING' OR status = 'ERROR'", SQL))
+            {
+                cmd2.Parameters.AddWithValue("id", user.UID);
+                using var reader = await cmd2.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    ulong q_id = reader.GetUInt64("id");
+                    long chat_id = reader.GetInt64("tele_chatid");
+                    int msg_id = reader.GetInt32("msg_id");
+
+                    await botClient.EditMessageTextAsync(
+                        chatId: chat_id,
+                        messageId: msg_id,
+                        text: "❌ Cancelled."
+                    );
+
+                    pendingIds.Add(q_id);
+
+                    count++;
+                }
+            }
+
+            if (pendingIds.Count > 0)
+            {
+                // Create a comma-separated list of IDs for the SQL query
+                var idsString = string.Join(",", pendingIds);
+                using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
+                {
+                    await cmd3.ExecuteNonQueryAsync();
+                }
+
+                count += pendingIds.Count;
+            }
+
+
+            List<ulong> processingIds = new List<ulong>();
+
+            using (var cmd2 = new MySqlCommand("SELECT id,worker,msg_id,tele_chatid FROM queue WHERE uid = @id AND status = 'PROCESSING'", SQL))
+            {
+                cmd2.Parameters.AddWithValue("id", user.UID);
+                using var reader = await cmd2.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    int worker_id = reader.GetInt32("worker");
+                    ulong q_id = reader.GetUInt64("id");
+                    long chat_id = reader.GetInt64("tele_chatid");
+                    int msg_id = reader.GetInt32("msg_id");
+
+                    if (FoxWorker.CancelIfUserMatches(worker_id, user.UID))
+                        processingIds.Add(q_id);
+
+                    await botClient.EditMessageTextAsync(
+                        chatId: chat_id,
+                        messageId: msg_id,
+                        text: "⏳ Cancelling..."
+                    );
+
+                    count++;
+                }
+            }
+
+            if (processingIds.Count > 0)
+            {
+                // Create a comma-separated list of IDs for the SQL query
+                var idsString = string.Join(",", processingIds);
+                using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
+                {
+                    await cmd3.ExecuteNonQueryAsync();
+                }
+
+                count += processingIds.Count;
+            }
+
+
+
+
         }
 
         [CommandDescription("Change the size of the output, e.g. /setsize 768x768")]

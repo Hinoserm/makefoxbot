@@ -11,7 +11,7 @@
  Target Server Version : 100523 (10.5.23-MariaDB-log)
  File Encoding         : 65001
 
- Date: 11/02/2024 11:57:30
+ Date: 11/02/2024 17:03:56
 */
 
 SET NAMES utf8mb4;
@@ -70,7 +70,7 @@ CREATE TABLE `images`  (
   INDEX `idx4`(`type`) USING BTREE,
   INDEX `idx5`(`type`, `id`) USING BTREE,
   CONSTRAINT `images_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 14363 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 14571 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for queue
@@ -104,7 +104,7 @@ CREATE TABLE `queue`  (
   `date_finished` datetime(3) NULL DEFAULT NULL,
   `date_failed` datetime(3) NULL DEFAULT NULL,
   `link_token` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `worker` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
+  `worker` int(11) NULL DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx1`(`status`) USING BTREE,
   INDEX `idx2`(`date_added`) USING BTREE,
@@ -115,7 +115,7 @@ CREATE TABLE `queue`  (
   INDEX `idx7`(`status`, `uid`) USING BTREE,
   INDEX `idx8`(`tele_id`, `tele_chatid`) USING BTREE,
   INDEX `idx9`(`status`, `date_added`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 15710 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 15917 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for send_queue
@@ -177,7 +177,7 @@ CREATE TABLE `telegram_log`  (
   `message_text` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `date_added` datetime NOT NULL,
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 18138 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 18470 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for telegram_user_settings
@@ -228,17 +228,34 @@ CREATE TABLE `users`  (
   `date_last_seen` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `id`(`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 40 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 43 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for worker_lora_tags
+-- ----------------------------
+DROP TABLE IF EXISTS `worker_lora_tags`;
+CREATE TABLE `worker_lora_tags`  (
+  `lora_id` int(11) NOT NULL,
+  `worker_id` int(11) NOT NULL,
+  `tag_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `frequency` int(11) NULL DEFAULT NULL,
+  INDEX `idx1`(`lora_id`, `worker_id`, `tag_name`) USING BTREE,
+  CONSTRAINT `worker_lora_tags_ibfk_1` FOREIGN KEY (`lora_id`) REFERENCES `worker_loras` (`lora_id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for worker_loras
 -- ----------------------------
 DROP TABLE IF EXISTS `worker_loras`;
 CREATE TABLE `worker_loras`  (
-  `worker_id` int(10) UNSIGNED NOT NULL,
-  `lora_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  PRIMARY KEY (`worker_id`, `lora_name`) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+  `lora_id` int(11) NOT NULL AUTO_INCREMENT,
+  `worker_id` int(11) NULL DEFAULT NULL,
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
+  `alias` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
+  `path` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
+  PRIMARY KEY (`lora_id`) USING BTREE,
+  UNIQUE INDEX `worker_id`(`worker_id`, `name`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 3116 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for worker_models
@@ -252,7 +269,9 @@ CREATE TABLE `worker_models`  (
   `model_title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `model_filename` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `model_config` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  PRIMARY KEY (`worker_id`, `model_name`) USING BTREE
+  PRIMARY KEY (`worker_id`, `model_name`) USING BTREE,
+  INDEX `idx1`(`model_name`) USING BTREE,
+  INDEX `idx2`(`model_hash`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
@@ -262,6 +281,7 @@ DROP TABLE IF EXISTS `workers`;
 CREATE TABLE `workers`  (
   `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Worker ID number',
   `enabled` tinyint(1) UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Is the worker available for use',
+  `online` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Is the worker currently online?',
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'User-friendly worker name',
   `url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'URL to A1111 API',
   `gpu_uuid` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'Corresponding GPU UUID to match with gpu_stats',

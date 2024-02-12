@@ -140,7 +140,7 @@ namespace makefoxsrv
                                     $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
                                     $"🧠Model: {q.settings.model}\r\n" +
                                     $"🌱Seed: {q.settings.seed}\r\n",
-                                //ParseMode = ParseMode.Html
+                                    //$"⚙️Worker: {q.settings.model}\r\n",
                                 },
                                 new InputMediaPhoto(new InputFileId(output_fileid))
                             };

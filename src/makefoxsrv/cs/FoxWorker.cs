@@ -23,10 +23,12 @@ namespace makefoxsrv
     {
         private int id;
         private CancellationTokenSource cts;
+        private CancellationTokenSource cts_stop; //For gracefully stopping a generation
         private readonly string address;
         private static SemaphoreSlim semaphore = new SemaphoreSlim(0);
         private StableDiffusion? api;
-        private bool online = true;
+        private bool online = true;       //Worker online status
+        private FoxQueue? qitem = null;   //If we're operating, this is the current queue item being processed.
 
         private static ConcurrentDictionary<int, FoxWorker> workers = new ConcurrentDictionary<int, FoxWorker>();
 
@@ -45,6 +47,7 @@ namespace makefoxsrv
             this.address = address;
             this.id = worker_id;
             this.cts = new CancellationTokenSource();
+            this.cts_stop = new CancellationTokenSource();
         }
 
         private static FoxWorker CreateWorker(TelegramBotClient botClient, int worker_id, string address)
@@ -83,11 +86,35 @@ namespace makefoxsrv
                     await worker.LoadModelInfo();
                     await worker.GetLoRAInfo();
                     await worker.SetStartDate();
+                    await worker.SetOnlineStatus(true);
 
                     _ = worker.Run(botClient);
                 }
             }
         }
+
+        public static bool CancelIfUserMatches(int worker_id, ulong uid)
+        {
+            var worker = workers[worker_id];
+
+            if (worker.qitem is null)
+                return false;
+
+            if (worker.qitem.UID != uid)
+                return false;
+
+            worker.Stop();
+
+            return true;
+        }
+
+        public void Stop()
+        {
+            Console.WriteLine($"Worker {id} stopping due to request... ");
+
+            cts_stop.Cancel();
+        }
+
         private async Task<StableDiffusion?> ConnectAPI(bool throw_error = true)
         {
             try
@@ -484,6 +511,8 @@ namespace makefoxsrv
             Console.WriteLine($"Worker {id} is offline!\r\n  Error: " + ex.Message);
             await SetOnlineStatus(false);
             await SetFailedDate(ex);
+
+            qitem = null; //Clearly we're not working on an item anymore, better clear it to be safe.
         }
 
         // Example instance method for running the worker thread logic
@@ -541,6 +570,8 @@ namespace makefoxsrv
                     {
                         //Console.WriteLine($"Starting image {q.id}...");
 
+                        qitem = q;
+
                         try
                         {
 
@@ -549,6 +580,8 @@ namespace makefoxsrv
                             await q.SetWorker(id);
 
                             await SetUsedDate(q.id);
+
+                            using var comboCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, cts_stop.Token);
 
                             try
                             {
@@ -562,7 +595,7 @@ namespace makefoxsrv
 
                             var settings = q.settings;
 
-                            /*
+                            
 
                             CancellationTokenSource progress_cts = new CancellationTokenSource();
 
@@ -570,18 +603,28 @@ namespace makefoxsrv
                             {
                                 while (!progress_cts.IsCancellationRequested)
                                 {
-                                    var progress = api.Progress().Result.Progress * 100;
+                                    try
+                                    {
+                                        var p = await api.Progress(true, cts.Token);
+                                        var progress = p.Progress * 100;
 
-                                    await botClient.EditMessageTextAsync(
-                                        chatId: q.TelegramChatID,
-                                        messageId: q.msg_id,
-                                        text: $"⏳ Generating now ({progress})..."
-                                        );
-                                    await Task.Delay(500);
+                                        using var comboBreaker = CancellationTokenSource.CreateLinkedTokenSource(comboCts.Token, progress_cts.Token);
 
+                                        await botClient.EditMessageTextAsync(
+                                            chatId: q.TelegramChatID,
+                                            messageId: q.msg_id,
+                                            text: $"⏳ Generating now ({(int)progress}%)..."
+                                            );
+
+                                    
+                                        await Task.Delay(350, comboBreaker.Token);
+
+                                    } catch {
+                                        //Don't care about errors
+                                    }
                                 }
                             });
-                            */
+                            
 
                             if (q.type == "IMG2IMG")
                             {
@@ -596,8 +639,8 @@ namespace makefoxsrv
                                 //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
                                 //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
-                                var model = await api.StableDiffusionModel(settings.model);
-                                var sampler = await api.Sampler("DPM++ 2M Karras");
+                                var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
+                                var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
 
                                 var img = new Base64EncodedImage(q.input_image.Image);
 
@@ -631,7 +674,7 @@ namespace makefoxsrv
                                             CfgScale = (double)settings.cfgscale
                                         },
                                     }
-                                );
+                                , comboCts.Token);
 
                                 await q.SaveOutputImage(img2img.Images.Last().Data.ToArray());
                             }
@@ -640,8 +683,8 @@ namespace makefoxsrv
                                 //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
                                 //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
-                                var model = await api.StableDiffusionModel(settings.model);
-                                var sampler = await api.Sampler("DPM++ 2M Karras");
+                                var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
+                                var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
 
                                 var txt2img = await api.TextToImage(
                                     new()
@@ -669,10 +712,12 @@ namespace makefoxsrv
                                             CfgScale = (double)settings.cfgscale
                                         },
                                     }
-                                );
+                                , comboCts.Token);
 
                                 await q.SaveOutputImage(txt2img.Images.Last().Data.ToArray());
                             }
+
+                            progress_cts.Cancel();
 
                             await q.Finish();
                             _ = FoxSendQueue.Enqueue(botClient, q);
@@ -681,6 +726,28 @@ namespace makefoxsrv
 
                             //Console.WriteLine($"Finished image {q.id}.");
 
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // Handle the cancellation specifically
+                            Console.WriteLine($"Worker {id} - User Cancellation");
+
+                            cts_stop = new CancellationTokenSource();
+
+                            try {
+                                using var httpClient = new HttpClient();
+
+                                var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null);
+                                response.EnsureSuccessStatusCode();
+
+                                _ = botClient.EditMessageTextAsync(
+                                    chatId: qitem.TelegramChatID,
+                                    messageId: qitem.msg_id,
+                                    text: "❌ Cancelled."
+                                );
+                            } catch { throw;  }
+
+                            qitem = null;
                         }
                         catch (Exception ex)
                         { 
@@ -702,8 +769,11 @@ namespace makefoxsrv
 
                             await HandleError(ex);
 
+
                             break; //Leave the queue loop.
                         }
+
+                        qitem = null;
                     }
 
                     //await semaphore.WaitAsync(2000, cts.Token);
