@@ -16,6 +16,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 using Newtonsoft.Json.Linq;
 using static makefoxsrv.FoxWorker;
+using System.Text.RegularExpressions;
 
 namespace makefoxsrv
 {
@@ -26,6 +27,7 @@ namespace makefoxsrv
         private CancellationTokenSource cts_stop; //For gracefully stopping a generation
         private readonly string address;
         private static SemaphoreSlim semaphore = new SemaphoreSlim(0);
+        private bool semaphoreAcquired = false;
         private StableDiffusion? api;
         private bool online = true;       //Worker online status
         private FoxQueue? qitem = null;   //If we're operating, this is the current queue item being processed.
@@ -512,7 +514,8 @@ namespace makefoxsrv
             await SetOnlineStatus(false);
             await SetFailedDate(ex);
 
-            semaphore.Release(); //Let another worker try to pick it up.
+            if (semaphoreAcquired)
+                semaphore.Release();
 
             qitem = null; //Clearly we're not working on an item anymore, better clear it to be safe.
         }
@@ -527,7 +530,10 @@ namespace makefoxsrv
                     FoxQueue? q;
                     StableDiffusion? api;
 
-                    await semaphore.WaitAsync(2000, cts.Token);
+                    //Wake up every now and then to make sure we're still online.
+                    semaphoreAcquired = await semaphore.WaitAsync(4000, cts.Token);
+
+                    //Console.WriteLine($"Worker {id} - woke up, semaphore: {semaphoreAcquired}");
 
                     if (!online)
                     {
@@ -538,9 +544,10 @@ namespace makefoxsrv
                         {
                             //Still offline.  Wait a while and try again.
 
-                            semaphore.Release();
+                            if (semaphoreAcquired)
+                                semaphore.Release();
 
-                            await Task.Delay(3000, cts.Token);
+                            await Task.Delay(4000, cts.Token);
                             continue;
                         }
                         else
@@ -567,8 +574,12 @@ namespace makefoxsrv
 
                     if (status.QueueSize > 0 || progress.State.JobCount > 0)
                     {
-                        //Console.WriteLine($"Queue busy, waiting 800ms...");
-                        await Task.Delay(800, cts.Token);
+                        //Console.WriteLine($"Queue busy, waiting 300ms...");
+                        await Task.Delay(300, cts.Token);
+
+                        if (semaphoreAcquired)
+                            semaphore.Release();
+
                         continue;
                     }
 
@@ -578,7 +589,13 @@ namespace makefoxsrv
                     //{
                     q = await FoxQueue.Pop(id);
                     if (q is null)
+                    {
+                        //If we have the semaphore, but couldn't find anything to process.
+                        //Better give it to someone else.
+                        if (semaphoreAcquired)
+                            semaphore.Release(); 
                         continue;
+                    }
 
                     //Console.WriteLine($"Starting image {q.id}...");
 
@@ -604,12 +621,31 @@ namespace makefoxsrv
                             );
                         }
                         catch (Exception ex) {
-                            Console.WriteLine("ping1 " + ex.Message);
-                        } //We don't care if editing fails.
+                            //If we can't edit, we probably hit a rate limit with this user.
+                            
 
-                        var settings = q.settings;
+                            Match match = Regex.Match(ex.Message, @"Too Many Requests: retry after (\d+)");
+
+                            if (match.Success)
+                            {
+                                // If the message matches, extract the number
+                                int retryAfterSeconds = int.Parse(match.Groups[1].Value) + 3;
+                                Console.WriteLine($"Worker {id} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+
+                                // Wait for the specified number of seconds before retrying
+                                //await Task.Delay(retryAfterSeconds * 1000);
+
+                                //Ideally we need some way to set a "retryAfterSecs" item on this request in the queue.
+
+                                await HandleError(ex);
+                                continue;
+                            } else
+                                Console.WriteLine("Edit msg failed " + ex.Message); //We don't care if editing fails in other cases, like the message being missing.
 
                             
+                        } 
+
+                        var settings = q.settings;                            
 
                         CancellationTokenSource progress_cts = new CancellationTokenSource();
 
@@ -782,7 +818,7 @@ namespace makefoxsrv
                         await HandleError(ex);
 
 
-                        break; //Leave the queue loop.
+                        //break; //Leave the queue loop.
                     }
 
                     qitem = null;
