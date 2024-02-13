@@ -512,6 +512,8 @@ namespace makefoxsrv
             await SetOnlineStatus(false);
             await SetFailedDate(ex);
 
+            semaphore.Release(); //Let another worker try to pick it up.
+
             qitem = null; //Clearly we're not working on an item anymore, better clear it to be safe.
         }
 
@@ -525,6 +527,8 @@ namespace makefoxsrv
                     FoxQueue? q;
                     StableDiffusion? api;
 
+                    await semaphore.WaitAsync(2000, cts.Token);
+
                     if (!online)
                     {
                         //Worker is in offline mode, just check for a working connection.
@@ -533,6 +537,8 @@ namespace makefoxsrv
                         if (api is null)
                         {
                             //Still offline.  Wait a while and try again.
+
+                            semaphore.Release();
 
                             await Task.Delay(3000, cts.Token);
                             continue;
@@ -566,217 +572,221 @@ namespace makefoxsrv
                         continue;
                     }
 
-                    while ((q = await FoxQueue.Pop(id)) is not null) //Work until the queue is empty
-                    {
-                        //Console.WriteLine($"Starting image {q.id}...");
+                    
 
-                        qitem = q;
+                    //while ((q = await FoxQueue.Pop(id)) is not null) //Work until the queue is empty
+                    //{
+                    q = await FoxQueue.Pop(id);
+                    if (q is null)
+                        continue;
+
+                    //Console.WriteLine($"Starting image {q.id}...");
+
+                    qitem = q;
+
+                    try
+                    {
+
+                        api = await ConnectAPI(true); // It's been a while, we should ping the API again.
+
+                        await q.SetWorker(id);
+
+                        await SetUsedDate(q.id);
+
+                        using var comboCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, cts_stop.Token);
 
                         try
                         {
+                            await botClient.EditMessageTextAsync(
+                                chatId: q.TelegramChatID,
+                                messageId: q.msg_id,
+                                text: $"⏳ Generating now..."
+                            );
+                        }
+                        catch (Exception ex) {
+                            Console.WriteLine("ping1 " + ex.Message);
+                        } //We don't care if editing fails.
 
-                            api = await ConnectAPI(true); // It's been a while, we should ping the API again.
-
-                            await q.SetWorker(id);
-
-                            await SetUsedDate(q.id);
-
-                            using var comboCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, cts_stop.Token);
-
-                            try
-                            {
-                                await botClient.EditMessageTextAsync(
-                                    chatId: q.TelegramChatID,
-                                    messageId: q.msg_id,
-                                    text: $"⏳ Generating now..."
-                                );
-                            }
-                            catch (Exception ex) {
-                                Console.WriteLine("ping1 " + ex.Message);
-                            } //We don't care if editing fails.
-
-                            var settings = q.settings;
+                        var settings = q.settings;
 
                             
 
-                            CancellationTokenSource progress_cts = new CancellationTokenSource();
+                        CancellationTokenSource progress_cts = new CancellationTokenSource();
 
-                            /* _ = Task.Run(async () =>
+                        /* _ = Task.Run(async () =>
+                        {
+                            while (!progress_cts.IsCancellationRequested)
                             {
-                                while (!progress_cts.IsCancellationRequested)
+                                try
                                 {
-                                    try
-                                    {
-                                        var p = await api.Progress(true, cts.Token);
-                                        var progress = p.Progress * 100;
+                                    var p = await api.Progress(true, cts.Token);
+                                    var progress = p.Progress * 100;
 
-                                        using var comboBreaker = CancellationTokenSource.CreateLinkedTokenSource(comboCts.Token, progress_cts.Token);
+                                    using var comboBreaker = CancellationTokenSource.CreateLinkedTokenSource(comboCts.Token, progress_cts.Token);
 
-                                        await botClient.EditMessageTextAsync(
-                                            chatId: q.TelegramChatID,
-                                            messageId: q.msg_id,
-                                            text: $"⏳ Generating now ({(int)progress}%)..."
-                                            );
+                                    await botClient.EditMessageTextAsync(
+                                        chatId: q.TelegramChatID,
+                                        messageId: q.msg_id,
+                                        text: $"⏳ Generating now ({(int)progress}%)..."
+                                        );
 
                                     
-                                        await Task.Delay(350, comboBreaker.Token);
+                                    await Task.Delay(350, comboBreaker.Token);
 
-                                    } catch {
-                                        //Don't care about errors
-                                    }
+                                } catch {
+                                    //Don't care about errors
                                 }
-                            }); */
+                            }
+                        }); */
                             
 
-                            if (q.type == "IMG2IMG")
-                            {
-                                q.input_image = await FoxImage.Load(settings.selected_image);
-
-                                if (q.input_image is null)
-                                {
-                                    await q.Finish();
-                                    throw new Exception("The selected image was unable to be located");
-                                }
-
-                                //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
-
-                                //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
-                                var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
-                                var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
-
-                                var img = new Base64EncodedImage(q.input_image.Image);
-
-                                var img2img = await api.Image2Image(
-                                    new()
-                                    {
-                                        Images = { img },
-
-                                        Model = model,
-
-                                        Prompt = new()
-                                        {
-                                            Positive = settings.prompt,
-                                            Negative = settings.negative_prompt,
-                                        },
-
-                                        Width = settings.width,
-                                        Height = settings.height,
-
-                                        Seed = new()
-                                        {
-                                            Seed = settings.seed,
-                                        },
-
-                                        DenoisingStrength = (double)settings.denoising_strength,
-
-                                        Sampler = new()
-                                        {
-                                            Sampler = sampler,
-                                            SamplingSteps = settings.steps,
-                                            CfgScale = (double)settings.cfgscale
-                                        },
-                                    }
-                                , comboCts.Token);
-
-                                await q.SaveOutputImage(img2img.Images.Last().Data.ToArray());
-                            }
-                            else if (q.type == "TXT2IMG")
-                            {
-                                //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
-
-                                //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
-                                var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
-                                var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
-
-                                var txt2img = await api.TextToImage(
-                                    new()
-                                    {
-                                        Model = model,
-
-                                        Prompt = new()
-                                        {
-                                            Positive = settings.prompt,
-                                            Negative = settings.negative_prompt,
-                                        },
-
-                                        Seed = new()
-                                        {
-                                            Seed = settings.seed,
-                                        },
-
-                                        Width = settings.width,
-                                        Height = settings.height,
-
-                                        Sampler = new()
-                                        {
-                                            Sampler = sampler,
-                                            SamplingSteps = settings.steps,
-                                            CfgScale = (double)settings.cfgscale
-                                        },
-                                    }
-                                , comboCts.Token);
-
-                                await q.SaveOutputImage(txt2img.Images.Last().Data.ToArray());
-                            }
-
-                            progress_cts.Cancel();
-
-                            await q.Finish();
-                            _ = FoxSendQueue.Enqueue(botClient, q);
-
-                            //Console.WriteLine($"Finished image {q.id}.");
-
-                        }
-                        catch (OperationCanceledException)
+                        if (q.type == "IMG2IMG")
                         {
-                            // Handle the cancellation specifically
-                            Console.WriteLine($"Worker {id} - User Cancellation");
+                            q.input_image = await FoxImage.Load(settings.selected_image);
 
-                            cts_stop = new CancellationTokenSource();
-
-                            try {
-                                using var httpClient = new HttpClient();
-
-                                var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null);
-                                response.EnsureSuccessStatusCode();
-
-                                _ = botClient.EditMessageTextAsync(
-                                    chatId: qitem.TelegramChatID,
-                                    messageId: qitem.msg_id,
-                                    text: "❌ Cancelled."
-                                );
-                            } catch { throw;  }
-
-                            qitem = null;
-                        }
-                        catch (Exception ex)
-                        { 
-                            try
+                            if (q.input_image is null)
                             {
-                                await q.Finish(ex); //Mark it as ERROR'd.
+                                await q.Finish();
+                                throw new Exception("The selected image was unable to be located");
                             }
-                            catch { }
 
-                            try
-                            {
-                                await botClient.EditMessageTextAsync(
-                                    chatId: q.TelegramChatID,
-                                    messageId: q.msg_id,
-                                    text: $"⏳ Error (will re-attempt soon)"
-                                );
-                            }
-                            catch { }
+                            //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
-                            await HandleError(ex);
+                            //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
+                            var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
+                            var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
 
+                            var img = new Base64EncodedImage(q.input_image.Image);
 
-                            break; //Leave the queue loop.
+                            var img2img = await api.Image2Image(
+                                new()
+                                {
+                                    Images = { img },
+
+                                    Model = model,
+
+                                    Prompt = new()
+                                    {
+                                        Positive = settings.prompt,
+                                        Negative = settings.negative_prompt,
+                                    },
+
+                                    Width = settings.width,
+                                    Height = settings.height,
+
+                                    Seed = new()
+                                    {
+                                        Seed = settings.seed,
+                                    },
+
+                                    DenoisingStrength = (double)settings.denoising_strength,
+
+                                    Sampler = new()
+                                    {
+                                        Sampler = sampler,
+                                        SamplingSteps = settings.steps,
+                                        CfgScale = (double)settings.cfgscale
+                                    },
+                                }
+                            , comboCts.Token);
+
+                            await q.SaveOutputImage(img2img.Images.Last().Data.ToArray());
                         }
+                        else if (q.type == "TXT2IMG")
+                        {
+                            //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
+
+                            //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
+                            var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
+                            var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
+
+                            var txt2img = await api.TextToImage(
+                                new()
+                                {
+                                    Model = model,
+
+                                    Prompt = new()
+                                    {
+                                        Positive = settings.prompt,
+                                        Negative = settings.negative_prompt,
+                                    },
+
+                                    Seed = new()
+                                    {
+                                        Seed = settings.seed,
+                                    },
+
+                                    Width = settings.width,
+                                    Height = settings.height,
+
+                                    Sampler = new()
+                                    {
+                                        Sampler = sampler,
+                                        SamplingSteps = settings.steps,
+                                        CfgScale = (double)settings.cfgscale
+                                    },
+                                }
+                            , comboCts.Token);
+
+                            await q.SaveOutputImage(txt2img.Images.Last().Data.ToArray());
+                        }
+
+                        progress_cts.Cancel();
+
+                        await q.Finish();
+                        _ = FoxSendQueue.Enqueue(botClient, q);
+
+                        //Console.WriteLine($"Finished image {q.id}.");
+
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Handle the cancellation specifically
+                        Console.WriteLine($"Worker {id} - User Cancellation");
+
+                        cts_stop = new CancellationTokenSource();
+
+                        try {
+                            using var httpClient = new HttpClient();
+
+                            var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null);
+                            response.EnsureSuccessStatusCode();
+
+                            _ = botClient.EditMessageTextAsync(
+                                chatId: qitem.TelegramChatID,
+                                messageId: qitem.msg_id,
+                                text: "❌ Cancelled."
+                            );
+                        } catch { throw;  }
 
                         qitem = null;
                     }
+                    catch (Exception ex)
+                    { 
+                        try
+                        {
+                            await q.Finish(ex); //Mark it as ERROR'd.
+                        }
+                        catch { }
 
-                    await semaphore.WaitAsync(2000, cts.Token);
+                        try
+                        {
+                            await botClient.EditMessageTextAsync(
+                                chatId: q.TelegramChatID,
+                                messageId: q.msg_id,
+                                text: $"⏳ Error (will re-attempt soon)"
+                            );
+                        }
+                        catch { }
+
+                        await HandleError(ex);
+
+
+                        break; //Leave the queue loop.
+                    }
+
+                    qitem = null;
+                 
                     //Console.WriteLine("Worker Tick...");
                 }
                 catch (Exception ex)

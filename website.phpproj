@@ -6,7 +6,7 @@
     <EnvName>PHPDev</EnvName>
     <RootNamespace>website</RootNamespace>
     <WebRoot>./web</WebRoot>
-    <RuntimeVersion>8.0</RuntimeVersion>
+    <RuntimeVersion>8.2</RuntimeVersion>
     <SaveServerSettingsInUserFile>false</SaveServerSettingsInUserFile>
     <PHPDevHostName>0.0.0.0</PHPDevHostName>
     <PHPDevAutoPort>false</PHPDevAutoPort>
