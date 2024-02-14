@@ -12,6 +12,7 @@ if ($user['access_level'] != "ADMIN")
 $pdo = new PDO("mysql:host=" . MYSQL_HOST . ";dbname=" . MYSQL_DBNAME . ";charset=utf8mb4", MYSQL_USERNAME, MYSQL_PASSWORD);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+$pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -26,9 +27,9 @@ $sql = "SELECT
     DATE_FORMAT(q.date_added, '%Y-%m-%d %H:%i:%s.%f') as date_added,
     q.type,
     q.uid,
-    u.username AS username,
-    tu.firstname AS firstname,
-    tu.lastname AS lastname,
+    IFNULL(u.username, CONCAT_WS(' ', tu.firstname, tu.lastname)) AS username,
+    tu.firstname,
+    tu.lastname,
     q.steps,
     q.width,
     q.height,

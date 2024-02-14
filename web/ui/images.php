@@ -32,7 +32,7 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
 
 	<link rel="stylesheet" href="/css/<?php echo $dark ? 'dark.css' : 'main.css'; ?>">
 
-	<script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
 
 </head>
 <body>
@@ -43,24 +43,24 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
         let highestImageId = 0;
         let isLoading = false;
 
-		let imagesData = {};
+        let imagesData = {};
 
-		let currentImageIdx = null; // Global variable to track the current image index
+        let currentImageIdx = null; // Global variable to track the current image index
 
-		document.addEventListener('DOMContentLoaded', () => {
-			createLightbox(); // Ensure this is called once the DOM is fully loaded
-			setupLightboxScroll(); // Setup scroll functionality in lightbox
-		});
+        document.addEventListener('DOMContentLoaded', () => {
+            createLightbox(); // Ensure this is called once the DOM is fully loaded
+            setupLightboxScroll(); // Setup scroll functionality in lightbox
+        });
 
         function createLightbox() {
             const lightbox = document.createElement('div');
             lightbox.id = 'lightbox';
             document.body.appendChild(lightbox);
 
-			const closeButton = document.createElement('div');
-			closeButton.classList.add('close-btn');
-			closeButton.innerHTML = '&times;';
-			lightbox.appendChild(closeButton);
+            const closeButton = document.createElement('div');
+            closeButton.classList.add('close-btn');
+            closeButton.innerHTML = '&times;';
+            lightbox.appendChild(closeButton);
 
             closeButton.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -72,11 +72,11 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
                 lightbox.style.display = 'none';
                 document.body.style.overflow = '';
             });
-		}
+        }
 
         function fetchImageUrl(imageId) {
-			return `/api/get-image.php?id=${imageId}`;
-		}
+            return `/api/get-image.php?id=${imageId}`;
+        }
 
             function showLightbox(idx) {
         const lightbox = document.getElementById('lightbox');
@@ -107,8 +107,8 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
         mainImg.style.maxHeight = '80vh';
         mainImg.style.maxWidth = '45%'; // Adjusted width for side-by-side display
 
-        // Check if image type is TXT2IMG and handle selected_image
-        if (image.type === 'TXT2IMG' && image.selected_image) {
+        // Check if image type is IMG2IMG and handle selected_image
+        if (image.type === 'IMG2IMG' && image.selected_image) {
             const selectedImg = document.createElement('img');
             selectedImg.src = fetchImageUrl(image.selected_image) + '&full=1';
             selectedImg.alt = "Selected image";
@@ -146,163 +146,183 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
         document.body.style.overflow = 'hidden';
     }
 
-		function setupLightboxScroll() {
-			const lightbox = document.getElementById('lightbox');
+        function setupLightboxScroll() {
+            const lightbox = document.getElementById('lightbox');
 
-			lightbox.addEventListener('wheel', (e) => {
-				e.preventDefault(); // Prevent the page from scrolling
+            lightbox.addEventListener('wheel', (e) => {
+                e.preventDefault(); // Prevent the page from scrolling
 
-				if (e.deltaY < 0) {
-					// Scrolling up, show previous image
-					showNextImage();
-				} else if (e.deltaY > 0) {
-					// Scrolling down, show next image
-					showPreviousImage();
-				}
-			});
-		}
+                if (e.deltaY < 0) {
+                    // Scrolling up, show previous image
+                    showNextImage();
+                } else if (e.deltaY > 0) {
+                    // Scrolling down, show next image
+                    showPreviousImage();
+                }
+            });
+        }
 
-		function showPreviousImage() {
-			const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-			const currentIndex = keys.indexOf(Number(currentImageIdx));
-			if (currentIndex > 0) {
-				const previousIndex = keys[currentIndex - 1];
-				const previousImage = imagesData[previousIndex];
-				if (previousImage) {
-					showLightbox(previousIndex.toString());
-				}
-			} else {
-				fetchImages('old').then(() => {
-					// Re-fetch keys as they might have been updated
-					const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-					const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
-					if (newCurrentIndex > 0) {
-						showPreviousImage(); // Try showing the previous image again
-					}
-				}).catch(error => console.error(error));
-			}
-		}
+        function showPreviousImage() {
+            const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+            const currentIndex = keys.indexOf(Number(currentImageIdx));
+            if (currentIndex > 0) {
+                const previousIndex = keys[currentIndex - 1];
+                const previousImage = imagesData[previousIndex];
+                if (previousImage) {
+                    showLightbox(previousIndex.toString());
+                }
+            } else {
+                fetchImages('old').then(() => {
+                    // Re-fetch keys as they might have been updated
+                    const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+                    const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
+                    if (newCurrentIndex > 0) {
+                        showPreviousImage(); // Try showing the previous image again
+                    }
+                }).catch(error => console.error(error));
+            }
+        }
 
-		function showNextImage() {
-			const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-			const currentIndex = keys.indexOf(Number(currentImageIdx));
-			if (currentIndex < keys.length - 1) {
-				const nextIndex = keys[currentIndex + 1];
-				const nextImage = imagesData[nextIndex];
-				if (nextImage) {
-					showLightbox(nextIndex.toString());
-				}
-			} else {
-				fetchImages('new').then(() => {
-					const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-					const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
-					if (newCurrentIndex < updatedKeys.length - 1) {
-						showNextImage(); // Try showing the next image again
-					}
-				}).catch(error => console.error(error));
-			}
-		}
+        function showNextImage() {
+            const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+            const currentIndex = keys.indexOf(Number(currentImageIdx));
+            if (currentIndex < keys.length - 1) {
+                const nextIndex = keys[currentIndex + 1];
+                const nextImage = imagesData[nextIndex];
+                if (nextImage) {
+                    showLightbox(nextIndex.toString());
+                }
+            } else {
+                fetchImages('new').then(() => {
+                    const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+                    const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
+                    if (newCurrentIndex < updatedKeys.length - 1) {
+                        showNextImage(); // Try showing the next image again
+                    }
+                }).catch(error => console.error(error));
+            }
+        }
 
-		function constructCaptionHTML(image) {
-			let caption = '';
+        function constructCaptionHTML(image) {
+            let caption = '';
 
-			if (image.prompt) {
-				caption += `<div><strong>Prompt: </strong>${image.prompt}</div>`;
-			}
-			if (image.negative_prompt) {
-				caption += `<br><div><strong>Negative Prompt: </strong>${image.negative_prompt}</div>`;
-			}
-			// Add more fields from the image object as needed
-			return caption;
-		}
+            if (image.prompt) {
+                caption += `<div><strong>Prompt: </strong>${image.prompt}</div>`;
+            }
+            if (image.negative_prompt) {
+                caption += `<br><div><strong>Negative Prompt: </strong>${image.negative_prompt}</div>`;
+            }
+            // Add more fields from the image object as needed
+            return caption;
+        }
 
-		function handleImageClick(idx) {
-			const image = imagesData[idx];
-			if (!image) {
-				console.error("Image data not found for idx:", idx);
-				return;
-			}
+        function handleImageClick(idx) {
+            const image = imagesData[idx];
+            if (!image) {
+                console.error("Image data not found for idx:", idx);
+                return;
+            }
 
-			showLightbox(idx); // Pass idx as well
-		}
+            showLightbox(idx); // Pass idx as well
+        }
 
         function updateImageIds(images, action) {
-			Object.values(images).forEach(image => { // Use Object.values() to get the array of values
-				if (action === 'new') {
-					highestImageId = Math.max(highestImageId, parseInt(image.id, 10)); // Ensure id is treated as a number
-					
-					if (lastImageId === 0 || parseInt(image.id, 10) < lastImageId) {
-						lastImageId = parseInt(image.id, 10);
-					}
-				} else {
-					if (lastImageId === 0 || parseInt(image.id, 10) < lastImageId) {
-						lastImageId = parseInt(image.id, 10);
-					}
-				}
-			});
-		}
+            Object.values(images).forEach(image => { // Use Object.values() to get the array of values
+                if (action === 'new') {
+                    highestImageId = Math.max(highestImageId, parseInt(image.id, 10)); // Ensure id is treated as a number
+                    
+                    if (lastImageId === 0 || parseInt(image.id, 10) < lastImageId) {
+                        lastImageId = parseInt(image.id, 10);
+                    }
+                } else {
+                    if (lastImageId === 0 || parseInt(image.id, 10) < lastImageId) {
+                        lastImageId = parseInt(image.id, 10);
+                    }
+                }
+            });
+        }
 
-		function shortenText(text, maxLength) {
-			const isTextShortened = text.length > maxLength;
-			const shortenedText = isTextShortened ? text.substring(0, maxLength - 3) + "..." : text;
-			return { shortenedText, isTextShortened };
-		}
+        function shortenText(text, maxLength) {
+            const isTextShortened = text.length > maxLength;
+            const shortenedText = isTextShortened ? text.substring(0, maxLength - 3) + "..." : text;
+            return { shortenedText, isTextShortened };
+        }
 
-    function displayImages(images, action) {
-        const container = document.getElementById('imageContainer');
-        Object.entries(images).forEach(async ([idx, image]) => {
-            const wrapper = document.createElement('div');
-			wrapper.classList.add('image-wrapper');
+        function displayImages(images, action) {
+            const container = document.getElementById('imageContainer');
+            Object.entries(images).forEach(async ([idx, image]) => {
+                const wrapper = document.createElement('div');
+                wrapper.classList.add('image-wrapper');
 
-            // Secondary Image for TXT2IMG type
-			if (image.type === "TXT2IMG" && image.selected_image) {
-				const secondaryImgElement = document.createElement('img');
-				secondaryImgElement.src = fetchImageUrl(image.selected_image);
-				secondaryImgElement.setAttribute('data-image-id', idx); // Set the image ID as a data attribute
-				secondaryImgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
-				secondaryImgElement.style.width = '100%';
-				secondaryImgElement.style.height = 'auto';
-				wrapper.appendChild(secondaryImgElement);
-			}
+                // Secondary Image for IMG2IMG type
+                if (image.type === "IMG2IMG" && image.selected_image) {
+                    const secondaryImgElement = document.createElement('img');
+                    secondaryImgElement.src = fetchImageUrl(image.selected_image);
+                    secondaryImgElement.setAttribute('data-image-id', idx); // Set the image ID as a data attribute
+                    secondaryImgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
+                    secondaryImgElement.style.width = '100%';
+                    secondaryImgElement.style.height = 'auto';
+                    wrapper.appendChild(secondaryImgElement);
+                }
 
-            // Primary Image Element
-            const primaryImgElement = document.createElement('img');
-            primaryImgElement.src = fetchImageUrl(image.image_id);
-            primaryImgElement.style.width = '100%'; // Ensure the image takes the full width of its container
-			primaryImgElement.style.height = 'auto'; // Maintain aspect ratio
-            primaryImgElement.setAttribute('data-image-id', idx); // Set the image ID as a data attribute
-            primaryImgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
-            wrapper.appendChild(primaryImgElement);
+                // Primary Image Element
+                const primaryImgElement = document.createElement('img');
+                primaryImgElement.src = fetchImageUrl(image.image_id);
+                primaryImgElement.style.width = '100%'; // Ensure the image takes the full width of its container
+                primaryImgElement.style.height = 'auto'; // Maintain aspect ratio
+                primaryImgElement.setAttribute('data-image-id', idx); // Set the image ID as a data attribute
+                primaryImgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
+                wrapper.appendChild(primaryImgElement);
 
+                // Caption Handling
 
-            // Caption Handling
-            const { DateTime } = luxon;
-            const serverTime = DateTime.fromFormat(image.date_added, "yyyy-MM-dd HH:mm:ss.SSS", { zone: 'America/Chicago' });
-            const dateAdded = serverTime.setZone(DateTime.local().zoneName);
+                // Create a text element to display under the image
 
-            const textElement = document.createElement('div');
-            textElement.className = 'caption';
-            textElement.innerHTML = `
-      ${image.username ? '<div><strong>User:</strong> ' + image.username + '</div>' : ''}
-      <div><strong>Prompt:</strong> ${image.prompt}</div>
-      ${image.negative_prompt ? '<div><strong>Negative:</strong> ' + image.negative_prompt + '</div>' : ''}
-      <div><strong>Size:</strong> ${image.width}x${image.height}</div>
-      <div><strong>Steps:</strong> ${image.steps}</div>
-      <div><strong>CFG Scale:</strong> ${image.cfgscale}</div>
-      <div><strong>Denoising Strength:</strong> ${image.denoising_strength}</div>
-      <div><strong>Model:</strong> ${image.model}</div>
-      <div><strong>Seed:</strong> ${image.seed}</div>
-      <div>${dateAdded.toFormat('dd LLL yyyy HH:mm:ss ZZZZ')}</div>
-    `;
-            wrapper.appendChild(textElement);
+                let q = image;
 
-            if (action === 'new') {
-                container.insertBefore(wrapper, container.firstChild);
-            } else {
-                container.appendChild(wrapper);
-            }
-        });
-    }
+                let { shortenedText: promptShortened, isTextShortened: promptShortenedFlag } = shortenText(q.prompt, 100);
+                let { shortenedText: negativeShortened, isTextShortened: negativeShortenedFlag } = shortenText(q.negative_prompt, 100);
+
+                // Assuming q.date_added is in Central Time (America/Chicago)
+                // Luxon is used to parse and convert the timestamp
+                const { DateTime } = luxon;
+                // Parse the timestamp with milliseconds from Central Time and convert to the user's local timezone
+                const serverTime = DateTime.fromFormat(q.date_added, "yyyy-MM-dd HH:mm:ss.SSS", { zone: 'America/Chicago' });
+                const dateAdded = serverTime.setZone(DateTime.local().zoneName);
+
+                let caption =
+<?php if ($user['access_level'] == 'ADMIN'): ?>
+            '<div><strong>User:</strong> <a href="?uid=' + q.uid + '">' + (q.username ? q.username : '(' + (q.firstname || '') + (q.firstname && q.lastname ? ' ' : '') + (q.lastname || '') + ')') + '</a><br></div>' +
+<?php endif; ?>
+            '<div>' + (q.tele_chatid == q.tele_id ? "" : '<strong>Chat:</strong> ' + q.tele_chatid + '<br>') + '</div>' +
+            (q.prompt ? '<div><strong>Prompt:</strong> <span class="' + (promptShortenedFlag ? 'shorten can-expand' : 'shorten') + '" data-fulltext="' + q.prompt + '" data-shorttext="' + promptShortened + '">' + promptShortened + '</span><br></div>' : '') +
+            (q.negative_prompt ? '<div><strong>Negative:</strong> <span class="' + (negativeShortenedFlag ? 'shorten can-expand' : 'shorten') + '" data-fulltext="' + q.negative_prompt + '" data-shorttext="' + negativeShortened + '">' + negativeShortened + '</span><br></div>' : '') +
+            '<div><strong>Size:</strong> ' + q.width + 'x' + q.height + '<br></div>' +
+            '<div><strong>Sampler Steps:</strong> ' + q.steps + '<br></div>' +
+            '<div><strong>CFG Scale:</strong> ' + q.cfgscale + '<br></div>' +
+            (q.type == 'IMG2IMG' ? '<div><strong>Denoising Strength:</strong> ' + q.denoising_strength + '<br></div>' : '') +
+            '<div><strong>Model:</strong> ' + q.model + '<br></div>' +
+            '<div><strong>Seed:</strong> ' + q.seed + '<br></div>' +
+<?php if ($user['access_level'] == 'ADMIN'): ?>
+            '<div><strong>Worker:</strong> ' + q.worker_name + '<br></div>' +
+<?php endif; ?>
+            '<div>' + dateAdded.toFormat('dd LLL yyyy hh:mm:ss a ZZZZ') + '</div>'; // Appending the formatted timestamp with timezone
+
+                const textElement = document.createElement('div');
+                textElement.className = 'caption';
+                textElement.innerHTML = caption;
+
+                setupShortenForElement(textElement);
+
+                wrapper.appendChild(textElement);
+
+                if (action === 'new') {
+                    container.insertBefore(wrapper, container.firstChild);
+                } else {
+                    container.appendChild(wrapper);
+                }
+            });
+        }
 
 		let hasMoreOldImages = true;
 
