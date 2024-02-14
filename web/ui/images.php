@@ -72,50 +72,79 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
                 lightbox.style.display = 'none';
                 document.body.style.overflow = '';
             });
+		}
+
+        function fetchImageUrl(imageId) {
+			return `/api/get-image.php?id=${imageId}`;
+		}
+
+            function showLightbox(idx) {
+        const lightbox = document.getElementById('lightbox');
+        lightbox.innerHTML = lightbox.querySelector('.close-btn').outerHTML;
+
+        currentImageIdx = idx; // Update the global variable with the current index
+
+        const image = imagesData[idx];
+        if (!image) {
+            console.error("Image data not found for idx:", idx);
+            return;
         }
 
-		function showLightbox(imageUrl, idx) {
-			const lightbox = document.getElementById('lightbox');
-			lightbox.innerHTML = lightbox.querySelector('.close-btn').outerHTML;
+        const captionHTML = constructCaptionHTML(image);
 
-			currentImageIdx = idx; // Update the global variable with the current index
+        // Flex container for the images and caption
+        const flexContainer = document.createElement('div');
+        flexContainer.classList.add('flex-container'); // Ensure this class uses `display: flex;`
+        flexContainer.style.alignItems = 'center';
+        flexContainer.style.justifyContent = 'center';
 
-			const image = imagesData[idx];
-			if (!image) {
-				console.error("Image data not found for idx:", idx);
-				return;
-			}
+        const imageContainer = document.createElement('div');
+        imageContainer.classList.add('image-container');
 
-			const captionHTML = constructCaptionHTML(image);
+        const mainImg = document.createElement('img');
+        mainImg.src = fetchImageUrl(image.image_id) + '&full=1';
+        mainImg.alt = "Full size image";
+        mainImg.style.maxHeight = '80vh';
+        mainImg.style.maxWidth = '45%'; // Adjusted width for side-by-side display
 
-			const imageContainer = document.createElement('div');
-			imageContainer.classList.add('image-container'); // Use class for styling
+        // Check if image type is TXT2IMG and handle selected_image
+        if (image.type === 'TXT2IMG' && image.selected_image) {
+            const selectedImg = document.createElement('img');
+            selectedImg.src = fetchImageUrl(image.selected_image) + '&full=1';
+            selectedImg.alt = "Selected image";
+            selectedImg.style.maxHeight = '80vh';
+            selectedImg.style.maxWidth = '45%'; // Adjusted width for side-by-side display
+            selectedImg.style.marginRight = '10px'; // Spacing between selected and main image
 
-			const img = document.createElement('img');
-			img.src = imageUrl;
-			img.alt = "Full size image";
-			imageContainer.appendChild(img);
+            // Append selectedImg to the flex container before the main image
+            flexContainer.appendChild(selectedImg);
+        }
 
-			const captionDiv = document.createElement('div');
-			captionDiv.innerHTML = captionHTML;
-			captionDiv.classList.add('caption'); // Use class for styling
-			captionDiv.addEventListener('click', (e) => e.stopPropagation());
+        imageContainer.appendChild(mainImg);
+        flexContainer.appendChild(imageContainer);
 
-			img.onload = function() {
-				if (this.naturalWidth < window.innerWidth && this.naturalHeight < window.innerHeight) {
-					this.style.width = Math.min(this.naturalWidth, window.innerWidth * 0.9) + 'px';
-					this.style.height = 'auto';
-				}
-				let totalHeight = this.offsetHeight + captionDiv.offsetHeight;
-				if (window.innerHeight > totalHeight) {
-					imageContainer.appendChild(captionDiv);
-				}
-			};
+        const captionDiv = document.createElement('div');
+        captionDiv.innerHTML = captionHTML;
+        captionDiv.classList.add('caption'); // Use class for styling
+        captionDiv.style.flexBasis = '100%'; // Ensure caption takes the full width of its container
+        captionDiv.addEventListener('click', (e) => e.stopPropagation());
 
-			lightbox.appendChild(imageContainer);
-			lightbox.style.display = 'flex';
-			document.body.style.overflow = 'hidden';
-		}
+        mainImg.onload = function () {
+            if (this.naturalWidth < window.innerWidth && this.naturalHeight < window.innerHeight) {
+                this.style.width = Math.min(this.naturalWidth, window.innerWidth * 0.9) + 'px';
+                this.style.height = 'auto';
+            }
+            let totalHeight = this.offsetHeight + captionDiv.offsetHeight;
+            if (window.innerHeight > totalHeight) {
+                // Append caption below images in flexContainer
+                flexContainer.appendChild(captionDiv);
+            }
+        };
+
+        lightbox.appendChild(flexContainer);
+        lightbox.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
 
 		function setupLightboxScroll() {
 			const lightbox = document.getElementById('lightbox');
@@ -133,51 +162,46 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
 			});
 		}
 
-function showPreviousImage() {
-    const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-    const currentIndex = keys.indexOf(Number(currentImageIdx));
-    if (currentIndex > 0) {
-        const previousIndex = keys[currentIndex - 1];
-        const previousImage = imagesData[previousIndex];
-        if (previousImage) {
-            const fullResolutionUrl = `${previousImage.imageUrl}&full=1`;
-            showLightbox(fullResolutionUrl, previousIndex.toString());
-        }
-    } else {
-        fetchImages('old').then(() => {
-            // Re-fetch keys as they might have been updated
-            const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-            const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
-            if (newCurrentIndex > 0) {
-                showPreviousImage(); // Try showing the previous image again
-            }
-        }).catch(error => console.error(error));
-    }
-}
+		function showPreviousImage() {
+			const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+			const currentIndex = keys.indexOf(Number(currentImageIdx));
+			if (currentIndex > 0) {
+				const previousIndex = keys[currentIndex - 1];
+				const previousImage = imagesData[previousIndex];
+				if (previousImage) {
+					showLightbox(previousIndex.toString());
+				}
+			} else {
+				fetchImages('old').then(() => {
+					// Re-fetch keys as they might have been updated
+					const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+					const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
+					if (newCurrentIndex > 0) {
+						showPreviousImage(); // Try showing the previous image again
+					}
+				}).catch(error => console.error(error));
+			}
+		}
 
-function showNextImage() {
-    const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-    const currentIndex = keys.indexOf(Number(currentImageIdx));
-    if (currentIndex < keys.length - 1) {
-        const nextIndex = keys[currentIndex + 1];
-        const nextImage = imagesData[nextIndex];
-        if (nextImage) {
-            const fullResolutionUrl = `${nextImage.imageUrl}&full=1`;
-            showLightbox(fullResolutionUrl, nextIndex.toString());
-        }
-    } else {
-        fetchImages('new').then(() => {
-            const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-            const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
-            if (newCurrentIndex < updatedKeys.length - 1) {
-                showNextImage(); // Try showing the next image again
-            }
-        }).catch(error => console.error(error));
-    }
-}
-
-
-
+		function showNextImage() {
+			const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+			const currentIndex = keys.indexOf(Number(currentImageIdx));
+			if (currentIndex < keys.length - 1) {
+				const nextIndex = keys[currentIndex + 1];
+				const nextImage = imagesData[nextIndex];
+				if (nextImage) {
+					showLightbox(nextIndex.toString());
+				}
+			} else {
+				fetchImages('new').then(() => {
+					const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+					const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
+					if (newCurrentIndex < updatedKeys.length - 1) {
+						showNextImage(); // Try showing the next image again
+					}
+				}).catch(error => console.error(error));
+			}
+		}
 
 		function constructCaptionHTML(image) {
 			let caption = '';
@@ -198,8 +222,8 @@ function showNextImage() {
 				console.error("Image data not found for idx:", idx);
 				return;
 			}
-			const fullResolutionUrl = `${image.imageUrl}&full=1`;
-			showLightbox(fullResolutionUrl, idx); // Pass idx as well
+
+			showLightbox(idx); // Pass idx as well
 		}
 
         function updateImageIds(images, action) {
@@ -224,66 +248,61 @@ function showNextImage() {
 			return { shortenedText, isTextShortened };
 		}
 
-		function displayImages(images, action) {
-			const container = document.getElementById('imageContainer');
-			Object.entries(images).forEach(([idx, image]) => {
-				const imgElement = document.createElement('img');
-				imgElement.src = image.imageUrl; // Updated to use imageUrl
-				imgElement.setAttribute('data-image-id', idx); // Set the image ID as a data attribute
-				imgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
-				imgElement.style.width = '100%'; // Ensure the image takes the full width of its container
-				imgElement.style.height = 'auto'; // Maintain aspect ratio
+    function displayImages(images, action) {
+        const container = document.getElementById('imageContainer');
+        Object.entries(images).forEach(async ([idx, image]) => {
+            const wrapper = document.createElement('div');
+			wrapper.classList.add('image-wrapper');
 
-				// Create a text element to display under the image
-				
-				let q = image;
+            // Secondary Image for TXT2IMG type
+			if (image.type === "TXT2IMG" && image.selected_image) {
+				const secondaryImgElement = document.createElement('img');
+				secondaryImgElement.src = fetchImageUrl(image.selected_image);
+				secondaryImgElement.setAttribute('data-image-id', idx); // Set the image ID as a data attribute
+				secondaryImgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
+				secondaryImgElement.style.width = '100%';
+				secondaryImgElement.style.height = 'auto';
+				wrapper.appendChild(secondaryImgElement);
+			}
 
-				let { shortenedText: promptShortened, isTextShortened: promptShortenedFlag } = shortenText(q.prompt, 100);
-				let { shortenedText: negativeShortened, isTextShortened: negativeShortenedFlag } = shortenText(q.negative_prompt, 100);
+            // Primary Image Element
+            const primaryImgElement = document.createElement('img');
+            primaryImgElement.src = fetchImageUrl(image.image_id);
+            primaryImgElement.style.width = '100%'; // Ensure the image takes the full width of its container
+			primaryImgElement.style.height = 'auto'; // Maintain aspect ratio
+            primaryImgElement.setAttribute('data-image-id', idx); // Set the image ID as a data attribute
+            primaryImgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
+            wrapper.appendChild(primaryImgElement);
 
-				// Assuming q.date_added is in Central Time (America/Chicago)
-				// Luxon is used to parse and convert the timestamp
-				const { DateTime } = luxon;
-				// Parse the timestamp with milliseconds from Central Time and convert to the user's local timezone
-				const serverTime = DateTime.fromFormat(q.date_added, "yyyy-MM-dd HH:mm:ss.SSS", { zone: 'America/Chicago' });
-				const dateAdded = serverTime.setZone(DateTime.local().zoneName);
 
-				let caption = 
-<?php if ($user['access_level'] == 'ADMIN'): ?>
-				'<div><strong>User:</strong> <a href="?uid=' + q.uid + '">' + (q.username ? q.username : '(' + (q.firstname || '') + (q.firstname && q.lastname ? ' ' : '') + (q.lastname || '') + ')') + '</a><br></div>' +
-<?php endif; ?>
-				'<div>' + (q.tele_chatid == q.tele_id ? "" : '<strong>Chat:</strong> ' + q.tele_chatid + '<br>') + '</div>' +
-				(q.prompt ? '<div><strong>Prompt:</strong> <span class="' + (promptShortenedFlag ? 'shorten can-expand' : 'shorten') + '" data-fulltext="' + q.prompt + '" data-shorttext="' + promptShortened + '">' + promptShortened + '</span><br></div>' : '') +
-				(q.negative_prompt ? '<div><strong>Negative:</strong> <span class="' + (negativeShortenedFlag ? 'shorten can-expand' : 'shorten') + '" data-fulltext="' + q.negative_prompt + '" data-shorttext="' + negativeShortened + '">' + negativeShortened + '</span><br></div>' : '') +
-				'<div><strong>Size:</strong> ' + q.width + 'x' + q.height + '<br></div>' +
-				'<div><strong>Sampler Steps:</strong> ' + q.steps + '<br></div>' +
-				'<div><strong>CFG Scale:</strong> ' + q.cfgscale + '<br></div>' +
-				'<div><strong>Denoising Strength:</strong> ' + q.denoising_strength + '<br></div>' +
-				'<div><strong>Model:</strong> ' + q.model + '<br></div>' +
-				'<div><strong>Seed:</strong> ' + q.seed + '<br></div>' +
-<?php if ($user['access_level'] == 'ADMIN'): ?>
-                '<div><strong>Worker:</strong> ' + q.worker_name + '<br></div>' +
-<?php endif; ?>
-				'<div>' + dateAdded.toFormat('dd LLL yyyy hh:mm:ss a ZZZZ') + '</div>'; // Appending the formatted timestamp with timezone
+            // Caption Handling
+            const { DateTime } = luxon;
+            const serverTime = DateTime.fromFormat(image.date_added, "yyyy-MM-dd HH:mm:ss.SSS", { zone: 'America/Chicago' });
+            const dateAdded = serverTime.setZone(DateTime.local().zoneName);
 
-				const textElement = document.createElement('div');
-				textElement.innerHTML = caption; // Use innerHTML to insert formatted HTML
-				textElement.className = 'caption'; // Assign the 'caption' class for styling
+            const textElement = document.createElement('div');
+            textElement.className = 'caption';
+            textElement.innerHTML = `
+      ${image.username ? '<div><strong>User:</strong> ' + image.username + '</div>' : ''}
+      <div><strong>Prompt:</strong> ${image.prompt}</div>
+      ${image.negative_prompt ? '<div><strong>Negative:</strong> ' + image.negative_prompt + '</div>' : ''}
+      <div><strong>Size:</strong> ${image.width}x${image.height}</div>
+      <div><strong>Steps:</strong> ${image.steps}</div>
+      <div><strong>CFG Scale:</strong> ${image.cfgscale}</div>
+      <div><strong>Denoising Strength:</strong> ${image.denoising_strength}</div>
+      <div><strong>Model:</strong> ${image.model}</div>
+      <div><strong>Seed:</strong> ${image.seed}</div>
+      <div>${dateAdded.toFormat('dd LLL yyyy HH:mm:ss ZZZZ')}</div>
+    `;
+            wrapper.appendChild(textElement);
 
-				setupShortenForElement(textElement);
-
-				const wrapper = document.createElement('div');
-				wrapper.classList.add('image-wrapper');
-				wrapper.appendChild(imgElement);
-				wrapper.appendChild(textElement); // Add the text element under the image
-
-				if (action === 'new') {
-					container.insertBefore(wrapper, container.firstChild);
-				} else {
-					container.appendChild(wrapper);
-				}
-			});
-		}
+            if (action === 'new') {
+                container.insertBefore(wrapper, container.firstChild);
+            } else {
+                container.appendChild(wrapper);
+            }
+        });
+    }
 
 		let hasMoreOldImages = true;
 

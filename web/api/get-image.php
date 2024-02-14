@@ -12,7 +12,7 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 //$pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
 
-$imageId = isset($_GET['imageId']) ? (int)$_GET['imageId'] : 0;
+$imageId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if ($imageId > 0) {
 	if ($user['access_level'] == 'ADMIN') {

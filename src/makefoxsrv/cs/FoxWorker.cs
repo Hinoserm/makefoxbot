@@ -90,7 +90,8 @@ namespace makefoxsrv
                     await worker.SetStartDate();
                     await worker.SetOnlineStatus(true);
 
-                    _ = worker.Run(botClient);
+                    //_ = worker.Run(botClient);
+                    _ = Task.Run(async () => await worker.Run(botClient));
                 }
             }
         }
@@ -511,11 +512,14 @@ namespace makefoxsrv
         {
             online = false;
             Console.WriteLine($"Worker {id} is offline!\r\n  Error: " + ex.Message);
-            await SetOnlineStatus(false);
+            //await SetOnlineStatus(false); //SetFailedDate() already marks us as offline.
             await SetFailedDate(ex);
 
+            //If we have the semaphore and crash, we better give it to someone else.
             if (semaphoreAcquired)
                 semaphore.Release();
+
+            semaphoreAcquired = false;
 
             qitem = null; //Clearly we're not working on an item anymore, better clear it to be safe.
         }
