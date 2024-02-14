@@ -42,7 +42,12 @@ if ($user['access_level'] != 'ADMIN') {
 	$sql .= " AND q.uid = " . (int)$_GET['uid'];
 }
 
-if ($action === 'new' && $lastImageId > 0) {
+if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+    $imageId = (int)$_GET['id'];
+
+    $sql .= " AND q.id = $imageId";
+    $limit = 1;
+} elseif ($action === 'new' && $lastImageId > 0) {
     $sql .= " AND q.id > :lastImageId";
 } elseif ($lastImageId > 0) {
     $sql .= " AND q.id < :lastImageId";

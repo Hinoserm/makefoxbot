@@ -18,6 +18,11 @@ if ($user['access_level'] == 'ADMIN' && isset($_GET['uid']) && is_numeric($_GET[
 
 $dark = (isset($_GET['dark']) && $_GET['dark']);
 
+if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+    $imageId = (int) $_GET['id'];
+} else
+    $imageId = 0;
+
 //-----------------------------------------
 
 ?>
@@ -47,31 +52,38 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
 
         let currentImageIdx = null; // Global variable to track the current image index
 
+<?php if (!$imageId) { ?>
+
         document.addEventListener('DOMContentLoaded', () => {
             createLightbox(); // Ensure this is called once the DOM is fully loaded
             setupLightboxScroll(); // Setup scroll functionality in lightbox
         });
 
-        function createLightbox() {
+<?php } ?>
+
+        function createLightbox(closeable = true) {
             const lightbox = document.createElement('div');
             lightbox.id = 'lightbox';
             document.body.appendChild(lightbox);
 
+            
             const closeButton = document.createElement('div');
             closeButton.classList.add('close-btn');
             closeButton.innerHTML = '&times;';
             lightbox.appendChild(closeButton);
 
-            closeButton.addEventListener('click', (e) => {
-                e.stopPropagation();
-                lightbox.style.display = 'none';
-                document.body.style.overflow = '';
-            });
+            if (closeable) {
+                closeButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    lightbox.style.display = 'none';
+                    document.body.style.overflow = '';
+                });
 
-            lightbox.addEventListener('click', () => {
-                lightbox.style.display = 'none';
-                document.body.style.overflow = '';
-            });
+                lightbox.addEventListener('click', () => {
+                    lightbox.style.display = 'none';
+                    document.body.style.overflow = '';
+                });
+            }
         }
 
         function fetchImageUrl(imageId) {
@@ -97,6 +109,7 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
             const dateAdded = serverTime.setZone(DateTime.local().zoneName);
 
             let caption =
+                '<div><strong>ID:</strong> <a href="?id=' + q.id + '">' + q.id + '</a><br></div>' +
 <?php if ($user['access_level'] == 'ADMIN'): ?>
                 '<div><strong>User:</strong> <a href="?uid=' + q.uid + '">' + (q.username ? q.username : '(' + (q.firstname || '') + (q.firstname && q.lastname ? ' ' : '') + (q.lastname || '') + ')') + '</a><br></div>' +
 <?php endif; ?>
@@ -384,28 +397,52 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
 				isLoading = true;
 				let queryParam = `lastImageId=${action === 'new' ? highestImageId : lastImageId}`;
 				fetch(`/api/list-images.php?action=${action}&${queryParam}&uid=<?php echo $uid; ?>`)
-					.then(response => response.json())
-					.then(data => {
-						if (data && data.images) {
-							const newImages = data.images;
-							Object.entries(newImages).forEach(([key, value]) => {
-								imagesData[key] = value; // Update or add the new images to imagesData
-							});
-							updateImageIds(newImages, action); // Make sure to implement or adjust this function as needed
-							displayImages(newImages, action); // Adjust based on your implementation
-							isLoading = false;
-							resolve(newImages);
-						} else {
-							isLoading = false;
-							reject('No images returned');
-						}
-					}).catch(error => {
-						console.error('Fetch error:', error);
-						isLoading = false;
-						reject(error);
-					});
-			});
-}
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.images) {
+                            const newImages = data.images;
+                            Object.entries(newImages).forEach(([key, value]) => {
+                                imagesData[key] = value; // Update or add the new images to imagesData
+                            });
+                            updateImageIds(newImages, action); // Make sure to implement or adjust this function as needed
+                            displayImages(newImages, action); // Adjust based on your implementation
+                            isLoading = false;
+                            resolve(newImages);
+                        } else {
+                            isLoading = false;
+                            reject('No images returned');
+                        }
+                    }).catch(error => {
+                        console.error('Fetch error:', error);
+                        isLoading = false;
+                        reject(error);
+                    });
+            });
+        }
+
+        function showOneImage(idx) {
+            return new Promise((resolve, reject) => {
+                fetch(`/api/list-images.php?id=${idx}&uid=<?php echo $uid; ?>`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.images) {
+                            const newImages = data.images;
+                            Object.entries(newImages).forEach(([key, value]) => {
+                                imagesData[key] = value; // Update or add the new images to imagesData
+                            });
+                            showLightbox(idx, false);
+                            resolve(newImages);
+                        } else {
+                            console.log('No images returned');
+                            reject('No images returned');
+                        }
+                    }).catch(error => {
+                        console.error('Fetch error:', error);
+                        reject(error);
+                    });
+            });
+        }
+
 
 		// Define a function to check for new images
 		function checkForNewImages() {
@@ -428,7 +465,24 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
 					}
 				};
 			});
-		}
+        }
+
+<?php if ($imageId) { ?>
+
+        
+
+                
+
+        document.addEventListener('DOMContentLoaded', () => {
+            createLightbox(false); // Ensure this is called once the DOM is fully loaded
+
+            showOneImage(<?php echo $imageId; ?>);
+            
+        });
+
+        
+        
+<?php } else { ?>
 
 		// Set up an interval to periodically check for new images
 		const checkInterval = 1000; // Check every 5000 milliseconds (5 seconds)
@@ -452,6 +506,7 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
 
 
         fetchImages('new'); // Attempt to load new images initially
+<?php } ?>
     </script>
 </body>
 </html>
