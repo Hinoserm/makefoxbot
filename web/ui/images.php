@@ -78,7 +78,91 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
             return `/api/get-image.php?id=${imageId}`;
         }
 
-            function showLightbox(idx) {
+        function generateCaption(image, shortenChars = 100) {
+
+            // Caption Handling
+
+            // Create a text element to display under the image
+
+            let q = image;
+
+            let { shortenedText: promptShortened, isTextShortened: promptShortenedFlag } = shortenText(q.prompt, shortenChars);
+            let { shortenedText: negativeShortened, isTextShortened: negativeShortenedFlag } = shortenText(q.negative_prompt, shortenChars);
+
+            // Assuming q.date_added is in Central Time (America/Chicago)
+            // Luxon is used to parse and convert the timestamp
+            const { DateTime } = luxon;
+            // Parse the timestamp with milliseconds from Central Time and convert to the user's local timezone
+            const serverTime = DateTime.fromFormat(q.date_added, "yyyy-MM-dd HH:mm:ss.SSS", { zone: 'America/Chicago' });
+            const dateAdded = serverTime.setZone(DateTime.local().zoneName);
+
+            let caption =
+<?php if ($user['access_level'] == 'ADMIN'): ?>
+                '<div><strong>User:</strong> <a href="?uid=' + q.uid + '">' + (q.username ? q.username : '(' + (q.firstname || '') + (q.firstname && q.lastname ? ' ' : '') + (q.lastname || '') + ')') + '</a><br></div>' +
+<?php endif; ?>
+                '<div>' + (q.tele_chatid == q.tele_id ? "" : '<strong>Chat:</strong> ' + q.tele_chatid + '<br>') + '</div>' +
+                (q.prompt ? '<div><strong>Prompt:</strong> <span class="' + (promptShortenedFlag ? 'shorten can-expand' : 'shorten') + '" data-fulltext="' + q.prompt + '" data-shorttext="' + promptShortened + '">' + promptShortened + '</span><br></div>' : '') +
+                (q.negative_prompt ? '<div><strong>Negative:</strong> <span class="' + (negativeShortenedFlag ? 'shorten can-expand' : 'shorten') + '" data-fulltext="' + q.negative_prompt + '" data-shorttext="' + negativeShortened + '">' + negativeShortened + '</span><br></div>' : '') +
+                '<div><strong>Size:</strong> ' + q.width + 'x' + q.height + '<br></div>' +
+                '<div><strong>Sampler Steps:</strong> ' + q.steps + '<br></div>' +
+                '<div><strong>CFG Scale:</strong> ' + q.cfgscale + '<br></div>' +
+                (q.type == 'IMG2IMG' ? '<div><strong>Denoising Strength:</strong> ' + q.denoising_strength + '<br></div>' : '') +
+                '<div><strong>Model:</strong> ' + q.model + '<br></div>' +
+                '<div><strong>Seed:</strong> ' + q.seed + '<br></div>' +
+<?php if ($user['access_level'] == 'ADMIN'): ?>
+                '<div><strong>Worker:</strong> ' + q.worker_name + '<br></div>' +
+<?php endif; ?>
+                '<div>' + dateAdded.toFormat('dd LLL yyyy hh:mm:ss a ZZZZ') + '</div>'; // Appending the formatted timestamp with timezone
+
+            return caption;
+        }
+
+        function showLightbox(idx) {
+            const lightbox = document.getElementById('lightbox');
+            lightbox.innerHTML = lightbox.querySelector('.close-btn').outerHTML;
+
+            currentImageIdx = idx; // Update the global variable with the current index
+
+            const image = imagesData[idx];
+            if (!image) {
+                console.error("Image data not found for idx:", idx);
+                return;
+            }
+
+            const captionHTML = generateCaption(image, 400);
+
+            const imageContainer = document.createElement('div');
+            imageContainer.classList.add('image-container'); // Use class for styling
+
+            const img = document.createElement('img');
+            img.src = fetchImageUrl(image.image_id) + '&full=1';
+            img.alt = "Full size image";
+            imageContainer.appendChild(img);
+
+            const captionDiv = document.createElement('div');
+            captionDiv.innerHTML = captionHTML;
+            captionDiv.classList.add('caption'); // Use class for styling
+            captionDiv.addEventListener('click', (e) => e.stopPropagation());
+
+            setupShortenForElement(captionDiv);
+
+            img.onload = function () {
+                if (this.naturalWidth < window.innerWidth && this.naturalHeight < window.innerHeight) {
+                    this.style.width = Math.min(this.naturalWidth, window.innerWidth * 0.9) + 'px';
+                    this.style.height = 'auto';
+                }
+                let totalHeight = this.offsetHeight + captionDiv.offsetHeight;
+                if (window.innerHeight > totalHeight) {
+                    imageContainer.appendChild(captionDiv);
+                }
+            };
+
+            lightbox.appendChild(imageContainer);
+            lightbox.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+
+            function showLightboxOLD(idx) {
         const lightbox = document.getElementById('lightbox');
         lightbox.innerHTML = lightbox.querySelector('.close-btn').outerHTML;
 
@@ -274,43 +358,11 @@ $dark = (isset($_GET['dark']) && $_GET['dark']);
                 primaryImgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
                 wrapper.appendChild(primaryImgElement);
 
-                // Caption Handling
 
-                // Create a text element to display under the image
-
-                let q = image;
-
-                let { shortenedText: promptShortened, isTextShortened: promptShortenedFlag } = shortenText(q.prompt, 100);
-                let { shortenedText: negativeShortened, isTextShortened: negativeShortenedFlag } = shortenText(q.negative_prompt, 100);
-
-                // Assuming q.date_added is in Central Time (America/Chicago)
-                // Luxon is used to parse and convert the timestamp
-                const { DateTime } = luxon;
-                // Parse the timestamp with milliseconds from Central Time and convert to the user's local timezone
-                const serverTime = DateTime.fromFormat(q.date_added, "yyyy-MM-dd HH:mm:ss.SSS", { zone: 'America/Chicago' });
-                const dateAdded = serverTime.setZone(DateTime.local().zoneName);
-
-                let caption =
-<?php if ($user['access_level'] == 'ADMIN'): ?>
-            '<div><strong>User:</strong> <a href="?uid=' + q.uid + '">' + (q.username ? q.username : '(' + (q.firstname || '') + (q.firstname && q.lastname ? ' ' : '') + (q.lastname || '') + ')') + '</a><br></div>' +
-<?php endif; ?>
-            '<div>' + (q.tele_chatid == q.tele_id ? "" : '<strong>Chat:</strong> ' + q.tele_chatid + '<br>') + '</div>' +
-            (q.prompt ? '<div><strong>Prompt:</strong> <span class="' + (promptShortenedFlag ? 'shorten can-expand' : 'shorten') + '" data-fulltext="' + q.prompt + '" data-shorttext="' + promptShortened + '">' + promptShortened + '</span><br></div>' : '') +
-            (q.negative_prompt ? '<div><strong>Negative:</strong> <span class="' + (negativeShortenedFlag ? 'shorten can-expand' : 'shorten') + '" data-fulltext="' + q.negative_prompt + '" data-shorttext="' + negativeShortened + '">' + negativeShortened + '</span><br></div>' : '') +
-            '<div><strong>Size:</strong> ' + q.width + 'x' + q.height + '<br></div>' +
-            '<div><strong>Sampler Steps:</strong> ' + q.steps + '<br></div>' +
-            '<div><strong>CFG Scale:</strong> ' + q.cfgscale + '<br></div>' +
-            (q.type == 'IMG2IMG' ? '<div><strong>Denoising Strength:</strong> ' + q.denoising_strength + '<br></div>' : '') +
-            '<div><strong>Model:</strong> ' + q.model + '<br></div>' +
-            '<div><strong>Seed:</strong> ' + q.seed + '<br></div>' +
-<?php if ($user['access_level'] == 'ADMIN'): ?>
-            '<div><strong>Worker:</strong> ' + q.worker_name + '<br></div>' +
-<?php endif; ?>
-            '<div>' + dateAdded.toFormat('dd LLL yyyy hh:mm:ss a ZZZZ') + '</div>'; // Appending the formatted timestamp with timezone
 
                 const textElement = document.createElement('div');
                 textElement.className = 'caption';
-                textElement.innerHTML = caption;
+                textElement.innerHTML = generateCaption(image);
 
                 setupShortenForElement(textElement);
 
