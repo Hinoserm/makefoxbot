@@ -771,7 +771,7 @@ This bot and the content generated are for research and educational purposes onl
                     break;
             }
 
-            if (await FoxQueue.GetCountByUser(user) >= q_limit)
+            if (await FoxQueue.GetCount(user.UID) >= q_limit)
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
@@ -895,7 +895,7 @@ This bot and the content generated are for research and educational purposes onl
                     break;
             }
 
-            if (await FoxQueue.GetCountByUser(user) >= q_limit)
+            if (await FoxQueue.GetCount(user.UID) >= q_limit)
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
@@ -1384,11 +1384,11 @@ This bot and the content generated are for research and educational purposes onl
                 return;
             }
 
-            if (width < 32 || height < 32)
+            if (width < 512 || height < 512)
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "❌ Dimenion should be at least 32 pixels.",
+                    text: "❌ Dimenion should be at least 512 pixels.",
                     replyToMessageId: message.MessageId,
                     cancellationToken: cancellationToken
                 );
@@ -1404,7 +1404,7 @@ This bot and the content generated are for research and educational purposes onl
                     cancellationToken: cancellationToken
                 );
                 return;
-            } else if (width > 1280 || height > 1280)
+            } else if (width > 1280 || height > 1280 && user.AccessLevel != "ADMIN")
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
@@ -1415,6 +1415,23 @@ This bot and the content generated are for research and educational purposes onl
                 return;
             }
 
+            var msgString = "";
+
+
+            (int normalizedWidth, int normalizedHeight) = FoxImage.NormalizeImageSize(width, height);
+
+            if (normalizedWidth != width || normalizedHeight != height)
+            {
+                msgString += $"⚠️ For optimal performance, your setting has been adjusted to: {normalizedWidth}x{normalizedHeight}.\r\n\r\n";
+                msgString += $"⚠️To override, type /setsize {width}x{height} force.  You may receive less favorable queue priority.\r\n\r\n";
+
+                width = normalizedWidth;
+                height = normalizedHeight;
+
+            }
+
+            msgString += $"✅ Size set to: {width}x{height}";
+
             settings.width = (uint)width;
             settings.height = (uint)height;
 
@@ -1422,10 +1439,10 @@ This bot and the content generated are for research and educational purposes onl
 
             await botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
-                text: $"✅ Size set to: " + settings.width + "x" + settings.height,
+                text: msgString,
                 replyToMessageId: message.MessageId,
                 cancellationToken: cancellationToken
-            );
+            );;
         }
     }
 }

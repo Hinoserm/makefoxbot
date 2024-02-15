@@ -47,21 +47,23 @@ public static class TimeSpanExtensions
 {
     public static string ToPrettyFormat(this TimeSpan span)
     {
-
-        if (span == TimeSpan.Zero) return "0 minutes";
+        if (span == TimeSpan.Zero) return "0 seconds";
 
         var sb = new StringBuilder();
         if (span.Days > 0)
-            sb.AppendFormat("{0} day{1} ", span.Days, span.Days > 1 ? "s" : String.Empty);
+            sb.AppendFormat("{0} day{1} ", span.Days, span.Days > 1 ? "s" : string.Empty);
         if (span.Hours > 0)
-            sb.AppendFormat("{0} hour{1} ", span.Hours, span.Hours > 1 ? "s" : String.Empty);
+            sb.AppendFormat("{0} hour{1} ", span.Hours, span.Hours > 1 ? "s" : string.Empty);
         if (span.Minutes > 0)
-            sb.AppendFormat("{0} minute{1} ", span.Minutes, span.Minutes > 1 ? "s" : String.Empty);
-        if (span.Seconds > 0)
-            sb.AppendFormat("{0} second{1} ", span.Seconds, span.Seconds > 1 ? "s" : String.Empty);
+            sb.AppendFormat("{0} minute{1} ", span.Minutes, span.Minutes > 1 ? "s" : string.Empty);
+        if (span.TotalSeconds > 0)
+        {
+            // Use TotalSeconds for more precision and format it to show up to two decimal places
+            double seconds = span.TotalSeconds % 60; // Use modulo 60 to get only the remainder of seconds
+            sb.AppendFormat("{0:0.##} second{1} ", seconds, seconds != 1 ? "s" : string.Empty);
+        }
 
         return sb.ToString().Trim();
-
     }
 }
 
@@ -402,7 +404,7 @@ namespace makefoxsrv
                 baseUrl: settings.TelegramApiUrl //Might be null, and that's okay.
             );
 
-            var botClient = new TelegramBotClient(teleOptions);
+            TelegramBotClient botClient = new TelegramBotClient(teleOptions);
 
             using CancellationTokenSource cts = new();
 
@@ -415,8 +417,8 @@ namespace makefoxsrv
             FoxMain.me = await botClient.GetMeAsync();
 
 
-            //Start workers BEFORE processing input from telegram.
-            await FoxWorker.StartWorkers(botClient);
+            //Load workers BEFORE processing input from telegram.
+            await FoxWorker.LoadWorkers(botClient);
 
             botClient.StartReceiving(
                 updateHandler: HandleUpdateAsync,
@@ -427,13 +429,6 @@ namespace makefoxsrv
 
             await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
 
-            //_ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.30:7860/"));
-            //_ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.30:7861/"));
-            //_ = Task.Run(() => RunWorkerThread(botClient, "http://10.0.2.2:7860/"));
-
-            
-
-
             using (var cmd = new MySqlCommand($"UPDATE queue SET status = 'PENDING' WHERE status = 'PROCESSING'", sql))
             {
                 long stuck_count = await cmd.ExecuteNonQueryAsync();
@@ -442,6 +437,8 @@ namespace makefoxsrv
 
             Console.WriteLine($"Start listening for @{me.Username}");
             Console.WriteLine($"Bot ID: {me.Id}");
+
+            await FoxWorker.StartWorkers();
 
             _ = FoxQueue.NotifyUserPositions(botClient, cts);
 

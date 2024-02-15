@@ -106,10 +106,11 @@ namespace makefoxsrv
                     });
 
                     System.TimeSpan diffResult = DateTime.Now.Subtract(q.creation_time);
+                    System.TimeSpan GPUTime = await q.GetGPUTime();
 
                     await botClient.SendTextMessageAsync(
                         chatId: q.TelegramChatID,
-                        text: "✅ Complete! (Took " + diffResult.ToPrettyFormat() + ")",
+                        text: $"✅ Complete! (Took {diffResult.ToPrettyFormat()} - GPU: {GPUTime.ToPrettyFormat()}",
                         replyMarkup: inlineKeyboard
                     );
                 }
@@ -119,7 +120,8 @@ namespace makefoxsrv
                 await q.Finish();
 
                 bool success = false;
-                while (!success)
+                //while (!success)
+                while (false) //Disabled for now.
                 {
                     try
                     {

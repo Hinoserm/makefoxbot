@@ -38,6 +38,55 @@ namespace makefoxsrv
 
         public byte[] Image = null;
 
+        public static (int, int) NormalizeImageSize(int width, int height)
+        {
+            const int MaxWidthHeight = 1280;
+            const int MinWidthHeight = 512;
+            double aspectRatio = (double)width / height;
+
+            // First adjust dimensions to not exceed the max limit while maintaining aspect ratio
+            if (width > MaxWidthHeight || height > MaxWidthHeight)
+            {
+                if (aspectRatio >= 1) // Image is wider than it is tall
+                {
+                    width = MaxWidthHeight;
+                    height = (int)(width / aspectRatio);
+                }
+                else // Image is taller than it is wide
+                {
+                    height = MaxWidthHeight;
+                    width = (int)(height * aspectRatio);
+                }
+            }
+
+            // Then ensure dimensions do not fall below the min limit
+            if (width < MinWidthHeight || height < MinWidthHeight)
+            {
+                if (aspectRatio >= 1) // Image is wider than it is tall
+                {
+                    width = MinWidthHeight;
+                    height = (int)(width / aspectRatio);
+                }
+                else // Image is taller than it is wide
+                {
+                    height = MinWidthHeight;
+                    width = (int)(height * aspectRatio);
+                }
+            }
+
+            // Ensure both dimensions are rounded up to the nearest multiple of 64, without exceeding the max limit
+            width = RoundUpToNearestMultipleWithinLimit(width, 64, MaxWidthHeight);
+            height = RoundUpToNearestMultipleWithinLimit(height, 64, MaxWidthHeight);
+
+            return (width, height);
+        }
+
+        private static int RoundUpToNearestMultipleWithinLimit(int value, int multiple, int limit)
+        {
+            int roundedValue = ((value + multiple - 1) / multiple) * multiple;
+            return Math.Min(roundedValue, limit);
+        }
+
         public static async Task<FoxImage> Create(ulong user_id, byte[] image, ImageType type, string? filename = null, string ? tele_fileid = null, string? tele_uniqueid = null, long? tele_chatid = null, long? tele_msgid = null)
         {
             var img = new FoxImage();

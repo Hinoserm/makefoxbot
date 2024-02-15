@@ -291,10 +291,12 @@ namespace makefoxsrv
             return null;
         }
 
-        public static async Task<FoxQueue?> Pop(int worker_id)
+        public static async Task<(FoxQueue?, int)> Pop(int worker_id)
         {
             var settings = new FoxUserSettings();
-            var q = new FoxQueue();
+            FoxQueue? q = null;
+
+            var processingCount = 0;
 
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
@@ -309,35 +311,37 @@ namespace makefoxsrv
                             cmd.Connection = SQL;
                             cmd.Transaction = transaction;
                             cmd.CommandText = @"
-    SELECT q.*
-    FROM queue q
-    INNER JOIN users u ON q.uid = u.id
-    INNER JOIN worker_models wm ON q.model = wm.model_name AND wm.worker_id = @worker_id
-    WHERE 
-        q.status IN ('PENDING', 'ERROR')
-    ORDER BY 
-        CASE 
-            WHEN q.status = 'PENDING' THEN 1
-            WHEN q.status = 'ERROR' AND (q.date_failed IS NULL OR q.date_failed < @now - INTERVAL 20 SECOND) THEN 0
-            WHEN q.status = 'ERROR' AND (SELECT COUNT(*) FROM queue WHERE status = 'PENDING') = 0 THEN 2
-            ELSE 3
-        END,
-        CASE 
-            WHEN u.access_level = 'ADMIN' THEN 0
-            WHEN u.access_level = 'PREMIUM' THEN 1
-            ELSE 2
-        END,
-        q.date_added ASC 
-    LIMIT 1 
-    FOR UPDATE;";
-
-
+SELECT q.*, (SELECT COUNT(*) FROM queue WHERE status IN ('PENDING', 'ERROR')) AS processing_count
+FROM queue q
+INNER JOIN users u ON q.uid = u.id
+INNER JOIN worker_models wm ON q.model = wm.model_name AND wm.worker_id = @worker_id
+WHERE 
+    q.status IN ('PENDING', 'ERROR')
+ORDER BY 
+    CASE 
+        WHEN q.status = 'PENDING' THEN 1
+        WHEN q.status = 'ERROR' AND (q.date_failed IS NULL OR q.date_failed < @now - INTERVAL 20 SECOND) THEN 0
+        WHEN q.status = 'ERROR' AND (SELECT COUNT(*) FROM queue WHERE status = 'PENDING') = 0 THEN 2
+        ELSE 3
+    END,
+    CASE 
+        WHEN u.access_level = 'ADMIN' THEN 0
+        WHEN u.access_level = 'PREMIUM' THEN 1
+        ELSE 2
+    END,
+    q.date_added ASC 
+LIMIT 1 
+FOR UPDATE;";
                             cmd.Parameters.AddWithValue("now", DateTime.Now);
                             cmd.Parameters.AddWithValue("worker_id", worker_id);
 
                             await using var r = await cmd.ExecuteReaderAsync();
                             if (r.HasRows && await r.ReadAsync())
                             {
+                                processingCount = Convert.ToInt32(r["processing_count"]);
+
+                                q = new FoxQueue();
+
                                 q.id = Convert.ToUInt64(r["id"]);
                                 q.UID = Convert.ToUInt64(r["uid"]);
                                 q.TelegramUserID = Convert.ToInt64(r["tele_id"]);
@@ -375,8 +379,19 @@ namespace makefoxsrv
 
                                 q.settings = settings;
                             }
-                            else
-                                return null;
+                                
+                        }
+
+                        if (q is null)
+                        {
+                            using var countCmd = new MySqlCommand("SELECT COUNT(*) as p FROM queue WHERE status IN ('PENDING', 'ERROR')", SQL, transaction);
+
+                            processingCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
+
+                            if (processingCount < 1)
+                                return (null, 0);
+
+                            return (null, processingCount);
                         }
 
                         using (var cmd = new MySqlCommand())
@@ -403,10 +418,10 @@ namespace makefoxsrv
 
             semaphore.Release();
 
-            return q;
+            return (q, processingCount);
         }
 
-        public static async Task<int> GetCountByUser(FoxUser user)
+        public static async Task<int> GetCount(ulong user = 0)
         {
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
@@ -415,7 +430,9 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = $"SELECT COUNT(id) FROM queue WHERE (status = 'PENDING' OR status = 'ERROR' OR status = 'PROCESSING') AND uid = " + user.UID;
+                    cmd.CommandText = $"SELECT COUNT(id) FROM queue WHERE (status = 'PENDING' OR status = 'ERROR' OR status = 'PROCESSING')";
+                    if (user > 0)
+                        cmd.CommandText += " AND uid = " + user;
 
                     await using var reader = await cmd.ExecuteReaderAsync();
                     if (reader.HasRows && await reader.ReadAsync())
@@ -424,6 +441,26 @@ namespace makefoxsrv
             }
 
             return 0;
+        }
+
+        public async Task<TimeSpan> GetGPUTime()
+        {
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = $"SELECT date_sent, date_worker_start FROM queue WHERE (id = {id})";
+
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    if (r.HasRows && await r.ReadAsync())
+                        return Convert.ToDateTime(r["date_sent"]).Subtract(Convert.ToDateTime(r["date_worker_start"]));
+                }
+            }
+
+            return TimeSpan.Zero;
         }
 
 

@@ -26,11 +26,12 @@ namespace makefoxsrv
         private CancellationTokenSource cts;
         private CancellationTokenSource cts_stop; //For gracefully stopping a generation
         private readonly string address;
-        private static SemaphoreSlim semaphore = new SemaphoreSlim(0);
+        private static SemaphoreSlim semaphore = new SemaphoreSlim(0, int.MaxValue);
         private bool semaphoreAcquired = false;
         private StableDiffusion? api;
         private bool online = true;       //Worker online status
         private FoxQueue? qitem = null;   //If we're operating, this is the current queue item being processed.
+        private TelegramBotClient? botClient = null;
 
         private static ConcurrentDictionary<int, FoxWorker> workers = new ConcurrentDictionary<int, FoxWorker>();
 
@@ -50,6 +51,7 @@ namespace makefoxsrv
             this.id = worker_id;
             this.cts = new CancellationTokenSource();
             this.cts_stop = new CancellationTokenSource();
+            this.botClient = botClient;
         }
 
         private static FoxWorker CreateWorker(TelegramBotClient botClient, int worker_id, string address)
@@ -63,7 +65,7 @@ namespace makefoxsrv
             return worker;
         }
 
-        public static async Task StartWorkers(TelegramBotClient botClient)
+        public static async Task LoadWorkers(TelegramBotClient botClient)
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
@@ -81,18 +83,49 @@ namespace makefoxsrv
                     int id = reader.GetInt32("id");
                     string url = reader.GetString("url");
 
-                    Console.WriteLine($"Starting worker {id} - {url}");
+                    Console.WriteLine($"Loading worker {id} - {url}");
 
                     var worker = CreateWorker(botClient, id, url);
-
-                    await worker.LoadModelInfo();
-                    await worker.GetLoRAInfo();
                     await worker.SetStartDate();
-                    await worker.SetOnlineStatus(true);
+
+                    try
+                    {
+                        await worker.LoadModelInfo();
+                        await worker.GetLoRAInfo();
+                        await worker.SetOnlineStatus(true);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Worker {worker.id} - Failed due to error: {ex.Message}");
+                    }
 
                     //_ = worker.Run(botClient);
-                    _ = Task.Run(async () => await worker.Run(botClient));
+                    //_ = Task.Run(async () => await worker.Run());
                 }
+            }
+        }
+
+        public static async Task StartWorkers()
+        {
+            if (workers.Count() < 1)
+                    throw new Exception("No workers available.");
+
+            foreach (var worker in workers.Values)
+            {
+
+                //_ = worker.Run(botClient);
+                _ = Task.Run(async () => await worker.Run());
+
+                Console.WriteLine($"Worker {worker.id} - Started.");
+            }
+
+            var qCount = await FoxQueue.GetCount();
+
+            if (qCount > 0)
+            {
+                Console.WriteLine($"Beginning processing of {qCount} items from queue.");
+
+                FoxWorker.Ping(qCount);
             }
         }
 
@@ -435,9 +468,9 @@ namespace makefoxsrv
             return workers.Keys;
         }
 
-        public static void Ping()
+        public static void Ping(int count = 1)
         {
-            semaphore.Release();
+            semaphore.Release(count);
         }
 
         private static void CancelWorker(int workerId)
@@ -525,7 +558,7 @@ namespace makefoxsrv
         }
 
         // Example instance method for running the worker thread logic
-        private async Task Run(TelegramBotClient botClient)
+        private async Task Run()
         {
             while (true)
             {
@@ -535,7 +568,11 @@ namespace makefoxsrv
                     StableDiffusion? api;
 
                     //Wake up every now and then to make sure we're still online.
-                    semaphoreAcquired = await semaphore.WaitAsync(4000, cts.Token);
+
+                    semaphoreAcquired = await semaphore.WaitAsync(2000, cts.Token);
+
+                    //if (semaphoreAcquired)
+                    //    Console.WriteLine($"Worker {id} - I have the semaphore! Semaphore count: {semaphore.CurrentCount}");
 
                     //Console.WriteLine($"Worker {id} - woke up, semaphore: {semaphoreAcquired}");
 
@@ -552,6 +589,7 @@ namespace makefoxsrv
                                 semaphore.Release();
 
                             await Task.Delay(4000, cts.Token);
+
                             continue;
                         }
                         else
@@ -576,30 +614,47 @@ namespace makefoxsrv
                     var status = await api.QueueStatus();
                     var progress = await api.Progress(true);
 
-                    if (status.QueueSize > 0 || progress.State.JobCount > 0)
+                    //We only need to do this check if the semaphore was aquired (only if work is waiting for us)
+                    if (semaphoreAcquired && (status.QueueSize > 0 || progress.State.JobCount > 0))
                     {
-                        //Console.WriteLine($"Queue busy, waiting 300ms...");
-                        await Task.Delay(300, cts.Token);
+
+                        int waitMs = (status.QueueSize + progress.State.JobCount) * 500;
+                        //Console.WriteLine($"Worker {id} - URL has a busy queue, waiting {waitMs}ms...");
 
                         if (semaphoreAcquired)
                             semaphore.Release();
 
+                        await Task.Delay(waitMs, cts.Token);
+
                         continue;
                     }
 
-                    
-
                     //while ((q = await FoxQueue.Pop(id)) is not null) //Work until the queue is empty
                     //{
-                    q = await FoxQueue.Pop(id);
+                    (q, int processingCount) = await FoxQueue.Pop(id);
+
                     if (q is null)
                     {
                         //If we have the semaphore, but couldn't find anything to process.
                         //Better give it to someone else.
+
+
                         if (semaphoreAcquired)
-                            semaphore.Release(); 
+                        {
+                            if (processingCount > 0)
+                            {
+                                //Console.WriteLine($"Worker {id} - Incompatible queue item, returning semaphore!");
+
+                                semaphore.Release();
+                            }
+                            else
+                                Console.WriteLine($"Worker {id} - That's odd... we have the semaphore, but can't find a queue item!");
+                        }
+
                         continue;
                     }
+
+                    //Console.WriteLine($"{address} - {q.settings.model}");
 
                     //Console.WriteLine($"Starting image {q.id}...");
 
@@ -694,7 +749,8 @@ namespace makefoxsrv
 
                             //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
                             var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
-                            var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
+                            //var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
+                            var sampler = await api.Sampler("Restart", comboCts.Token);
 
                             var img = new Base64EncodedImage(q.input_image.Image);
 
@@ -738,7 +794,8 @@ namespace makefoxsrv
 
                             //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
                             var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
-                            var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
+                            //var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
+                            var sampler = await api.Sampler("Restart", comboCts.Token);
 
                             var txt2img = await api.TextToImage(
                                 new()
