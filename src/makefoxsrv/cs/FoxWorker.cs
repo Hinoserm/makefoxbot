@@ -749,8 +749,8 @@ namespace makefoxsrv
 
                             //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
                             var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
-                            //var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
-                            var sampler = await api.Sampler("Restart", comboCts.Token);
+                            var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
+                            //var sampler = await api.Sampler("Restart", comboCts.Token);
 
                             var img = new Base64EncodedImage(q.input_image.Image);
 
@@ -794,8 +794,8 @@ namespace makefoxsrv
 
                             //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
                             var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
-                            //var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
-                            var sampler = await api.Sampler("Restart", comboCts.Token);
+                            var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
+                            //var sampler = await api.Sampler("Restart", comboCts.Token);
 
                             var txt2img = await api.TextToImage(
                                 new()

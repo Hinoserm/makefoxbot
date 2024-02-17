@@ -389,7 +389,7 @@ FOR UPDATE;";
                             processingCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
 
                             if (processingCount < 1)
-                                return (null, 0);
+                                return (null, 0); //This is just here to give me a place to set a breakpoint.
 
                             return (null, processingCount);
                         }
