@@ -23,6 +23,13 @@ if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
 } else
     $imageId = 0;
 
+if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
+    $imageModel = $_GET['model'];
+} else {
+    $imageModel = "";
+}
+
+
 //-----------------------------------------
 
 ?>
@@ -120,7 +127,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
                 '<div><strong>Sampler Steps:</strong> ' + q.steps + '<br></div>' +
                 '<div><strong>CFG Scale:</strong> ' + q.cfgscale + '<br></div>' +
                 (q.type == 'IMG2IMG' ? '<div><strong>Denoising Strength:</strong> ' + q.denoising_strength + '<br></div>' : '') +
-                '<div><strong>Model:</strong> ' + q.model + '<br></div>' +
+                '<div><strong>Model:</strong> <a href="?uid=<?php echo $uid;?>&model=' + q.model + '">' + q.model + '</a><br></div>' +
                 '<div><strong>Seed:</strong> ' + q.seed + '<br></div>' +
 <?php if ($user['access_level'] == 'ADMIN'): ?>
                 '<div><strong>Worker:</strong> ' + q.worker_name + '<br></div>' +
@@ -396,7 +403,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
 				if (isLoading) return reject('Already loading images.');
 				isLoading = true;
 				let queryParam = `lastImageId=${action === 'new' ? highestImageId : lastImageId}`;
-				fetch(`/api/list-images.php?action=${action}&${queryParam}&uid=<?php echo $uid; ?>`)
+				fetch(`/api/list-images.php?action=${action}&${queryParam}&uid=<?php echo $uid; ?>&model=<?php echo $imageModel; ?>`)
                     .then(response => response.json())
                     .then(data => {
                         if (data && data.images) {

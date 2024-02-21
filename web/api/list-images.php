@@ -53,6 +53,12 @@ if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
     $sql .= " AND q.id < :lastImageId";
 }
 
+if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
+    $imageModel = $_GET['model'];
+
+    $sql .= " AND q.model = :imgModel";
+}
+
 $sql .= " ORDER BY q.id DESC LIMIT $limit";
 
 $stmt = $pdo->prepare($sql);
@@ -60,6 +66,10 @@ $stmt = $pdo->prepare($sql);
 // Conditionally bind the :lastImageId parameter
 if ($lastImageId > 0) {
     $stmt->bindParam(':lastImageId', $lastImageId, PDO::PARAM_INT);
+}
+
+if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
+    $stmt->bindParam(':imgModel', $imageModel, PDO::PARAM_STR);
 }
 
 // Now execute the statement
