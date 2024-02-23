@@ -1606,9 +1606,11 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
+
+            
             var msgString = "";
 
-
+            /*
             (int normalizedWidth, int normalizedHeight) = FoxImage.NormalizeImageSize(width, height);
 
             if (normalizedWidth != width || normalizedHeight != height)
@@ -1619,7 +1621,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 width = normalizedWidth;
                 height = normalizedHeight;
 
-            }
+            } */
 
             msgString += $"✅ Size set to: {width}x{height}";
 
