@@ -93,7 +93,7 @@ namespace makefoxsrv
         .UseIniFile("../conf/settings.ini")
         .Build();
 
-        public static string MySqlConnectionString = $"Server={settings.MySQLServer};User ID={settings.MySQLUsername};Password={settings.MySQLPassword};Database={settings.MySQLDatabase};charset=utf8mb4;keepalive=60;minpoolsize=2";
+        public static string MySqlConnectionString = $"Server={settings.MySQLServer};User ID={settings.MySQLUsername};Password={settings.MySQLPassword};Database={settings.MySQLDatabase};charset=utf8mb4;keepalive=60;minpoolsize=5;default command timeout=180";
         //public static MySqlConnection? SQL;
 
         static string sha1hash(byte[] input)
