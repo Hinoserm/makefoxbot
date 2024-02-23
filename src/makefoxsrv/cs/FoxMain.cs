@@ -24,11 +24,15 @@ using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+using Telegram.Bot.Types.Payments;
 
 public interface IMySettings
 {
     [Option(Alias = "Telegram.BOT_TOKEN")]
     string TelegramBotToken { get; }
+
+    [Option(Alias = "Telegram.PAYMENT_TOKEN")]
+    string TelegramPaymentToken { get; }
 
     [Option(Alias = "Telegram.API_URL")]
     string TelegramApiUrl { get; }
@@ -153,7 +157,7 @@ namespace makefoxsrv
 
         static async Task RunHandlerThread(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            if (botClient is null )
+            if (botClient is null)
                 throw new ArgumentNullException(nameof(botClient));
 
             if (update is null)
@@ -172,7 +176,57 @@ namespace makefoxsrv
                         _ = updateTelegramChats(message.Chat); //Skip the 'await' since we don't care about the results.
                     _ = updateTelegramUsers(message.From);     //Change this later if this function starts caring about these tables.
 
-                    if (message.Type == MessageType.Photo)
+                    //Console.WriteLine(message.Type);
+
+                    if (message.Type == MessageType.SuccessfulPayment)
+                    {
+                        if (message?.SuccessfulPayment is null)
+                            throw new ArgumentNullException();
+
+                        var user = await FoxUser.GetByTelegramUser(message.From);
+
+                        if (user is not null)
+                        {
+                            var pay = message.SuccessfulPayment;
+
+                            string input = pay.InvoicePayload;
+                            string[] parts = input.Split('_');
+                            if (parts.Length != 3 || parts[0] != "PAY" || !long.TryParse(parts[1], out long recvUID) || !int.TryParse(parts[2], out int days))
+                            {
+                                throw new System.Exception("Malformed payment request!  Contact /support");
+                            }
+
+                            var recvUser = await FoxUser.GetByUID(recvUID);
+
+                            if (recvUser is null)
+                                throw new System.Exception("Unknown UID in payment request!  Contact /support");
+
+                            await recvUser.recordPayment(pay.TotalAmount, pay.Currency, days, pay.InvoicePayload, pay.TelegramPaymentChargeId, pay.ProviderPaymentChargeId);
+                            Console.WriteLine($"Payment recorded for user {recvUID} by {user.UID}: ({pay.TotalAmount}, {pay.Currency}, {days}, {pay.InvoicePayload}, {pay.TelegramPaymentChargeId}, {pay.ProviderPaymentChargeId})");
+
+                            var msg = @$"
+<b>Thank You for Your Generous Support!</b>
+
+We are deeply grateful for your donation, which is vital for our platform's sustainability and growth.
+
+Your contribution has granted you <b>{(days == -1 ? "lifetime" : $"{days} days of")} premium access</b>, enhancing your experience with increased limits and features.
+
+We are committed to using your donation to further develop and maintain the service, supporting our mission to provide a creative and expansive platform for our users. Thank you for being an integral part of our journey and for empowering us to continue offering a high-quality service.
+";
+                            await botClient.SendTextMessageAsync(
+                                        chatId: message.Chat.Id,
+                                        text: msg,
+                                        replyToMessageId: update.Message.MessageId,
+                                        parseMode: ParseMode.Html,
+                                        disableWebPagePreview: true,
+                                        cancellationToken: cancellationToken
+                                    );
+
+                            //await botClient.DeleteMessageAsync(message.Chat.Id, message.MessageId);
+                        }
+
+                    }
+                    else if (message.Type == MessageType.Photo)
                     {
 
                         try
@@ -187,12 +241,12 @@ namespace makefoxsrv
 
                                 await user.UpdateTimestamps();
 
-                                var photo = message.Photo.Last();
+                                var photo = message?.Photo?.Last();
 
                                 if (photo is null)
                                     throw new Exception("Unexpected null photo object received from Telegram");
 
-                                var img = await FoxImage.LoadFromTelegramUniqueId(user.UID, photo.FileUniqueId, message.Chat.Id);
+                                var img = await FoxImage.LoadFromTelegramUniqueId(user.UID, photo.FileUniqueId, message!.Chat.Id);
 
                                 if (img is not null)
                                 {
@@ -314,8 +368,16 @@ namespace makefoxsrv
 
         static async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
+
+            if (update.Type == UpdateType.PreCheckoutQuery)
+            {
+                await botClient.AnswerPreCheckoutQueryAsync(update.PreCheckoutQuery!.Id, cancellationToken: cancellationToken);
+
+                return;
+            }
+
             // Only process Message updates: https://core.telegram.org/bots/api#message
-            if (update.Message is null && update.CallbackQuery is null)
+            if (update.Message is null && update.CallbackQuery is null && update.Message!.SuccessfulPayment is null)
             {
                 Console.WriteLine("Unexpected type of update received from Telegram: " + update.Type);
                 return;

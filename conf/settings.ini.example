@@ -7,3 +7,4 @@ password=
 [telegram]
 bot_token=
 bot_username=
+payment_token=

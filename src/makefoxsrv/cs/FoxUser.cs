@@ -17,7 +17,7 @@ namespace makefoxsrv
         public string display_name = "";
         public bool is_premium = false;
         public DateTime date_updated;
-
+        
         public static async Task<FoxTelegramUser?> Get(long tele_userid)
         {
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
@@ -132,6 +132,38 @@ namespace makefoxsrv
         public string AccessLevel = "BASIC";
         public long TelegramID = 0;
 
+        public static async Task<FoxUser?> GetByUID(long uid)
+        {
+            FoxUser? user = null;
+
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = "SELECT id, username, access_level, telegram_id FROM users WHERE id = @id";
+                    cmd.Parameters.AddWithValue("id", uid);
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    if (r.HasRows && await r.ReadAsync())
+                    {
+                        user = new FoxUser();
+
+                        user.UID = r.GetUInt64(0);
+                        if (!r.IsDBNull(1))
+                            user.Username = r.GetString(1);
+                        if (!r.IsDBNull(2))
+                            user.AccessLevel = r.GetString(2);
+                        if (!r.IsDBNull(3))
+                            user.TelegramID = r.GetInt64(3);
+                    }
+                }
+            }
+
+            return user;
+        }
+
         public static async Task<FoxUser?> GetByTelegramUser(User tuser)
         {
             FoxUser? user = null;
@@ -204,6 +236,37 @@ namespace makefoxsrv
                 return await GetByTelegramUser(tuser); //We do it this way so that it can read the defaults that are configured on the table.
             else
                 throw new Exception("Unable to create new user");
+        }
+
+        public async Task<ulong> recordPayment(int amount, string currency, int hours, string invoice_payload = null, string telegram_charge_id = null, string provider_charge_id = null)
+        {
+            ulong payment_id = 0;
+
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = "INSERT INTO user_payments (uid, date, amount, currency, hours, invoice_payload, telegram_charge_id, provider_charge_id) VALUES (@uid, @now, @amount, @currency, @hours, @invoice_payload, @telegram_charge_id, @provider_charge_id)";
+                    cmd.Parameters.AddWithValue("uid", this.UID);
+                    cmd.Parameters.AddWithValue("now", DateTime.Now);
+                    cmd.Parameters.AddWithValue("amount", amount);
+                    cmd.Parameters.AddWithValue("currency", currency);
+                    cmd.Parameters.AddWithValue("hours", hours);
+                    cmd.Parameters.AddWithValue("invoice_payload", invoice_payload);
+                    cmd.Parameters.AddWithValue("telegram_charge_id", telegram_charge_id);
+                    cmd.Parameters.AddWithValue("provider_charge_id", provider_charge_id);
+
+                    await cmd.ExecuteNonQueryAsync();
+                    payment_id = (ulong)cmd.LastInsertedId;
+
+                    Console.WriteLine($"recordPayment({this.UID}, {amount}, {currency})");
+                }
+            }
+
+            return payment_id;
         }
 
         public async Task UpdateTimestamps()

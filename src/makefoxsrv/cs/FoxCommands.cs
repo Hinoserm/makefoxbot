@@ -14,6 +14,7 @@ using System.Reflection.Metadata;
 using System.Linq.Expressions;
 using System.Drawing;
 using MySqlConnector;
+using Telegram.Bot.Types.Payments;
 
 namespace makefoxsrv
 {
@@ -147,6 +148,8 @@ This bot and the content generated are for research and educational purposes onl
             { "/model",       CmdModel },
             //--------------- -----------------
             { "/cancel",      CmdCancel },
+            //--------------- -----------------
+            { "/donate",      CmdDonate },
         };
 
         public static async Task HandleCommand(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
@@ -338,6 +341,9 @@ This bot and the content generated are for research and educational purposes onl
                 case "/help":
                     await CallbackCmdHelp(botClient, update, cancellationToken, user, argument);
                     break;
+                case "/donate":
+                    await CallbackCmdDonate(botClient, update, cancellationToken, user, argument);
+                    break;
             }
         }
 
@@ -396,6 +402,98 @@ This bot and the content generated are for research and educational purposes onl
 
 
             }
+
+            await botClient.AnswerCallbackQueryAsync(update.CallbackQuery.Id);
+
+        }
+
+        private static async Task CallbackCmdDonate(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user, string? argument = null)
+        {
+            if (argument is null || argument.Length <= 0)
+            {
+                /* await botClient.EditMessageTextAsync(
+                    chatId: update.CallbackQuery.Message.Chat.Id,
+                    text: "Invalid request",
+                    messageId: update.CallbackQuery.Message.MessageId,
+                    cancellationToken: cancellationToken
+                ); */
+
+                return;
+            }
+
+            if (argument == "cancel")
+            {
+                await botClient.EditMessageTextAsync(
+                        chatId: update.CallbackQuery.Message.Chat.Id,
+                        text: "✅ Operation cancelled.",
+                        messageId: update.CallbackQuery.Message.MessageId,
+                        cancellationToken: cancellationToken
+                    );
+            }
+            else if(argument == "custom")
+            {
+                await botClient.EditMessageTextAsync(
+                        chatId: update.CallbackQuery.Message.Chat.Id,
+                        text: "🚧 Not Yet Implemented.",
+                        messageId: update.CallbackQuery.Message.MessageId,
+                        cancellationToken: cancellationToken
+                    );
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(FoxMain.settings?.TelegramPaymentToken))
+                    throw new Exception("Donations are currently disabled. (token not set)");
+
+                var parts = argument.Split(' ');
+                if (parts.Length != 2)
+                    throw new Exception("Invalid input format.");
+
+                if (!decimal.TryParse(parts[0], out decimal amount) || amount < 5)
+                    throw new Exception("Invalid amount.");
+
+                int days;
+                if (parts[1].ToLower() == "lifetime")
+                    days = -1;
+                else if (!int.TryParse(parts[1], out days))
+                    throw new Exception("Invalid days.");
+
+                // Use 'amount' and 'days' as needed
+
+
+                var prices = new[] {
+                    new LabeledPrice(days == -1 ? "Lifetime Access" : $"{days} Days Access", (int)(amount*100)),
+                };
+
+                await botClient.AnswerCallbackQueryAsync(update.CallbackQuery.Id);
+
+                await botClient.SendInvoiceAsync(
+                    chatId: update.CallbackQuery.Message.Chat.Id,
+                    title: $"One-Time Payment for User ID {user.UID}",
+                    description: (days == -1 ? "Lifetime Access" : $"{days} Days Access"),
+                    payload: $"PAY_{user.UID}_{days}", // Unique payload to identify the payment
+                    providerToken: FoxMain.settings?.TelegramPaymentToken,
+                    //startParameter: "payment",
+                    currency: "USD",
+                    prices: prices,
+                    replyMarkup: new InlineKeyboardMarkup(InlineKeyboardButton.WithPayment($"Pay ${amount}"))
+                );
+
+                try
+                {
+                    await botClient.EditMessageTextAsync(
+                        chatId: update.CallbackQuery.Message.Chat.Id,
+                        text: update.CallbackQuery.Message.Text,
+                        messageId: update.CallbackQuery.Message.MessageId,
+                        disableWebPagePreview: true,
+                        cancellationToken: cancellationToken,
+                        entities: update.CallbackQuery.Message.Entities
+                    );
+                }
+                catch { } // We don't care if editing fails
+
+            }
+
+            
 
         }
 
@@ -596,6 +694,99 @@ This bot and the content generated are for research and educational purposes onl
                 }
                 catch { }
             }
+        }
+
+        public static int CalculateRewardDays(int amountInCents)
+        {
+            int baseDays = 30; // Base days for $10
+            int targetDaysForMaxAmount = 365; // Target days for $100
+
+            // Convert amount to dollars from cents for calculation
+            decimal amountInDollars = amountInCents / 100m;
+
+            if (amountInCents == 500)
+            {
+                return 10; // Directly return 10 days for $5
+            }
+            else if (amountInDollars <= 10)
+            {
+                return baseDays;
+            }
+            else if (amountInDollars >= 100)
+            {
+                // Calculate days as if $100 is given for each $100 increment
+                decimal multiplesOverMax = amountInDollars / 100;
+                return (int)Math.Round(targetDaysForMaxAmount * multiplesOverMax);
+            }
+            else
+            {
+                // Linear interpolation for amounts between $10 and $100
+                decimal daysPerDollar = (targetDaysForMaxAmount - baseDays) / (100m - 10m);
+                return (int)Math.Round(baseDays + (amountInDollars - 10) * daysPerDollar);
+            }
+        }
+
+        [CommandDescription("Make a one-time monetary donation")]
+        [CommandArguments("")]
+        private static async Task CmdDonate(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        {
+
+            if (string.IsNullOrEmpty(FoxMain.settings?.TelegramPaymentToken))
+                throw new Exception("Donations are currently disabled. (token not set)");
+
+            // Define donation amounts in whole dollars
+            int[] donationAmounts = new int[] { 5, 10, 20, 40, 60, 100 };
+
+            // Initialize a list to hold button rows, starting with the "Custom Amount" button
+            List<InlineKeyboardButton[]> buttonRows = new List<InlineKeyboardButton[]>();
+
+            // Temporary list to hold buttons for the current row
+            List<InlineKeyboardButton> currentRow = new List<InlineKeyboardButton>();
+
+            // Loop through the donation amounts and create buttons
+            for (int i = 0; i < donationAmounts.Length; i++)
+            {
+                int amountInCents = donationAmounts[i] * 100;
+                int days = CalculateRewardDays(amountInCents);
+                currentRow.Add(InlineKeyboardButton.WithCallbackData($"💳 ${donationAmounts[i]} ({days} days)", $"/donate {donationAmounts[i]} {days}"));
+
+                // Every two buttons or at the end, add the current row to buttonRows and start a new row
+                if ((i + 1) % 2 == 0 || i == donationAmounts.Length - 1)
+                {
+                    buttonRows.Add(currentRow.ToArray());
+                    currentRow = new List<InlineKeyboardButton>(); // Clear the currentRow by reinitializing it
+                }
+            }
+
+            buttonRows.Add(new[] { InlineKeyboardButton.WithCallbackData("✨💰 💳 $600 (Lifetime Access!) 💰✨", "/donate 600 lifetime") });
+
+            //buttonRows.Add(new[] { InlineKeyboardButton.WithCallbackData("Custom Amount", "/donate custom") });
+
+            // Add a cancel button on its own row at the end
+            buttonRows.Add(new[] { InlineKeyboardButton.WithCallbackData("❌ Cancel", "/donate cancel") });
+
+            var msg = @"
+<b>Support Our Service - Unlock Premium Access</b>
+
+Thank you for considering a donation to our platform. Your support is crucial for the development and maintenance of our service.
+
+Every <b>$10 US Dollars</b> spent grants 30 days of premium access, with rewards increasing for larger contributions.
+
+<b>Legal:</b>
+
+Our service is provided on a best-effort basis, without express or implied warranties.  We reserve the right to modify or discontinue features and limits at any time. <b>Donations are final and non-refundable.</b>
+
+<a href=""https://telegra.ph/Makefoxbot-Tier-Limits-02-22"">Click for more information...</a>
+
+We sincerely appreciate your support and understanding. Your contribution directly impacts our ability to maintain and enhance our service, ensuring a robust platform for all users.";
+
+            await botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: msg,
+                replyMarkup: new InlineKeyboardMarkup(buttonRows),
+                parseMode: ParseMode.Html,
+                disableWebPagePreview: true
+            );            
         }
 
         [CommandDescription("It's delicious!")]
