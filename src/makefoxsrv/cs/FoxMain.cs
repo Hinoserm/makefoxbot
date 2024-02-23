@@ -377,7 +377,7 @@ We are committed to using your donation to further develop and maintain the serv
             }
 
             // Only process Message updates: https://core.telegram.org/bots/api#message
-            if (update.Message is null && update.CallbackQuery is null && update.Message!.SuccessfulPayment is null)
+            if (update.Message is null && update.CallbackQuery is null && update.Message?.SuccessfulPayment is null)
             {
                 Console.WriteLine("Unexpected type of update received from Telegram: " + update.Type);
                 return;
