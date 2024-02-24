@@ -700,15 +700,13 @@ namespace makefoxsrv
                                 continue;
                             } else
                                 Console.WriteLine("Edit msg failed " + ex.Message); //We don't care if editing fails in other cases, like the message being missing.
-
-                            
                         } 
 
                         var settings = q.settings;                            
 
                         CancellationTokenSource progress_cts = new CancellationTokenSource();
 
-                        /* _ = Task.Run(async () =>
+                        _ = Task.Run(async () =>
                         {
                             while (!progress_cts.IsCancellationRequested)
                             {
@@ -719,20 +717,25 @@ namespace makefoxsrv
 
                                     using var comboBreaker = CancellationTokenSource.CreateLinkedTokenSource(comboCts.Token, progress_cts.Token);
 
-                                    await botClient.EditMessageTextAsync(
-                                        chatId: q.TelegramChatID,
-                                        messageId: q.msg_id,
-                                        text: $"⏳ Generating now ({(int)progress}%)..."
-                                        );
+                                    if (progress > 3.0)
+                                    {
+                                        await botClient.EditMessageTextAsync(
+                                            chatId: q.TelegramChatID,
+                                            messageId: q.msg_id,
+                                            text: $"⏳ Generating now ({(int)progress}%)..."
+                                            );
 
-                                    
-                                    await Task.Delay(350, comboBreaker.Token);
+
+                                        await Task.Delay(3000, comboBreaker.Token);
+                                    } else
+                                        await Task.Delay(200, comboBreaker.Token);
+
 
                                 } catch {
                                     //Don't care about errors
                                 }
                             }
-                        }); */
+                        });
                             
 
                         if (q.type == "IMG2IMG")

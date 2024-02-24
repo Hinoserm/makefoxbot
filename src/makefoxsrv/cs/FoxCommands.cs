@@ -1459,6 +1459,13 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             await SQL.OpenAsync();
 
+            var cancelMsg = await botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: $"⏳ Cancelling...",
+                replyToMessageId: message.MessageId,
+                cancellationToken: cancellationToken
+            );
+
             List<ulong> pendingIds = new List<ulong>();
 
             using (var cmd2 = new MySqlCommand("SELECT id,msg_id,tele_chatid FROM queue WHERE uid = @id AND status = 'PENDING' OR status = 'ERROR'", SQL))
@@ -1472,11 +1479,17 @@ We sincerely appreciate your support and understanding. Your contribution direct
                     long chat_id = reader.GetInt64("tele_chatid");
                     int msg_id = reader.GetInt32("msg_id");
 
-                    await botClient.EditMessageTextAsync(
-                        chatId: chat_id,
-                        messageId: msg_id,
-                        text: "❌ Cancelled."
-                    );
+                    try
+                    {
+                        await botClient.EditMessageTextAsync(
+                            chatId: chat_id,
+                            messageId: msg_id,
+                            text: "❌ Cancelled."
+                        );
+                    } catch
+                    {
+                        //Don't care about this failure.
+                    }
 
                     pendingIds.Add(q_id);
 
@@ -1492,8 +1505,6 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 {
                     await cmd3.ExecuteNonQueryAsync();
                 }
-
-                count += pendingIds.Count;
             }
 
 
@@ -1502,23 +1513,30 @@ We sincerely appreciate your support and understanding. Your contribution direct
             using (var cmd2 = new MySqlCommand("SELECT id,worker,msg_id,tele_chatid FROM queue WHERE uid = @id AND status = 'PROCESSING'", SQL))
             {
                 cmd2.Parameters.AddWithValue("id", user.UID);
-                using var reader = await cmd2.ExecuteReaderAsync();
+                using var r = await cmd2.ExecuteReaderAsync();
 
-                while (await reader.ReadAsync())
+                while (await r.ReadAsync())
                 {
-                    int worker_id = reader.GetInt32("worker");
-                    ulong q_id = reader.GetUInt64("id");
-                    long chat_id = reader.GetInt64("tele_chatid");
-                    int msg_id = reader.GetInt32("msg_id");
+                    int? worker_id = (r["worker"] is DBNull) ? null : r.GetInt32("worker");
+                    ulong q_id = r.GetUInt64("id");
+                    long chat_id = r.GetInt64("tele_chatid");
+                    int msg_id = r.GetInt32("msg_id");
 
-                    if (FoxWorker.CancelIfUserMatches(worker_id, user.UID))
+                    if (worker_id is not null && FoxWorker.CancelIfUserMatches(worker_id.Value, user.UID))
                         processingIds.Add(q_id);
 
-                    await botClient.EditMessageTextAsync(
-                        chatId: chat_id,
-                        messageId: msg_id,
-                        text: "⏳ Cancelling..."
-                    );
+                    try {
+                        await botClient.EditMessageTextAsync(
+                            chatId: chat_id,
+                            messageId: msg_id,
+                            text: "⏳ Cancelling..."
+                        );
+
+                    }
+                    catch
+                    {
+                        //Don't care about this failure.
+                    }
 
                     count++;
                 }
@@ -1532,11 +1550,15 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 {
                     await cmd3.ExecuteNonQueryAsync();
                 }
-
-                count += processingIds.Count;
             }
 
 
+            await botClient.EditMessageTextAsync(
+                chatId: message.Chat.Id,
+                text: $"✅ Cancelled {count} items.",
+                messageId: cancelMsg.MessageId,
+                cancellationToken: cancellationToken
+            );
 
 
         }

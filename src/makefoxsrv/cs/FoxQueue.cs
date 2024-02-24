@@ -174,6 +174,8 @@ namespace makefoxsrv
 
                         using (var cmd = new MySqlCommand())
                         {
+                            var userCount = 0;
+
                             cmd.Connection = SQL;
                             cmd.CommandText = cmd.CommandText = @"
                                 SELECT
@@ -195,6 +197,9 @@ namespace makefoxsrv
                                 var msg_id = Convert.ToInt32(r["msg_id"]);
                                 var chatid = Convert.ToInt64(r["tele_chatid"]);
 
+                                if (++userCount > 10) //pause every 10 updates just to be safe.
+                                    await Task.Delay(2000, notify_cts.Token);
+
                                 try
                                 {
                                     await botClient.EditMessageTextAsync(
@@ -210,7 +215,7 @@ namespace makefoxsrv
                                     //Console.WriteLine(ex.Message);
                                 }
 
-                                await Task.Delay(800, notify_cts.Token);
+                                await Task.Delay(1000, notify_cts.Token);
                             }
                         }
 
@@ -221,8 +226,8 @@ namespace makefoxsrv
                     Console.WriteLine("Error in NotifyUserPositions(): " + ex.Message);
                 }
 
-                await semaphore.WaitAsync(3000, notify_cts.Token);
-                //await Task.Delay(2000, notify_cts.Token);
+                await semaphore.WaitAsync(1000, notify_cts.Token);
+                await Task.Delay(3000, notify_cts.Token);
             }
         }
 
