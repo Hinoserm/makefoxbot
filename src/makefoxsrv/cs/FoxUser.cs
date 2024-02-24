@@ -208,6 +208,9 @@ namespace makefoxsrv
                 }
             }
 
+            if (user is null)
+                user = await FoxUser.CreateFromTelegramUser(tuser);
+
             return user;
         }
 
