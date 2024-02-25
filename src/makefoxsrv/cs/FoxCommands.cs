@@ -1552,15 +1552,12 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 }
             }
 
-
             await botClient.EditMessageTextAsync(
                 chatId: message.Chat.Id,
                 text: $"✅ Cancelled {count} items.",
                 messageId: cancelMsg.MessageId,
                 cancellationToken: cancellationToken
             );
-
-
         }
 
         [CommandDescription("Change the size of the output, e.g. /setsize 768x768")]

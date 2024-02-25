@@ -241,7 +241,7 @@ namespace makefoxsrv
                 throw new Exception("Unable to create new user");
         }
 
-        public async Task<ulong> recordPayment(int amount, string currency, int hours, string invoice_payload = null, string telegram_charge_id = null, string provider_charge_id = null)
+        public async Task<ulong> recordPayment(int amount, string currency, int days, string invoice_payload = null, string telegram_charge_id = null, string provider_charge_id = null)
         {
             ulong payment_id = 0;
 
@@ -252,12 +252,12 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "INSERT INTO user_payments (uid, date, amount, currency, hours, invoice_payload, telegram_charge_id, provider_charge_id) VALUES (@uid, @now, @amount, @currency, @hours, @invoice_payload, @telegram_charge_id, @provider_charge_id)";
+                    cmd.CommandText = "INSERT INTO user_payments (uid, date, amount, currency, days, invoice_payload, telegram_charge_id, provider_charge_id) VALUES (@uid, @now, @amount, @currency, @days, @invoice_payload, @telegram_charge_id, @provider_charge_id)";
                     cmd.Parameters.AddWithValue("uid", this.UID);
                     cmd.Parameters.AddWithValue("now", DateTime.Now);
                     cmd.Parameters.AddWithValue("amount", amount);
                     cmd.Parameters.AddWithValue("currency", currency);
-                    cmd.Parameters.AddWithValue("hours", hours);
+                    cmd.Parameters.AddWithValue("days", days);
                     cmd.Parameters.AddWithValue("invoice_payload", invoice_payload);
                     cmd.Parameters.AddWithValue("telegram_charge_id", telegram_charge_id);
                     cmd.Parameters.AddWithValue("provider_charge_id", provider_charge_id);
@@ -265,7 +265,32 @@ namespace makefoxsrv
                     await cmd.ExecuteNonQueryAsync();
                     payment_id = (ulong)cmd.LastInsertedId;
 
-                    Console.WriteLine($"recordPayment({this.UID}, {amount}, {currency})");
+                    Console.WriteLine($"recordPayment({this.UID}, {amount} {currency}, {days} days)");
+                }
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = @"
+                        UPDATE users
+                        SET 
+                            date_premium_expires = IF(
+                                @days = -1, 
+                                '9999-12-31',
+                                IF(
+                                    date_premium_expires IS NULL OR date_premium_expires < @now OR lifetime_subscription = 1, 
+                                    DATE_ADD(@now, INTERVAL @days DAY), 
+                                    DATE_ADD(date_premium_expires, INTERVAL @days DAY)
+                                )
+                            ),
+                            lifetime_subscription = IF(@days = -1, 1, lifetime_subscription)
+                        WHERE id = @uid AND (lifetime_subscription IS NULL OR lifetime_subscription = 0);";
+                    cmd.Parameters.AddWithValue("uid", this.UID);
+                    cmd.Parameters.AddWithValue("now", DateTime.Now);
+                    cmd.Parameters.AddWithValue("days", days);
+
+                    await cmd.ExecuteNonQueryAsync();
+                    payment_id = (ulong)cmd.LastInsertedId;
                 }
             }
 
