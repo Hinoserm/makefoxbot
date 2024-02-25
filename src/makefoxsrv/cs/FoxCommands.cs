@@ -951,14 +951,14 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
-            int q_limit = 2;
-            switch (user.AccessLevel)
+            int q_limit = 1;
+            switch (user.GetAccessLevel())
             {
-                case "ADMIN":
+                case AccessLevel.ADMIN:
                     q_limit = 20;
                     break;
-                case "PREMIUM":
-                    q_limit = 5;
+                case AccessLevel.PREMIUM:
+                    q_limit = 3;
                     break;
             }
 
@@ -1075,14 +1075,14 @@ We sincerely appreciate your support and understanding. Your contribution direct
             }
 
 
-            int q_limit = 2;
-            switch (user.AccessLevel)
+            int q_limit = 1;
+            switch (user.GetAccessLevel())
             {
-                case "ADMIN":
+                case AccessLevel.ADMIN:
                     q_limit = 20;
                     break;
-                case "PREMIUM":
-                    q_limit = 5;
+                case AccessLevel.PREMIUM:
+                    q_limit = 3;
                     break;
             }
 
@@ -1388,11 +1388,11 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             steps = Int16.Parse(stepstr[1]);
 
-            if (steps > 20 && user.AccessLevel != "PREMIUM" && user.AccessLevel != "ADMIN")
+            if (steps > 20 && !user.CheckAccessLevel(AccessLevel.PREMIUM))
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "❌ Only premium users can exceed 20 steps.",
+                    text: "❌ Only premium users can exceed 20 steps.\r\n\r\nConsider making a donation: /donate",
                     replyToMessageId: message.MessageId,
                     cancellationToken: cancellationToken
                 );
@@ -1405,11 +1405,11 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 }
                 return;
             }
-            else if (steps < 1 || (steps > 60 && user.AccessLevel != "ADMIN"))
+            else if (steps < 1 || (steps > 50 && !user.CheckAccessLevel(AccessLevel.ADMIN)))
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "❌ Value must be above 1 and below 60.",
+                    text: "❌ Value must be above 1 and below 50.",
                     replyToMessageId: message.MessageId,
                     cancellationToken: cancellationToken
                 );
@@ -1605,7 +1605,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
-            if ((width > 1024 || height > 1024) && user.AccessLevel != "PREMIUM" && user.AccessLevel != "ADMIN")
+            if ((width > 1024 || height > 1024) && !user.CheckAccessLevel(AccessLevel.PREMIUM))
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
@@ -1614,7 +1614,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                     cancellationToken: cancellationToken
                 );
                 return;
-            } else if (width > 1280 || height > 1280 && user.AccessLevel != "ADMIN")
+            } else if (width > 1280 || height > 1280 && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,

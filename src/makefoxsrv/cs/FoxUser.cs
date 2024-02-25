@@ -6,6 +6,14 @@ using System.Text;
 using System.Threading.Tasks;
 using Telegram.Bot.Types;
 
+public enum AccessLevel
+{
+    BANNED,
+    BASIC,
+    PREMIUM,
+    ADMIN
+}
+
 
 namespace makefoxsrv
 {
@@ -127,38 +135,55 @@ namespace makefoxsrv
 
     internal class FoxUser
     {
-        public ulong UID = 0;
+        public ulong UID;
         public string? Username;
-        public string AccessLevel = "BASIC";
-        public long TelegramID = 0;
+        public long? TelegramID;
+
+        private DateTime? datePremiumExpires = null;          //Date premium subscription expires.
+        private bool lifetimeSubscription = false;            //Do they have a lifetime sub?
+        public AccessLevel accessLevel = AccessLevel.BANNED; //Default to BANNED, just in case.
 
         public static async Task<FoxUser?> GetByUID(long uid)
         {
             FoxUser? user = null;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            try
             {
-                await SQL.OpenAsync();
-
-                using (var cmd = new MySqlCommand())
+                using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                 {
-                    cmd.Connection = SQL;
-                    cmd.CommandText = "SELECT id, username, access_level, telegram_id FROM users WHERE id = @id";
-                    cmd.Parameters.AddWithValue("id", uid);
-                    await using var r = await cmd.ExecuteReaderAsync();
-                    if (r.HasRows && await r.ReadAsync())
-                    {
-                        user = new FoxUser();
+                    await SQL.OpenAsync();
 
-                        user.UID = r.GetUInt64(0);
-                        if (!r.IsDBNull(1))
-                            user.Username = r.GetString(1);
-                        if (!r.IsDBNull(2))
-                            user.AccessLevel = r.GetString(2);
-                        if (!r.IsDBNull(3))
-                            user.TelegramID = r.GetInt64(3);
+                    using (var cmd = new MySqlCommand("SELECT id, username, access_level, telegram_id, lifetime_subscription, date_premium_expires FROM users WHERE id = @id", SQL))
+                    {
+                        cmd.Parameters.AddWithValue("@id", uid);
+
+                        using (var r = await cmd.ExecuteReaderAsync())
+                        {
+                            if (await r.ReadAsync())
+                            {
+                                user = new FoxUser
+                                {
+                                    UID = Convert.ToUInt64(r["id"]),
+                                    Username = r["username"] == DBNull.Value ? null : (string)r["username"],
+                                    TelegramID = r["telegram_id"] == DBNull.Value ? null : (long?)r["telegram_id"],
+                                    lifetimeSubscription = r["lifetime_subscription"] == DBNull.Value ? false : Convert.ToBoolean(r["lifetime_subscription"]),
+                                    datePremiumExpires = r["date_premium_expires"] == DBNull.Value ? null : (DateTime?)r["date_premium_expires"]
+                                };
+
+                                var accessLevelStr = (string)r["access_level"];
+                                if (Enum.TryParse<AccessLevel>(accessLevelStr, true, out var accessLevel))
+                                {
+                                    user.accessLevel = accessLevel;
+                                }
+                            }
+                        }
                     }
                 }
+            }
+            catch
+            {
+                // In case of any error, return null.
+                return null;
             }
 
             return user;
@@ -172,47 +197,57 @@ namespace makefoxsrv
             {
                 await SQL.OpenAsync();
 
-                using (var cmd = new MySqlCommand())
+                using (var cmd = new MySqlCommand("SELECT id, username, access_level, lifetime_subscription, date_premium_expires FROM users WHERE telegram_id = @id", SQL))
                 {
-                    cmd.Connection = SQL;
-                    cmd.CommandText = "SELECT id, username, access_level FROM users WHERE telegram_id = @id";
-                    cmd.Parameters.AddWithValue("id", tuser.Id);
-                    await using var r = await cmd.ExecuteReaderAsync();
-                    if (r.HasRows && await r.ReadAsync())
-                    {
-                        user = new FoxUser();
+                    cmd.Parameters.AddWithValue("@id", tuser.Id);
 
-                        user.UID = r.GetUInt64(0);
-                        if (!r.IsDBNull(1))
-                            user.Username = r.GetString(1);
-                        if (!r.IsDBNull(2))
-                            user.AccessLevel = r.GetString(2);
+                    using (var r = await cmd.ExecuteReaderAsync())
+                    {
+                        if (await r.ReadAsync())
+                        {
+                            user = new FoxUser
+                            {
+                                UID = Convert.ToUInt64(r["id"]),
+                                Username = r["username"] == DBNull.Value ? null : (string)r["username"],
+                                TelegramID = tuser.Id,
+                                lifetimeSubscription = r["lifetime_subscription"] != DBNull.Value && Convert.ToBoolean(r["lifetime_subscription"]),
+                                datePremiumExpires = r["date_premium_expires"] != DBNull.Value ? Convert.ToDateTime(r["date_premium_expires"]) : null
+                            };
+
+                            var accessLevelStr = r["access_level"].ToString();
+                            if (Enum.TryParse<AccessLevel>(accessLevelStr, out var accessLevel))
+                            {
+                                user.accessLevel = accessLevel;
+                            }
+                        }
                     }
                 }
 
-                if (user is not null && user.Username != tuser.Username)
+                if (user != null && user.Username != tuser.Username)
                 {
-                    //Telegram username changed, a db update is required
-
+                    // Telegram username changed, a db update is required
                     Console.WriteLine($"Username change: {user.Username} > {tuser.Username}");
 
-                    user.Username = tuser.Username;
-
-                    using (var cmd = new MySqlCommand())
+                    using (var updateCmd = new MySqlCommand("UPDATE users SET username = @username WHERE id = @uid", SQL))
                     {
-                        cmd.Connection = SQL;
-                        cmd.CommandText = $"UPDATE users SET username = @username WHERE id = {user.UID}";
-                        cmd.Parameters.AddWithValue("username", user.Username);
-                        await cmd.ExecuteNonQueryAsync();
+                        updateCmd.Parameters.AddWithValue("@username", tuser.Username);
+                        updateCmd.Parameters.AddWithValue("@uid", user.UID);
+                        await updateCmd.ExecuteNonQueryAsync();
+
+                        user.Username = tuser.Username; // Update the user object with the new username
                     }
                 }
             }
 
-            if (user is null)
-                user = await FoxUser.CreateFromTelegramUser(tuser);
+            // If the user was not found in the database, create a new FoxUser from the Telegram user
+            if (user == null)
+            {
+                user = await CreateFromTelegramUser(tuser);
+            }
 
             return user;
         }
+
 
         public static async Task<FoxUser?> CreateFromTelegramUser(User tuser)
         {
@@ -310,6 +345,24 @@ namespace makefoxsrv
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
+        }
+
+        public bool CheckAccessLevel(AccessLevel requiredLevel)
+        {
+            // Check if the current user's access level is greater than or equal to the required level
+            return this.GetAccessLevel() >= requiredLevel;
+        }
+
+        public AccessLevel GetAccessLevel()
+        {
+
+            // Check for premium upgrade conditions
+            if ((this.accessLevel == AccessLevel.BASIC && this.lifetimeSubscription) ||
+                (this.accessLevel == AccessLevel.BASIC && this.datePremiumExpires.HasValue && this.datePremiumExpires.Value >= DateTime.UtcNow))
+            {
+                return AccessLevel.PREMIUM;
+            } else
+                return this.accessLevel;
         }
 
         private FoxUser() {
