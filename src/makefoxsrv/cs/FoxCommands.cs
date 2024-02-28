@@ -1405,11 +1405,11 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 }
                 return;
             }
-            else if (steps < 1 || (steps > 50 && !user.CheckAccessLevel(AccessLevel.ADMIN)))
+            else if (steps < 1 || (steps > 40 && !user.CheckAccessLevel(AccessLevel.ADMIN)))
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "❌ Value must be above 1 and below 50.",
+                    text: "❌ Value must be above 1 and below 40.",
                     replyToMessageId: message.MessageId,
                     cancellationToken: cancellationToken
                 );

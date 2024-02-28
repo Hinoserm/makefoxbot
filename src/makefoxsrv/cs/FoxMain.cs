@@ -311,7 +311,7 @@ We are committed to using your donation to further develop and maintain the serv
                     {
                         var chatId = message.Chat.Id;
 
-                        await FoxCommandHandler.HandleCommand(botClient, message, cancellationToken);
+                        _= FoxCommandHandler.HandleCommand(botClient, message, cancellationToken);
 
                         try
                         {
@@ -384,7 +384,7 @@ We are committed to using your donation to further develop and maintain the serv
             }
             //Console.WriteLine("Update Type: " + update.Type);
 
-            _ = Task.Run(() => RunHandlerThread(botClient, update, cancellationToken), cancellationToken);
+            _ = RunHandlerThread(botClient, update, cancellationToken);
         }
 
         static Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)

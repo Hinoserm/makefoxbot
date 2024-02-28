@@ -13,12 +13,13 @@ using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
 using System.Text.RegularExpressions;
 
+//This isn't properly implemented yet; we really need a way to handle Telegram's rate limits by using a proper message queue.
+// For now we just push the message to the user and hope for the best.
+
 namespace makefoxsrv
 {
     internal class FoxSendQueue
     {
-
-
         public static async Task<FoxSendQueue?> Pop()
         {
             return null;

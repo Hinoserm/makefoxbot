@@ -141,7 +141,7 @@ namespace makefoxsrv
 
         private DateTime? datePremiumExpires = null;          //Date premium subscription expires.
         private bool lifetimeSubscription = false;            //Do they have a lifetime sub?
-        public AccessLevel accessLevel = AccessLevel.BANNED; //Default to BANNED, just in case.
+        private AccessLevel accessLevel = AccessLevel.BANNED; //Default to BANNED, just in case.
 
         public static async Task<FoxUser?> GetByUID(long uid)
         {
@@ -240,10 +240,8 @@ namespace makefoxsrv
             }
 
             // If the user was not found in the database, create a new FoxUser from the Telegram user
-            if (user == null)
-            {
+            if (user is null)
                 user = await CreateFromTelegramUser(tuser);
-            }
 
             return user;
         }
@@ -263,16 +261,26 @@ namespace makefoxsrv
                     cmd.CommandText = "INSERT INTO users (telegram_id, username, type, date_last_seen, date_added) VALUES (@telegram_id, @username, 'TELEGRAM_USER', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())";
                     cmd.Parameters.AddWithValue("telegram_id", tuser.Id);
                     cmd.Parameters.AddWithValue("username", tuser.Username);
-                    await cmd.ExecuteNonQueryAsync();
-                    user_id = (ulong)cmd.LastInsertedId;
 
-                    Console.WriteLine($"createUserFromTelegramID({tuser.Id}, \"{tuser.Username}\"): User created, UID: " + user_id);
+                    try
+                    {
+                        await cmd.ExecuteNonQueryAsync();
+                        user_id = (ulong)cmd.LastInsertedId;
+                        Console.WriteLine($"createUserFromTelegramID({tuser.Id}, \"{tuser.Username}\"): User created, UID: " + user_id);
+                    }
+                    catch (MySqlException ex) when (ex.Number == 1062) // Catch the duplicate entry exception
+                    {
+                        Console.WriteLine($"createUserFromTelegramID({tuser.Id}, \"{tuser.Username}\"): Duplicate telegram_id, fetching existing user.");
+                        // If a duplicate user is attempted to be created, fetch the existing user instead
+                        return await GetByTelegramUser(tuser);
+                    }
                 }
             }
 
             if (user_id > 0)
-                return await GetByTelegramUser(tuser); //We do it this way so that it can read the defaults that are configured on the table.
+                return await GetByTelegramUser(tuser); // Fetch to read the defaults configured on the table.
             else
+                // If the user creation was unsuccessful for reasons other than a duplicate entry, this line might not be reached due to the exception handling above.
                 throw new Exception("Unable to create new user");
         }
 

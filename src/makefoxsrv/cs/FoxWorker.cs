@@ -123,7 +123,7 @@ namespace makefoxsrv
 
             if (qCount > 0)
             {
-                Console.WriteLine($"Beginning processing of {qCount} items from queue.");
+                Console.WriteLine($"Begin processing of {qCount} old items in queue.");
 
                 FoxWorker.Ping(qCount);
             }

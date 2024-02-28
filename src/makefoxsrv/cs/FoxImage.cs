@@ -42,6 +42,7 @@ namespace makefoxsrv
         {
             const int MaxWidthHeight = 1280;
             const int MinWidthHeight = 512;
+
             double aspectRatio = (double)width / height;
 
             // First adjust dimensions to not exceed the max limit while maintaining aspect ratio
