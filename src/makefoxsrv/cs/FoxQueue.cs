@@ -583,6 +583,23 @@ FOR UPDATE;";
             }
         }
 
+        public async Task Cancel(string reason = "Cancelled by user request")
+        {
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            {
+                await SQL.OpenAsync();
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = $"UPDATE queue SET status = 'CANCELLED', error_str = @reason, date_failed = @now WHERE id = @id";
+                    cmd.Parameters.AddWithValue("id", this.id);
+                    cmd.Parameters.AddWithValue("reason", reason);
+                    cmd.Parameters.AddWithValue("now", DateTime.Now);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+        }
+
         private static int GetRandomInt32()
         {
             Random random = new Random();

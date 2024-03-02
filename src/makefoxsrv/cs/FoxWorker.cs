@@ -139,6 +139,8 @@ namespace makefoxsrv
             if (worker.qitem.UID != uid)
                 return false;
 
+            //await worker.qitem.Cancel();
+
             worker.Stop();
 
             return true;
@@ -843,6 +845,8 @@ namespace makefoxsrv
                     {
                         // Handle the cancellation specifically
                         Console.WriteLine($"Worker {id} - User Cancellation");
+
+                        await q.Cancel();
 
                         cts_stop = new CancellationTokenSource();
 
