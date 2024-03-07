@@ -400,7 +400,7 @@ We are committed to using your donation to further develop and maintain the serv
             return Task.CompletedTask;
         }
 
-        static void LoadSettings(string filename = "settings.ini")
+        static void LoadSettings(string filename = "conf/settings.ini")
         {
             if (settings is null)
                 throw new Exception($"Settings file {filename} could not be loaded.");

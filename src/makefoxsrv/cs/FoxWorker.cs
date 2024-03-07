@@ -17,6 +17,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 using Newtonsoft.Json.Linq;
 using static makefoxsrv.FoxWorker;
 using System.Text.RegularExpressions;
+using Autofocus.Config;
 
 namespace makefoxsrv
 {
@@ -776,8 +777,8 @@ namespace makefoxsrv
                                     Height = settings.height,
 
                                     Seed = new()
-                                    {
-                                        Seed = settings.seed,
+                                    {   
+                                        Seed = settings.seed
                                     },
 
                                     DenoisingStrength = (double)settings.denoising_strength,
