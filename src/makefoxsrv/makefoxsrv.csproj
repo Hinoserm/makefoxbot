@@ -9,6 +9,16 @@
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <Version>1.3.0</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+    <GenerateFileVersionAttribute>false</GenerateFileVersionAttribute>
+    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <!-- Adjust this as necessary -->
     <PublishSingleFile>true</PublishSingleFile>
@@ -34,10 +44,6 @@
     <PackageReference Include="Telegram.Bot" Version="20.0.0-alpha.1" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
-  </PropertyGroup>
-
   <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
     <Exec Command="git rev-parse --short HEAD &gt; gitversion.txt" ConsoleToMSBuild="true" />
     <ReadLinesFromFile File="gitversion.txt">
@@ -48,10 +54,14 @@
     </PropertyGroup>
     <ItemGroup>
       <AssemblyAttribute Include="System.Reflection.AssemblyInformationalVersionAttribute">
-        <_Parameter1>1.0.42-$(GitRevision)</_Parameter1>
+        <_Parameter1>$(Version)-$(GitRevision)</_Parameter1>
       </AssemblyAttribute>
     </ItemGroup>
+    <!-- Delete the gitversion.txt file after reading it -->
+    <Delete Files="$(MSBuildProjectDirectory)\gitversion.txt" />
+    <Message Text="Deleted gitversion.txt after reading Git revision." Importance="high"/>
   </Target>
+  
   
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <!-- For Linux -->
@@ -59,3 +69,4 @@
   </Target>
 
 </Project>
+
