@@ -17,8 +17,8 @@ namespace makefoxsrv
         public string prompt = "";
         public string negative_prompt = "";
         public ulong selected_image = 0;
-        public uint width = 768;
-        public uint height = 768;
+        public uint width = 620;
+        public uint height = 740;
         public decimal denoising_strength = 0.75M;
         public int seed = -1;
         public string model = "indigoFurryMix_v105Hybrid"; //Default model

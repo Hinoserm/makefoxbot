@@ -547,7 +547,8 @@ This bot and the content generated are for research and educational purposes onl
                           $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
                           $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
                           $"🧠Model: {q.settings.model}\r\n" +
-                          $"🌱Seed: {q.settings.seed}\r\n",
+                          $"🌱Seed: {q.settings.seed}\r\n" +
+                          (q.worker_id is not null ? $"👷Worker: " + await FoxWorker.GetWorkerName(q.worker_id) ?? "(unknown)" + "\r\n" : ""),
                     messageId: update.CallbackQuery.Message.MessageId,
                     replyMarkup: inlineKeyboard,
                     cancellationToken: cancellationToken

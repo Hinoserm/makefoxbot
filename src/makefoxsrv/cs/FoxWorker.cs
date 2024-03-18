@@ -66,6 +66,30 @@ namespace makefoxsrv
             return worker;
         }
 
+
+        public static async Task<String?> GetWorkerName(int? worker_id)
+        {
+            if (worker_id is null)
+                return null;
+
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            await SQL.OpenAsync();
+
+
+            using (var cmd = new MySqlCommand())
+            {
+                cmd.Connection = SQL;
+                cmd.CommandText = "SELECT name FROM workers WHERE id = @id";
+                cmd.Parameters.AddWithValue("id", worker_id);
+                var result = await cmd.ExecuteScalarAsync();
+
+                if (result is not null && result is not DBNull)
+                    return Convert.ToString(result);
+            }
+
+            return null;
+        }
+
         public static async Task LoadWorkers(TelegramBotClient botClient)
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);

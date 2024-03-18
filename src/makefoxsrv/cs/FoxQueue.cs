@@ -45,6 +45,8 @@ namespace makefoxsrv
         public DateTime? date_sent = null;
         public string? link_token = null;
 
+        public int? worker_id = null;
+
         public long position = 0;
         public long total = 0;
 
@@ -285,6 +287,8 @@ namespace makefoxsrv
                             q.link_token = Convert.ToString(r["link_token"]);
                         if (!(r["image_id"] is DBNull))
                             q.image_id = Convert.ToUInt64(r["image_id"]);
+                        if (!(r["worker"] is DBNull))
+                            q.worker_id = Convert.ToInt32(r["worker"]);
 
                         q.settings = settings;
 
@@ -320,8 +324,11 @@ SELECT q.*, (SELECT COUNT(*) FROM queue WHERE status IN ('PENDING', 'ERROR')) AS
 FROM queue q
 INNER JOIN users u ON q.uid = u.id
 INNER JOIN worker_models wm ON q.model = wm.model_name AND wm.worker_id = @worker_id
+INNER JOIN workers w ON w.id = @worker_id
 WHERE 
     q.status IN ('PENDING', 'ERROR')
+    AND (w.max_img_size IS NULL OR q.width * q.height <= w.max_img_size)
+    AND (w.max_img_steps IS NULL OR steps <= w.max_img_steps)
 ORDER BY 
     CASE 
         WHEN q.status = 'PENDING' THEN 1
