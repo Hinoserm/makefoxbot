@@ -422,7 +422,7 @@ We are committed to using your donation to further develop and maintain the serv
 
         }
 
-        public static string GetInformationalVersion()
+        public static string GetVersion()
         {
             var assembly = Assembly.GetExecutingAssembly();
             var attribute = (AssemblyInformationalVersionAttribute)Attribute.GetCustomAttribute(assembly, typeof(AssemblyInformationalVersionAttribute));
@@ -431,7 +431,7 @@ We are committed to using your donation to further develop and maintain the serv
 
         static async Task Main(string[] args)
         { 
-            Console.WriteLine($"Hello, World!  Version {GetInformationalVersion()}");
+            Console.WriteLine($"Hello, World!  Version {GetVersion()}");
 
             string currentDirectory = Directory.GetCurrentDirectory();
             Console.WriteLine($"Current Working Directory: {currentDirectory}");

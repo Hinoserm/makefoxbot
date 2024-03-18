@@ -150,6 +150,8 @@ This bot and the content generated are for research and educational purposes onl
             { "/cancel",      CmdCancel },
             //--------------- -----------------
             { "/donate",      CmdDonate },
+            //--------------- -----------------
+            { "/info",        CmdInfo },
         };
 
         public static async Task HandleCommand(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
@@ -1157,6 +1159,16 @@ We sincerely appreciate your support and understanding. Your contribution direct
             await botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
                 text: (settings.negative_prompt.Length > 0 ? $"✅ Negative prompt set." : "✅ Negative prompt cleared."),
+                replyToMessageId: message.MessageId,
+                cancellationToken: cancellationToken
+            );
+        }
+
+        private static async Task CmdInfo(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        {
+            await botClient.SendTextMessageAsync(
+                chatId: message.Chat.Id,
+                text: $"🦊 Version: " + FoxMain.GetVersion(),
                 replyToMessageId: message.MessageId,
                 cancellationToken: cancellationToken
             );
