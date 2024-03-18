@@ -116,7 +116,7 @@ namespace makefoxsrv
                     try
                     {
                         await worker.LoadModelInfo();
-                        await worker.GetLoRAInfo();
+                        //await worker.GetLoRAInfo();
                         await worker.SetOnlineStatus(true);
                     }
                     catch (Exception ex)

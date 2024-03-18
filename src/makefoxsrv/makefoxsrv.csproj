@@ -6,6 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PublishAot>False</PublishAot>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
@@ -33,9 +34,28 @@
     <PackageReference Include="Telegram.Bot" Version="20.0.0-alpha.1" />
   </ItemGroup>
 
-<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+  <PropertyGroup>
+    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+  </PropertyGroup>
+
+  <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+    <Exec Command="git rev-parse --short HEAD &gt; gitversion.txt" ConsoleToMSBuild="true" />
+    <ReadLinesFromFile File="gitversion.txt">
+      <Output TaskParameter="Lines" ItemName="GitRevision" />
+    </ReadLinesFromFile>
+    <PropertyGroup>
+      <GitRevision>@(GitRevision)</GitRevision>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyInformationalVersionAttribute">
+        <_Parameter1>1.0.42-$(GitRevision)</_Parameter1>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+  
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <!-- For Linux -->
-<Exec Command="mv &quot;$(PublishDir)makefoxsrv&quot; &quot;$(MSBuildProjectDirectory)/../../bin/makefoxsrv&quot;" Condition="'$(OS)' != 'Windows_NT'" />
-</Target>
+    <Exec Command="mv &quot;$(PublishDir)makefoxsrv&quot; &quot;$(MSBuildProjectDirectory)/../../bin/makefoxsrv&quot;" Condition="'$(OS)' != 'Windows_NT'" />
+  </Target>
 
 </Project>

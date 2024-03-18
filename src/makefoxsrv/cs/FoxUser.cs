@@ -189,7 +189,7 @@ namespace makefoxsrv
             return user;
         }
 
-        public static async Task<FoxUser?> GetByTelegramUser(User tuser)
+        public static async Task<FoxUser?> GetByTelegramUser(User tuser, bool autoCreateUser = false)
         {
             FoxUser? user = null;
 
@@ -240,7 +240,7 @@ namespace makefoxsrv
             }
 
             // If the user was not found in the database, create a new FoxUser from the Telegram user
-            if (user is null)
+            if (user is null && autoCreateUser)
                 user = await CreateFromTelegramUser(tuser);
 
             return user;

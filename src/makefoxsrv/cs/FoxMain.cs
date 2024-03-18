@@ -183,7 +183,7 @@ namespace makefoxsrv
                         if (message?.SuccessfulPayment is null)
                             throw new ArgumentNullException();
 
-                        var user = await FoxUser.GetByTelegramUser(message.From);
+                        var user = await FoxUser.GetByTelegramUser(message.From, true);
 
                         if (user is not null)
                         {
@@ -234,7 +234,7 @@ We are committed to using your donation to further develop and maintain the serv
 
                             Console.WriteLine($"Got a photo from {message.From.Username} ({message.From.Id})!");
 
-                            var user = await FoxUser.GetByTelegramUser(message.From);
+                            var user = await FoxUser.GetByTelegramUser(message.From, true);
 
                             if (user is not null)
                             {
@@ -422,9 +422,16 @@ We are committed to using your donation to further develop and maintain the serv
 
         }
 
-        static async Task Main(string[] args)
+        public static string GetInformationalVersion()
         {
-            Console.WriteLine("Hello, World!");
+            var assembly = Assembly.GetExecutingAssembly();
+            var attribute = (AssemblyInformationalVersionAttribute)Attribute.GetCustomAttribute(assembly, typeof(AssemblyInformationalVersionAttribute));
+            return attribute?.InformationalVersion; // This will include the version and Git revision
+        }
+
+        static async Task Main(string[] args)
+        { 
+            Console.WriteLine($"Hello, World!  Version {GetInformationalVersion()}");
 
             string currentDirectory = Directory.GetCurrentDirectory();
             Console.WriteLine($"Current Working Directory: {currentDirectory}");

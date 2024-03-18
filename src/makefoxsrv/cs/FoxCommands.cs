@@ -182,7 +182,7 @@ This bot and the content generated are for research and educational purposes onl
 
             if (commandHandler is not null)
             {
-                var user = await FoxUser.GetByTelegramUser(message.From);
+                var user = await FoxUser.GetByTelegramUser(message.From, true);
 
                 if (user is null)
                 {
@@ -538,6 +538,8 @@ This bot and the content generated are for research and educational purposes onl
 
             if (q is not null && q.TelegramChatID == update.CallbackQuery.Message.Chat.Id)
             {
+                System.TimeSpan diffResult = DateTime.Now.Subtract(q.creation_time);
+                System.TimeSpan GPUTime = await q.GetGPUTime();
                 Message waitMsg = await botClient.EditMessageTextAsync(
                     chatId: update.CallbackQuery.Message.Chat.Id,
                     text: $"🖤Prompt: {q.settings.prompt}\r\n" +
@@ -548,7 +550,8 @@ This bot and the content generated are for research and educational purposes onl
                           $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
                           $"🧠Model: {q.settings.model}\r\n" +
                           $"🌱Seed: {q.settings.seed}\r\n" +
-                          (q.worker_id is not null ? $"👷Worker: " + await FoxWorker.GetWorkerName(q.worker_id) ?? "(unknown)" + "\r\n" : ""),
+                          (q.worker_id is not null ? $"👷Worker: " + (await FoxWorker.GetWorkerName(q.worker_id) ?? "(unknown)") + "\r\n" : "") +
+                          $"⏳Render Time: {GPUTime.ToPrettyFormat()}\r\n",
                     messageId: update.CallbackQuery.Message.MessageId,
                     replyMarkup: inlineKeyboard,
                     cancellationToken: cancellationToken
@@ -1406,11 +1409,11 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 }
                 return;
             }
-            else if (steps < 1 || (steps > 40 && !user.CheckAccessLevel(AccessLevel.ADMIN)))
+            else if (steps < 1 || (steps > 30 && !user.CheckAccessLevel(AccessLevel.ADMIN)))
             {
                 await botClient.SendTextMessageAsync(
                     chatId: message.Chat.Id,
-                    text: "❌ Value must be above 1 and below 40.",
+                    text: "❌ Value must be above 1 and below 30.",
                     replyToMessageId: message.MessageId,
                     cancellationToken: cancellationToken
                 );
