@@ -14,8 +14,6 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
-    <GenerateFileVersionAttribute>false</GenerateFileVersionAttribute>
     <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
   </PropertyGroup>
 
@@ -44,9 +42,15 @@
     <PackageReference Include="Telegram.Bot" Version="20.0.0-alpha.1" />
   </ItemGroup>
 
-  <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
-    <Exec Command="git rev-parse --short HEAD &gt; gitversion.txt" ConsoleToMSBuild="true" />
-    <ReadLinesFromFile File="gitversion.txt">
+  <Target Name="PreBuild" BeforeTargets="PrepareForBuild">
+    <!-- Generate a unique dummy output file name based on the current time to ensure it's always considered 'new' -->
+    <PropertyGroup>
+      <DummyOutputPath>$(MSBuildProjectDirectory)\dummy_$(MSBuildProjectName).txt</DummyOutputPath>
+    </PropertyGroup>
+
+    <!-- Ensure gitversion.txt is always considered an input to force execution -->
+    <Exec Command="git rev-parse --short HEAD &gt; $(MSBuildProjectDirectory)\gitversion.txt" ConsoleToMSBuild="true" />
+    <ReadLinesFromFile File="$(MSBuildProjectDirectory)\gitversion.txt">
       <Output TaskParameter="Lines" ItemName="GitRevision" />
     </ReadLinesFromFile>
     <PropertyGroup>
@@ -60,6 +64,11 @@
     <!-- Delete the gitversion.txt file after reading it -->
     <Delete Files="$(MSBuildProjectDirectory)\gitversion.txt" />
     <Message Text="Deleted gitversion.txt after reading Git revision." Importance="high"/>
+
+    <!-- Touch the dummy output file to make MSBuild consider the target executed -->
+    <Touch Files="$(DummyOutputPath)" AlwaysCreate="True" />
+    <!-- Clean up: Delete the dummy output file immediately to avoid clutter -->
+    <Delete Files="$(DummyOutputPath)" />
   </Target>
   
   
