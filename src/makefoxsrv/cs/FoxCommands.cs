@@ -957,6 +957,18 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
+            if (String.IsNullOrEmpty(settings.prompt))
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "❌You must specify a prompt!  Please seek /help",
+                    replyToMessageId: message.MessageId,
+                    cancellationToken: cancellationToken
+                );
+
+                return;
+            }
+
             int q_limit = 1;
             switch (user.GetAccessLevel())
             {
@@ -1080,6 +1092,17 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 await settings.Save();
             }
 
+            if (String.IsNullOrEmpty(settings.prompt))
+            {
+                await botClient.SendTextMessageAsync(
+                    chatId: message.Chat.Id,
+                    text: "❌You must specify a prompt!  Please seek /help",
+                    replyToMessageId: message.MessageId,
+                    cancellationToken: cancellationToken
+                );
+
+                return;
+            }
 
             int q_limit = 1;
             switch (user.GetAccessLevel())

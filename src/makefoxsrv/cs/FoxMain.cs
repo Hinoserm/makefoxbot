@@ -448,7 +448,6 @@ We are committed to using your donation to further develop and maintain the serv
 
             MySqlConnection sql;
 
-
             Console.Write("Connecting to database... ");
             try
             {
@@ -462,6 +461,8 @@ We are committed to using your donation to further develop and maintain the serv
                 return;
             }
             Console.WriteLine("done.");
+
+            await FoxSettings.LoadSettingsAsync();
 
             //var botClient = new TelegramBotClient("6970653264:AAFG_Ohd04pVLKXJHzPCzsXH3OPPTxs8TqA");
 
@@ -484,8 +485,7 @@ We are committed to using your donation to further develop and maintain the serv
             };
 
             FoxMain.me = await botClient.GetMeAsync();
-
-
+            
             //Load workers BEFORE processing input from telegram.
             await FoxWorker.LoadWorkers(botClient);
 

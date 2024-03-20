@@ -621,6 +621,9 @@ namespace makefoxsrv
                         }
                         else
                         {
+                            //Wait a little bit to let the worker stablize if it's just starting up
+                            await Task.Delay(4000, cts.Token);
+
                             Console.WriteLine($"Worker {id} is back online!");
                             await SetOnlineStatus(true);
                             online = true;
