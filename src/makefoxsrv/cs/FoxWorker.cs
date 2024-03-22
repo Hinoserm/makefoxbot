@@ -418,7 +418,9 @@ namespace makefoxsrv
                         workers w ON wm.worker_id = w.id
                     WHERE
                         wm.worker_id IN ({workerIdParams})
-                        AND w.online = TRUE";
+                        AND w.online = TRUE
+                    ORDER BY
+                        wm.model_name ASC;";
 
             MySqlCommand cmd = new MySqlCommand(cmdText, SQL);
 
@@ -615,14 +617,14 @@ namespace makefoxsrv
                             if (semaphoreAcquired)
                                 semaphore.Release();
 
-                            await Task.Delay(4000, cts.Token);
+                            await Task.Delay(15000, cts.Token);
 
                             continue;
                         }
                         else
                         {
                             //Wait a little bit to let the worker stablize if it's just starting up
-                            await Task.Delay(4000, cts.Token);
+                            await Task.Delay(8000, cts.Token);
 
                             Console.WriteLine($"Worker {id} is back online!");
                             await SetOnlineStatus(true);
