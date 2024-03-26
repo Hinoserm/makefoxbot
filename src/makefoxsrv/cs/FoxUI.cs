@@ -407,7 +407,7 @@ namespace makefoxsrv.cs
                             while (await reader.ReadAsync())
                             {
                                 int uid = reader.GetInt32("uid");
-                                string username = reader.GetString("username");
+                                string username = reader.IsDBNull(reader.GetOrdinal("username")) ? "" : reader.GetString("username");
                                 DateTime lastActive = reader.GetDateTime("recent_date");
                                 TimeSpan timeAgo = DateTime.Now - lastActive; // Assuming date_added is in UTC
 
