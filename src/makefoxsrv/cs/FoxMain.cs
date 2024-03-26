@@ -25,6 +25,7 @@ using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot.Types.Payments;
+using makefoxsrv.cs;
 
 public interface IMySettings
 {
@@ -68,6 +69,25 @@ public static class TimeSpanExtensions
         }
 
         return sb.ToString().Trim();
+    }
+
+    public static string ToShortPrettyFormat(this TimeSpan span)
+    {
+        if (span == TimeSpan.Zero) return "0s";
+
+        var sb = new StringBuilder();
+        if (span.Days > 0)
+            return $"{span.Days}d";
+        if (span.Hours > 0)
+            return $"{span.Hours}h";
+        if (span.Minutes > 0)
+            return $"{span.Minutes}m";
+        //if (span.TotalSeconds > 0)
+        //{
+            // Use TotalSeconds for more precision and format it to show up to two decimal places
+            //double seconds = span.TotalSeconds % 60; // Use modulo 60 to get only the remainder of seconds
+            return $"{span.Seconds}s";
+        //}
     }
 }
 
@@ -430,7 +450,18 @@ We are committed to using your donation to further develop and maintain the serv
         }
 
         static async Task Main(string[] args)
-        { 
+        {
+            using CancellationTokenSource cts = new();
+
+            try
+            {
+                FoxUI.Start(cts);
+            }
+            catch
+            {
+                throw;
+            }
+
             Console.WriteLine($"Hello, World!  Version {GetVersion()}");
 
             string currentDirectory = Directory.GetCurrentDirectory();
@@ -476,7 +507,7 @@ We are committed to using your donation to further develop and maintain the serv
 
             TelegramBotClient botClient = new TelegramBotClient(teleOptions);
 
-            using CancellationTokenSource cts = new();
+            
 
             // StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
             ReceiverOptions receiverOptions = new()
@@ -512,7 +543,9 @@ We are committed to using your donation to further develop and maintain the serv
             _ = FoxQueue.NotifyUserPositions(botClient, cts);
 
 
-            Console.ReadLine();
+            //Console.ReadLine();
+
+            await FoxUI.Run(cts);
 
             //await botClient.LogOutAsync();
 

@@ -21,7 +21,7 @@ error_reporting(E_ALL);
 header('Content-Type: text/csv; charset=utf-8');
 header('Content-Disposition: attachment; filename=wait_times.csv');
 
-$days = isset($_GET['days']) && is_numeric($_GET['days']) && $_GET['days'] > 0 ? $_GET['days'] : 9999;
+$days = isset($_GET['days']) && is_numeric($_GET['days']) && $_GET['days'] > 0 ? $_GET['days'] : 30;
 
 $sql = "SELECT
     DATE_FORMAT(q.date_added, '%Y-%m-%d %H:%i:%s.%f') as date_added,

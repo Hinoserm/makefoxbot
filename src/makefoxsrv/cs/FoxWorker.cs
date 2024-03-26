@@ -18,6 +18,7 @@ using Newtonsoft.Json.Linq;
 using static makefoxsrv.FoxWorker;
 using System.Text.RegularExpressions;
 using Autofocus.Config;
+using makefoxsrv.cs;
 
 namespace makefoxsrv
 {
@@ -30,11 +31,15 @@ namespace makefoxsrv
         private static SemaphoreSlim semaphore = new SemaphoreSlim(0, int.MaxValue);
         private bool semaphoreAcquired = false;
         private StableDiffusion? api;
-        private bool online = true;       //Worker online status
+        public bool online = true;       //Worker online status
         private FoxQueue? qitem = null;   //If we're operating, this is the current queue item being processed.
         private TelegramBotClient? botClient = null;
 
-        private static ConcurrentDictionary<int, FoxWorker> workers = new ConcurrentDictionary<int, FoxWorker>();
+        public string name;
+
+        public static ConcurrentDictionary<int, FoxWorker> workers = new ConcurrentDictionary<int, FoxWorker>();
+
+        public double? PercentComplete = null;
 
         private class Lora
         {
@@ -46,18 +51,19 @@ namespace makefoxsrv
 
 
         // Constructor to initialize the botClient and address
-        private FoxWorker(TelegramBotClient botClient, int worker_id, string address)
+        private FoxWorker(TelegramBotClient botClient, int worker_id, string address, string name)
         {
             this.address = address;
             this.id = worker_id;
+            this.name = name;
             this.cts = new CancellationTokenSource();
             this.cts_stop = new CancellationTokenSource();
             this.botClient = botClient;
         }
 
-        private static FoxWorker CreateWorker(TelegramBotClient botClient, int worker_id, string address)
+        private static FoxWorker CreateWorker(TelegramBotClient botClient, int worker_id, string address, string name)
         {
-            var worker = new FoxWorker(botClient, worker_id, address);
+            var worker = new FoxWorker(botClient, worker_id, address, name);
 
             bool added = workers.TryAdd(worker_id, worker); // Store the worker instance
             if (!added)
@@ -96,7 +102,7 @@ namespace makefoxsrv
 
             await SQL.OpenAsync();
 
-            MySqlCommand cmd = new MySqlCommand("SELECT id, url FROM workers WHERE enabled > 0", SQL);
+            MySqlCommand cmd = new MySqlCommand("SELECT id, url, name FROM workers WHERE enabled > 0", SQL);
 
             using (var reader = await cmd.ExecuteReaderAsync())
             {
@@ -107,10 +113,11 @@ namespace makefoxsrv
                 {
                     int id = reader.GetInt32("id");
                     string url = reader.GetString("url");
+                    string name = reader.GetString("name");
 
                     Console.WriteLine($"Loading worker {id} - {url}");
 
-                    var worker = CreateWorker(botClient, id, url);
+                    var worker = CreateWorker(botClient, id, url, name);
                     await worker.SetStartDate();
 
                     try
@@ -444,7 +451,7 @@ namespace makefoxsrv
 
             return models;
         }
-
+        
         public static async Task<List<int>?> GetWorkersForModel(string modelName)
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
@@ -584,6 +591,49 @@ namespace makefoxsrv
             semaphoreAcquired = false;
 
             qitem = null; //Clearly we're not working on an item anymore, better clear it to be safe.
+        }
+
+        private async Task MonitorProgressAsync(FoxQueue q, CancellationTokenSource cts)
+        {
+            int notifyTimer = 0;
+
+            if (api is null)
+                return;
+
+            while (!cts.IsCancellationRequested && online)
+            {
+                try
+                {
+                    var p = await api.Progress(true, cts.Token);
+                    this.PercentComplete = Math.Round(p.Progress * 100, 2);
+
+                    try
+                    {
+                        if (this.PercentComplete > 3.0 && (notifyTimer >= 3000))
+                        {
+                            notifyTimer = 0;
+                            await botClient.EditMessageTextAsync(
+                                chatId: q.TelegramChatID,
+                                messageId: q.msg_id,
+                                text: $"⏳ Generating now ({(int)this.PercentComplete}%)..."
+                                );
+                        }
+                    }
+                    catch
+                    {
+                        //Don't care about telegram errors.
+                    }
+
+                    await Task.Delay(100, cts.Token);
+                    notifyTimer += 100;
+                }
+                catch
+                {
+                    break; //API error, stop the loop.
+                }
+            }
+
+            this.PercentComplete = null; //Set it back to null (IDLE) when finished.
         }
 
         // Example instance method for running the worker thread logic
@@ -736,39 +786,11 @@ namespace makefoxsrv
 
                         var settings = q.settings;                            
 
-                        CancellationTokenSource progress_cts = new CancellationTokenSource();
+                        using CancellationTokenSource progress_cts = new CancellationTokenSource();
 
-                        _ = Task.Run(async () =>
-                        {
-                            while (!progress_cts.IsCancellationRequested)
-                            {
-                                try
-                                {
-                                    var p = await api.Progress(true, cts.Token);
-                                    var progress = p.Progress * 100;
+                        using var comboBreaker = CancellationTokenSource.CreateLinkedTokenSource(comboCts.Token, progress_cts.Token);
 
-                                    using var comboBreaker = CancellationTokenSource.CreateLinkedTokenSource(comboCts.Token, progress_cts.Token);
-
-                                    if (progress > 3.0)
-                                    {
-                                        await botClient.EditMessageTextAsync(
-                                            chatId: q.TelegramChatID,
-                                            messageId: q.msg_id,
-                                            text: $"⏳ Generating now ({(int)progress}%)..."
-                                            );
-
-
-                                        await Task.Delay(3000, comboBreaker.Token);
-                                    } else
-                                        await Task.Delay(200, comboBreaker.Token);
-
-
-                                } catch {
-                                    //Don't care about errors
-                                }
-                            }
-                        });
-                            
+                        _= this.MonitorProgressAsync(q, comboBreaker);
 
                         if (q.type == "IMG2IMG")
                         {
