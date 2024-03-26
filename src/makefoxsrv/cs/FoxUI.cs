@@ -12,6 +12,7 @@ using Terminal.Gui;
 using static Unix.Terminal.Curses;
 using WTelegram;
 using makefoxsrv;
+using System.Linq.Expressions;
 
 namespace makefoxsrv
 {
@@ -367,12 +368,23 @@ namespace makefoxsrv
                             });
                         }
                     }
-                }              
+                }
 
-                await Task.Delay(200, cts.Token);
+                try
+                {
+                    await Task.Delay(200, cts.Token);
+                }
+                catch (TaskCanceledException ex)
+                {
+                    break;
+                }
             }
 
-            Application.RequestStop();
+            //try
+            //{
+            //        Application.RequestStop();
+            //}
+            //catch { }
 
             if (guiTask is not null)
                 await guiTask;
@@ -381,7 +393,7 @@ namespace makefoxsrv
         {
             Application.MainLoop.Invoke(() =>
             {
-                const int maxTextLength = 100 * 1024 * 1024; // 100MB in characters
+                const int maxTextLength = 10 * 1024 * 1024; // 10MB in characters
 
                 if (_logView is null || _logScrollBar is null)
                 {

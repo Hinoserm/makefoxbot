@@ -76,8 +76,8 @@ namespace makefoxsrv
             _ => null,
         };
 
-        public async Task<Message> SendMessageAsync(string text, int replyToMessageId = 0, ReplyInlineMarkup? replyInlineMarkup = null, MessageEntity[]? entities = null,
-            bool disableWebPagePreview = true)
+        public async Task<Message> SendMessageAsync(string? text = null, int replyToMessageId = 0, ReplyInlineMarkup? replyInlineMarkup = null, MessageEntity[]? entities = null,
+            bool disableWebPagePreview = true, InputMedia? media = null)
         {
             long random_id = Helpers.RandomLong();
 
@@ -119,7 +119,7 @@ namespace makefoxsrv
             return null;
         }
 
-        public async Task EditMessageAsync(string text, int id, ReplyInlineMarkup? replyInlineMarkup = null)
+        public async Task EditMessageAsync(int id, string? text = null, ReplyInlineMarkup ? replyInlineMarkup = null)
         {
             await botClient.Messages_EditMessage(
                 peer: _Peer,

@@ -21,6 +21,7 @@ using TL;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using static System.Net.Mime.MediaTypeNames;
+using System.Runtime.Intrinsics.Arm;
 
 
 public interface IMySettings
@@ -294,9 +295,10 @@ We are committed to using your donation to further develop and maintain the serv
                         using (var cmd = new MySqlCommand())
                         {
                             cmd.Connection = SQL;
-                            cmd.CommandText = "INSERT INTO telegram_log (user_id, chat_id, message_text, date_added) VALUES (@tele_id, @tele_chatid, @message, @now)";
+                            cmd.CommandText = "INSERT INTO telegram_log (user_id, chat_id, message_id, message_text, date_added) VALUES (@tele_id, @tele_chatid, @message_id, @message, @now)";
                             cmd.Parameters.AddWithValue("tele_id", t.User.ID);
                             cmd.Parameters.AddWithValue("tele_chatid", t.Chat is not null ? t.Chat.ID : null);
+                            cmd.Parameters.AddWithValue("message_id", msg.ID);
                             cmd.Parameters.AddWithValue("message", msg.message);
                             cmd.Parameters.AddWithValue("now", DateTime.Now);
 
@@ -334,19 +336,14 @@ We are committed to using your donation to further develop and maintain the serv
                     InputPeer? peer = null;
                     FoxTelegram? t = null;
 
-                    FoxLog.WriteLine("Update type from Telegram: " + update.GetType().Name);
+                    //FoxLog.WriteLine("Update type from Telegram: " + update.GetType().Name);
 
                     switch (update)
                     {
                         case UpdateNewMessage unm:
-                            FoxLog.WriteLine("UNM.TYPE:" + unm.GetType());
-
                             switch (unm.message)
                             {
                                 case Message m:
-
-                                    FoxLog.WriteLine("M.TYPE:" + m.GetType());
-
                                     updates.Users.TryGetValue(m.from_id ?? m.peer_id, out user);
                                     updates.Chats.TryGetValue(m.peer_id, out chat);
 
@@ -380,11 +377,24 @@ We are committed to using your donation to further develop and maintain the serv
 
                                             await HandlePayment(t, ms, payment);
                                             break;
+                                        default:
+                                            FoxLog.WriteLine("Unexpected service message type: " + ms.action.GetType().Name);
+                                            break;
                                     }
+                                    break;
+                                default:
+                                    FoxLog.WriteLine("Unexpected message type: " + unm.GetType().Name);
                                     break;
                             }
 
                             break;
+                        case UpdateDeleteChannelMessages udcm:
+                            FoxLog.WriteLine("Deleted chat messages " + udcm.messages.Length);
+                            break;
+                        case UpdateDeleteMessages udm:
+                            FoxLog.WriteLine("Deleted messages " + udm.messages.Length);
+                            break;
+
                         case UpdateBotCallbackQuery ucbk:
                             updates.Users.TryGetValue(ucbk.user_id, out user);
 
@@ -512,7 +522,6 @@ We are committed to using your donation to further develop and maintain the serv
                 throw new Exception("API_ID setting not set.");
             if (settings.TelegramApiHash is null)
                 throw new Exception("API_HASH setting not set.");
-
             if (settings.TelegramBotToken is null)
                 throw new Exception("BOT_TOKEN setting not set.");
 
@@ -529,7 +538,9 @@ We are committed to using your donation to further develop and maintain the serv
 
             await botClient.LoginBotIfNeeded(settings.TelegramBotToken); 
 
-            FoxLog.WriteLine($"We are logged-in as {botClient.User} (id {botClient.User.id})");            
+            FoxLog.WriteLine($"We are logged-in as {botClient.User} (id {botClient.User.id})");
+
+            await FoxCommandHandler.SetBotCommands(botClient);
 
             //await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
 
@@ -539,13 +550,9 @@ We are committed to using your donation to further develop and maintain the serv
                 FoxLog.WriteLine($"Unstuck {stuck_count} queue items.");
             }
 
-            //FoxLog.WriteLine($"Start listening for @{me.Username}");
-            //FoxLog.WriteLine($"Bot ID: {me.Id}");
-
             await FoxWorker.StartWorkers();
 
-            _ = FoxQueue.NotifyUserPositions(botClient, cts);
-
+            //_ = FoxQueue.NotifyUserPositions(botClient, cts);
 
             //Console.ReadLine();
 

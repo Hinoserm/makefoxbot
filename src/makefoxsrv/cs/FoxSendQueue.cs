@@ -53,7 +53,7 @@ namespace makefoxsrv
 
                 try
                 {
-                    var inputImage = await t.botClient.UploadFileAsync(new MemoryStream(q.output_image.Image), "image.png");
+                    var inputImage = await t.botClient.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(q.output_image.Image)), "image.jpg");
 
                     var msg = await t.botClient.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
                 }
@@ -63,7 +63,7 @@ namespace makefoxsrv
                     {
                         try
                         {
-                            var inputImage = await t.botClient.UploadFileAsync(new MemoryStream(q.output_image.Image), "image.png");
+                            var inputImage = await t.botClient.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(q.output_image.Image)), "image.jpg");
 
                             var msg = await t.botClient.SendMediaAsync(q.telegram.Peer, "", inputImage);
                         }

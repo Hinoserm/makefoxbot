@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 public enum LogLevel
 {
     LOG_DEBUG,
+    LOG_PEDANTIC,
     LOG_INFO,
     LOG_WARNING,
     LOG_ERROR

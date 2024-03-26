@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Management;
 using System.Text;
 using System.Threading.Tasks;
 using TL;
@@ -28,18 +29,18 @@ namespace makefoxsrv
                 case "/info":
                     await CallbackCmdInfo(t, query, fUser, argument);
                     break;
-                //case "/download":
-                //    await CallbackCmdDownload(botClient, update, cancellationToken, user, argument);
-                //    break;
+                case "/download":
+                    await CallbackCmdDownload(t, query, fUser, argument);
+                    break;
                 case "/select":
                     await CallbackCmdSelect(t, query, fUser, argument);
                     break;
                 case "/model":
                     await CallbackCmdModel(t, query, fUser, argument);
                     break;
-                //case "/help":
-                //    await CallbackCmdHelp(botClient, update, cancellationToken, user, argument);
-                //    break;
+                case "/help":
+                    await CallbackCmdHelp(t, query, fUser, argument);
+                    break;
                 case "/donate":
                     await CallbackCmdDonate(t, query, fUser, argument);
                     break;
@@ -280,102 +281,82 @@ namespace makefoxsrv
             }
         }
 
-    //    private static async Task CallbackCmdHelp(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user, string? argument = null)
-    //    {
+        private static async Task CallbackCmdHelp(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
+        {
 
-    //        int help_id = 1;
+            int help_id = 1;
 
-    //        await botClient.AnswerCallbackQueryAsync(update.CallbackQuery.Id);
+            await t.botClient.Messages_SetBotCallbackAnswer(query.query_id, 0);
 
-    //        if (argument is null || argument.Length <= 0 || !int.TryParse(argument, out help_id))
-    //            help_id = 1;
+            if (argument is null || argument.Length <= 0 || !int.TryParse(argument, out help_id))
+                help_id = 1;
 
-    //        if (help_id < 1 || help_id > text_help.Count())
-    //            help_id = 1;
+            if (help_id < 1 || help_id > FoxStrings.text_help.Count())
+                help_id = 1;
 
-    //        var inlineKeyboard = new InlineKeyboardMarkup(new[]
-    //            {
-    //                new[]
-    //                {
-    //                    InlineKeyboardButton.WithCallbackData("More Help", "/help " + (help_id+1)),
-    //                }
-    //            });
+            var inlineKeyboardButtons = new ReplyInlineMarkup()
+            {
+                rows = new TL.KeyboardButtonRow[]
+                {
+                    new TL.KeyboardButtonRow {
+                        buttons = new TL.KeyboardButtonCallback[]
+                        {
+                            new TL.KeyboardButtonCallback { text = "More Help", data = System.Text.Encoding.ASCII.GetBytes("/help "  + (help_id+1)) },
+                        }
+                    }
+                }
+            };
 
-    //        if (help_id >= text_help.Count())
-    //            inlineKeyboard = null;
+            if (help_id >= FoxStrings.text_help.Count())
+                inlineKeyboardButtons = null;
 
-    //        await botClient.EditMessageReplyMarkupAsync(
-    //            chatId: update.CallbackQuery.Message.Chat.Id,
-    //            messageId: update.CallbackQuery.Message.MessageId,
-    //            replyMarkup: null,
-    //            cancellationToken: cancellationToken
-    //        );
+            await t.EditMessageAsync(
+                id: query.msg_id,
+                replyInlineMarkup: null
+            );
 
-    //        await botClient.SendTextMessageAsync(
-    //            chatId: update.CallbackQuery.Message.Chat.Id,
-    //            text: text_help[help_id - 1],
-    //            replyMarkup: inlineKeyboard,
-    //            cancellationToken: cancellationToken
-    //        );
-    //    }
+            await t.SendMessageAsync(
+                text: FoxStrings.text_help[help_id - 1],
+                replyInlineMarkup: inlineKeyboardButtons
+            );
+        }
 
-    //    private static async Task CallbackCmdDownload(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user, string? argument = null)
-    //    {
+        private static async Task CallbackCmdDownload(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
+        {
 
-    //        long info_id = 0;
+            long info_id = 0;
 
-    //        if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
-    //        {
-    //            /* await botClient.EditMessageTextAsync(
-    //                chatId: update.CallbackQuery.Message.Chat.Id,
-    //                text: "Invalid request",
-    //                messageId: update.CallbackQuery.Message.MessageId,
-    //                cancellationToken: cancellationToken
-    //            ); */
+            if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
+            {
+                /* await botClient.EditMessageTextAsync(
+                    chatId: update.CallbackQuery.Message.Chat.Id,
+                    text: "Invalid request",
+                    messageId: update.CallbackQuery.Message.MessageId,
+                    cancellationToken: cancellationToken
+                ); */
 
-    //            return;
-    //        }
+                return;
+            }
 
-    //        var q = await FoxQueue.Get(info_id);
+            var q = await FoxQueue.Get(info_id);
 
-    //        await botClient.AnswerCallbackQueryAsync(update.CallbackQuery.Id, "Transferring, please wait...");
+            await t.botClient.Messages_SetBotCallbackAnswer(query.query_id, 0, "Transferring, please wait...");
 
-    //        if (q is not null && q.TelegramChatID == update.CallbackQuery.Message.Chat.Id)
-    //        {
-    //            var img = await q.LoadOutputImage();
+            if (q is not null && q.telegramUserId == t.User.ID)
+            {
+                var img = await q.LoadOutputImage();
 
-    //            if (img is null)
-    //                throw new Exception("Unable to locate image");
+                if (img is null)
+                    throw new Exception("Unable to locate image");
 
-    //            if (img.TelegramFullFileID is not null)
-    //            {
-    //                Message message = await botClient.SendDocumentAsync(
-    //                    chatId: q.TelegramChatID,
-    //                    document: InputFile.FromFileId(img.TelegramFullFileID),
-    //                    cancellationToken: cancellationToken
-    //                    );
-    //            }
-    //            else if (img is not null)
-    //            {
+                var inputImage = await t.botClient.UploadFileAsync(new MemoryStream(img.Image), "image.png");
 
-    //                Message message = await botClient.SendDocumentAsync(
-    //                    chatId: q.TelegramChatID,
-    //                    document: InputFile.FromStream(new MemoryStream(img.Image), q.link_token + ".png"),
-    //                    cancellationToken: cancellationToken
-    //                    );
+                var msg = await t.botClient.SendMessageAsync(t.Peer, "", new InputMediaUploadedDocument(inputImage, "image/png"));
 
-    //                await img.SaveFullTelegramFileIds(message.Document.FileId, message.Document.FileUniqueId);
-    //            }
-    //            else
-    //            {
-    //                await botClient.SendTextMessageAsync(
-    //                    chatId: update.CallbackQuery.Message.Chat.Id,
-    //                    text: "❌ Error: Unable to locate image file.",
-    //                    cancellationToken: cancellationToken
-    //                    );
-    //            }
-    //        }
-    //    }
+                //await img.SaveFullTelegramFileIds(message.Document.FileId, message.Document.FileUniqueId);
+
+            }
+        }
 
         private static async Task CallbackCmdSelect(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
         {

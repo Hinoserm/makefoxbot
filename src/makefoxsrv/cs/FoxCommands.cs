@@ -17,89 +17,6 @@ namespace makefoxsrv
 {
     internal class FoxCommandHandler
     {
-
-        private static string[] text_help = {
-@"Hi, I’m Makefoxbot. I can help you generate furry pictures through AI.
-
-At the bottom left you’ll notice a blue menu button with various commands. Here’s what they do and the order in which you should use them to get started:
-
-/setprompt followed by your prompt sets the image description. It’s generally good practice to use e621 tags separated by commas. You can also use parentheses for emphasis, e.g. (red ears:1.3) 
-
-/setnegative sets your negative prompt, i.e. things you don’t want in your generation. It works the same as /setprompt. 
-
-/setscale lets you define how closely the AI will follow your prompt. Default is at 7.5; generally you shouldn’t go above ~18 or you’ll get weird outputs.
-
-/generate will then generate an image using the above input. If you’d like to skip the above you can also type /generate or /gen directly followed by your prompt.
-
-If you prefer to use an input image with your prompt, just send me that image, define your prompt using /setprompt and /setnegative, then use /img2img to generate the output image.
-
-/setdenoise lets you define how closely the AI will follow your input image. The default is at 0.75. 0 means the AI will copy the input image exactly, 1 means it will ignore it entirely.
-
-All your settings and input images are stored by the bot until you replace them, so there is no need to input everything again for the same prompt. Either /generate or /img2img will work on their own.
-
-Enjoy, and if you have any questions feel free to ask them in @toomanyfoxes
-
-View a full list of commands: /commands",
-
-@"/setprompt followed by your prompt sets the image description. It’s generally good practice to use e621 tags separated by commas, but other tags are also possible. You can also use parentheses for emphasis, e.g. (red ears:1.3), and you can group several traits within one pair of parentheses, which can be useful if you’re writing a prompt for something that involves multiple characters.
-
-When using e621 tags, choose those that are both specific for what you want and reasonably frequent. The number will depend on specificity, but generally, a tag should have at least 200 occurrences on e621 for it to do you much good, ideally 1,000 and more. Replace underscores in tags with spaces and separate tags with commas.
-
-The bot isn’t really built for free form/long sentence prompts, but occasionally they will work fine. 
-
-Another thing to potentially include in your prompt are loras, which are specialized models that will improve outcomes for specific scenarios. The syntax for those is <lora:name:1>. A list of available loras is at xxx
-
-Related commands: /setnegative, /setscale, /generate
-
-
-/setnegative defines what you don’t want in your picture. It works the same way as /setprompt otherwise. In addition to specific tags you want to excuse, there are also some general models available that will prevent bad anatomy and other weird outcomes. Those are boring_e621_fluffyrock_v4, deformityv6, easynegative, bad anatomy, low quality.
-
-BEWARE: If you put too much emphasis on a negative tag, it can sometimes have the opposite effect. Experiment and be aware that less may be more.
-
-Related commands: /setprompt, /setscale
-
-
-/setscale tells the AI how closely it should follow your text prompt. The default is at 7.5; lower values mean less weight, higher values mean more weight. This can be useful because the AI does not weigh all tags equally and sometimes you need to really push it to get a certain scenario, while in other cases it can be useful to make it a bit less eager to do so. Values above 18 are not recommended and will result in weird outcomes if chosen. 
-
-Related commands: /setprompt, /setnegative",
-
-@"/img2img allows you to generate a picture based on an input image and a text prompt. To use it, send me the input image, then set your prompt and negative prompt using /setprompt and /setnegative if you haven’t done so already. Following that, /img2img will then generate an image based on these inputs.
-
-Related commands: /setdenoise, /select
-
-
-/setdenoise lets you define how closely the AI will follow your input image. The default is at 0.75. 0 means the AI will copy the input image exactly, 1 means it will ignore it entirely. The best value will vary greatly depending on your prompt and input image, so experiment with this setting often.
-
-This command only affects /img2img, it is not affected by /generate.
-
-Related commands: /img2img, /select
-
-
-/select turns your last output image into the input for your next img2img generation. This can be useful because you can approximate what you want through iterating img2img generations over multiple rounds of generations, discarding outputs that don’t show the desired outcome and keeping those that do.
-
-Pushing the painter’s pallet button underneath any output image has the same effect and will select that image as the img2img input.
-
-Related commands: /img2img, /setdenoise",
-
-@"/setsize lets you define output image size in pixels. The default size is at 768x768. The maximum size you can request is at 1024x1024. Anything under 512x512 will generally result in low quality output.
-
-If your input image isn’t a square, /img2img can result in distorted outputs, so it is best to adjust output image size to a similar proportion as your input image to avoid this effect. The input uses a widthxheight format.
-
-
-/setseed lets you define the seed the AI uses to start generating the picture. If you don’t define it, the AI will choose it at random. The same input with the same seed and settings should always result in the same output. 
-
-To return to random seed selection, use /setseed -1
-
-
-/setsteps lets you define the number of steps the AI uses for generation. Generally, 15 to 20 steps is plenty; anything below or above will increase your chances of weird outputs."
-        };
-
-        private static string text_legal = @"
-Legal:
-
-This bot and the content generated are for research and educational purposes only.  For personal individual use only; do not sell generated content.  This system may generate harmful, incorrect or offensive content; you are responsible for following US law as well as your own local laws.";
-
-
         private static readonly Dictionary<string, Func<FoxTelegram, TL.Message,  FoxUser, String?, Task>> CommandMap = new Dictionary<string, Func<FoxTelegram, TL.Message, FoxUser, String?, Task>>
         {
             { "/pizza",       CmdTest },
@@ -131,16 +48,16 @@ This bot and the content generated are for research and educational purposes onl
             //--------------- -----------------
             { "/current",     CmdCurrent },
             //{ "/select",      CmdSelect },
-            ////--------------- -----------------
-            //{ "/start",       CmdWelcome },
-            ////--------------- -----------------
-            //{ "/help",        CmdHelp },
             //--------------- -----------------
-            //{ "/commands",    CmdCmdList },
-            //{ "/cmdlist",     CmdCmdList },
-            ////--------------- -----------------
-            //{ "/seed",        CmdSetSeed },
-            //{ "/setseed",     CmdSetSeed },
+            { "/start",       CmdWelcome },
+            //--------------- -----------------
+            { "/help",        CmdHelp },
+            //--------------- -----------------
+            { "/commands",    CmdCmdList },
+            { "/cmdlist",     CmdCmdList },
+            //--------------- -----------------
+            { "/seed",        CmdSetSeed },
+            { "/setseed",     CmdSetSeed },
             //--------------- -----------------
             { "/model",       CmdModel },
             //--------------- -----------------
@@ -148,7 +65,7 @@ This bot and the content generated are for research and educational purposes onl
             //--------------- -----------------
             { "/donate",      CmdDonate },
             //--------------- -----------------
-            //{ "/info",        CmdInfo },
+            { "/info",        CmdInfo },
         };
 
         public static async Task HandleCommand(FoxTelegram t, Message message)
@@ -288,6 +205,26 @@ This bot and the content generated are for research and educational purposes onl
 
             return commandList;
         } */
+
+        // Hypothetical method to convert command descriptions to a format for setting bot commands
+        public static async Task SetBotCommands(Client client)
+        {
+            var commandList = CommandMap
+                .GroupBy(pair => pair.Value, pair => pair.Key.TrimStart('/'))
+                .Select(group => new
+                {
+                    Command = group.OrderByDescending(cmd => cmd.Length).First(),
+                    Description = GetCommandDescription(group.Key)
+                })
+                .Where(cmd => !string.IsNullOrWhiteSpace(cmd.Description))
+                .OrderBy(cmd => cmd.Command) // Order commands alphabetically
+                .Select(cmd => new TL.BotCommand { command = cmd.Command, description = cmd.Description })
+                .ToArray();
+
+            // Example of how you might use the commandList with WTelegramClient
+            // This assumes you have a method or context where you're setting bot commands
+            await client.Bots_SetBotCommands(new TL.BotCommandScopeUsers(), null, commandList);
+        }
 
         [AttributeUsage(AttributeTargets.Method, Inherited = false)]
         public class CommandDescriptionAttribute : Attribute
@@ -454,7 +391,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
         }
 
         //[CommandDescription("Select your last uploaded image as the input for /img2img")]
-        //private static async Task CmdSelect(FoxTelegram t, InputPeer tPeer, Message message, FoxUser user, String? argument)
+        //private static async Task CmdSelect(FoxTelegram t, Message message, FoxUser user, String? argument)
         //{
         //    var img = await FoxImage.LoadLastUploaded(user, t.Chat.ID);
 
@@ -491,75 +428,80 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
         //}
 
-        //[CommandDescription("Show list of available commands")]
-        //private static async Task CmdCmdList(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
-        //{
-        //    var commandGroups = CommandMap
-        //        .GroupBy(pair => pair.Value, pair => pair.Key)
-        //        .ToDictionary(g => g.Key, g => g.ToList());
+        [CommandDescription("Show list of available commands")]
+        private static async Task CmdCmdList(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            var commandGroups = CommandMap
+                .GroupBy(pair => pair.Value, pair => pair.Key)
+                .ToDictionary(g => g.Key, g => g.ToList());
 
-        //    var helpEntries = new List<string>();
-        //    foreach (var group in commandGroups.OrderBy(g => g.Value.First()))
-        //    {
-        //        var command = group.Value.OrderByDescending(cmd => cmd.Length).First();
-        //        string description = GetCommandDescription(group.Key);
-        //        string arguments = GetCommandArguments(group.Key);
+            var helpEntries = new List<string>();
+            foreach (var group in commandGroups.OrderBy(g => g.Value.First()))
+            {
+                var command = group.Value.OrderByDescending(cmd => cmd.Length).First();
+                string description = GetCommandDescription(group.Key);
+                string arguments = GetCommandArguments(group.Key);
 
-        //        if (!string.IsNullOrWhiteSpace(description))
-        //        {
-        //            helpEntries.Add($"{command} {arguments}\n    {description}\n");
-        //        }
-        //    }
+                if (!string.IsNullOrWhiteSpace(description))
+                {
+                    helpEntries.Add($"{command} {arguments}\n    {description}\n");
+                }
+            }
 
-        //    await botClient.SendTextMessageAsync(
-        //        chatId: message.Chat.Id,
-        //        text: string.Join(Environment.NewLine, helpEntries),
-        //        replyToMessageId: message.MessageId,
-        //        cancellationToken: cancellationToken
-        //    );
-        //}
+            await t.SendMessageAsync(
+                text: string.Join(Environment.NewLine, helpEntries),
+                replyToMessageId: message.ID
+            );
+        }
 
 
-        //private static async Task CmdWelcome(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
-        //{
-        //    var inlineKeyboard = new InlineKeyboardMarkup(new[]
-        //        {
-        //            new[]
-        //            {
-        //                InlineKeyboardButton.WithCallbackData("More Help", "/help 2"),
-        //            }
-        //        });
-
-        //    await botClient.SendTextMessageAsync(
-        //        chatId: message.Chat.Id,
-        //        text: text_help[0] + "\r\n" + text_legal,
-        //        replyToMessageId: message.MessageId,
-        //        replyMarkup: inlineKeyboard,
-        //        cancellationToken: cancellationToken
-        //    );
-
-        //}
-
-        //[CommandDescription("Show helpful information")]
-        //private static async Task CmdHelp(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
-        //{
-        //    var inlineKeyboard = new InlineKeyboardMarkup(new[]
-        //        {
-        //            new[]
-        //            {
-        //                InlineKeyboardButton.WithCallbackData("More Help", "/help 2"),
-        //            }
-        //        });
+        private static async Task CmdWelcome(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            var inlineKeyboardButtons = new ReplyInlineMarkup()
+            {
+                rows = new TL.KeyboardButtonRow[]
+                {
+                    new TL.KeyboardButtonRow {
+                        buttons = new TL.KeyboardButtonCallback[]
+                        {
+                            new TL.KeyboardButtonCallback { text = "More Help", data = System.Text.Encoding.ASCII.GetBytes("/help 2") },
+                        }
+                    }
+                }
+            };
 
 
-        //    await botClient.SendTextMessageAsync(
-        //        chatId: message.Chat.Id,
-        //        text: text_help[0],
-        //        replyToMessageId: message.MessageId,
-        //        replyMarkup: inlineKeyboard,
-        //        cancellationToken: cancellationToken
-        //    );
-        //}
+            await t.SendMessageAsync(
+                text: FoxStrings.text_help[0] + "\r\n" + FoxStrings.text_legal,
+                replyToMessageId: message.ID,
+                replyInlineMarkup: inlineKeyboardButtons
+            );
+        }
+
+        [CommandDescription("Show helpful information")]
+        private static async Task CmdHelp(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+
+            var inlineKeyboardButtons = new ReplyInlineMarkup()
+            {
+                rows = new TL.KeyboardButtonRow[]
+                {
+                    new TL.KeyboardButtonRow {
+                        buttons = new TL.KeyboardButtonCallback[]
+                        {
+                            new TL.KeyboardButtonCallback { text = "More Help", data = System.Text.Encoding.ASCII.GetBytes("/help 2") },
+                        }
+                    }
+                }
+            };
+
+
+            await t.SendMessageAsync(
+                text: FoxStrings.text_help[0],
+                replyToMessageId: message.ID,
+                replyInlineMarkup: inlineKeyboardButtons
+            );
+        }
 
         [CommandDescription("Run an img2img generation.  Requires you to have previously uploaded an image.")]
         [CommandArguments("[<prompt>]")]
@@ -845,50 +787,43 @@ We sincerely appreciate your support and understanding. Your contribution direct
             }
         }
 
-        //[CommandDescription("Set the seed value for the next generation. Default: -1 (random)")]
-        //[CommandArguments("[<value>]")]
-        //private static async Task CmdSetSeed(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
-        //{
+        [CommandDescription("Set the seed value for the next generation. Default: -1 (random)")]
+        [CommandArguments("[<value>]")]
+        private static async Task CmdSetSeed(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
 
-        //    int seed = 0;
+            int seed = 0;
 
-        //    var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-        //    if (argument is null || argument.Length <= 0)
-        //    {
-        //        await botClient.SendTextMessageAsync(
-        //            chatId: message.Chat.Id,
-        //            text: "Current Seed: " + settings.seed,
-        //            replyToMessageId: message.MessageId,
-        //            cancellationToken: cancellationToken
-        //        );
-        //        return;
-        //    }
+            if (argument is null || argument.Length <= 0)
+            {
+                await t.SendMessageAsync(
+                    text: "Current Seed: " + settings.seed,
+                    replyToMessageId: message.ID
+                );
+                return;
+            }
 
-        //    if (!int.TryParse(argument, out seed))
-        //    {
-        //        await botClient.SendTextMessageAsync(
-        //            chatId: message.Chat.Id,
-        //            text: "❌You must provide a numeric value.",
-        //            replyToMessageId: message.MessageId,
-        //            cancellationToken: cancellationToken
-        //        );
+            if (!int.TryParse(argument, out seed))
+            {
+                await t.SendMessageAsync(
+                    text: "❌You must provide a numeric value.",
+                    replyToMessageId: message.ID
+                );
 
-        //        return;
-        //    }
+                return;
+            }
 
-        //    settings.seed = seed;
+            settings.seed = seed;
 
-        //    await settings.Save();
+            await settings.Save();
 
-        //    await botClient.SendTextMessageAsync(
-        //        chatId: message.Chat.Id,
-        //        text: $"✅ Seed set to {seed}.",
-        //        replyToMessageId: message.MessageId,
-        //        cancellationToken: cancellationToken
-        //    );
-        //}
-
+            await t.SendMessageAsync(
+                text: $"✅ Seed set to {seed}.",
+                replyToMessageId: message.ID
+            );
+        }
 
         [CommandDescription("Set or view your CFG Scale for this chat or group. Range 0 - 99.0.")]
         [CommandArguments("[<value>]")]
