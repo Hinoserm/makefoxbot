@@ -226,7 +226,7 @@ namespace makefoxsrv
                 if (user != null && user.Username != tuser.Username)
                 {
                     // Telegram username changed, a db update is required
-                    Console.WriteLine($"Username change: {user.Username} > {tuser.Username}");
+                    FoxLog.WriteLine($"Username change: {user.Username} > {tuser.Username}");
 
                     using (var updateCmd = new MySqlCommand("UPDATE users SET username = @username WHERE id = @uid", SQL))
                     {
@@ -266,11 +266,11 @@ namespace makefoxsrv
                     {
                         await cmd.ExecuteNonQueryAsync();
                         user_id = (ulong)cmd.LastInsertedId;
-                        Console.WriteLine($"createUserFromTelegramID({tuser.Id}, \"{tuser.Username}\"): User created, UID: " + user_id);
+                        FoxLog.WriteLine($"createUserFromTelegramID({tuser.Id}, \"{tuser.Username}\"): User created, UID: " + user_id);
                     }
                     catch (MySqlException ex) when (ex.Number == 1062) // Catch the duplicate entry exception
                     {
-                        Console.WriteLine($"createUserFromTelegramID({tuser.Id}, \"{tuser.Username}\"): Duplicate telegram_id, fetching existing user.");
+                        FoxLog.WriteLine($"createUserFromTelegramID({tuser.Id}, \"{tuser.Username}\"): Duplicate telegram_id, fetching existing user.");
                         // If a duplicate user is attempted to be created, fetch the existing user instead
                         return await GetByTelegramUser(tuser);
                     }
@@ -308,7 +308,7 @@ namespace makefoxsrv
                     await cmd.ExecuteNonQueryAsync();
                     payment_id = (ulong)cmd.LastInsertedId;
 
-                    Console.WriteLine($"recordPayment({this.UID}, {amount} {currency}, {days} days)");
+                    FoxLog.WriteLine($"recordPayment({this.UID}, {amount} {currency}, {days} days)");
                 }
 
                 using (var cmd = new MySqlCommand())

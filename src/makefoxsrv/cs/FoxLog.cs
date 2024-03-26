@@ -12,20 +12,36 @@ public enum LogLevel
     LOG_ERROR
 }
 
-namespace makefoxsrv.cs
+namespace makefoxsrv
 {
     internal class FoxLog
     {
         public static LogLevel CurrentLogLevel { get; set; } = LogLevel.LOG_INFO;
 
+        public static void WriteLine(string message)
+        {
+            Write(LogLevel.LOG_INFO, message + "\r\n");
+        }
+
+        public static void WriteLine(LogLevel level, string message)
+        {
+            Write(level, message + "\r\n");
+        }
+        public static void Write(string message)
+        {
+            Write(LogLevel.LOG_INFO, message);
+        }
+
         // Logging function
-        public static void Log(LogLevel level, string message)
+        public static void Write(LogLevel level, string message)
         {
             // Check if the current log message level is greater than or equal to the application's log level
             if (level >= CurrentLogLevel)
             {
                 // Log the message with a timestamp and the level
-                Console.WriteLine($"{DateTime.Now} [{level}]: {message}");
+                //FoxLog.WriteLine();
+                //FoxUI.AppendLog($"{DateTime.Now} [{level}]: {message}");
+                FoxUI.AppendLog(message);
             }
         }
     }

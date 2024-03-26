@@ -18,7 +18,7 @@ using Newtonsoft.Json.Linq;
 using static makefoxsrv.FoxWorker;
 using System.Text.RegularExpressions;
 using Autofocus.Config;
-using makefoxsrv.cs;
+using makefoxsrv;
 
 namespace makefoxsrv
 {
@@ -115,7 +115,7 @@ namespace makefoxsrv
                     string url = reader.GetString("url");
                     string name = reader.GetString("name");
 
-                    Console.WriteLine($"Loading worker {id} - {url}");
+                    FoxLog.WriteLine($"Loading worker {id} - {url}");
 
                     var worker = CreateWorker(botClient, id, url, name);
                     await worker.SetStartDate();
@@ -128,7 +128,7 @@ namespace makefoxsrv
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Worker {worker.id} - Failed due to error: {ex.Message}");
+                        FoxLog.WriteLine($"Worker {worker.id} - Failed due to error: {ex.Message}");
                     }
 
                     //_ = worker.Run(botClient);
@@ -148,14 +148,14 @@ namespace makefoxsrv
                 //_ = worker.Run(botClient);
                 _ = Task.Run(async () => await worker.Run());
 
-                Console.WriteLine($"Worker {worker.id} - Started.");
+                FoxLog.WriteLine($"Worker {worker.id} - Started.");
             }
 
             var qCount = await FoxQueue.GetCount();
 
             if (qCount > 0)
             {
-                Console.WriteLine($"Begin processing of {qCount} old items in queue.");
+                FoxLog.WriteLine($"Begin processing of {qCount} old items in queue.");
 
                 FoxWorker.Ping(qCount);
             }
@@ -180,7 +180,7 @@ namespace makefoxsrv
 
         public void Stop()
         {
-            Console.WriteLine($"Worker {id} stopping due to request... ");
+            FoxLog.WriteLine($"Worker {id} stopping due to request... ");
 
             cts_stop.Cancel();
         }
@@ -230,7 +230,7 @@ namespace makefoxsrv
 
             foreach (var model in models)
             {
-                //Console.WriteLine($"  Worker {id} - Model {model_count}: {model.ModelName}");
+                //FoxLog.WriteLine($"  Worker {id} - Model {model_count}: {model.ModelName}");
 
                 using (var cmd = new MySqlCommand($"INSERT INTO worker_models (worker_id, model_name, model_hash, model_sha256, model_title, model_filename, model_config) VALUES (@id, @model_name, @model_hash, @model_sha256, @model_title, @model_filename, @model_config)", SQL))
                 {
@@ -247,7 +247,7 @@ namespace makefoxsrv
                 model_count++;
             }
 
-            Console.WriteLine($"  Worker {id} - Loaded {model_count} available models");
+            FoxLog.WriteLine($"  Worker {id} - Loaded {model_count} available models");
         }
 
         public async Task GetLoRAInfo()
@@ -369,11 +369,11 @@ namespace makefoxsrv
                 // Commit the transaction
                 await transaction.CommitAsync();
 
-                Console.WriteLine($"  Worker {id} - Loaded {lora_count} LoRAs with {lora_tag_count} tags.");
+                FoxLog.WriteLine($"  Worker {id} - Loaded {lora_count} LoRAs with {lora_tag_count} tags.");
             }
             catch (HttpRequestException e)
             {
-                Console.WriteLine($"Error fetching LoRAs: {e.Message}");
+                FoxLog.WriteLine($"Error fetching LoRAs: {e.Message}");
 
                 await transaction.RollbackAsync();
             }
@@ -389,16 +389,16 @@ namespace makefoxsrv
 
             var embeddings = await api.Embeddings(cts.Token); // Get embeddings instead of models
 
-            Console.WriteLine("Embeddings Information:");
+            FoxLog.WriteLine("Embeddings Information:");
             foreach (var embedding in embeddings.All)
             {
-                Console.WriteLine($"Name: {embedding.Value.Name}");
-                Console.WriteLine($"Step: {embedding.Value.Step}");
-                Console.WriteLine($"Checkpoint: {embedding.Value.Checkpoint}");
-                Console.WriteLine($"Checkpoint Name: {embedding.Value.CheckpointName}");
-                Console.WriteLine($"Shape: {embedding.Value.Shape}");
-                Console.WriteLine($"Vectors: {embedding.Value.Vectors}");
-                Console.WriteLine("----------");
+                FoxLog.WriteLine($"Name: {embedding.Value.Name}");
+                FoxLog.WriteLine($"Step: {embedding.Value.Step}");
+                FoxLog.WriteLine($"Checkpoint: {embedding.Value.Checkpoint}");
+                FoxLog.WriteLine($"Checkpoint Name: {embedding.Value.CheckpointName}");
+                FoxLog.WriteLine($"Shape: {embedding.Value.Shape}");
+                FoxLog.WriteLine($"Vectors: {embedding.Value.Vectors}");
+                FoxLog.WriteLine("----------");
             }
         }
 
@@ -580,7 +580,7 @@ namespace makefoxsrv
         private async Task HandleError(Exception ex)
         {
             online = false;
-            Console.WriteLine($"Worker {id} is offline!\r\n  Error: " + ex.Message);
+            FoxLog.WriteLine($"Worker {id} is offline!\r\n  Error: " + ex.Message);
             //await SetOnlineStatus(false); //SetFailedDate() already marks us as offline.
             await SetFailedDate(ex);
 
@@ -651,9 +651,9 @@ namespace makefoxsrv
                     semaphoreAcquired = await semaphore.WaitAsync(2000, cts.Token);
 
                     //if (semaphoreAcquired)
-                    //    Console.WriteLine($"Worker {id} - I have the semaphore! Semaphore count: {semaphore.CurrentCount}");
+                    //    FoxLog.WriteLine($"Worker {id} - I have the semaphore! Semaphore count: {semaphore.CurrentCount}");
 
-                    //Console.WriteLine($"Worker {id} - woke up, semaphore: {semaphoreAcquired}");
+                    //FoxLog.WriteLine($"Worker {id} - woke up, semaphore: {semaphoreAcquired}");
 
                     if (!online)
                     {
@@ -676,7 +676,7 @@ namespace makefoxsrv
                             //Wait a little bit to let the worker stablize if it's just starting up
                             await Task.Delay(8000, cts.Token);
 
-                            Console.WriteLine($"Worker {id} is back online!");
+                            FoxLog.WriteLine($"Worker {id} is back online!");
                             await SetOnlineStatus(true);
                             online = true;
 
@@ -690,7 +690,7 @@ namespace makefoxsrv
                         await SetOnlineStatus(true); //Appears to be working now.
                         online = true;
 
-                        Console.WriteLine($"Worker {id} came back online unexpectedly");
+                        FoxLog.WriteLine($"Worker {id} came back online unexpectedly");
                     }
 
                     var status = await api.QueueStatus();
@@ -701,7 +701,7 @@ namespace makefoxsrv
                     {
 
                         int waitMs = (status.QueueSize + progress.State.JobCount) * 500;
-                        //Console.WriteLine($"Worker {id} - URL has a busy queue, waiting {waitMs}ms...");
+                        //FoxLog.WriteLine($"Worker {id} - URL has a busy queue, waiting {waitMs}ms...");
 
                         if (semaphoreAcquired)
                             semaphore.Release();
@@ -725,20 +725,20 @@ namespace makefoxsrv
                         {
                             if (processingCount > 0)
                             {
-                                //Console.WriteLine($"Worker {id} - Incompatible queue item, returning semaphore!");
+                                //FoxLog.WriteLine($"Worker {id} - Incompatible queue item, returning semaphore!");
 
                                 semaphore.Release();
                             }
                             else
-                                Console.WriteLine($"Worker {id} - That's odd... we have the semaphore, but can't find a queue item!");
+                                FoxLog.WriteLine($"Worker {id} - That's odd... we have the semaphore, but can't find a queue item!");
                         }
 
                         continue;
                     }
 
-                    //Console.WriteLine($"{address} - {q.settings.model}");
+                    //FoxLog.WriteLine($"{address} - {q.settings.model}");
 
-                    //Console.WriteLine($"Starting image {q.id}...");
+                    //FoxLog.WriteLine($"Starting image {q.id}...");
 
                     qitem = q;
 
@@ -771,7 +771,7 @@ namespace makefoxsrv
                             {
                                 // If the message matches, extract the number
                                 int retryAfterSeconds = int.Parse(match.Groups[1].Value) + 3;
-                                Console.WriteLine($"Worker {id} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+                                FoxLog.WriteLine($"Worker {id} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
 
                                 // Wait for the specified number of seconds before retrying
                                 //await Task.Delay(retryAfterSeconds * 1000);
@@ -781,7 +781,7 @@ namespace makefoxsrv
                                 await HandleError(ex);
                                 continue;
                             } else
-                                Console.WriteLine("Edit msg failed " + ex.Message); //We don't care if editing fails in other cases, like the message being missing.
+                                FoxLog.WriteLine("Edit msg failed " + ex.Message); //We don't care if editing fails in other cases, like the message being missing.
                         } 
 
                         var settings = q.settings;                            
@@ -890,13 +890,13 @@ namespace makefoxsrv
                         await q.Finish();
                         _ = FoxSendQueue.Enqueue(botClient, q);
 
-                        //Console.WriteLine($"Finished image {q.id}.");
+                        //FoxLog.WriteLine($"Finished image {q.id}.");
 
                     }
                     catch (OperationCanceledException)
                     {
                         // Handle the cancellation specifically
-                        Console.WriteLine($"Worker {id} - User Cancellation");
+                        FoxLog.WriteLine($"Worker {id} - User Cancellation");
 
                         await q.Cancel();
 
@@ -943,12 +943,12 @@ namespace makefoxsrv
 
                     qitem = null;
                  
-                    //Console.WriteLine("Worker Tick...");
+                    //FoxLog.WriteLine("Worker Tick...");
                 }
                 catch (Exception ex)
                 {
                     await HandleError(ex);
-                    //Console.WriteLine("Error worker: " + ex.Message);
+                    //FoxLog.WriteLine("Error worker: " + ex.Message);
                     //await Task.Delay(3000, cts.Token);
                 }
             }

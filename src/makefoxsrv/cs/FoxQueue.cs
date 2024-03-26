@@ -214,7 +214,7 @@ namespace makefoxsrv
                                 }
                                 catch (Exception ex) {
                                     //We don't care if editing fails.
-                                    //Console.WriteLine(ex.Message);
+                                    //FoxLog.WriteLine(ex.Message);
                                 }
 
                                 await Task.Delay(1000, notify_cts.Token);
@@ -225,7 +225,7 @@ namespace makefoxsrv
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("Error in NotifyUserPositions(): " + ex.Message);
+                    FoxLog.WriteLine("Error in NotifyUserPositions(): " + ex.Message);
                 }
 
                 await semaphore.WaitAsync(1000, notify_cts.Token);

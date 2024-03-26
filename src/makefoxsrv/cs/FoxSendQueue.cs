@@ -43,7 +43,7 @@ namespace makefoxsrv
                 }
                 catch (Exception ex) {
 
-                    Console.WriteLine(ex.Message);
+                    FoxLog.WriteLine("Error: " + ex.Message);
 
                 } //We don't care if editing fails.
 
@@ -73,7 +73,7 @@ namespace makefoxsrv
                         }
                         catch (Exception ex2)
                         {
-                            Console.WriteLine("ERROR SENDING !!!!! " + ex2.Message);
+                            FoxLog.WriteLine("ERROR SENDING !!!!! " + ex2.Message);
                         }
                     }
                     else
@@ -187,7 +187,7 @@ namespace makefoxsrv
                         {
                             // If the message matches, extract the number
                             int retryAfterSeconds = int.Parse(match.Groups[1].Value) + 3;
-                            Console.WriteLine($"Rate limit exceeded. Retrying after {retryAfterSeconds} seconds...");
+                            FoxLog.WriteLine($"Rate limit exceeded. Retrying after {retryAfterSeconds} seconds...");
 
                             // Wait for the specified number of seconds before retrying
                             await Task.Delay(retryAfterSeconds * 1000);
@@ -209,12 +209,12 @@ namespace makefoxsrv
                         messageId: q.msg_id,
                         text: $"❌ An unexpected error occured.  Please try again."
                     );
-                    Console.WriteLine("SendQueue: Unexpected error; output image was null.");
+                    FoxLog.WriteLine("SendQueue: Unexpected error; output image was null.");
                 }
                 catch { } //We don't care if editing fails.
             }
 
-            //Console.WriteLine("Upload Complete");
+            //FoxLog.WriteLine("Upload Complete");
         }
 
         private static MemoryStream ConvertImageToJpeg(MemoryStream inputImageStream, int quality = 85)
@@ -225,7 +225,7 @@ namespace makefoxsrv
                 image.SaveAsJpeg(outputStream, new JpegEncoder { Quality = quality });
                 outputStream.Position = 0;
 
-                //Console.WriteLine($"ConvertImagetoJpeg({quality}%): " + Math.Round(inputImageStream.Length / 1024.0, 2) + "kb > " + Math.Round(outputStream.Length / 1024.0, 2) + "kb");
+                //FoxLog.WriteLine($"ConvertImagetoJpeg({quality}%): " + Math.Round(inputImageStream.Length / 1024.0, 2) + "kb > " + Math.Round(outputStream.Length / 1024.0, 2) + "kb");
                 return outputStream;
             }
         }

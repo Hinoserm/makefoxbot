@@ -25,7 +25,7 @@ using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot.Types.Payments;
-using makefoxsrv.cs;
+using makefoxsrv;
 
 public interface IMySettings
 {
@@ -196,7 +196,7 @@ namespace makefoxsrv
                         _ = updateTelegramChats(message.Chat); //Skip the 'await' since we don't care about the results.
                     _ = updateTelegramUsers(message.From);     //Change this later if this function starts caring about these tables.
 
-                    //Console.WriteLine(message.Type);
+                    //FoxLog.WriteLine(message.Type);
 
                     if (message.Type == MessageType.SuccessfulPayment)
                     {
@@ -222,7 +222,7 @@ namespace makefoxsrv
                                 throw new System.Exception("Unknown UID in payment request!  Contact /support");
 
                             await recvUser.recordPayment(pay.TotalAmount, pay.Currency, days, pay.InvoicePayload, pay.TelegramPaymentChargeId, pay.ProviderPaymentChargeId);
-                            Console.WriteLine($"Payment recorded for user {recvUID} by {user.UID}: ({pay.TotalAmount}, {pay.Currency}, {days}, {pay.InvoicePayload}, {pay.TelegramPaymentChargeId}, {pay.ProviderPaymentChargeId})");
+                            FoxLog.WriteLine($"Payment recorded for user {recvUID} by {user.UID}: ({pay.TotalAmount}, {pay.Currency}, {days}, {pay.InvoicePayload}, {pay.TelegramPaymentChargeId}, {pay.ProviderPaymentChargeId})");
 
                             var msg = @$"
 <b>Thank You for Your Generous Support!</b>
@@ -252,7 +252,7 @@ We are committed to using your donation to further develop and maintain the serv
                         try
                         {
 
-                            Console.WriteLine($"Got a photo from {message.From.Username} ({message.From.Id})!");
+                            FoxLog.WriteLine($"Got a photo from {message.From.Username} ({message.From.Id})!");
 
                             var user = await FoxUser.GetByTelegramUser(message.From, true);
 
@@ -270,7 +270,7 @@ We are committed to using your donation to further develop and maintain the serv
 
                                 if (img is not null)
                                 {
-                                    Console.WriteLine("Image found by Telegram unique ID.  ID: " + img.ID);
+                                    FoxLog.WriteLine("Image found by Telegram unique ID.  ID: " + img.ID);
                                     if (message.Chat.Id != img.TelegramChatID)
                                     {
                                         var newimg = await FoxImage.Create(user.UID, img.Image, FoxImage.ImageType.INPUT, img.Filename, img.TelegramFileID, img.TelegramUniqueID, message.Chat.Id, message.MessageId);
@@ -298,7 +298,7 @@ We are committed to using your donation to further develop and maintain the serv
 
                                     }
 
-                                    Console.WriteLine("Image saved.  ID: " + img.ID);
+                                    FoxLog.WriteLine("Image saved.  ID: " + img.ID);
                                 }
 
                                 if (message.From.Id == message.Chat.Id) //Only save & notify outside of groups.
@@ -320,7 +320,7 @@ We are committed to using your donation to further develop and maintain the serv
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine("Error with input image: " + ex.Message);
+                            FoxLog.WriteLine("Error with input image: " + ex.Message);
                         }
                     }
 
@@ -353,10 +353,10 @@ We are committed to using your donation to further develop and maintain the serv
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine("telegram_log error: " + ex.Message);
+                            FoxLog.WriteLine("telegram_log error: " + ex.Message);
                         }
 
-                        Console.WriteLine($"Received a '{messageText}' message in chat {chatId} from {message.From.Username}.");
+                        FoxLog.WriteLine($"Received a '{messageText}' message in chat {chatId} from {message.From.Username}.");
                     }
                 }
                 catch (Exception ex)
@@ -367,21 +367,21 @@ We are committed to using your donation to further develop and maintain the serv
                         replyToMessageId: update.Message.MessageId,
                         cancellationToken: cancellationToken
                     );
-                    Console.WriteLine("Error processing: " + ex.Message);
+                    FoxLog.WriteLine("Error processing: " + ex.Message);
                 }
             } else if (update.CallbackQuery is not null) {
                 try
                 {
                     var user = await FoxUser.GetByTelegramUser(update.CallbackQuery.From);
 
-                    Console.WriteLine("Callback! " + update.CallbackQuery.Data);
+                    FoxLog.WriteLine("Callback! " + update.CallbackQuery.Data);
 
                     if (user is not null)
                         await FoxCommandHandler.HandleCallback(botClient, update, cancellationToken, user);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("Error processing callback: " + ex.Message);
+                    FoxLog.WriteLine("Error processing callback: " + ex.Message);
                 }
             }
         }
@@ -399,10 +399,10 @@ We are committed to using your donation to further develop and maintain the serv
             // Only process Message updates: https://core.telegram.org/bots/api#message
             if (update.Message is null && update.CallbackQuery is null && update.Message?.SuccessfulPayment is null)
             {
-                Console.WriteLine("Unexpected type of update received from Telegram: " + update.Type);
+                FoxLog.WriteLine("Unexpected type of update received from Telegram: " + update.Type);
                 return;
             }
-            //Console.WriteLine("Update Type: " + update.Type);
+            //FoxLog.WriteLine("Update Type: " + update.Type);
 
             _ = RunHandlerThread(botClient, update, cancellationToken);
         }
@@ -416,7 +416,7 @@ We are committed to using your donation to further develop and maintain the serv
                 _ => exception.ToString()
             };
 
-            Console.WriteLine(ErrorMessage);
+            FoxLog.WriteLine("Error: " + ErrorMessage);
             return Task.CompletedTask;
         }
 
@@ -462,24 +462,24 @@ We are committed to using your donation to further develop and maintain the serv
                 throw;
             }
 
-            Console.WriteLine($"Hello, World!  Version {GetVersion()}");
+            FoxLog.WriteLine($"Hello, World!  Version {GetVersion()}");
 
             string currentDirectory = Directory.GetCurrentDirectory();
-            Console.WriteLine($"Current Working Directory: {currentDirectory}");
+            FoxLog.WriteLine($"Current Working Directory: {currentDirectory}");
 
-            Console.Write("Loading configuration... ");
+            FoxLog.Write("Loading configuration... ");
             try {
                 LoadSettings();
             } catch (Exception ex) {
-                Console.WriteLine("error: " + ex.Message);
+                FoxLog.WriteLine("error: " + ex.Message);
 
                 return;
             }
-            Console.WriteLine("done.");
+            FoxLog.WriteLine("done.");
 
             MySqlConnection sql;
 
-            Console.Write("Connecting to database... ");
+            FoxLog.Write("Connecting to database... ");
             try
             {
 
@@ -488,10 +488,10 @@ We are committed to using your donation to further develop and maintain the serv
             }
             catch (Exception ex)
             {
-                Console.WriteLine("error: " + ex.Message);
+                FoxLog.WriteLine("error: " + ex.Message);
                 return;
             }
-            Console.WriteLine("done.");
+            FoxLog.WriteLine("done.");
 
             await FoxSettings.LoadSettingsAsync();
 
@@ -532,11 +532,11 @@ We are committed to using your donation to further develop and maintain the serv
             using (var cmd = new MySqlCommand($"UPDATE queue SET status = 'PENDING' WHERE status = 'PROCESSING'", sql))
             {
                 long stuck_count = await cmd.ExecuteNonQueryAsync();
-                Console.WriteLine($"Unstuck {stuck_count} queue items.");
+                FoxLog.WriteLine($"Unstuck {stuck_count} queue items.");
             }
 
-            Console.WriteLine($"Start listening for @{me.Username}");
-            Console.WriteLine($"Bot ID: {me.Id}");
+            FoxLog.WriteLine($"Start listening for @{me.Username}");
+            FoxLog.WriteLine($"Bot ID: {me.Id}");
 
             await FoxWorker.StartWorkers();
 

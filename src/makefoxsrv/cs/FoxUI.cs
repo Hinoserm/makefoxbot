@@ -13,71 +13,7 @@ using System.Threading.Tasks;
 using Terminal.Gui;
 using static Unix.Terminal.Curses;
 
-public class TextViewWriter : TextWriter
-{
-    private TextView _textView;
-    private ScrollBarView _scrollBar;
-    private Action<string> _updateAction;
-
-    public TextViewWriter(TextView textView, ScrollBarView scrollBar)
-    {
-        _textView = textView;
-        _scrollBar = scrollBar;
-        _updateAction = new Action<string>(UpdateTextView);
-    }
-
-    public override Encoding Encoding => Encoding.UTF8;
-
-    private void UpdateTextView(string value)
-    {
-        const int maxTextLength = 100 * 1024 * 1024; // 100MB in characters
-
-        var linesBeforeUpdate = _textView.Text.Split("\n");
-        // Determine if the user has scrolled to the bottom
-        //bool isUserAtBottom = _textView.TopRow + _textView.Frame.Height >= linesBeforeUpdate.Length;
-        bool isUserAtBottom = _textView.TopRow + _textView.Frame.Height >= _scrollBar.Size;
-        int originalTopRow = _textView.TopRow;
-
-        _textView.Text += value;
-
-        // Trim the text if it exceeds the maximum length
-        if (_textView.Text.Length > maxTextLength)
-        {
-            int removeLength = _textView.Text.Length - maxTextLength;
-            _textView.Text = _textView.Text.Substring(removeLength);
-        }
-
-
-        if (isUserAtBottom)
-        {
-            // Scroll to the bottom if the user was already there
-            //_textView.TopRow = Math.Max(0, lines.Length - _textView.Frame.Height);
-            _textView.CursorPosition = new Terminal.Gui.Point(_textView.Text.Length, _textView.Text.Count(c => c == '\n'));
-        }
-        else
-        {
-            //Maintain user's scroll position.
-            _textView.TopRow = originalTopRow;
-        }
-            
-
-        // Ensure the cursor is visible, which should scroll the view.
-        //_textView.EnsureCursorVisibility();
-    }
-
-    public override void Write(char value)
-    {
-        Write(value.ToString());
-    }
-
-    public override void Write(string? value)
-    {
-        Application.MainLoop.Invoke(() => _updateAction(value));
-    }
-}
-
-
-namespace makefoxsrv.cs
+namespace makefoxsrv
 {
     internal class FoxUI
     {
@@ -86,8 +22,13 @@ namespace makefoxsrv.cs
         private static FrameView? userPane;
         private static Label? userLabel;
 
+        private static TextView? _logView;
+        private static ScrollBarView? _logScrollBar;
+
         public static void Start(CancellationTokenSource cts)
         {
+            Console.OutputEncoding = Encoding.UTF8;
+
             Application.Init();
             var Top = Application.Top;
 
@@ -196,6 +137,9 @@ namespace makefoxsrv.cs
                 scrollBar.Refresh();
             };
 
+            _logView = logView;
+            _logScrollBar = scrollBar;
+
             win.Add(leftPane, workerPane, userPane);
 
             var wordWrapMenuItem = new MenuItem("_WordWrap", "", () => { })
@@ -224,17 +168,7 @@ namespace makefoxsrv.cs
 
             logView.SetFocus();
 
-            // Redirect Console.WriteLine to logView
-            var logViewWriter = new TextViewWriter(logView, scrollBar);
-            Console.SetOut(logViewWriter);
-
             Application.Top.Add(win);
-
-            // Handling textView's DrawContent event
-            //logView.DrawContent += () =>
-            //{
-                scrollBar.Refresh();
-            //};
 
             guiTask = Task.Run(() =>
             {
@@ -244,7 +178,7 @@ namespace makefoxsrv.cs
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Exception in GUI task: {ex.Message}");
+                    FoxLog.WriteLine($"Exception in GUI task: {ex.Message}");
                     // Handle or log the exception as needed
                 }
             });
@@ -422,7 +356,7 @@ namespace makefoxsrv.cs
                         }
                     }
                 }
-                //Console.WriteLine($"run {rows}");
+                //FoxLog.WriteLine($"run {rows}");
 
                 //manualResetEvent.Set();
 
@@ -438,6 +372,53 @@ namespace makefoxsrv.cs
 
             if (guiTask is not null)
                 await guiTask;
+        }
+        public static void AppendLog(string value)
+        {
+            var manualResetEvent = new ManualResetEventSlim(false); // Reset event to control the flow
+
+            Application.MainLoop.Invoke(() =>
+            {
+                const int maxTextLength = 100 * 1024 * 1024; // 100MB in characters
+
+                if (_logView is null || _logScrollBar is null)
+                {
+                    manualResetEvent.Set();
+                    return;
+                }
+
+                var linesBeforeUpdate = _logView.Text.Split("\n");
+                // Determine if the user has scrolled to the bottom
+                //bool isUserAtBottom = _textView.TopRow + _textView.Frame.Height >= linesBeforeUpdate.Length;
+                bool isUserAtBottom = _logView.TopRow + _logView.Frame.Height >= _logScrollBar.Size;
+                int originalTopRow = _logView.TopRow;
+
+                _logView.Text += value;
+
+                // Trim the text if it exceeds the maximum length
+                if (_logView.Text.Length > maxTextLength)
+                {
+                    int removeLength = _logView.Text.Length - maxTextLength;
+                    _logView.Text = _logView.Text.Substring(removeLength);
+                }
+
+
+                if (isUserAtBottom)
+                {
+                    // Scroll to the bottom if the user was already there
+                    //_textView.TopRow = Math.Max(0, lines.Length - _textView.Frame.Height);
+                    _logView.CursorPosition = new Terminal.Gui.Point(_logView.Text.Length, _logView.Text.Count(c => c == '\n'));
+                }
+                else
+                {
+                    //Maintain user's scroll position.
+                    _logView.TopRow = originalTopRow;
+                }
+                manualResetEvent.Set();
+            });
+
+            //manualResetEvent.Wait();
+            manualResetEvent.Dispose();
         }
     }
 }
