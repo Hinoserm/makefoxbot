@@ -1,5 +1,4 @@
 ﻿using MySqlConnector;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -7,11 +6,12 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
-using System.Drawing;
 using System.Text;
 using System.Threading.Tasks;
 using Terminal.Gui;
 using static Unix.Terminal.Curses;
+using WTelegram;
+using makefoxsrv;
 
 namespace makefoxsrv
 {
@@ -53,7 +53,7 @@ namespace makefoxsrv
                 Title = "Log",
                 X = 0,
                 Y = 0,
-                Width = Dim.Percent(70) - 1,
+                Width = Dim.Fill() - 38,
                 Height = Dim.Fill(),
             };
 
@@ -62,8 +62,8 @@ namespace makefoxsrv
                 Title = "Workers",
                 X = Pos.Right(leftPane),
                 Y = 0,
-                Width = Dim.Percent(30),
-                Height = Dim.Percent(40)
+                Width = Dim.Sized(38),
+                Height = Dim.Sized(8)
             };
 
             userPane = new FrameView()
@@ -106,7 +106,7 @@ namespace makefoxsrv
             var scrollBar = new ScrollBarView(logView, true, true)
             {
                 Visible = true,
-                AutoHideScrollBars = false,
+                AutoHideScrollBars = true,
                 ShowScrollIndicator = true
             };
 
@@ -170,11 +170,21 @@ namespace makefoxsrv
 
             Application.Top.Add(win);
 
+            Application.Top.KeyDown += (args) =>
+            {
+                if (args.KeyEvent.Key == (Key.CtrlMask | Key.C))
+                {
+                    Application.RequestStop();
+                    args.Handled = true; // Mark the event as handled
+                }
+            };
+
             guiTask = Task.Run(() =>
             {
                 try
                 {
                     Application.Run();
+                    cts.Cancel();
                 }
                 catch (Exception ex)
                 {
@@ -196,17 +206,17 @@ namespace makefoxsrv
             // Define color schemes
             var redScheme = new ColorScheme
             {
-                //Normal = Terminal.Gui.Attribute.Make(Color.BrightRed, Color.Blue),
+                Normal = Terminal.Gui.Attribute.Make(Color.BrightRed, Color.Blue),
             };
 
             var greenScheme = new ColorScheme
             {
-                //Normal = Terminal.Gui.Attribute.Make(Color.BrightGreen, Color.Blue),
+                Normal = Terminal.Gui.Attribute.Make(Color.BrightGreen, Color.Blue),
             };
 
             var greyScheme = new ColorScheme
             {
-                //Normal = Terminal.Gui.Attribute.Make(Color.Gray, Color.Blue),
+                Normal = Terminal.Gui.Attribute.Make(Terminal.Gui.Color.Gray, Color.Blue),
             };
 
             var manualResetEvent = new ManualResetEventSlim(false); // Reset event to control the flow
@@ -297,6 +307,8 @@ namespace makefoxsrv
                                 statusLabel.Text = "WORKING";
                                 statusLabel.Visible = false;
                             }
+
+                            workerPane.Height = Dim.Sized((FoxWorker.workers.Count * 2) + 2);
                         }
                     }
 
@@ -345,7 +357,7 @@ namespace makefoxsrv
                                 DateTime lastActive = reader.GetDateTime("recent_date");
                                 TimeSpan timeAgo = DateTime.Now - lastActive; // Assuming date_added is in UTC
 
-                                labelText += $"{uid.ToString().PadLeft(4, ' ')} : {username.PadRight(17, ' ')} : {timeAgo.ToShortPrettyFormat()}\r\n";
+                                labelText += $"{uid.ToString().PadLeft(5, ' ')} : {username.PadRight(17, ' ')} : {timeAgo.ToShortPrettyFormat()}\r\n";
 
                                 rows++;
                             }
@@ -355,15 +367,7 @@ namespace makefoxsrv
                             });
                         }
                     }
-                }
-                //FoxLog.WriteLine($"run {rows}");
-
-                //manualResetEvent.Set();
-
-                //manualResetEvent.Wait(); // Block until the reset event is signaled
-                //manualResetEvent.Dispose(); // Clean up the event
-
-                
+                }              
 
                 await Task.Delay(200, cts.Token);
             }
@@ -375,15 +379,12 @@ namespace makefoxsrv
         }
         public static void AppendLog(string value)
         {
-            var manualResetEvent = new ManualResetEventSlim(false); // Reset event to control the flow
-
             Application.MainLoop.Invoke(() =>
             {
                 const int maxTextLength = 100 * 1024 * 1024; // 100MB in characters
 
                 if (_logView is null || _logScrollBar is null)
                 {
-                    manualResetEvent.Set();
                     return;
                 }
 
@@ -414,11 +415,7 @@ namespace makefoxsrv
                     //Maintain user's scroll position.
                     _logView.TopRow = originalTopRow;
                 }
-                manualResetEvent.Set();
             });
-
-            //manualResetEvent.Wait();
-            manualResetEvent.Dispose();
         }
     }
 }

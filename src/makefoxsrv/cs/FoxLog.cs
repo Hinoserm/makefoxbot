@@ -18,22 +18,13 @@ namespace makefoxsrv
     {
         public static LogLevel CurrentLogLevel { get; set; } = LogLevel.LOG_INFO;
 
-        public static void WriteLine(string message)
+        public static void WriteLine(string message, LogLevel level = LogLevel.LOG_INFO)
         {
-            Write(LogLevel.LOG_INFO, message + "\r\n");
-        }
-
-        public static void WriteLine(LogLevel level, string message)
-        {
-            Write(level, message + "\r\n");
-        }
-        public static void Write(string message)
-        {
-            Write(LogLevel.LOG_INFO, message);
+            Write(message + "\r\n", level);
         }
 
         // Logging function
-        public static void Write(LogLevel level, string message)
+        public static void Write(string message, LogLevel level = LogLevel.LOG_INFO)
         {
             // Check if the current log message level is greater than or equal to the application's log level
             if (level >= CurrentLogLevel)

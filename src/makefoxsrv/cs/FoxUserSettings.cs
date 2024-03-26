@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Telegram.Bot.Types;
+using WTelegram;
+using makefoxsrv;
+using TL;
 
 namespace makefoxsrv
 {
@@ -105,14 +107,14 @@ namespace makefoxsrv
             }
         }
 
-        public static async Task<FoxUserSettings> GetTelegramSettings(FoxUser user, User? tuser, Chat? tchat = null)
+        public static async Task<FoxUserSettings> GetTelegramSettings(FoxUser user, User? tuser, ChatBase? tchat = null)
         {
             if (tuser is null)
                 throw new Exception("Can't continue with NULL user object.");
 
             var settings = new FoxUserSettings();
 
-            settings.TelegramUserID = tuser.Id;
+            settings.TelegramUserID = tuser.ID;
             settings.User = user;
 
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
@@ -121,12 +123,12 @@ namespace makefoxsrv
 
                 if (tchat is not null)
                 {
-                    settings.TelegramChatID = tchat.Id;
+                    settings.TelegramChatID = tchat.ID;
 
                     using (var cmd = new MySqlCommand())
                     {
                         cmd.Connection = SQL;
-                        cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = {tuser.Id} AND tele_chatid = {tchat.Id}";
+                        cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = {tuser.ID} AND tele_chatid = {tchat.ID}";
                         await using var reader = await cmd.ExecuteReaderAsync();
                         if (reader.HasRows && await reader.ReadAsync())
                         {
@@ -159,7 +161,7 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = {tuser.Id} AND tele_chatid = {tuser.Id}";
+                    cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = {tuser.ID} AND tele_chatid = 0";
                     await using var reader = await cmd.ExecuteReaderAsync();
                     if (reader.HasRows && await reader.ReadAsync())
                     {
@@ -191,7 +193,7 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = {tuser.Id}";
+                    cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = 0";
                     await using var reader = await cmd.ExecuteReaderAsync();
                     if (reader.HasRows && await reader.ReadAsync())
                     {

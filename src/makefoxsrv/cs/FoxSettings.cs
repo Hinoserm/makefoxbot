@@ -7,7 +7,8 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Telegram.Bot.Types;
+using WTelegram;
+using makefoxsrv;
 
 //This deals with getting default values and other settings from the DB.
 // Some defaults are hard-coded here.

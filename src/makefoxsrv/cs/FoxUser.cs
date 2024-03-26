@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Telegram.Bot.Types;
+using WTelegram;
+using makefoxsrv;
+using TL;
 
 public enum AccessLevel
 {
@@ -199,7 +201,7 @@ namespace makefoxsrv
 
                 using (var cmd = new MySqlCommand("SELECT id, username, access_level, lifetime_subscription, date_premium_expires FROM users WHERE telegram_id = @id", SQL))
                 {
-                    cmd.Parameters.AddWithValue("@id", tuser.Id);
+                    cmd.Parameters.AddWithValue("@id", tuser.ID);
 
                     using (var r = await cmd.ExecuteReaderAsync())
                     {
@@ -209,7 +211,7 @@ namespace makefoxsrv
                             {
                                 UID = Convert.ToUInt64(r["id"]),
                                 Username = r["username"] == DBNull.Value ? null : (string)r["username"],
-                                TelegramID = tuser.Id,
+                                TelegramID = tuser.ID,
                                 lifetimeSubscription = r["lifetime_subscription"] != DBNull.Value && Convert.ToBoolean(r["lifetime_subscription"]),
                                 datePremiumExpires = r["date_premium_expires"] != DBNull.Value ? Convert.ToDateTime(r["date_premium_expires"]) : null
                             };
@@ -223,18 +225,18 @@ namespace makefoxsrv
                     }
                 }
 
-                if (user != null && user.Username != tuser.Username)
+                if (user != null && user.Username != tuser.username)
                 {
                     // Telegram username changed, a db update is required
-                    FoxLog.WriteLine($"Username change: {user.Username} > {tuser.Username}");
+                    FoxLog.WriteLine($"Username change: {user.Username} > {tuser.username}");
 
                     using (var updateCmd = new MySqlCommand("UPDATE users SET username = @username WHERE id = @uid", SQL))
                     {
-                        updateCmd.Parameters.AddWithValue("@username", tuser.Username);
+                        updateCmd.Parameters.AddWithValue("@username", tuser.username);
                         updateCmd.Parameters.AddWithValue("@uid", user.UID);
                         await updateCmd.ExecuteNonQueryAsync();
 
-                        user.Username = tuser.Username; // Update the user object with the new username
+                        user.Username = tuser.username; // Update the user object with the new username
                     }
                 }
             }
@@ -259,18 +261,18 @@ namespace makefoxsrv
                 {
                     cmd.Connection = SQL;
                     cmd.CommandText = "INSERT INTO users (telegram_id, username, type, date_last_seen, date_added) VALUES (@telegram_id, @username, 'TELEGRAM_USER', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())";
-                    cmd.Parameters.AddWithValue("telegram_id", tuser.Id);
-                    cmd.Parameters.AddWithValue("username", tuser.Username);
+                    cmd.Parameters.AddWithValue("telegram_id", tuser.ID);
+                    cmd.Parameters.AddWithValue("username", tuser.username);
 
                     try
                     {
                         await cmd.ExecuteNonQueryAsync();
                         user_id = (ulong)cmd.LastInsertedId;
-                        FoxLog.WriteLine($"createUserFromTelegramID({tuser.Id}, \"{tuser.Username}\"): User created, UID: " + user_id);
+                        FoxLog.WriteLine($"createUserFromTelegramID({tuser.ID}, \"{tuser.username}\"): User created, UID: " + user_id);
                     }
                     catch (MySqlException ex) when (ex.Number == 1062) // Catch the duplicate entry exception
                     {
-                        FoxLog.WriteLine($"createUserFromTelegramID({tuser.Id}, \"{tuser.Username}\"): Duplicate telegram_id, fetching existing user.");
+                        FoxLog.WriteLine($"createUserFromTelegramID({tuser.ID}, \"{tuser.username}\"): Duplicate telegram_id, fetching existing user.");
                         // If a duplicate user is attempted to be created, fetch the existing user instead
                         return await GetByTelegramUser(tuser);
                     }

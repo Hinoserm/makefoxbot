@@ -3,18 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Telegram.Bot.Types;
-using Telegram.Bot;
 using System.Threading;
 using System.Reflection;
-using Telegram.Bot.Types.Enums;
-using Telegram.Bot.Types.ReplyMarkups;
 using System.IO;
 using System.Reflection.Metadata;
 using System.Linq.Expressions;
 using System.Drawing;
 using MySqlConnector;
-using Telegram.Bot.Types.Payments;
+using WTelegram;
+using TL;
 
 namespace makefoxsrv
 {
@@ -103,7 +100,7 @@ Legal:
 This bot and the content generated are for research and educational purposes only.  For personal individual use only; do not sell generated content.  This system may generate harmful, incorrect or offensive content; you are responsible for following US law as well as your own local laws.";
 
 
-        private static readonly Dictionary<string, Func<ITelegramBotClient, Message, CancellationToken, FoxUser, String?, Task>> CommandMap = new Dictionary<string, Func<ITelegramBotClient, Message, CancellationToken, FoxUser, String?, Task>>
+        private static readonly Dictionary<string, Func<FoxTelegram, TL.Message,  FoxUser, String?, Task>> CommandMap = new Dictionary<string, Func<FoxTelegram, TL.Message, FoxUser, String?, Task>>
         {
             { "/pizza",       CmdTest },
             { "/test",        CmdTest },
@@ -133,46 +130,46 @@ This bot and the content generated are for research and educational purposes onl
             { "/size",        CmdSetSize },
             //--------------- -----------------
             { "/current",     CmdCurrent },
-            { "/select",      CmdSelect },
+            //{ "/select",      CmdSelect },
+            ////--------------- -----------------
+            //{ "/start",       CmdWelcome },
+            ////--------------- -----------------
+            //{ "/help",        CmdHelp },
             //--------------- -----------------
-            { "/start",       CmdWelcome },
-            //--------------- -----------------
-            { "/help",        CmdHelp },
-            //--------------- -----------------
-            { "/commands",    CmdCmdList },
-            { "/cmdlist",     CmdCmdList },
-            //--------------- -----------------
-            { "/seed",        CmdSetSeed },
-            { "/setseed",     CmdSetSeed },
+            //{ "/commands",    CmdCmdList },
+            //{ "/cmdlist",     CmdCmdList },
+            ////--------------- -----------------
+            //{ "/seed",        CmdSetSeed },
+            //{ "/setseed",     CmdSetSeed },
             //--------------- -----------------
             { "/model",       CmdModel },
             //--------------- -----------------
-            { "/cancel",      CmdCancel },
+            //{ "/cancel",      CmdCancel },
             //--------------- -----------------
             { "/donate",      CmdDonate },
             //--------------- -----------------
-            { "/info",        CmdInfo },
+            //{ "/info",        CmdInfo },
         };
 
-        public static async Task HandleCommand(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
+        public static async Task HandleCommand(FoxTelegram t, Message message)
         {
 
-            if (message is null || botClient is null || message.From is null)
+            if (message is null)
                 throw new ArgumentNullException();
 
-            if (message.Text is null || message.Text.Length < 2)
+            if (message.message is null || message.message.Length < 2)
                 return;
 
-            if (message.Text[0] != '/')
+            if (message.message[0] != '/')
                 return; // Not a command, skip it.
 
-            var args = message.Text.Split(new char[] { ' ', '\n' }, 2);
+            var args = message.message.Split(new char[] { ' ', '\n' }, 2);
             var command = args[0];
 
             var c = command.Split('@', 2);
             if (c.Count() == 2)
             {
-                if (c[1] != FoxMain.me.Username)
+                if (c[1].ToLower() != t.botClient.User.username.ToLower())
                     return; // Not for us, skip it.
 
                 command = c[0];
@@ -184,44 +181,37 @@ This bot and the content generated are for research and educational purposes onl
 
             if (commandHandler is not null)
             {
-                var user = await FoxUser.GetByTelegramUser(message.From, true);
+                var fUser = await FoxUser.GetByTelegramUser(t.User, true);
 
-                if (user is null)
+                if (fUser is null)
                 {
-                    user = await FoxUser.CreateFromTelegramUser(message.From);
+                    fUser = await FoxUser.CreateFromTelegramUser(t.User);
 
-                    if (user is null)
+                    if (fUser is null)
                         throw new Exception("Unable to create new user");
-
-                    //await botClient.SendTextMessageAsync(
-                    //    chatId: message.Chat.Id,
-                    //    text: $"🦊Hello! You are user #{user.UID}!\r\nThis bot is a work in progress.\r\n\r\nFor more info, type /help",
-                    //    cancellationToken: cancellationToken
-                    //);
                 }
                 else
-                    await user.UpdateTimestamps();
+                    await fUser.UpdateTimestamps();
 
-                await commandHandler(botClient, message, cancellationToken, user, argument);
+                await commandHandler(t, message, fUser, argument);
             }
-            else if (message.From.Id == message.Chat.Id)
+            else if (message.from_id == message.peer_id)
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+
+                await t.SendMessageAsync(
                     text: $"🦊 I'm sorry, I didn't understand that command.  Try /help.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
             }
         }
-        public static string GetCommandDescription(Func<ITelegramBotClient, Message, CancellationToken, FoxUser, String?, Task> commandFunction)
+        public static string GetCommandDescription(Func<FoxTelegram, Message, FoxUser, String?, Task> commandFunction)
         {
             var methodInfo = commandFunction.Method;
             var attribute = methodInfo.GetCustomAttribute<CommandDescriptionAttribute>();
             return attribute?.Description;
         }
 
-        public static string GetCommandArguments(Func<ITelegramBotClient, Message, CancellationToken, FoxUser, String?, Task> commandFunction)
+        public static string GetCommandArguments(Func<FoxTelegram, Message, FoxUser, String?, Task> commandFunction)
         {
             var methodInfo = commandFunction.Method;
             var attribute = methodInfo.GetCustomAttribute<CommandArgumentsAttribute>();
@@ -239,7 +229,7 @@ This bot and the content generated are for research and educational purposes onl
             return null;
         }
 
-        private static Func<ITelegramBotClient, Message, CancellationToken, FoxUser, String?, Task> FindBestMatch(string command)
+        private static Func<FoxTelegram, Message, FoxUser, String?, Task> FindBestMatch(string command)
         {
             List<string> potentialMatches = new List<string>();
 
@@ -283,7 +273,7 @@ This bot and the content generated are for research and educational purposes onl
             }
         }
 
-        public static BotCommand[] GenerateTelegramBotCommands()
+        /* public static BotCommand[] GenerateTelegramBotCommands()
         {
             var commandList = CommandMap
                 .GroupBy(pair => pair.Value, pair => pair.Key.TrimStart('/'))
@@ -297,7 +287,7 @@ This bot and the content generated are for research and educational purposes onl
                 .ToArray();
 
             return commandList;
-        }
+        } */
 
         [AttributeUsage(AttributeTargets.Method, Inherited = false)]
         public class CommandDescriptionAttribute : Attribute
@@ -317,388 +307,6 @@ This bot and the content generated are for research and educational purposes onl
             public CommandArgumentsAttribute(string arguments)
             {
                 Arguments = arguments;
-            }
-        }
-
-        public static async Task HandleCallback(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user) {
-            var a = update.CallbackQuery.Data.Split(" ", 2);
-            var command = a[0];
-
-            var argument = (a[1] is not null ? a[1] : "");
-
-
-            switch (command) {
-                case "/info":
-                    await CallbackCmdInfo(botClient, update, cancellationToken, user, argument);
-                    break;
-                case "/download":
-                    await CallbackCmdDownload(botClient, update, cancellationToken, user, argument);
-                    break;
-                case "/select":
-                    await CallbackCmdSelect(botClient, update, cancellationToken, user, argument);
-                    break;
-                case "/model":
-                    await CallbackCmdModel(botClient, update, cancellationToken, user, argument);
-                    break;
-                case "/help":
-                    await CallbackCmdHelp(botClient, update, cancellationToken, user, argument);
-                    break;
-                case "/donate":
-                    await CallbackCmdDonate(botClient, update, cancellationToken, user, argument);
-                    break;
-            }
-        }
-
-        private static async Task CallbackCmdModel(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user, string? argument = null)
-        {
-
-            long info_id = 0;
-
-            if (argument is null || argument.Length <= 0)
-            {
-                /* await botClient.EditMessageTextAsync(
-                    chatId: update.CallbackQuery.Message.Chat.Id,
-                    text: "Invalid request",
-                    messageId: update.CallbackQuery.Message.MessageId,
-                    cancellationToken: cancellationToken
-                ); */
-
-                return;
-            }
-
-            if (argument == "cancel")
-            {
-                await botClient.EditMessageTextAsync(
-                        chatId: update.CallbackQuery.Message.Chat.Id,
-                        text: "✅ Operation cancelled.",
-                        messageId: update.CallbackQuery.Message.MessageId,
-                        cancellationToken: cancellationToken
-                    );
-            } else {
-                if (argument == "default")
-                    argument = "indigoFurryMix_v105Hybrid"; //Current default
-
-
-                if (await FoxWorker.GetWorkersForModel(argument) is null)
-                {
-                    await botClient.EditMessageTextAsync(
-                        chatId: update.CallbackQuery.Message.Chat.Id,
-                        text: "❌ There are no workers currently available that can handle that model.  Please try again later.",
-                        messageId: update.CallbackQuery.Message.MessageId,
-                        cancellationToken: cancellationToken
-                    );
-                } else {
-                    var settings = await FoxUserSettings.GetTelegramSettings(user, update.CallbackQuery.From, update.CallbackQuery.Message.Chat);
-
-                    settings.model = argument;
-
-                    settings.Save();
-
-                    await botClient.EditMessageTextAsync(
-                            chatId: update.CallbackQuery.Message.Chat.Id,
-                            text: "✅ Model selected: " + argument,
-                            messageId: update.CallbackQuery.Message.MessageId,
-                            cancellationToken: cancellationToken
-                        );
-                }
-
-
-            }
-
-            await botClient.AnswerCallbackQueryAsync(update.CallbackQuery.Id);
-
-        }
-
-        private static async Task CallbackCmdDonate(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user, string? argument = null)
-        {
-            if (argument is null || argument.Length <= 0)
-            {
-                /* await botClient.EditMessageTextAsync(
-                    chatId: update.CallbackQuery.Message.Chat.Id,
-                    text: "Invalid request",
-                    messageId: update.CallbackQuery.Message.MessageId,
-                    cancellationToken: cancellationToken
-                ); */
-
-                return;
-            }
-
-            if (argument == "cancel")
-            {
-                await botClient.EditMessageTextAsync(
-                        chatId: update.CallbackQuery.Message.Chat.Id,
-                        text: "✅ Operation cancelled.",
-                        messageId: update.CallbackQuery.Message.MessageId,
-                        cancellationToken: cancellationToken
-                    );
-            }
-            else if(argument == "custom")
-            {
-                await botClient.EditMessageTextAsync(
-                        chatId: update.CallbackQuery.Message.Chat.Id,
-                        text: "🚧 Not Yet Implemented.",
-                        messageId: update.CallbackQuery.Message.MessageId,
-                        cancellationToken: cancellationToken
-                    );
-            }
-            else
-            {
-                if (string.IsNullOrEmpty(FoxMain.settings?.TelegramPaymentToken))
-                    throw new Exception("Donations are currently disabled. (token not set)");
-
-                var parts = argument.Split(' ');
-                if (parts.Length != 2)
-                    throw new Exception("Invalid input format.");
-
-                if (!decimal.TryParse(parts[0], out decimal amount) || amount < 5)
-                    throw new Exception("Invalid amount.");
-
-                int days;
-                if (parts[1].ToLower() == "lifetime")
-                    days = -1;
-                else if (!int.TryParse(parts[1], out days))
-                    throw new Exception("Invalid days.");
-
-                // Use 'amount' and 'days' as needed
-
-
-                var prices = new[] {
-                    new LabeledPrice(days == -1 ? "Lifetime Access" : $"{days} Days Access", (int)(amount*100)),
-                };
-
-                await botClient.AnswerCallbackQueryAsync(update.CallbackQuery.Id);
-
-                await botClient.SendInvoiceAsync(
-                    chatId: update.CallbackQuery.Message.Chat.Id,
-                    title: $"One-Time Payment for User ID {user.UID}",
-                    description: (days == -1 ? "Lifetime Access" : $"{days} Days Access"),
-                    payload: $"PAY_{user.UID}_{days}", // Unique payload to identify the payment
-                    providerToken: FoxMain.settings?.TelegramPaymentToken,
-                    //startParameter: "payment",
-                    currency: "USD",
-                    prices: prices,
-                    replyMarkup: new InlineKeyboardMarkup(InlineKeyboardButton.WithPayment($"Pay ${amount}"))
-                );
-
-                try
-                {
-                    await botClient.EditMessageTextAsync(
-                        chatId: update.CallbackQuery.Message.Chat.Id,
-                        text: update.CallbackQuery.Message.Text,
-                        messageId: update.CallbackQuery.Message.MessageId,
-                        disableWebPagePreview: true,
-                        cancellationToken: cancellationToken,
-                        entities: update.CallbackQuery.Message.Entities
-                    );
-                }
-                catch { } // We don't care if editing fails
-
-            }
-
-            
-
-        }
-
-        private static async Task CallbackCmdInfo(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user, string? argument = null)
-        {
-
-            long info_id = 0;
-
-            if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
-            {
-                /* await botClient.EditMessageTextAsync(
-                    chatId: update.CallbackQuery.Message.Chat.Id,
-                    text: "Invalid request",
-                    messageId: update.CallbackQuery.Message.MessageId,
-                    cancellationToken: cancellationToken
-                ); */
-
-                return;
-            }
-
-            var q = await FoxQueue.Get(info_id);
-            if (q is null)
-                return;
-
-            var inlineKeyboard = new InlineKeyboardMarkup(new[]
-            {
-                new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("👍", "/vote up " + q.id),
-                    InlineKeyboardButton.WithCallbackData("👎", "/vote down " + q.id),
-                    InlineKeyboardButton.WithCallbackData("💾", "/download " + q.id),
-                    InlineKeyboardButton.WithCallbackData("🎨", "/select " + q.id),
-
-                },
-                //new[]
-                //{
-                //    InlineKeyboardButton.WithCallbackData("Show Details", "/info " + q.id),
-                //}
-            });
-
-            await botClient.AnswerCallbackQueryAsync(update.CallbackQuery.Id);
-
-            if (q is not null && q.TelegramChatID == update.CallbackQuery.Message.Chat.Id)
-            {
-                System.TimeSpan diffResult = DateTime.Now.Subtract(q.creation_time);
-                System.TimeSpan GPUTime = await q.GetGPUTime();
-                Message waitMsg = await botClient.EditMessageTextAsync(
-                    chatId: update.CallbackQuery.Message.Chat.Id,
-                    text: $"🖤Prompt: {q.settings.prompt}\r\n" +
-                          $"🐊Negative: {q.settings.negative_prompt}\r\n" +
-                          $"🖥️ Size: {q.settings.width}x{q.settings.height}\r\n" +
-                          $"🪜Sampler Steps: {q.settings.steps}\r\n" +
-                          $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
-                          $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
-                          $"🧠Model: {q.settings.model}\r\n" +
-                          $"🌱Seed: {q.settings.seed}\r\n" +
-                          (q.worker_id is not null ? $"👷Worker: " + (await FoxWorker.GetWorkerName(q.worker_id) ?? "(unknown)") + "\r\n" : "") +
-                          $"⏳Render Time: {GPUTime.ToPrettyFormat()}\r\n",
-                    messageId: update.CallbackQuery.Message.MessageId,
-                    replyMarkup: inlineKeyboard,
-                    cancellationToken: cancellationToken
-                );
-            }
-        }
-
-        private static async Task CallbackCmdHelp(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user, string? argument = null)
-        {
-
-            int help_id = 1;
-
-            await botClient.AnswerCallbackQueryAsync(update.CallbackQuery.Id);
-
-            if (argument is null || argument.Length <= 0 || !int.TryParse(argument, out help_id))
-                help_id = 1;
-
-            if (help_id < 1 || help_id > text_help.Count())
-                help_id = 1;
-
-            var inlineKeyboard = new InlineKeyboardMarkup(new[]
-                {
-                    new[]
-                    {
-                        InlineKeyboardButton.WithCallbackData("More Help", "/help " + (help_id+1)),
-                    }
-                });
-
-            if (help_id >= text_help.Count())
-                inlineKeyboard = null;
-
-            await botClient.EditMessageReplyMarkupAsync(
-                chatId: update.CallbackQuery.Message.Chat.Id,
-                messageId: update.CallbackQuery.Message.MessageId,
-                replyMarkup: null,
-                cancellationToken: cancellationToken
-            );
-
-            await botClient.SendTextMessageAsync(
-                chatId: update.CallbackQuery.Message.Chat.Id,
-                text: text_help[help_id - 1],
-                replyMarkup: inlineKeyboard,
-                cancellationToken: cancellationToken
-            );
-        }
-
-        private static async Task CallbackCmdDownload(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user, string? argument = null)
-        {
-
-            long info_id = 0;
-
-            if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
-            {
-                /* await botClient.EditMessageTextAsync(
-                    chatId: update.CallbackQuery.Message.Chat.Id,
-                    text: "Invalid request",
-                    messageId: update.CallbackQuery.Message.MessageId,
-                    cancellationToken: cancellationToken
-                ); */
-
-                return;
-            }
-
-            var q = await FoxQueue.Get(info_id);
-
-            await botClient.AnswerCallbackQueryAsync(update.CallbackQuery.Id, "Transferring, please wait...");
-
-            if (q is not null && q.TelegramChatID == update.CallbackQuery.Message.Chat.Id)
-            {
-                var img = await q.LoadOutputImage();
-
-                if (img is null)
-                    throw new Exception("Unable to locate image");
-
-                if (img.TelegramFullFileID is not null)
-                {
-                    Message message = await botClient.SendDocumentAsync(
-                        chatId: q.TelegramChatID,
-                        document: InputFile.FromFileId(img.TelegramFullFileID),
-                        cancellationToken: cancellationToken
-                        );
-                }
-                else if (img is not null)
-                {
-
-                    Message message = await botClient.SendDocumentAsync(
-                        chatId: q.TelegramChatID,
-                        document: InputFile.FromStream(new MemoryStream(img.Image), q.link_token + ".png"),
-                        cancellationToken: cancellationToken
-                        );
-
-                    await img.SaveFullTelegramFileIds(message.Document.FileId, message.Document.FileUniqueId);
-                }
-                else
-                {
-                    await botClient.SendTextMessageAsync(
-                        chatId: update.CallbackQuery.Message.Chat.Id,
-                        text: "❌ Error: Unable to locate image file.",
-                        cancellationToken: cancellationToken
-                        );
-                }
-            }
-        }
-
-        private static async Task CallbackCmdSelect(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken, FoxUser user, string? argument = null)
-        {
-
-            long info_id = 0;
-
-            if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
-            {
-                /* await botClient.EditMessageTextAsync(
-                    chatId: update.CallbackQuery.Message.Chat.Id,
-                    text: "Invalid request",
-                    messageId: update.CallbackQuery.Message.MessageId,
-                    cancellationToken: cancellationToken
-                ); */
-
-                return;
-            }
-
-            var q = await FoxQueue.Get(info_id);
-
-            await botClient.AnswerCallbackQueryAsync(update.CallbackQuery.Id, "Selected");
-
-            if (q is not null && q.TelegramChatID == update.CallbackQuery.Message.Chat.Id)
-            {
-                var settings = await FoxUserSettings.GetTelegramSettings(user, update.CallbackQuery.From, update.CallbackQuery.Message.Chat);
-
-                if (q.image_id is null)
-                    return;
-
-                settings.selected_image = (ulong)q.image_id;
-
-                await settings.Save();
-
-                try
-                {
-                    Message waitMsg = await botClient.SendTextMessageAsync(
-                        chatId: update.CallbackQuery.Message.Chat.Id,
-                        text: "✅ Image selected as input for /img2img",
-                        cancellationToken: cancellationToken
-                        );
-                }
-                catch { }
             }
         }
 
@@ -734,7 +342,7 @@ This bot and the content generated are for research and educational purposes onl
 
         [CommandDescription("Make a one-time monetary donation")]
         [CommandArguments("")]
-        private static async Task CmdDonate(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        private static async Task CmdDonate(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
 
             if (string.IsNullOrEmpty(FoxMain.settings?.TelegramPaymentToken))
@@ -743,33 +351,49 @@ This bot and the content generated are for research and educational purposes onl
             // Define donation amounts in whole dollars
             int[] donationAmounts = new int[] { 5, 10, 20, 40, 60, 100 };
 
-            // Initialize a list to hold button rows, starting with the "Custom Amount" button
-            List<InlineKeyboardButton[]> buttonRows = new List<InlineKeyboardButton[]>();
+            // Initialize a list to hold TL.KeyboardButtonRow for each row of buttons
+            List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
 
-            // Temporary list to hold buttons for the current row
-            List<InlineKeyboardButton> currentRow = new List<InlineKeyboardButton>();
+            // List to accumulate buttons for the current row
+            List<TL.KeyboardButtonCallback> currentRowButtons = new List<TL.KeyboardButtonCallback>();
 
             // Loop through the donation amounts and create buttons
             for (int i = 0; i < donationAmounts.Length; i++)
             {
                 int amountInCents = donationAmounts[i] * 100;
                 int days = CalculateRewardDays(amountInCents);
-                currentRow.Add(InlineKeyboardButton.WithCallbackData($"💳 ${donationAmounts[i]} ({days} days)", $"/donate {donationAmounts[i]} {days}"));
+                string buttonText = $"💳 ${donationAmounts[i]} ({days} days)";
+                string callbackData = $"/donate {donationAmounts[i]} {days}";
+
+                currentRowButtons.Add(new TL.KeyboardButtonCallback { text = buttonText, data = System.Text.Encoding.UTF8.GetBytes(callbackData) });
 
                 // Every two buttons or at the end, add the current row to buttonRows and start a new row
                 if ((i + 1) % 2 == 0 || i == donationAmounts.Length - 1)
                 {
-                    buttonRows.Add(currentRow.ToArray());
-                    currentRow = new List<InlineKeyboardButton>(); // Clear the currentRow by reinitializing it
+                    buttonRows.Add(new TL.KeyboardButtonRow { buttons = currentRowButtons.ToArray() });
+                    currentRowButtons = new List<TL.KeyboardButtonCallback>(); // Reset for the next row
                 }
             }
 
-            buttonRows.Add(new[] { InlineKeyboardButton.WithCallbackData("✨💰 💳 $600 (Lifetime Access!) 💰✨", "/donate 600 lifetime") });
+            // Add lifetime access button
+            buttonRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonCallback[]
+                {
+                    new TL.KeyboardButtonCallback { text = "✨💰 💳 $600 (Lifetime Access!) 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate 600 lifetime") }
+                }
+            });
 
-            //buttonRows.Add(new[] { InlineKeyboardButton.WithCallbackData("Custom Amount", "/donate custom") });
+            // Add cancel button on its own row at the end
+            buttonRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonCallback[]
+                {
+                    new TL.KeyboardButtonCallback { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/donate cancel") }
+                }
+            });
 
-            // Add a cancel button on its own row at the end
-            buttonRows.Add(new[] { InlineKeyboardButton.WithCallbackData("❌ Cancel", "/donate cancel") });
+            var inlineKeyboard = new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() };
 
             var msg = @"
 <b>Support Our Service - Unlock Premium Access</b>
@@ -786,21 +410,22 @@ Our service is provided on a best-effort basis, without express or implied warra
 
 We sincerely appreciate your support and understanding. Your contribution directly impacts our ability to maintain and enhance our service, ensuring a robust platform for all users.";
 
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
+            var entities = t.botClient.HtmlToEntities(ref msg);
+
+            await t.SendMessageAsync(
                 text: msg,
-                replyMarkup: new InlineKeyboardMarkup(buttonRows),
-                parseMode: ParseMode.Html,
+                replyInlineMarkup: inlineKeyboard,
+                entities: entities,
                 disableWebPagePreview: true
             );            
         }
 
         [CommandDescription("It's delicious!")]
         [CommandArguments("<pants level> [<pizza>]")]
-        private static async Task CmdTest(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        private static async Task CmdTest(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
 
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
             settings.prompt = "cute male fox wearing (jeans), holding a (slice of pizza), happy, smiling, (excited), energetic, sitting, solo, vibrant and surreal background, (80's theme), masterpiece, perfect anatomy, shoes";
             settings.negative_prompt = "(female), penis, nsfw, eating, boring_e621_fluffyrock_v4, deformityv6, easynegative, bad anatomy, multi limb, multi tail, ((human)), text, signature, watermark, logo, writing, words";
@@ -810,134 +435,137 @@ We sincerely appreciate your support and understanding. Your contribution direct
             settings.height = 768;
             settings.seed = -1;
 
-            Message waitMsg = await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
+            Message waitMsg = await t.SendMessageAsync(
                 text: $"⏳👖🍕🦊 Please wait...",
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
+                replyToMessageId: message.ID
             );
 
-            await FoxQueue.Add(user, settings, "TXT2IMG", waitMsg.MessageId, message.MessageId);
+            try
+            {
+
+                await FoxQueue.Add(user, t.User, t.Chat, settings, "TXT2IMG", waitMsg.ID, message.ID);
+            }
+            catch (Exception ex) 
+            {
+                FoxLog.WriteLine("Error: " + ex.Message);
+            }
 
             FoxWorker.Ping();
         }
 
-        [CommandDescription("Select your last uploaded image as the input for /img2img")]
-        private static async Task CmdSelect(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
-        {
-            var img = await FoxImage.LoadLastUploaded(user, message.Chat.Id);
+        //[CommandDescription("Select your last uploaded image as the input for /img2img")]
+        //private static async Task CmdSelect(FoxTelegram t, InputPeer tPeer, Message message, FoxUser user, String? argument)
+        //{
+        //    var img = await FoxImage.LoadLastUploaded(user, t.Chat.ID);
 
-            if (img is null)
-            {
-                await botClient.SendTextMessageAsync(
-                        chatId: message.Chat.Id,
-                        text: "❌ Error: You must upload an image first.",
-                        replyToMessageId: message.MessageId,
-                        cancellationToken: cancellationToken
-                        );
+        //    if (img is null)
+        //    {
+        //        await botClient.SendMessageAsync(
+        //                peer: tPeer,
+        //                text: "❌ Error: You must upload an image first.",
+        //                reply_to_msg_id: message.ID
+        //                );
 
-                return;
-            }
+        //        return;
+        //    }
 
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+        //    var settings = await FoxUserSettings.GetTelegramSettings(user, tUser, tChat);
 
-            settings.selected_image = img.ID;
+        //    settings.selected_image = img.ID;
 
-            await settings.Save();
+        //    await settings.Save();
 
-            try {
-                Message waitMsg = await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: "✅ Image saved and selected as input for /img2img",
-                    replyToMessageId: (int)img.TelegramMessageID,
-                    cancellationToken: cancellationToken
-                );
-            } catch {
-                Message waitMsg = await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: "✅ Image saved and selected as input for /img2img",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
-                );
-            }
+        //    try {
+        //        Message waitMsg = await botClient.SendMessageAsync(
+        //            peer: tChat,
+        //            text: "✅ Image saved and selected as input for /img2img",
+        //            reply_to_msg_id: (int)(img.TelegramMessageID ?? message.ID)
+        //        );
+        //    } catch {
+        //        Message waitMsg = await botClient.SendMessageAsync(
+        //            peer: tChat,
+        //            text: "✅ Image saved and selected as input for /img2img",
+        //            reply_to_msg_id: message.ID
+        //        );
+        //    }
 
-        }
+        //}
 
-        [CommandDescription("Show list of available commands")]
-        private static async Task CmdCmdList(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
-        {
-            var commandGroups = CommandMap
-                .GroupBy(pair => pair.Value, pair => pair.Key)
-                .ToDictionary(g => g.Key, g => g.ToList());
+        //[CommandDescription("Show list of available commands")]
+        //private static async Task CmdCmdList(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        //{
+        //    var commandGroups = CommandMap
+        //        .GroupBy(pair => pair.Value, pair => pair.Key)
+        //        .ToDictionary(g => g.Key, g => g.ToList());
 
-            var helpEntries = new List<string>();
-            foreach (var group in commandGroups.OrderBy(g => g.Value.First()))
-            {
-                var command = group.Value.OrderByDescending(cmd => cmd.Length).First();
-                string description = GetCommandDescription(group.Key);
-                string arguments = GetCommandArguments(group.Key);
+        //    var helpEntries = new List<string>();
+        //    foreach (var group in commandGroups.OrderBy(g => g.Value.First()))
+        //    {
+        //        var command = group.Value.OrderByDescending(cmd => cmd.Length).First();
+        //        string description = GetCommandDescription(group.Key);
+        //        string arguments = GetCommandArguments(group.Key);
 
-                if (!string.IsNullOrWhiteSpace(description))
-                {
-                    helpEntries.Add($"{command} {arguments}\n    {description}\n");
-                }
-            }
+        //        if (!string.IsNullOrWhiteSpace(description))
+        //        {
+        //            helpEntries.Add($"{command} {arguments}\n    {description}\n");
+        //        }
+        //    }
 
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: string.Join(Environment.NewLine, helpEntries),
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
-            );
-        }
+        //    await botClient.SendTextMessageAsync(
+        //        chatId: message.Chat.Id,
+        //        text: string.Join(Environment.NewLine, helpEntries),
+        //        replyToMessageId: message.MessageId,
+        //        cancellationToken: cancellationToken
+        //    );
+        //}
 
 
-        private static async Task CmdWelcome(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
-        {
-            var inlineKeyboard = new InlineKeyboardMarkup(new[]
-                {
-                    new[]
-                    {
-                        InlineKeyboardButton.WithCallbackData("More Help", "/help 2"),
-                    }
-                });
+        //private static async Task CmdWelcome(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        //{
+        //    var inlineKeyboard = new InlineKeyboardMarkup(new[]
+        //        {
+        //            new[]
+        //            {
+        //                InlineKeyboardButton.WithCallbackData("More Help", "/help 2"),
+        //            }
+        //        });
 
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: text_help[0] + "\r\n" + text_legal,
-                replyToMessageId: message.MessageId,
-                replyMarkup: inlineKeyboard,
-                cancellationToken: cancellationToken
-            );
+        //    await botClient.SendTextMessageAsync(
+        //        chatId: message.Chat.Id,
+        //        text: text_help[0] + "\r\n" + text_legal,
+        //        replyToMessageId: message.MessageId,
+        //        replyMarkup: inlineKeyboard,
+        //        cancellationToken: cancellationToken
+        //    );
 
-        }
+        //}
 
-        [CommandDescription("Show helpful information")]
-        private static async Task CmdHelp(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
-        {
-            var inlineKeyboard = new InlineKeyboardMarkup(new[]
-                {
-                    new[]
-                    {
-                        InlineKeyboardButton.WithCallbackData("More Help", "/help 2"),
-                    }
-                });
+        //[CommandDescription("Show helpful information")]
+        //private static async Task CmdHelp(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        //{
+        //    var inlineKeyboard = new InlineKeyboardMarkup(new[]
+        //        {
+        //            new[]
+        //            {
+        //                InlineKeyboardButton.WithCallbackData("More Help", "/help 2"),
+        //            }
+        //        });
 
 
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: text_help[0],
-                replyToMessageId: message.MessageId,
-                replyMarkup: inlineKeyboard,
-                cancellationToken: cancellationToken
-            );
-        }
+        //    await botClient.SendTextMessageAsync(
+        //        chatId: message.Chat.Id,
+        //        text: text_help[0],
+        //        replyToMessageId: message.MessageId,
+        //        replyMarkup: inlineKeyboard,
+        //        cancellationToken: cancellationToken
+        //    );
+        //}
 
         [CommandDescription("Run an img2img generation.  Requires you to have previously uploaded an image.")]
         [CommandArguments("[<prompt>]")]
-        private static async Task CmdImg2Img(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String argument)
+        private static async Task CmdImg2Img(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
             if (!string.IsNullOrEmpty(argument))
             {
@@ -947,11 +575,9 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             if (settings.selected_image <= 0 || await FoxImage.Load(settings.selected_image) is null)
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌You must upload or /select an image first to use img2img functions.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
 
                 return;
@@ -959,11 +585,9 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             if (String.IsNullOrEmpty(settings.prompt))
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌You must specify a prompt!  Please seek /help",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
 
                 return;
@@ -982,11 +606,9 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             if (await FoxQueue.GetCount(user.UID) >= q_limit)
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: $"❌ Maximum of {q_limit} queued requests per user.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
 
                 return;
@@ -994,25 +616,20 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             if (await FoxWorker.GetWorkersForModel(settings.model) is null)
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: $"❌ There are no workers available to handle your currently selected model ({settings.model}).\r\n\r\nPlease try again later or select a different /model.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
 
                 return;
             }
 
-            Message waitMsg = await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-
+            Message waitMsg = await t.SendMessageAsync(
                 text: $"⏳ Adding to queue...",
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
+                replyToMessageId: message.ID
             );
 
-            var q = await FoxQueue.Add(user, settings, "IMG2IMG", waitMsg.MessageId, message.MessageId);
+            var q = await FoxQueue.Add(user, t.User, t.Chat, settings, "IMG2IMG", waitMsg.ID, message.ID);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
@@ -1022,9 +639,8 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             try
             {
-                await botClient.EditMessageTextAsync(
-                    chatId: message.Chat.Id,
-                    messageId: waitMsg.MessageId,
+                await t.EditMessageAsync(
+                    id: message.ID,
                     text: $"⏳ In queue ({q.position} of {q.total})..."
                 );
             }
@@ -1032,14 +648,91 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
         }
 
+        [CommandDescription("Run a standard txt2img generation.")]
+        [CommandArguments("[<prompt>]")]
+        private static async Task CmdGenerate(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+
+            if (!string.IsNullOrEmpty(argument))
+            {
+                settings.prompt = argument; //.Replace("\n", ", ");
+                await settings.Save();
+            }
+
+            if (String.IsNullOrEmpty(settings.prompt))
+            {
+                await t.SendMessageAsync(
+                    text: "❌You must specify a prompt!  Please seek /help",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            int q_limit = 1;
+            switch (user.GetAccessLevel())
+            {
+                case AccessLevel.ADMIN:
+                    q_limit = 20;
+                    break;
+                case AccessLevel.PREMIUM:
+                    q_limit = 3;
+                    break;
+            }
+
+            if (await FoxQueue.GetCount(user.UID) >= q_limit)
+            {
+                await t.SendMessageAsync(
+                    text: $"❌Maximum of {q_limit} queued requests per user.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            if (await FoxWorker.GetWorkersForModel(settings.model) is null)
+            {
+                await t.SendMessageAsync(
+                    text: $"❌ There are no workers available to handle your currently selected model ({settings.model}).\r\n\r\nPlease try again later or select a different /model.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            Message waitMsg = await t.SendMessageAsync(
+                text: $"⏳ Adding to queue...",
+                replyToMessageId: message.ID
+            );
+
+            var q = await FoxQueue.Add(user, t.User, t.Chat, settings, "TXT2IMG", waitMsg.ID, message.ID);
+            if (q is null)
+                throw new Exception("Unable to add item to queue");
+
+            await q.CheckPosition(); // Load the queue position and total.
+
+            FoxWorker.Ping();
+
+            try
+            {
+                await t.EditMessageAsync(
+                    id: waitMsg.ID,
+                    text: $"⏳ In queue ({q.position} of {q.total})..."
+                );
+            }
+            catch { FoxLog.WriteLine("WOOP"); }
+        }
+
+
+
         [CommandDescription("Change current AI model.")]
         [CommandArguments("")]
-        private static async Task CmdModel(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String argument)
+        private static async Task CmdModel(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            List<List<InlineKeyboardButton>> keyboardRows = new List<List<InlineKeyboardButton>>();
-            //List<InlineKeyboardButton> currentRow = new List<InlineKeyboardButton>();
+            List<TL.KeyboardButtonRow> keyboardRows = new List<TL.KeyboardButtonRow>();
 
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
             var models = await FoxWorker.GetModels(); // Use the GetModels function here
 
@@ -1048,7 +741,13 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 throw new Exception("No models available.");
             }
 
-            keyboardRows.Add(new List<InlineKeyboardButton> { InlineKeyboardButton.WithCallbackData("Default", "/model default") });
+            keyboardRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonCallback[]
+                {
+                    new TL.KeyboardButtonCallback { text = "Default", data = System.Text.Encoding.UTF8.GetBytes("/model default") }
+                }
+            });
 
             foreach (var model in models)
             {
@@ -1061,116 +760,42 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 if (modelName == settings.model)
                     buttonLabel += " ✅";
 
-                var button = InlineKeyboardButton.WithCallbackData(buttonLabel, buttonData);
-
-                // Add each button as a new row for a single column layout
-                keyboardRows.Add(new List<InlineKeyboardButton> { button });
+                keyboardRows.Add(new TL.KeyboardButtonRow
+                {
+                    buttons = new TL.KeyboardButtonCallback[]
+                    {
+                        new TL.KeyboardButtonCallback { text = buttonLabel, data = System.Text.Encoding.UTF8.GetBytes(buttonData) }
+                    }
+                });
             }
 
-            keyboardRows.Add(new List<InlineKeyboardButton> { InlineKeyboardButton.WithCallbackData("❌ Cancel", "/model cancel") });
+            keyboardRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonCallback[]
+                {
+                    new TL.KeyboardButtonCallback { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/model cancel") }
+                }
+            });
 
-            var inlineKeyboard = new InlineKeyboardMarkup(keyboardRows);
+            var inlineKeyboard = new TL.ReplyInlineMarkup { rows = keyboardRows.ToArray() };
 
             // Send the message with the inline keyboard
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
+
+            // Send the message with the inline keyboard
+
+            // Send the message with the inline keyboard
+            await t.SendMessageAsync(
                 text: "Select a model:",
-                replyMarkup: inlineKeyboard,
-                cancellationToken: cancellationToken
+                replyInlineMarkup: inlineKeyboard
             );
-        }
-
-        [CommandDescription("Run a standard txt2img generation.")]
-        [CommandArguments("[<prompt>]")]
-        private static async Task CmdGenerate(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String argument)
-        {
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
-
-            if (!string.IsNullOrEmpty(argument))
-            {
-                settings.prompt = argument; //.Replace("\n", ", ");
-                await settings.Save();
-            }
-
-            if (String.IsNullOrEmpty(settings.prompt))
-            {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: "❌You must specify a prompt!  Please seek /help",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
-                );
-
-                return;
-            }
-
-            int q_limit = 1;
-            switch (user.GetAccessLevel())
-            {
-                case AccessLevel.ADMIN:
-                    q_limit = 20;
-                    break;
-                case AccessLevel.PREMIUM:
-                    q_limit = 3;
-                    break;
-            }
-
-            if (await FoxQueue.GetCount(user.UID) >= q_limit)
-            {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: $"❌Maximum of {q_limit} queued requests per user.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
-                );
-
-                return;
-            }
-
-            if (await FoxWorker.GetWorkersForModel(settings.model) is null)
-            {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: $"❌ There are no workers available to handle your currently selected model ({settings.model}).\r\n\r\nPlease try again later or select a different /model.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
-                );
-
-                return;
-            }
-
-            Message waitMsg = await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: $"⏳ Adding to queue...",
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
-            );
-
-            var q = await FoxQueue.Add(user, settings, "TXT2IMG", waitMsg.MessageId, message.MessageId);
-            if (q is null)
-                throw new Exception("Unable to add item to queue");
-
-            await q.CheckPosition(); // Load the queue position and total.
-
-            FoxWorker.Ping();
-
-            try
-            {
-                await botClient.EditMessageTextAsync(
-                    chatId: message.Chat.Id,
-                    messageId: waitMsg.MessageId,
-                    text: $"⏳ In queue ({q.position} of {q.total})..."
-                );
-            }
-            catch { }
         }
 
 
         [CommandDescription("Set your negative prompt for this chat or group.  Leave blank to clear.")]
         [CommandArguments("[<negative prompt>]")]
-        private static async Task CmdSetNegative(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        private static async Task CmdSetNegative(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
             if (!string.IsNullOrEmpty(argument))
                 settings.negative_prompt = argument; //.Replace("\n", ", ");
@@ -1179,29 +804,25 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             await settings.Save();
 
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
+            await t.SendMessageAsync(
                 text: (settings.negative_prompt.Length > 0 ? $"✅ Negative prompt set." : "✅ Negative prompt cleared."),
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
+                replyToMessageId: message.ID
             );
         }
 
-        private static async Task CmdInfo(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        private static async Task CmdInfo(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
+            await t.SendMessageAsync(
                 text: $"🦊 Version: " + FoxMain.GetVersion(),
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
+                replyToMessageId: message.ID
             );
         }
 
         [CommandDescription("Set or view your prompt for this chat or group.")]
         [CommandArguments("[<prompt>]")]
-        private static async Task CmdSetPrompt(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        private static async Task CmdSetPrompt(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
             if (!string.IsNullOrEmpty(argument))
             {
@@ -1210,96 +831,88 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
                 await settings.Save();
 
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: $"✅ Prompt set.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
             }
             else
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: $"🖤Current prompt: " + settings.prompt,
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
             }
         }
 
-        [CommandDescription("Set the seed value for the next generation. Default: -1 (random)")]
-        [CommandArguments("[<value>]")]
-        private static async Task CmdSetSeed(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
-        {
+        //[CommandDescription("Set the seed value for the next generation. Default: -1 (random)")]
+        //[CommandArguments("[<value>]")]
+        //private static async Task CmdSetSeed(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        //{
 
-            int seed = 0;
+        //    int seed = 0;
 
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+        //    var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
 
-            if (argument is null || argument.Length <= 0)
-            {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: "Current Seed: " + settings.seed,
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
-                );
-                return;
-            }
+        //    if (argument is null || argument.Length <= 0)
+        //    {
+        //        await botClient.SendTextMessageAsync(
+        //            chatId: message.Chat.Id,
+        //            text: "Current Seed: " + settings.seed,
+        //            replyToMessageId: message.MessageId,
+        //            cancellationToken: cancellationToken
+        //        );
+        //        return;
+        //    }
 
-            if (!int.TryParse(argument, out seed))
-            {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: "❌You must provide a numeric value.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
-                );
+        //    if (!int.TryParse(argument, out seed))
+        //    {
+        //        await botClient.SendTextMessageAsync(
+        //            chatId: message.Chat.Id,
+        //            text: "❌You must provide a numeric value.",
+        //            replyToMessageId: message.MessageId,
+        //            cancellationToken: cancellationToken
+        //        );
 
-                return;
-            }
+        //        return;
+        //    }
 
-            settings.seed = seed;
+        //    settings.seed = seed;
 
-            await settings.Save();
+        //    await settings.Save();
 
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: $"✅ Seed set to {seed}.",
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
-            );
-        }
+        //    await botClient.SendTextMessageAsync(
+        //        chatId: message.Chat.Id,
+        //        text: $"✅ Seed set to {seed}.",
+        //        replyToMessageId: message.MessageId,
+        //        cancellationToken: cancellationToken
+        //    );
+        //}
 
 
         [CommandDescription("Set or view your CFG Scale for this chat or group. Range 0 - 99.0.")]
         [CommandArguments("[<value>]")]
-        private static async Task CmdSetCFG(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        private static async Task CmdSetCFG(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
 
             decimal cfgscale = 0;
 
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
             if (argument is null || argument.Length <= 0)
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "Current CFG Scale: " + settings.cfgscale,
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
                 return;
             }
-            
+
             if (!decimal.TryParse(argument, out cfgscale))
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌You must provide a numeric value.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
 
                 return;
@@ -1309,11 +922,9 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             if (cfgscale < 0 || cfgscale > 99)
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌Value must be between 0 and 99.0.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
 
                 return;
@@ -1323,43 +934,37 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             await settings.Save();
 
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
+            await t.SendMessageAsync(
                 text: $"✅ CFG Scale set to {cfgscale}.",
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
+                replyToMessageId: message.ID
             );
         }
 
         [CommandDescription("Set or view your Denoise Strength for this chat or group, used only by img2img. Range 0 - 1.0.")]
         [CommandArguments("[<value>]")]
-        private static async Task CmdSetDenoise(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        private static async Task CmdSetDenoise(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
 
             decimal cfgscale = 0;
 
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-            var stepstr = message.Text.Split(' ');
+            var stepstr = message.message.Split(' ');
 
             if (stepstr.Count() < 2)
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "Current Denoising Strength: " + settings.denoising_strength,
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
                 return;
             }
 
             if (stepstr.Count() > 2 || !decimal.TryParse(stepstr[1], out cfgscale))
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌You must provide a numeric value.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
 
                 return;
@@ -1369,11 +974,9 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             if (cfgscale < 0 || cfgscale > 1)
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌Value must be between 0 and 1.0.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
 
                 return;
@@ -1383,43 +986,37 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             await settings.Save();
 
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
+            await t.SendMessageAsync(
                 text: $"✅ Denoising Strength set to {cfgscale}.",
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
+                replyToMessageId: message.ID
             );
         }
 
         [CommandDescription("Set or view your sampler steps for this chat or group.  Range varies based on load and account type.")]
         [CommandArguments("[<value>]")]
-        private static async Task CmdSetSteps(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        private static async Task CmdSetSteps(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
 
             int steps = 0;
 
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-            var stepstr = message.Text.Split(' ');
+            var stepstr = message.message.Split(' ');
 
             if (stepstr.Count() < 2)
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "Current steps value: " + settings.steps,
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
                 return;
             }
 
             if (stepstr.Count() > 2 || !stepstr[1].All(char.IsDigit))
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌You must provide an integer value.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
 
                 return;
@@ -1429,11 +1026,9 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             if (steps > 20 && !user.CheckAccessLevel(AccessLevel.PREMIUM))
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌ Only premium users can exceed 20 steps.\r\n\r\nConsider making a donation: /donate",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
 
                 if (settings.steps > 20)
@@ -1446,11 +1041,9 @@ We sincerely appreciate your support and understanding. Your contribution direct
             }
             else if (steps < 1 || (steps > 30 && !user.CheckAccessLevel(AccessLevel.ADMIN)))
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌ Value must be above 1 and below 30.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
 
                 return;
@@ -1460,22 +1053,19 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             await settings.Save();
 
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
+            await t.SendMessageAsync(
                 text: $"✅ Steps set to {steps}.",
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
+                replyToMessageId: message.ID
             );
         }
 
         [CommandDescription("Show all of your currently configured settings for this chat or group.")]
-        private static async Task CmdCurrent(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        private static async Task CmdCurrent(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
             await settings.Save(); // Save the settings just in case this is a new chat, to init the defaults so we don't look like a liar later.
 
-            Message waitMsg = await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
+            Message waitMsg = await t.SendMessageAsync(
                 text: $"🖤Prompt: {settings.prompt}\r\n" +
                       $"🐊Negative: {settings.negative_prompt}\r\n" +
                       $"🖥️Size: {settings.width}x{settings.height}\r\n" +
@@ -1484,137 +1074,134 @@ We sincerely appreciate your support and understanding. Your contribution direct
                       $"👂Denoising Strength: {settings.denoising_strength}\r\n" +
                       $"🧠Model: {settings.model}\r\n" +
                       $"🌱Seed: {settings.seed}\r\n",
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
+                replyToMessageId: message.ID
             );
         }
 
-        [CommandDescription("Cancel all pending requests.")]
-        [CommandArguments("")]
-        private static async Task CmdCancel(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
-        {
-            int count = 0;
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+        //[CommandDescription("Cancel all pending requests.")]
+        //[CommandArguments("")]
+        //private static async Task CmdCancel(WTelegram.Client botClient, User tUser, ChatBase? tChat, InputPeer tPeer, Message message, FoxUser user, String? argument)
+        //{
+        //    int count = 0;
+        //    using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
-            await SQL.OpenAsync();
+        //    await SQL.OpenAsync();
 
-            var cancelMsg = await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: $"⏳ Cancelling...",
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
-            );
+        //    var cancelMsg = await botClient.SendTextMessageAsync(
+        //        chatId: message.Chat.Id,
+        //        text: $"⏳ Cancelling...",
+        //        replyToMessageId: message.MessageId,
+        //        cancellationToken: cancellationToken
+        //    );
 
-            List<ulong> pendingIds = new List<ulong>();
+        //    List<ulong> pendingIds = new List<ulong>();
 
-            using (var cmd2 = new MySqlCommand("SELECT id,msg_id,tele_chatid FROM queue WHERE uid = @id AND status = 'PENDING' OR status = 'ERROR'", SQL))
-            {
-                cmd2.Parameters.AddWithValue("id", user.UID);
-                using var reader = await cmd2.ExecuteReaderAsync();
+        //    using (var cmd2 = new MySqlCommand("SELECT id,msg_id,tele_chatid FROM queue WHERE uid = @id AND status = 'PENDING' OR status = 'ERROR'", SQL))
+        //    {
+        //        cmd2.Parameters.AddWithValue("id", user.UID);
+        //        using var reader = await cmd2.ExecuteReaderAsync();
 
-                while (await reader.ReadAsync())
-                {
-                    ulong q_id = reader.GetUInt64("id");
-                    long chat_id = reader.GetInt64("tele_chatid");
-                    int msg_id = reader.GetInt32("msg_id");
+        //        while (await reader.ReadAsync())
+        //        {
+        //            ulong q_id = reader.GetUInt64("id");
+        //            long chat_id = reader.GetInt64("tele_chatid");
+        //            int msg_id = reader.GetInt32("msg_id");
 
-                    try
-                    {
-                        await botClient.EditMessageTextAsync(
-                            chatId: chat_id,
-                            messageId: msg_id,
-                            text: "❌ Cancelled."
-                        );
-                    } catch
-                    {
-                        //Don't care about this failure.
-                    }
+        //            try
+        //            {
+        //                await botClient.EditMessageTextAsync(
+        //                    chatId: chat_id,
+        //                    messageId: msg_id,
+        //                    text: "❌ Cancelled."
+        //                );
+        //            } catch
+        //            {
+        //                //Don't care about this failure.
+        //            }
 
-                    pendingIds.Add(q_id);
+        //            pendingIds.Add(q_id);
 
-                    count++;
-                }
-            }
+        //            count++;
+        //        }
+        //    }
 
-            if (pendingIds.Count > 0)
-            {
-                // Create a comma-separated list of IDs for the SQL query
-                var idsString = string.Join(",", pendingIds);
-                using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
-                {
-                    await cmd3.ExecuteNonQueryAsync();
-                }
-            }
+        //    if (pendingIds.Count > 0)
+        //    {
+        //        // Create a comma-separated list of IDs for the SQL query
+        //        var idsString = string.Join(",", pendingIds);
+        //        using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
+        //        {
+        //            await cmd3.ExecuteNonQueryAsync();
+        //        }
+        //    }
 
 
-            List<ulong> processingIds = new List<ulong>();
+        //    List<ulong> processingIds = new List<ulong>();
 
-            using (var cmd2 = new MySqlCommand("SELECT id,worker,msg_id,tele_chatid FROM queue WHERE uid = @id AND status = 'PROCESSING'", SQL))
-            {
-                cmd2.Parameters.AddWithValue("id", user.UID);
-                using var r = await cmd2.ExecuteReaderAsync();
+        //    using (var cmd2 = new MySqlCommand("SELECT id,worker,msg_id,tele_chatid FROM queue WHERE uid = @id AND status = 'PROCESSING'", SQL))
+        //    {
+        //        cmd2.Parameters.AddWithValue("id", user.UID);
+        //        using var r = await cmd2.ExecuteReaderAsync();
 
-                while (await r.ReadAsync())
-                {
-                    int? worker_id = (r["worker"] is DBNull) ? null : r.GetInt32("worker");
-                    ulong q_id = r.GetUInt64("id");
-                    long chat_id = r.GetInt64("tele_chatid");
-                    int msg_id = r.GetInt32("msg_id");
+        //        while (await r.ReadAsync())
+        //        {
+        //            int? worker_id = (r["worker"] is DBNull) ? null : r.GetInt32("worker");
+        //            ulong q_id = r.GetUInt64("id");
+        //            long chat_id = r.GetInt64("tele_chatid");
+        //            int msg_id = r.GetInt32("msg_id");
 
-                    if (worker_id is not null && FoxWorker.CancelIfUserMatches(worker_id.Value, user.UID))
-                        processingIds.Add(q_id);
+        //            if (worker_id is not null && FoxWorker.CancelIfUserMatches(worker_id.Value, user.UID))
+        //                processingIds.Add(q_id);
 
-                    try {
-                        await botClient.EditMessageTextAsync(
-                            chatId: chat_id,
-                            messageId: msg_id,
-                            text: "⏳ Cancelling..."
-                        );
+        //            try {
+        //                await botClient.EditMessageTextAsync(
+        //                    chatId: chat_id,
+        //                    messageId: msg_id,
+        //                    text: "⏳ Cancelling..."
+        //                );
 
-                    }
-                    catch
-                    {
-                        //Don't care about this failure.
-                    }
+        //            }
+        //            catch
+        //            {
+        //                //Don't care about this failure.
+        //            }
 
-                    count++;
-                }
-            }
+        //            count++;
+        //        }
+        //    }
 
-            if (processingIds.Count > 0)
-            {
-                // Create a comma-separated list of IDs for the SQL query
-                var idsString = string.Join(",", processingIds);
-                using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
-                {
-                    await cmd3.ExecuteNonQueryAsync();
-                }
-            }
+        //    if (processingIds.Count > 0)
+        //    {
+        //        // Create a comma-separated list of IDs for the SQL query
+        //        var idsString = string.Join(",", processingIds);
+        //        using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
+        //        {
+        //            await cmd3.ExecuteNonQueryAsync();
+        //        }
+        //    }
 
-            await botClient.EditMessageTextAsync(
-                chatId: message.Chat.Id,
-                text: $"✅ Cancelled {count} items.",
-                messageId: cancelMsg.MessageId,
-                cancellationToken: cancellationToken
-            );
-        }
+        //    await botClient.EditMessageTextAsync(
+        //        chatId: message.Chat.Id,
+        //        text: $"✅ Cancelled {count} items.",
+        //        messageId: cancelMsg.MessageId,
+        //        cancellationToken: cancellationToken
+        //    );
+        //}
 
         [CommandDescription("Change the size of the output, e.g. /setsize 768x768")]
         [CommandArguments("<width>x<height>")]
-        private static async Task CmdSetSize(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken, FoxUser user, String? argument)
+        private static async Task CmdSetSize(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             int width;
             int height;
 
-            var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
             if (argument is null || argument.Length <= 0)
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "🖥️ Current size: " + settings.width + "x" + settings.height,
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
                 return;
             }
@@ -1624,48 +1211,38 @@ We sincerely appreciate your support and understanding. Your contribution direct
             if (args.Length != 2 || args[0] is null || args[1] is null ||
                 !int.TryParse(args[0].Trim(), out width) || !int.TryParse(args[1].Trim(), out height))
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌ Value must be in the format of [width]x[height].  Example: /setsize 768x768",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
                 return;
             }
 
             if (width < 512 || height < 512)
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌ Dimenion should be at least 512 pixels.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
                 return;
             }
 
             if ((width > 1024 || height > 1024) && !user.CheckAccessLevel(AccessLevel.PREMIUM))
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌ Only premium users can exceed 1024 pixels in any direction.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
                 return;
             } else if (width > 1280 || height > 1280 && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
+                await t.SendMessageAsync(
                     text: "❌ Dimension cannot be greater than 1280.",
-                    replyToMessageId: message.MessageId,
-                    cancellationToken: cancellationToken
+                    replyToMessageId: message.ID
                 );
                 return;
             }
 
-
-            
             var msgString = "";
 
             /*
@@ -1688,11 +1265,9 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             await settings.Save();
 
-            await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
+            await t.SendMessageAsync(
                 text: msgString,
-                replyToMessageId: message.MessageId,
-                cancellationToken: cancellationToken
+                replyToMessageId: message.ID
             );;
         }
     }

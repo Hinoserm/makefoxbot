@@ -5,13 +5,6 @@ using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
-using Telegram.Bot;
-using Telegram.Bot.Exceptions;
-using Telegram.Bot.Polling;
-using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
-using Telegram.Bot.Types.InlineQueryResults;
-using Telegram.Bot.Types.ReplyMarkups;
 using System;
 using System.IO;
 using SixLabors.ImageSharp;
@@ -19,13 +12,16 @@ using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
 
 using Config.Net;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
-using Telegram.Bot.Types.Payments;
+using WTelegram;
 using makefoxsrv;
+using TL;
+using System.Text.RegularExpressions;
+using System.Threading.Channels;
+using static System.Net.Mime.MediaTypeNames;
+
 
 public interface IMySettings
 {
@@ -37,6 +33,12 @@ public interface IMySettings
 
     [Option(Alias = "Telegram.API_URL")]
     string TelegramApiUrl { get; }
+
+    [Option(Alias = "Telegram.API_ID")]
+    int? TelegramApiId { get; }
+
+    [Option(Alias = "Telegram.API_HASH")]
+    string TelegramApiHash { get; }
 
     [Option(Alias = "MySQL.USERNAME")]
     string MySQLUsername { get; }
@@ -136,95 +138,109 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "REPLACE INTO telegram_users (id, username, firstname, lastname, is_premium, date_updated) VALUES (@id, @username, @firstname, @lastname, @is_premium, CURRENT_TIMESTAMP())";
-                    cmd.Parameters.AddWithValue("id", user.Id);
-                    cmd.Parameters.AddWithValue("username", user.Username);
-                    cmd.Parameters.AddWithValue("firstname", user.FirstName);
-                    cmd.Parameters.AddWithValue("lastname", user.LastName);
-                    cmd.Parameters.AddWithValue("is_premium", user.IsPremium);
+                    cmd.CommandText = "REPLACE INTO telegram_users (id, access_hash, username, firstname, lastname, date_updated) VALUES (@id, @access_hash, @username, @firstname, @lastname, @now)";
+                    cmd.Parameters.AddWithValue("id", user.ID);
+                    cmd.Parameters.AddWithValue("access_hash", user.access_hash);
+                    cmd.Parameters.AddWithValue("username", user.username);
+                    cmd.Parameters.AddWithValue("firstname", user.first_name);
+                    cmd.Parameters.AddWithValue("lastname", user.last_name);
+                    //cmd.Parameters.AddWithValue("is_premium", user.IsPremium);
+                    cmd.Parameters.AddWithValue("now", DateTime.Now);
 
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
         }
 
-        static async Task updateTelegramChats(Chat? chat)
+        static async Task updateTelegramChats(ChatBase? chat)
         {
-            if (chat is null)
-                return;
+            try {
+                if (chat is null)
+                    return;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
-            {
-                await SQL.OpenAsync();
-
-                using (var cmd = new MySqlCommand())
+                using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                 {
-                    cmd.Connection = SQL;
-                    cmd.CommandText = "REPLACE INTO telegram_chats (id, username, firstname, lastname, title, description, bio, type, date_updated) VALUES (@id, @username, @firstname, @lastname, @title, @description, @bio, @type, CURRENT_TIMESTAMP())";
-                    cmd.Parameters.AddWithValue("id", chat.Id);
-                    cmd.Parameters.AddWithValue("username", chat.Username);
-                    cmd.Parameters.AddWithValue("firstname", chat.FirstName);
-                    cmd.Parameters.AddWithValue("lastname", chat.LastName);
-                    cmd.Parameters.AddWithValue("title", chat.Title);
-                    cmd.Parameters.AddWithValue("description", chat.Description);
-                    cmd.Parameters.AddWithValue("bio", chat.Bio);
-                    cmd.Parameters.AddWithValue("type", chat.Type.ToString().ToUpper());
+                    await SQL.OpenAsync();
 
-                    await cmd.ExecuteNonQueryAsync();
-                }
-            }
-        }
 
-        static async Task RunHandlerThread(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
-        {
-            if (botClient is null)
-                throw new ArgumentNullException(nameof(botClient));
-
-            if (update is null)
-                throw new ArgumentNullException(nameof(update));
-            
-            if (update.Message is not null)
-            {
-                try
-                {
-                    var message = update.Message;
-
-                    if (message is null || message.From is null)
-                        throw new ArgumentNullException();
-
-                    if (message.From.Id != message.Chat.Id)
-                        _ = updateTelegramChats(message.Chat); //Skip the 'await' since we don't care about the results.
-                    _ = updateTelegramUsers(message.From);     //Change this later if this function starts caring about these tables.
-
-                    //FoxLog.WriteLine(message.Type);
-
-                    if (message.Type == MessageType.SuccessfulPayment)
+                    using (var cmd = new MySqlCommand())
                     {
-                        if (message?.SuccessfulPayment is null)
-                            throw new ArgumentNullException();
+                        long? adminFlags = null;
 
-                        var user = await FoxUser.GetByTelegramUser(message.From, true);
+                        TL.Channel group = (TL.Channel)chat;
+                        var admin = group.admin_rights;
+                        if (admin is not null)
+                            adminFlags = ((long)admin.flags);
 
-                        if (user is not null)
+                        var groupType = "GROUP";
+
+                        if (chat.IsChannel)
                         {
-                            var pay = message.SuccessfulPayment;
-
-                            string input = pay.InvoicePayload;
-                            string[] parts = input.Split('_');
-                            if (parts.Length != 3 || parts[0] != "PAY" || !long.TryParse(parts[1], out long recvUID) || !int.TryParse(parts[2], out int days))
+                            groupType = "CHANNEL";
+                        }
+                        else if (chat.IsGroup)
+                        {
+                            groupType = "GROUP";
+                            if (group.flags.HasFlag(TL.Channel.Flags.megagroup))
                             {
-                                throw new System.Exception("Malformed payment request!  Contact /support");
+                                groupType = "SUPERGROUP";
                             }
+                            else if (group.flags.HasFlag(TL.Channel.Flags.gigagroup))
+                            {
+                                groupType = "GIGAGROUP";
+                            }
+                        }
 
-                            var recvUser = await FoxUser.GetByUID(recvUID);
+                        cmd.Connection = SQL;
+                        cmd.CommandText = "REPLACE INTO telegram_chats (id, access_hash, active, username, title, type, admin_flags, participants, date_updated) VALUES (@id, @access_hash, @active, @username, @title, @type, @admin_flags, @participants, @now)";
+                        cmd.Parameters.AddWithValue("id", chat.ID);
+                        cmd.Parameters.AddWithValue("access_hash", group.access_hash);
+                        cmd.Parameters.AddWithValue("active", group.IsActive);
+                        cmd.Parameters.AddWithValue("username", group.MainUsername);
+                        //cmd.Parameters.AddWithValue("firstname", chat.f);
+                        //cmd.Parameters.AddWithValue("lastname", chat.LastName);
+                        cmd.Parameters.AddWithValue("title", chat.Title);
+                        //cmd.Parameters.AddWithValue("description", chat.Description);
+                        //cmd.Parameters.AddWithValue("bio", chat.Bio);
+                        cmd.Parameters.AddWithValue("type", groupType);
+                        cmd.Parameters.AddWithValue("admin_flags", adminFlags);
+                        cmd.Parameters.AddWithValue("participants", group.participants_count);
+                        cmd.Parameters.AddWithValue("now", DateTime.Now);
 
-                            if (recvUser is null)
-                                throw new System.Exception("Unknown UID in payment request!  Contact /support");
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+                }
 
-                            await recvUser.recordPayment(pay.TotalAmount, pay.Currency, days, pay.InvoicePayload, pay.TelegramPaymentChargeId, pay.ProviderPaymentChargeId);
-                            FoxLog.WriteLine($"Payment recorded for user {recvUID} by {user.UID}: ({pay.TotalAmount}, {pay.Currency}, {days}, {pay.InvoicePayload}, {pay.TelegramPaymentChargeId}, {pay.ProviderPaymentChargeId})");
+            }
+            catch (Exception ex)
+            {
+                FoxLog.WriteLine("updateTelegramChats error: " + ex.Message);
+            }
+    }
 
-                            var msg = @$"
+        static async Task HandlePayment(FoxTelegram t, MessageService ms, MessageActionPaymentSentMe payment)
+        {
+            var user = await FoxUser.GetByTelegramUser(t.User, true);
+
+            if (user is not null)
+            {
+                
+                string payload = System.Text.Encoding.ASCII.GetString(payment.payload);
+                string[] parts = payload.Split('_');
+                if (parts.Length != 3 || parts[0] != "PAY" || !long.TryParse(parts[1], out long recvUID) || !int.TryParse(parts[2], out int days))
+                {
+                    throw new System.Exception("Malformed payment request!  Contact /support");
+                }
+
+                var recvUser = await FoxUser.GetByUID(recvUID);
+
+                if (recvUser is null)
+                    throw new System.Exception("Unknown UID in payment request!  Contact /support");
+
+                await recvUser.recordPayment((int)payment.total_amount, payment.currency, days, payload, payment.charge.id, payment.charge.provider_charge_id);
+                FoxLog.WriteLine($"Payment recorded for user {recvUID} by {user.UID}: ({payment.total_amount}, {payment.currency}, {days}, {payload}, {payment.charge.id}, {payment.charge.provider_charge_id})");
+
+                var msg = @$"
 <b>Thank You for Your Generous Support!</b>
 
 We are deeply grateful for your donation, which is vital for our platform's sustainability and growth.
@@ -233,192 +249,187 @@ Your contribution has granted you <b>{(days == -1 ? "lifetime" : $"{days} days o
 
 We are committed to using your donation to further develop and maintain the service, supporting our mission to provide a creative and expansive platform for our users. Thank you for being an integral part of our journey and for empowering us to continue offering a high-quality service.
 ";
-                            await botClient.SendTextMessageAsync(
-                                        chatId: message.Chat.Id,
-                                        text: msg,
-                                        replyToMessageId: update.Message.MessageId,
-                                        parseMode: ParseMode.Html,
-                                        disableWebPagePreview: true,
-                                        cancellationToken: cancellationToken
-                                    );
+                var entities = t.botClient.HtmlToEntities(ref msg);
 
-                            //await botClient.DeleteMessageAsync(message.Chat.Id, message.MessageId);
-                        }
+                await t.SendMessageAsync(
+                            text: msg,
+                            replyToMessageId: ms.id,
+                            entities: entities,
+                            disableWebPagePreview: true
+                        );
 
-                    }
-                    else if (message.Type == MessageType.Photo)
+                //await botClient.DeleteMessageAsync(message.Chat.Id, message.MessageId);
+            }
+
+                //    }
+                //}
+                //catch (Exception ex)
+                //{
+                //    Message waitMsg = await botClient.SendTextMessageAsync(
+                //        chatId: update.Message.Chat.Id,
+                //        text: "❌ Error! \"" + ex.Message + "\"",
+                //        replyToMessageId: update.Message.MessageId,
+                //        cancellationToken: cancellationToken
+                //    );
+                //    FoxLog.WriteLine("Error processing: " + ex.Message);
+                //}
+        }
+
+        static async Task HandleMessageAsync(FoxTelegram t, Message msg)
+        {
+            // Only process text messages
+
+            FoxLog.WriteLine($"{msg.from_id} in {msg.peer_id}> {msg.message}");
+
+            if (msg.message is not null)
+            {
+                _ = FoxCommandHandler.HandleCommand(t, msg);
+
+                try
+                {
+                    using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                     {
+                        await SQL.OpenAsync();
 
-                        try
+                        using (var cmd = new MySqlCommand())
                         {
+                            cmd.Connection = SQL;
+                            cmd.CommandText = "INSERT INTO telegram_log (user_id, chat_id, message_text, date_added) VALUES (@tele_id, @tele_chatid, @message, @now)";
+                            cmd.Parameters.AddWithValue("tele_id", t.User.ID);
+                            cmd.Parameters.AddWithValue("tele_chatid", t.Chat is not null ? t.Chat.ID : null);
+                            cmd.Parameters.AddWithValue("message", msg.message);
+                            cmd.Parameters.AddWithValue("now", DateTime.Now);
 
-                            FoxLog.WriteLine($"Got a photo from {message.From.Username} ({message.From.Id})!");
+                            await cmd.ExecuteNonQueryAsync();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.WriteLine("telegram_log error: " + ex.Message);
+                }
+            }
+        }
 
-                            var user = await FoxUser.GetByTelegramUser(message.From, true);
+        static async Task HandleUpdateAsync(WTelegram.Client botClient, UpdatesBase updates, CancellationTokenSource cts)
+        {
+            updates.CollectUsersChats(FoxTelegram.Users, FoxTelegram.Chats);
 
-                            if (user is not null)
+            foreach (KeyValuePair<long, User> item in updates.Users)
+            {
+                await updateTelegramUsers(item.Value);
+            }
+
+            foreach (KeyValuePair<long, ChatBase> item in updates.Chats)
+            {
+                await updateTelegramChats(item.Value);
+            }
+
+            foreach (var update in updates.UpdateList)
+            {
+                try
+                {
+                    User? user = null;
+                    ChatBase? chat = null;
+                    InputPeer? peer = null;
+                    FoxTelegram? t = null;
+
+                    FoxLog.WriteLine("Update type from Telegram: " + update.GetType().Name);
+
+                    switch (update)
+                    {
+                        case UpdateNewMessage unm:
+                            FoxLog.WriteLine("UNM.TYPE:" + unm.GetType());
+
+                            switch (unm.message)
                             {
+                                case Message m:
 
-                                await user.UpdateTimestamps();
+                                    FoxLog.WriteLine("M.TYPE:" + m.GetType());
 
-                                var photo = message?.Photo?.Last();
+                                    updates.Users.TryGetValue(m.from_id ?? m.peer_id, out user);
+                                    updates.Chats.TryGetValue(m.peer_id, out chat);
 
-                                if (photo is null)
-                                    throw new Exception("Unexpected null photo object received from Telegram");
+                                    if (user is null)
+                                        throw new Exception("Invalid telegram user");
 
-                                var img = await FoxImage.LoadFromTelegramUniqueId(user.UID, photo.FileUniqueId, message!.Chat.Id);
+                                    t = new FoxTelegram(botClient, user, chat);
 
-                                if (img is not null)
-                                {
-                                    FoxLog.WriteLine("Image found by Telegram unique ID.  ID: " + img.ID);
-                                    if (message.Chat.Id != img.TelegramChatID)
+                                    if (m.media is MessageMediaPhoto { photo: Photo photo })
                                     {
-                                        var newimg = await FoxImage.Create(user.UID, img.Image, FoxImage.ImageType.INPUT, img.Filename, img.TelegramFileID, img.TelegramUniqueID, message.Chat.Id, message.MessageId);
-
-                                        img = newimg;
-                                    }
-                                }
-                                else
-                                {
-                                    if (botClient.LocalBotServer)
-                                    {
-                                        var file = await botClient.GetFileAsync(photo.FileId);
-
-                                        img = await FoxImage.Create(user.UID, System.IO.File.ReadAllBytes(file.FilePath), FoxImage.ImageType.INPUT, file.FilePath, file.FileId, file.FileUniqueId, message.Chat.Id, message.MessageId);
-
-                                        System.IO.File.Delete(file.FilePath);
+                                        _= FoxImage.SaveImageFromTelegram(t, m, photo);
                                     }
                                     else
                                     {
-                                        using var imgStream = new MemoryStream();
-
-                                        var file = await botClient.GetInfoAndDownloadFileAsync(photo.FileId, imgStream);
-
-                                        img = await FoxImage.Create(user.UID, imgStream.ToArray(), FoxImage.ImageType.INPUT, file.FilePath, file.FileId, file.FileUniqueId, message.Chat.Id, message.MessageId);
-
+                                        _= HandleMessageAsync(t, m);
                                     }
 
-                                    FoxLog.WriteLine("Image saved.  ID: " + img.ID);
-                                }
+                                    break;
+                                case MessageService ms:
+                                    switch (ms.action)
+                                    {
+                                        case MessageActionPaymentSentMe payment:
 
-                                if (message.From.Id == message.Chat.Id) //Only save & notify outside of groups.
-                                {
-                                    var settings = await FoxUserSettings.GetTelegramSettings(user, message.From, message.Chat);
+                                            updates.Users.TryGetValue(ms.from_id ?? ms.peer_id, out user);
+                                            updates.Chats.TryGetValue(ms.peer_id, out chat);
 
-                                    settings.selected_image = img.ID;
+                                            if (user is null)
+                                                throw new Exception("Invalid telegram user");
 
-                                    await settings.Save();
+                                            t = new FoxTelegram(botClient, user, chat);
 
-                                    Message waitMsg = await botClient.SendTextMessageAsync(
-                                        chatId: message.Chat.Id,
-                                        text: "✅ Image saved and selected as input for /img2img",
-                                        replyToMessageId: update.Message.MessageId,
-                                        cancellationToken: cancellationToken
-                                    );
-                                }
+                                            await HandlePayment(t, ms, payment);
+                                            break;
+                                    }
+                                    break;
                             }
-                        }
-                        catch (Exception ex)
-                        {
-                            FoxLog.WriteLine("Error with input image: " + ex.Message);
-                        }
-                    }
 
+                            break;
+                        case UpdateBotCallbackQuery ucbk:
+                            updates.Users.TryGetValue(ucbk.user_id, out user);
 
+                            if (user is null)
+                                throw new Exception("Invalid telegram user");
 
-                    // Only process text messages
-                    if (message.Text is { } messageText)
-                    {
-                        var chatId = message.Chat.Id;
+                            var p = updates.UserOrChat(ucbk.peer);
 
-                        _= FoxCommandHandler.HandleCommand(botClient, message, cancellationToken);
+                            if (p is ChatBase c)
+                                chat = c;
 
-                        try
-                        {
-                            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
-                            {
-                                await SQL.OpenAsync();
+                            t = new FoxTelegram(botClient, user, chat);
+                            
+                            FoxLog.WriteLine($"Callback: {user} in {chat}> {System.Text.Encoding.ASCII.GetString(ucbk.data)}");
 
-                                using (var cmd = new MySqlCommand())
-                                {
-                                    cmd.Connection = SQL;
-                                    cmd.CommandText = "INSERT INTO telegram_log (user_id, chat_id, message_text, date_added) VALUES (@tele_id, @tele_chatid, @message, CURRENT_TIMESTAMP())";
-                                    cmd.Parameters.AddWithValue("tele_id", message.From.Id);
-                                    cmd.Parameters.AddWithValue("tele_chatid", message.Chat.Id);
-                                    cmd.Parameters.AddWithValue("message", messageText);
+                            _= FoxCallbacks.Handle(t, ucbk, System.Text.Encoding.ASCII.GetString(ucbk.data));
 
-                                    await cmd.ExecuteNonQueryAsync();
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            FoxLog.WriteLine("telegram_log error: " + ex.Message);
-                        }
-
-                        FoxLog.WriteLine($"Received a '{messageText}' message in chat {chatId} from {message.From.Username}.");
+                            break;
+                        case UpdateBotPrecheckoutQuery upck:
+                            await botClient.Messages_SetBotPrecheckoutResults(upck.query_id, null, true);
+                            break;
+                        default:
+                            FoxLog.WriteLine("Unexpected update type from Telegram: " + update.GetType().Name);
+                            break; // there are much more update types than the above example cases
                     }
                 }
                 catch (Exception ex)
                 {
-                    Message waitMsg = await botClient.SendTextMessageAsync(
-                        chatId: update.Message.Chat.Id,
-                        text: "❌ Error! \"" + ex.Message + "\"",
-                        replyToMessageId: update.Message.MessageId,
-                        cancellationToken: cancellationToken
-                    );
-                    FoxLog.WriteLine("Error processing: " + ex.Message);
-                }
-            } else if (update.CallbackQuery is not null) {
-                try
-                {
-                    var user = await FoxUser.GetByTelegramUser(update.CallbackQuery.From);
-
-                    FoxLog.WriteLine("Callback! " + update.CallbackQuery.Data);
-
-                    if (user is not null)
-                        await FoxCommandHandler.HandleCallback(botClient, update, cancellationToken, user);
-                }
-                catch (Exception ex)
-                {
-                    FoxLog.WriteLine("Error processing callback: " + ex.Message);
+                    FoxLog.WriteLine("Error in HandleUpdateAsync: " + ex.Message);
                 }
             }
         }
 
-        static async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
-        {
-
-            if (update.Type == UpdateType.PreCheckoutQuery)
-            {
-                await botClient.AnswerPreCheckoutQueryAsync(update.PreCheckoutQuery!.Id, cancellationToken: cancellationToken);
-
-                return;
-            }
-
-            // Only process Message updates: https://core.telegram.org/bots/api#message
-            if (update.Message is null && update.CallbackQuery is null && update.Message?.SuccessfulPayment is null)
-            {
-                FoxLog.WriteLine("Unexpected type of update received from Telegram: " + update.Type);
-                return;
-            }
-            //FoxLog.WriteLine("Update Type: " + update.Type);
-
-            _ = RunHandlerThread(botClient, update, cancellationToken);
-        }
-
-        static Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
-        {
-            var ErrorMessage = exception switch
-            {
-                ApiRequestException apiRequestException
-                    => $"Telegram API Error:\n[{apiRequestException.ErrorCode}]\n{apiRequestException.Message}",
-                _ => exception.ToString()
-            };
-
-            FoxLog.WriteLine("Error: " + ErrorMessage);
-            return Task.CompletedTask;
-        }
+        //static Task HandlePollingErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
+        //{
+        //    var ErrorMessage = exception switch
+        //    {
+        //        ApiRequestException apiRequestException
+        //            => $"Telegram API Error:\n[{apiRequestException.ErrorCode}]\n{apiRequestException.Message}",
+        //        _ => exception.ToString()
+        //    };
+        //
+        //    FoxLog.WriteLine("Error: " + ErrorMessage);
+        //    return Task.CompletedTask;
+        //}
 
         static void LoadSettings(string filename = "conf/settings.ini")
         {
@@ -448,6 +459,8 @@ We are committed to using your donation to further develop and maintain the serv
             var attribute = (AssemblyInformationalVersionAttribute)Attribute.GetCustomAttribute(assembly, typeof(AssemblyInformationalVersionAttribute));
             return attribute?.InformationalVersion; // This will include the version and Git revision
         }
+
+        public static WTelegram.Client? botClient;
 
         static async Task Main(string[] args)
         {
@@ -495,39 +508,30 @@ We are committed to using your donation to further develop and maintain the serv
 
             await FoxSettings.LoadSettingsAsync();
 
-            //var botClient = new TelegramBotClient("6970653264:AAFG_Ohd04pVLKXJHzPCzsXH3OPPTxs8TqA");
+            if (settings.TelegramApiId is null)
+                throw new Exception("API_ID setting not set.");
+            if (settings.TelegramApiHash is null)
+                throw new Exception("API_HASH setting not set.");
 
             if (settings.TelegramBotToken is null)
                 throw new Exception("BOT_TOKEN setting not set.");
 
-            var teleOptions = new TelegramBotClientOptions(
-                token: settings.TelegramBotToken,
-                baseUrl: settings.TelegramApiUrl //Might be null, and that's okay.
-            );
-
-            TelegramBotClient botClient = new TelegramBotClient(teleOptions);
-
-            
-
-            // StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
-            ReceiverOptions receiverOptions = new()
-            {
-                AllowedUpdates = Array.Empty<UpdateType>() // receive all update types except ChatMember related updates
+            WTelegram.Helpers.Log = (i, s) => {
+                FoxLog.WriteLine(s, LogLevel.LOG_DEBUG);
             };
 
-            FoxMain.me = await botClient.GetMeAsync();
-            
+            botClient = new WTelegram.Client(settings.TelegramApiId ?? 0, settings.TelegramApiHash, "../conf/telegram.session");
+
+            botClient.OnUpdate += (e) => HandleUpdateAsync(botClient, e, cts);
+
             //Load workers BEFORE processing input from telegram.
             await FoxWorker.LoadWorkers(botClient);
 
-            botClient.StartReceiving(
-                updateHandler: HandleUpdateAsync,
-                pollingErrorHandler: HandlePollingErrorAsync,
-                receiverOptions: receiverOptions,
-                cancellationToken: cts.Token
-            );
+            await botClient.LoginBotIfNeeded(settings.TelegramBotToken); 
 
-            await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
+            FoxLog.WriteLine($"We are logged-in as {botClient.User} (id {botClient.User.id})");            
+
+            //await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
 
             using (var cmd = new MySqlCommand($"UPDATE queue SET status = 'PENDING' WHERE status = 'PROCESSING'", sql))
             {
@@ -535,8 +539,8 @@ We are committed to using your donation to further develop and maintain the serv
                 FoxLog.WriteLine($"Unstuck {stuck_count} queue items.");
             }
 
-            FoxLog.WriteLine($"Start listening for @{me.Username}");
-            FoxLog.WriteLine($"Bot ID: {me.Id}");
+            //FoxLog.WriteLine($"Start listening for @{me.Username}");
+            //FoxLog.WriteLine($"Bot ID: {me.Id}");
 
             await FoxWorker.StartWorkers();
 

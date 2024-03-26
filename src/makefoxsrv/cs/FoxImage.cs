@@ -5,10 +5,12 @@ using System.Linq;
 using System.Text;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
-using Telegram.Bot.Types;
 using System.Runtime.CompilerServices;
 using SixLabors.ImageSharp.Memory;
-using Telegram.Bot.Types.ReplyMarkups;
+using WTelegram;
+using makefoxsrv;
+using TL;
+using System.IO;
 
 namespace makefoxsrv
 {
@@ -308,6 +310,49 @@ namespace makefoxsrv
         {
             using var sha1 = SHA1.Create();
             return Convert.ToHexString(sha1.ComputeHash(input));
+        }
+        
+        public static async Task SaveImageFromTelegram(FoxTelegram t, Message message, Photo photo)
+        {
+            try
+            {
+                FoxLog.WriteLine($"Got a photo from {t.User} ({message.ID})!");
+
+                var user = await FoxUser.GetByTelegramUser(t.User, true);
+
+                if (user is not null)
+                {
+                    await user.UpdateTimestamps();
+
+                    MemoryStream memoryStream = new MemoryStream();
+
+                    var fileType = await t.botClient.DownloadFileAsync(photo, memoryStream);
+                    var fileName = $"{photo.id}.jpg";
+                    if (fileType is not Storage_FileType.unknown and not Storage_FileType.partial)
+                        fileName = $"{photo.id}.{fileType}";
+                    //var fileHash = sha1hash(memoryStream.ToArray());
+
+                    var newImg = await FoxImage.Create(user.UID, memoryStream.ToArray(), FoxImage.ImageType.INPUT, fileName, null, null, t.Chat is null ? null : t.Chat.ID, message.ID);
+
+                    if (t.Chat is null) //Only save & notify outside of groups.
+                    {
+                        var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+
+                        settings.selected_image = newImg.ID;
+
+                        await settings.Save();
+
+                        await t.SendMessageAsync(
+                            text: "✅ Image saved and selected as input for /img2img",
+                            replyToMessageId: message.ID
+                        );
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FoxLog.WriteLine("Error with input image: " + ex.Message);
+            }
         }
     }
 }

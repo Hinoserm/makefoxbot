@@ -1,6 +1,5 @@
 ﻿using Autofocus;
 using Autofocus.Models;
-using makefoxsrv;
 using MySqlConnector;
 using System;
 using System.Collections.Concurrent;
@@ -11,14 +10,12 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
-using Telegram.Bot;
-using Telegram.Bot.Types;
-using Telegram.Bot.Types.ReplyMarkups;
-using Newtonsoft.Json.Linq;
 using static makefoxsrv.FoxWorker;
 using System.Text.RegularExpressions;
 using Autofocus.Config;
+using WTelegram;
 using makefoxsrv;
+using TL;
 
 namespace makefoxsrv
 {
@@ -33,7 +30,7 @@ namespace makefoxsrv
         private StableDiffusion? api;
         public bool online = true;       //Worker online status
         private FoxQueue? qitem = null;   //If we're operating, this is the current queue item being processed.
-        private TelegramBotClient? botClient = null;
+        private WTelegram.Client? botClient = null;
 
         public string name;
 
@@ -51,7 +48,7 @@ namespace makefoxsrv
 
 
         // Constructor to initialize the botClient and address
-        private FoxWorker(TelegramBotClient botClient, int worker_id, string address, string name)
+        private FoxWorker(WTelegram.Client botClient, int worker_id, string address, string name)
         {
             this.address = address;
             this.id = worker_id;
@@ -61,7 +58,7 @@ namespace makefoxsrv
             this.botClient = botClient;
         }
 
-        private static FoxWorker CreateWorker(TelegramBotClient botClient, int worker_id, string address, string name)
+        private static FoxWorker CreateWorker(WTelegram.Client botClient, int worker_id, string address, string name)
         {
             var worker = new FoxWorker(botClient, worker_id, address, name);
 
@@ -96,7 +93,7 @@ namespace makefoxsrv
             return null;
         }
 
-        public static async Task LoadWorkers(TelegramBotClient botClient)
+        public static async Task LoadWorkers(WTelegram.Client botClient)
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
@@ -609,14 +606,13 @@ namespace makefoxsrv
 
                     try
                     {
-                        if (this.PercentComplete > 3.0 && (notifyTimer >= 3000))
+                        if (this.PercentComplete > 3.0 && (notifyTimer >= 3000) && q.telegram is not null)
                         {
                             notifyTimer = 0;
-                            await botClient.EditMessageTextAsync(
-                                chatId: q.TelegramChatID,
-                                messageId: q.msg_id,
+                            await q.telegram.EditMessageAsync(
+                                id: q.msg_id,
                                 text: $"⏳ Generating now ({(int)this.PercentComplete}%)..."
-                                );
+                            );
                         }
                     }
                     catch
@@ -753,11 +749,15 @@ namespace makefoxsrv
 
                         using var comboCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, cts_stop.Token);
 
+                        var t = q.telegram;
+
+                        if (t is null)
+                            throw new Exception("Telegram object not initialized");
+
                         try
                         {
-                            await botClient.EditMessageTextAsync(
-                                chatId: q.TelegramChatID,
-                                messageId: q.msg_id,
+                            await t.EditMessageAsync(
+                                id: q.msg_id,
                                 text: $"⏳ Generating now..."
                             );
                         }
@@ -888,7 +888,7 @@ namespace makefoxsrv
                         progress_cts.Cancel();
 
                         await q.Finish();
-                        _ = FoxSendQueue.Enqueue(botClient, q);
+                        _ = FoxSendQueue.Send(q);
 
                         //FoxLog.WriteLine($"Finished image {q.id}.");
 
@@ -907,10 +907,8 @@ namespace makefoxsrv
 
                             var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null);
                             response.EnsureSuccessStatusCode();
-
-                            _ = botClient.EditMessageTextAsync(
-                                chatId: qitem.TelegramChatID,
-                                messageId: qitem.msg_id,
+                            _ = qitem.telegram.EditMessageAsync(
+                                id: qitem.msg_id,
                                 text: "❌ Cancelled."
                             );
                         } catch { throw;  }
@@ -927,9 +925,8 @@ namespace makefoxsrv
 
                         try
                         {
-                            await botClient.EditMessageTextAsync(
-                                chatId: q.TelegramChatID,
-                                messageId: q.msg_id,
+                            await q.telegram.EditMessageAsync(
+                                id: q.msg_id,
                                 text: $"⏳ Error (will re-attempt soon)"
                             );
                         }

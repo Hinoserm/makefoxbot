@@ -1,5 +1,4 @@
 ﻿using MySqlConnector;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -12,8 +11,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Telegram.Bot;
-using Telegram.Bot.Types;
+using WTelegram;
+using makefoxsrv;
+using TL;
 
 namespace makefoxsrv
 {
@@ -36,14 +36,17 @@ namespace makefoxsrv
         public FoxUser? user = null;
         public ulong id;
         public ulong UID;
-        public long TelegramUserID;
-        public long TelegramChatID;
         public long reply_msg;
         public string type;
         public int msg_id;
         public DateTime creation_time;
         public DateTime? date_sent = null;
         public string? link_token = null;
+
+        public long telegramUserId;
+        public long? telegramChatId = null;
+
+        public FoxTelegram? telegram;
 
         public int? worker_id = null;
 
@@ -152,85 +155,85 @@ namespace makefoxsrv
         }
 
         private static CancellationTokenSource notify_cts = new CancellationTokenSource();
-        public static async Task NotifyUserPositions(ITelegramBotClient botClient, CancellationTokenSource notify_cts)
+        public static async Task NotifyUserPositions(WTelegram.Client botClient, CancellationTokenSource notify_cts)
         {
 
             return;
 
-            while(true)
-            {
-                try
-                {
-                    using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
-                    {
-                        await SQL.OpenAsync(notify_cts.Token);
+            //while(true)
+            //{
+            //    try
+            //    {
+            //        using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            //        {
+            //            await SQL.OpenAsync(notify_cts.Token);
 
-                        long totalPending = 0;
+            //            long totalPending = 0;
 
-                        using (var totalCmd = new MySqlCommand())
-                        {
-                            totalCmd.Connection = SQL;
-                            totalCmd.CommandText = "SELECT COUNT(*) FROM queue WHERE status = 'PENDING'";
-                            totalPending = Convert.ToInt64(await totalCmd.ExecuteScalarAsync(notify_cts.Token));
-                        }
+            //            using (var totalCmd = new MySqlCommand())
+            //            {
+            //                totalCmd.Connection = SQL;
+            //                totalCmd.CommandText = "SELECT COUNT(*) FROM queue WHERE status = 'PENDING'";
+            //                totalPending = Convert.ToInt64(await totalCmd.ExecuteScalarAsync(notify_cts.Token));
+            //            }
 
-                        using (var cmd = new MySqlCommand())
-                        {
-                            var userCount = 0;
+            //            using (var cmd = new MySqlCommand())
+            //            {
+            //                var userCount = 0;
 
-                            cmd.Connection = SQL;
-                            cmd.CommandText = cmd.CommandText = @"
-                                SELECT
-                                    id,
-                                    msg_id,
-                                    tele_chatid,
-                                    ROW_NUMBER() OVER (ORDER BY date_added ASC) AS position_in_queue
-                                FROM
-                                    queue
-                                WHERE
-                                    status = 'PENDING';
-                                ";
+            //                cmd.Connection = SQL;
+            //                cmd.CommandText = cmd.CommandText = @"
+            //                    SELECT
+            //                        id,
+            //                        msg_id,
+            //                        tele_chatid,
+            //                        ROW_NUMBER() OVER (ORDER BY date_added ASC) AS position_in_queue
+            //                    FROM
+            //                        queue
+            //                    WHERE
+            //                        status = 'PENDING';
+            //                    ";
 
-                            await using var r = await cmd.ExecuteReaderAsync(notify_cts.Token);
-                            while (await r.ReadAsync(notify_cts.Token) && !notify_cts.IsCancellationRequested)
-                            {
-                                var id = Convert.ToInt64(r["id"]);
-                                var position = Convert.ToInt64(r["position_in_queue"]);
-                                var msg_id = Convert.ToInt32(r["msg_id"]);
-                                var chatid = Convert.ToInt64(r["tele_chatid"]);
+            //                await using var r = await cmd.ExecuteReaderAsync(notify_cts.Token);
+            //                while (await r.ReadAsync(notify_cts.Token) && !notify_cts.IsCancellationRequested)
+            //                {
+            //                    var id = Convert.ToInt64(r["id"]);
+            //                    var position = Convert.ToInt64(r["position_in_queue"]);
+            //                    var msg_id = Convert.ToInt32(r["msg_id"]);
+            //                    var chatid = Convert.ToInt64(r["tele_chatid"]);
 
-                                if (++userCount > 10) //pause every 10 updates just to be safe.
-                                    await Task.Delay(2000, notify_cts.Token);
+            //                    if (++userCount > 10) //pause every 10 updates just to be safe.
+            //                        await Task.Delay(2000, notify_cts.Token);
 
-                                try
-                                {
-                                    await botClient.EditMessageTextAsync(
-                                        chatId: chatid,
-                                        messageId: msg_id,
-                                        text: $"⏳ In queue ({position} of {totalPending})...",
-                                        cancellationToken: notify_cts.Token
-                                    );
+            //                    try
+            //                    {
+            //                        await botClient.EditMessageTextAsync(
+            //                            chatId: chatid,
+            //                            messageId: msg_id,
+            //                            text: $"⏳ In queue ({position} of {totalPending})...",
+            //                            cancellationToken: notify_cts.Token
+            //                        );
 
-                                }
-                                catch (Exception ex) {
-                                    //We don't care if editing fails.
-                                    //FoxLog.WriteLine(ex.Message);
-                                }
+            //                    }
+            //                    catch (Exception ex) {
+            //                        //We don't care if editing fails.
+            //                        //FoxLog.WriteLine(ex.Message);
+            //                    }
 
-                                await Task.Delay(1000, notify_cts.Token);
-                            }
-                        }
+            //                    await Task.Delay(1000, notify_cts.Token);
+            //                }
+            //            }
 
-                    }
-                }
-                catch (Exception ex)
-                {
-                    FoxLog.WriteLine("Error in NotifyUserPositions(): " + ex.Message);
-                }
+            //        }
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        FoxLog.WriteLine("Error in NotifyUserPositions(): " + ex.Message);
+            //    }
 
-                await semaphore.WaitAsync(1000, notify_cts.Token);
-                await Task.Delay(3000, notify_cts.Token);
-            }
+            //    await semaphore.WaitAsync(1000, notify_cts.Token);
+            //    await Task.Delay(3000, notify_cts.Token);
+            //}
         }
 
         public static async Task<FoxQueue?> Get(long id)
@@ -245,7 +248,13 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = cmd.CommandText = "SELECT * FROM queue WHERE id = @id";
+                    cmd.CommandText = @"
+                            SELECT queue.*, telegram_users.access_hash as user_access_hash, telegram_chats.access_hash as chat_access_hash
+                            FROM queue
+                            JOIN telegram_users ON telegram_users.id = queue.tele_id
+                            LEFT JOIN telegram_chats ON telegram_chats.id = queue.tele_chatid
+                            WHERE queue.id = @id;
+                        ";
                     cmd.Parameters.AddWithValue("id", id);
 
                     await using var r = await cmd.ExecuteReaderAsync();
@@ -253,9 +262,14 @@ namespace makefoxsrv
                     {
                         q.id = Convert.ToUInt64(r["id"]);
                         q.UID = Convert.ToUInt64(r["uid"]);
-                        q.TelegramUserID = Convert.ToInt64(r["tele_id"]);
-                        q.TelegramChatID = Convert.ToInt64(r["tele_chatid"]);
+                        q.telegramUserId = Convert.ToInt64(r["tele_id"]);
+                        if (!(r["tele_chatid"] is DBNull))
+                            q.telegramChatId = Convert.ToInt64(r["tele_chatid"]);
+
+                        q.telegram = new FoxTelegram(FoxMain.botClient, q.telegramUserId, Convert.ToInt64(r["user_access_hash"]), q.telegramChatId, r["chat_access_hash"] is DBNull ? null : Convert.ToInt64(r["chat_access_hash"]));
+
                         q.type = Convert.ToString(r["type"]);
+                        
 
                         if (!(r["steps"] is DBNull))
                             settings.steps = Convert.ToInt16(r["steps"]);
@@ -320,15 +334,20 @@ namespace makefoxsrv
                             cmd.Connection = SQL;
                             cmd.Transaction = transaction;
                             cmd.CommandText = @"
-SELECT q.*, (SELECT COUNT(*) FROM queue WHERE status IN ('PENDING', 'ERROR')) AS processing_count
+SELECT q.*, 
+       (SELECT COUNT(*) FROM queue WHERE status IN ('PENDING', 'ERROR')) AS processing_count,
+       tu.access_hash AS user_access_hash, 
+       tc.access_hash AS chat_access_hash
 FROM queue q
 INNER JOIN users u ON q.uid = u.id
 INNER JOIN worker_models wm ON q.model = wm.model_name AND wm.worker_id = @worker_id
 INNER JOIN workers w ON w.id = @worker_id
+LEFT JOIN telegram_users tu ON tu.id = q.tele_id
+LEFT JOIN telegram_chats tc ON tc.id = q.tele_chatid
 WHERE 
     q.status IN ('PENDING', 'ERROR')
     AND (w.max_img_size IS NULL OR q.width * q.height <= w.max_img_size)
-    AND (w.max_img_steps IS NULL OR steps <= w.max_img_steps)
+    AND (w.max_img_steps IS NULL OR q.steps <= w.max_img_steps)
 ORDER BY 
     CASE 
         WHEN q.status = 'PENDING' THEN 1
@@ -341,9 +360,10 @@ ORDER BY
         WHEN u.access_level = 'PREMIUM' THEN 1
         ELSE 2
     END,
-    q.date_added ASC 
-LIMIT 1 
-FOR UPDATE;";
+    q.date_added ASC
+LIMIT 1
+FOR UPDATE;
+";
                             cmd.Parameters.AddWithValue("now", DateTime.Now);
                             cmd.Parameters.AddWithValue("worker_id", worker_id);
 
@@ -356,8 +376,12 @@ FOR UPDATE;";
 
                                 q.id = Convert.ToUInt64(r["id"]);
                                 q.UID = Convert.ToUInt64(r["uid"]);
-                                q.TelegramUserID = Convert.ToInt64(r["tele_id"]);
-                                q.TelegramChatID = Convert.ToInt64(r["tele_chatid"]);
+                                q.telegramUserId = Convert.ToInt64(r["tele_id"]);
+                                if (!(r["tele_chatid"] is DBNull))
+                                    q.telegramChatId = Convert.ToInt64(r["tele_chatid"]);
+
+                                q.telegram = new FoxTelegram(FoxMain.botClient, q.telegramUserId, Convert.ToInt64(r["user_access_hash"]), q.telegramChatId, r["chat_access_hash"] is DBNull ? null : Convert.ToInt64(r["chat_access_hash"]));
+
                                 q.type = Convert.ToString(r["type"]);
 
                                 if (!(r["steps"] is DBNull))
@@ -620,7 +644,7 @@ FOR UPDATE;";
             return number;
         }
 
-        public static async Task<FoxQueue?> Add(FoxUser user, FoxUserSettings settings, string type, int msg_id, long? reply_msg = null)
+        public static async Task<FoxQueue?> Add(FoxUser user, TL.User tUser, TL.ChatBase? tChat, FoxUserSettings settings, string type, int msg_id, long? reply_msg = null)
         {
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
@@ -628,8 +652,14 @@ FOR UPDATE;";
 
                 var q = new FoxQueue();
 
-                q.TelegramUserID = settings.TelegramUserID;
-                q.TelegramChatID = settings.TelegramChatID;
+                q.telegramUserId = tUser.ID;
+                if (tChat is not null)
+                {
+                    q.telegramChatId = tChat.ID;
+                }
+
+                q.telegram = new FoxTelegram(FoxMain.botClient, tUser, tChat);
+
                 q.UID = user.UID;
                 q.user = user;
                 q.creation_time = DateTime.Now;
@@ -647,8 +677,8 @@ FOR UPDATE;";
                     cmd.CommandText = "INSERT INTO queue (status, type, uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed, reply_msg, msg_id, date_added, link_token, model) VALUES ('PENDING', @type, @uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @reply_msg, @msg_id, @now, @token, @model)";
                     cmd.Parameters.AddWithValue("uid", user.UID);
                     cmd.Parameters.AddWithValue("type", q.type);
-                    cmd.Parameters.AddWithValue("tele_id", q.TelegramUserID);
-                    cmd.Parameters.AddWithValue("tele_chatid", q.TelegramChatID);
+                    cmd.Parameters.AddWithValue("tele_id", q.telegramUserId);
+                    cmd.Parameters.AddWithValue("tele_chatid", q.telegramChatId);
                     cmd.Parameters.AddWithValue("steps", settings.steps);
                     cmd.Parameters.AddWithValue("cfgscale", settings.cfgscale);
                     cmd.Parameters.AddWithValue("prompt", settings.prompt);

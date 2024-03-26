@@ -5,13 +5,13 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using Telegram.Bot.Types.ReplyMarkups;
-using Telegram.Bot.Types;
-using Telegram.Bot;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
 using System.Text.RegularExpressions;
+using WTelegram;
+using makefoxsrv;
+using TL;
 
 //This isn't properly implemented yet; we really need a way to handle Telegram's rate limits by using a proper message queue.
 // For now we just push the message to the user and hope for the best.
@@ -25,19 +25,21 @@ namespace makefoxsrv
             return null;
         }
 
-        public static async Task Enqueue(ITelegramBotClient botClient, FoxQueue q)
+        public static async Task Send(FoxQueue q)
         {
-
             if (q.output_image is not null)
             {
+                var t = q.telegram;
+
+                if (t is null)
+                    throw new Exception("Telegram object not initalized!");
 
                 await q.SetSending();
 
                 try
                 {
-                    await botClient.EditMessageTextAsync(
-                        chatId: q.TelegramChatID,
-                        messageId: q.msg_id,
+                    await t.EditMessageAsync(
+                        id: q.msg_id,
                         text: $"⏳ Uploading..."
                     );
                 }
@@ -51,13 +53,9 @@ namespace makefoxsrv
 
                 try
                 {
-                    var msg = await botClient.SendPhotoAsync(
-                        chatId: q.TelegramChatID,
-                        photo: InputFile.FromStream(ConvertImageToJpeg(new MemoryStream(q.output_image.Image))),
-                        replyToMessageId: (int)q.reply_msg
-                        );
+                    var inputImage = await t.botClient.UploadFileAsync(new MemoryStream(q.output_image.Image), "image.png");
 
-                    output_fileid = msg.Photo.First().FileId;
+                    var msg = await t.botClient.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
                 }
                 catch (Exception ex)
                 {
@@ -65,11 +63,9 @@ namespace makefoxsrv
                     {
                         try
                         {
-                            var msg = await botClient.SendPhotoAsync(
-                                chatId: q.TelegramChatID,
-                                photo: InputFile.FromStream(ConvertImageToJpeg(new MemoryStream(q.output_image.Image)))
-                                );
-                            output_fileid = msg.Photo.First().FileId;
+                            var inputImage = await t.botClient.UploadFileAsync(new MemoryStream(q.output_image.Image), "image.png");
+
+                            var msg = await t.botClient.SendMediaAsync(q.telegram.Peer, "", inputImage);
                         }
                         catch (Exception ex2)
                         {
@@ -82,37 +78,42 @@ namespace makefoxsrv
 
                 try
                 {
-                    await botClient.DeleteMessageAsync(
-                        chatId: q.TelegramChatID,
-                        messageId: q.msg_id
-                    );
+                    await t.DeleteMessage(q.msg_id);
                 }
                 catch { } // We don't care if editing fails
 
-                if (true || q.TelegramChatID == q.TelegramUserID) // Only offer the buttons in private chats, not groups.
+                //if (true || q.TelegramChatID == q.TelegramUserID) // Only offer the buttons in private chats, not groups.
                 {
-                    var inlineKeyboard = new InlineKeyboardMarkup(new[]
+                    // Construct the inline keyboard buttons and rows
+                    var inlineKeyboardButtons = new ReplyInlineMarkup()
                     {
-                        new[]
+                        rows = new TL.KeyboardButtonRow[]
                         {
-                            InlineKeyboardButton.WithCallbackData("👍", "/vote up " + q.id),
-                            InlineKeyboardButton.WithCallbackData("👎", "/vote down " + q.id),
-                            InlineKeyboardButton.WithCallbackData("💾", "/download " + q.id),
-                            InlineKeyboardButton.WithCallbackData("🎨", "/select " + q.id),
-                        },
-                        new[]
-                        {
-                            InlineKeyboardButton.WithCallbackData("Show Details", "/info " + q.id),
+                            new TL.KeyboardButtonRow {
+                                buttons = new TL.KeyboardButtonCallback[]
+                                {
+                                    new TL.KeyboardButtonCallback { text = "👍", data = System.Text.Encoding.ASCII.GetBytes("/vote up " + q.id) },
+                                    new TL.KeyboardButtonCallback { text = "👎", data = System.Text.Encoding.ASCII.GetBytes("/vote down " + q.id) },
+                                    new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.id)},
+                                    new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.id)},
+                                }
+                            },
+                            new TL.KeyboardButtonRow
+                            {
+                                buttons = new TL.KeyboardButtonCallback[]
+                                {
+                                    new TL.KeyboardButtonCallback { text = "Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.id)},
+                                }
+                            }
                         }
-                    });
+                    };
 
                     System.TimeSpan diffResult = DateTime.Now.Subtract(q.creation_time);
                     System.TimeSpan GPUTime = await q.GetGPUTime();
 
-                    await botClient.SendTextMessageAsync(
-                        chatId: q.TelegramChatID,
+                    await t.SendMessageAsync(
                         text: $"✅ Complete! (Took {diffResult.ToPrettyFormat()} - GPU: {GPUTime.ToPrettyFormat()}",
-                        replyMarkup: inlineKeyboard
+                        replyInlineMarkup: inlineKeyboardButtons
                     );
                 }
 
@@ -122,91 +123,11 @@ namespace makefoxsrv
 
                 bool success = false;
                 //while (!success)
-                while (false) //Disabled for now.
-                {
-                    try
-                    {
-                        // Attempt to run the operation that might fail
-                        var u = await FoxTelegramUser.Get(q.TelegramUserID);
-                        var c = (q.TelegramUserID != q.TelegramChatID ? await FoxTelegramChat.Get(q.TelegramChatID) : null);
-
-                        if (q.input_image is not null)
-                        {
-                            IAlbumInputMedia[] inputMedia = {
-                            new InputMediaPhoto(new InputFileStream(ConvertImageToJpeg(new MemoryStream(q.input_image.Image)), "input"))
-                            {
-                                //Caption = $"(<a href=\"http://makefox.bot/q/{q.link_token}\">Click for Details</a>)",
-                                Caption =
-                                    (u is null ? "" : $"👤User: {u.display_name}\r\n") +
-                                    (c is null ? "" : $"💬Chat: {c.title}\r\n") +
-                                    $"🖤Prompt: " + q.settings.prompt.Left(600) + "\r\n" +
-                                    $"🐊Negative: " + q.settings.negative_prompt.Left(200) + "\r\n" +
-                                    $"🖥️ Size: {q.settings.width}x{q.settings.height}\r\n" +
-                                    $"🪜Sampler Steps: {q.settings.steps}\r\n" +
-                                    $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
-                                    $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
-                                    $"🧠Model: {q.settings.model}\r\n" +
-                                    $"🌱Seed: {q.settings.seed}\r\n",
-                                    //$"⚙️Worker: {q.settings.model}\r\n",
-                                },
-                                new InputMediaPhoto(new InputFileId(output_fileid))
-                            };
-
-                            await botClient.SendMediaGroupAsync(
-                                chatId: -1002039506384,
-                                media: inputMedia
-                                );
-
-                        }
-                        else
-                        {
-                            await botClient.SendPhotoAsync(
-                                chatId: -1002039506384,
-                                photo: new InputFileId(output_fileid),
-                                caption: (u is null ? "" : $"👤User: {u.display_name}\r\n") +
-                                         (c is null ? "" : $"💬Chat: {c.title}\r\n") +
-                                         $"🖤Prompt: " + q.settings.prompt.Left(600) + "\r\n" +
-                                         $"🐊Negative: " + q.settings.negative_prompt.Left(200) + "\r\n" +
-                                         $"🖥️ Size: {q.settings.width}x{q.settings.height}\r\n" +
-                                         $"🪜Sampler Steps: {q.settings.steps}\r\n" +
-                                         $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
-                                         $"🧠Model: {q.settings.model}\r\n" +
-                                         $"🌱Seed: {q.settings.seed}\r\n"
-                                );
-                        }
-
-                        success = true;
-                    }
-                    catch (Exception ex)
-                    {
-                        // Pattern to match "Too Many Requests: retry after XX"
-                        string pattern = @"Too Many Requests: retry after (\d+)";
-                        Match match = Regex.Match(ex.Message, pattern);
-
-                        if (match.Success)
-                        {
-                            // If the message matches, extract the number
-                            int retryAfterSeconds = int.Parse(match.Groups[1].Value) + 3;
-                            FoxLog.WriteLine($"Rate limit exceeded. Retrying after {retryAfterSeconds} seconds...");
-
-                            // Wait for the specified number of seconds before retrying
-                            await Task.Delay(retryAfterSeconds * 1000);
-                        }
-                        else
-                        {
-                            // If the message doesn't match the expected format, rethrow the exception
-                            throw;
-                        }
-                    }
-
-                }
-
             } else {
                 try
                 {
-                    await botClient.EditMessageTextAsync(
-                        chatId: q.TelegramChatID,
-                        messageId: q.msg_id,
+                    await q.telegram.EditMessageAsync(
+                        id: q.msg_id,
                         text: $"❌ An unexpected error occured.  Please try again."
                     );
                     FoxLog.WriteLine("SendQueue: Unexpected error; output image was null.");

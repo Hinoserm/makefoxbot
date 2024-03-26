@@ -15,6 +15,9 @@ settings.ini
 *.sln.docstates
 settings.ini
 settings.php
+WTelegram.session
+telegram.session
+*.session
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
