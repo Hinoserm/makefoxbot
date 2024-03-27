@@ -112,7 +112,7 @@ namespace makefoxsrv
 
                 await commandHandler(t, message, fUser, argument);
             }
-            else if (message.from_id == message.peer_id)
+            else if (t.Chat is null)
             {
 
                 await t.SendMessageAsync(
