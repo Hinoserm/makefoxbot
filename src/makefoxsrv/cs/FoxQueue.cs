@@ -266,10 +266,9 @@ namespace makefoxsrv
                         if (!(r["tele_chatid"] is DBNull))
                             q.telegramChatId = Convert.ToInt64(r["tele_chatid"]);
 
-                        q.telegram = new FoxTelegram(FoxMain.botClient, q.telegramUserId, Convert.ToInt64(r["user_access_hash"]), q.telegramChatId, r["chat_access_hash"] is DBNull ? null : Convert.ToInt64(r["chat_access_hash"]));
+                        q.telegram = new FoxTelegram(q.telegramUserId, Convert.ToInt64(r["user_access_hash"]), q.telegramChatId, r["chat_access_hash"] is DBNull ? null : Convert.ToInt64(r["chat_access_hash"]));
 
                         q.type = Convert.ToString(r["type"]);
-                        
 
                         if (!(r["steps"] is DBNull))
                             settings.steps = Convert.ToInt16(r["steps"]);
@@ -380,7 +379,7 @@ FOR UPDATE;
                                 if (!(r["tele_chatid"] is DBNull))
                                     q.telegramChatId = Convert.ToInt64(r["tele_chatid"]);
 
-                                q.telegram = new FoxTelegram(FoxMain.botClient, q.telegramUserId, Convert.ToInt64(r["user_access_hash"]), q.telegramChatId, r["chat_access_hash"] is DBNull ? null : Convert.ToInt64(r["chat_access_hash"]));
+                                q.telegram = new FoxTelegram(q.telegramUserId, Convert.ToInt64(r["user_access_hash"]), q.telegramChatId, r["chat_access_hash"] is DBNull ? null : Convert.ToInt64(r["chat_access_hash"]));
 
                                 q.type = Convert.ToString(r["type"]);
 
@@ -658,7 +657,7 @@ FOR UPDATE;
                     q.telegramChatId = tChat.ID;
                 }
 
-                q.telegram = new FoxTelegram(FoxMain.botClient, tUser, tChat);
+                q.telegram = new FoxTelegram(tUser, tChat);
 
                 q.UID = user.UID;
                 q.user = user;

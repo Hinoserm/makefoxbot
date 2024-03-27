@@ -48,19 +48,19 @@ namespace makefoxsrv
 
 
         // Constructor to initialize the botClient and address
-        private FoxWorker(WTelegram.Client botClient, int worker_id, string address, string name)
+        private FoxWorker(int worker_id, string address, string name)
         {
             this.address = address;
             this.id = worker_id;
             this.name = name;
             this.cts = new CancellationTokenSource();
             this.cts_stop = new CancellationTokenSource();
-            this.botClient = botClient;
+            this.botClient = FoxTelegram.Client;
         }
 
-        private static FoxWorker CreateWorker(WTelegram.Client botClient, int worker_id, string address, string name)
+        private static FoxWorker CreateWorker(int worker_id, string address, string name)
         {
-            var worker = new FoxWorker(botClient, worker_id, address, name);
+            var worker = new FoxWorker(worker_id, address, name);
 
             bool added = workers.TryAdd(worker_id, worker); // Store the worker instance
             if (!added)
@@ -93,7 +93,7 @@ namespace makefoxsrv
             return null;
         }
 
-        public static async Task LoadWorkers(WTelegram.Client botClient)
+        public static async Task LoadWorkers()
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
@@ -114,7 +114,7 @@ namespace makefoxsrv
 
                     FoxLog.WriteLine($"Loading worker {id} - {url}");
 
-                    var worker = CreateWorker(botClient, id, url, name);
+                    var worker = CreateWorker(id, url, name);
                     await worker.SetStartDate();
 
                     try
@@ -601,12 +601,12 @@ namespace makefoxsrv
             {
                 try
                 {
-                    var p = await api.Progress(true, cts.Token);
+                    var p = await api.Progress(true);
                     this.PercentComplete = Math.Round(p.Progress * 100, 2);
 
                     try
                     {
-                        if (this.PercentComplete > 3.0 && (notifyTimer >= 3000) && q.telegram is not null)
+                        if (!cts.IsCancellationRequested && this.PercentComplete > 3.0 && (notifyTimer >= 3000) && q.telegram is not null)
                         {
                             notifyTimer = 0;
                             await q.telegram.EditMessageAsync(

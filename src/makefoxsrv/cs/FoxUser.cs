@@ -286,7 +286,7 @@ namespace makefoxsrv
                 throw new Exception("Unable to create new user");
         }
 
-        public async Task<ulong> recordPayment(int amount, string currency, int days, string invoice_payload = null, string telegram_charge_id = null, string provider_charge_id = null)
+        public async Task<ulong> RecordPayment(int amount, string currency, int days, string? invoice_payload = null, string? telegram_charge_id = null, string? provider_charge_id = null)
         {
             ulong payment_id = 0;
 

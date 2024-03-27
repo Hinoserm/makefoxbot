@@ -38,7 +38,7 @@ namespace makefoxsrv
         public long? TelegramMessageID = null;
         public DateTime DateAdded;
 
-        public byte[] Image = null;
+        public byte[]? Image = null;
 
         public static (int, int) NormalizeImageSize(int width, int height)
         {
@@ -118,7 +118,9 @@ namespace makefoxsrv
             if (tele_msgid is not null)
                 this.TelegramMessageID = tele_msgid;
 
-            this.SHA1Hash = sha1hash(this.Image);
+            if (image is not null)
+                this.SHA1Hash = sha1hash(image);
+
             this.DateAdded = DateTime.Now;
 
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
@@ -189,7 +191,7 @@ namespace makefoxsrv
             return null;
         }
 
-        public async Task SaveTelegramFileIds(string telegramFileId = null, string telegramUniqueId = null)
+        public async Task SaveTelegramFileIds(string? telegramFileId = null, string? telegramUniqueId = null)
         {
             if (telegramFileId is not null)
                 this.TelegramFileID = telegramFileId;
@@ -213,7 +215,7 @@ namespace makefoxsrv
             }
         }
 
-        public async Task SaveFullTelegramFileIds(string telegramFileId = null, string telegramUniqueId = null)
+        public async Task SaveFullTelegramFileIds(string? telegramFileId = null, string? telegramUniqueId = null)
         {
             if (telegramFileId is not null)
                 this.TelegramFullFileID = telegramFileId;
@@ -326,7 +328,7 @@ namespace makefoxsrv
 
                     MemoryStream memoryStream = new MemoryStream();
 
-                    var fileType = await t.botClient.DownloadFileAsync(photo, memoryStream);
+                    var fileType = await FoxTelegram.Client.DownloadFileAsync(photo, memoryStream);
                     var fileName = $"{photo.id}.jpg";
                     if (fileType is not Storage_FileType.unknown and not Storage_FileType.partial)
                         fileName = $"{photo.id}.{fileType}";

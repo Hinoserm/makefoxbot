@@ -13,28 +13,29 @@ using WTelegram;
 using makefoxsrv;
 using System.Linq.Expressions;
 using System.Drawing;
+using System.Diagnostics;
 
 namespace makefoxsrv
 {
     internal class FoxUI
-    {
-        private static Task? guiTask;
-        private static FrameView? workerPane;
-        private static FrameView? userPane;
-        private static Label? userLabel;
+    {   
+        private static readonly Toplevel _top = new();
 
+        private static Window? _win;
+        private static FrameView? _leftPane;
+        private static FrameView? _workerPane;
+        private static FrameView? _userPane;
+        private static Label? _userLabel;
         private static TextView? _logView;
         private static ScrollBarView? _logScrollBar;
 
+        private static string logBuffer = "";
+
         public static void Start(CancellationTokenSource cts)
         {
-            //Console.OutputEncoding = Encoding.UTF8;
-
             Application.Init();
-            var top = new Toplevel();
-
-            // Create the top-level window to hold everything.
-            var win = new Terminal.Gui.Window()
+            
+            _win = new Window()
             {
                 Title = "MakeFoxSrv",
                 X = 0,
@@ -43,13 +44,7 @@ namespace makefoxsrv
                 Height = Dim.Fill()
             };
 
-            var clrBlackText = new ColorScheme
-            {
-                //Normal = Attribute.Make(Color.Black, Color.Gray),
-            };
-
-            // Create a horizontal split view
-            var leftPane = new FrameView()
+            _leftPane = new()
             {
                 Title = "Log",
                 X = 0,
@@ -58,25 +53,25 @@ namespace makefoxsrv
                 Height = Dim.Fill(),
             };
 
-            workerPane = new FrameView()
+            _workerPane = new()
             {
                 Title = "Workers",
-                X = Pos.Right(leftPane),
+                X = Pos.Right(_leftPane),
                 Y = 0,
                 Width = Dim.Sized(38),
                 Height = Dim.Sized(8)
             };
 
-            userPane = new FrameView()
+            _userPane = new()
             {
                 Title = "Active Users",
-                X = Pos.Right(leftPane),
-                Y = Pos.Bottom(workerPane),
-                Width = workerPane.Width,
+                X = Pos.Right(_leftPane),
+                Y = Pos.Bottom(_workerPane),
+                Width = _workerPane.Width,
                 Height = Dim.Fill()
             };
 
-            userLabel = new Label()
+            _userLabel = new()
             {
                 X = 0,
                 Y = 0,
@@ -87,10 +82,7 @@ namespace makefoxsrv
                 Visible = true
             };
 
-            userPane.Add(userLabel);
-
-            // Add text view for logs
-            var logView = new TextView
+            _logView = new()
             {
                 X = 0,
                 Y = 0,
@@ -98,63 +90,63 @@ namespace makefoxsrv
                 Height = Dim.Fill(),
                 ReadOnly = true,
                 WordWrap = false, // Enable word wrap
-                ColorScheme = clrBlackText,
+                ColorScheme = new()
+                {
+                    Normal = Terminal.Gui.Attribute.Make(Terminal.Gui.Color.Black, Terminal.Gui.Color.Gray),
+                }
             };
 
-            leftPane.Add(logView);
+            _leftPane.Add(_logView);
 
-            // Create a vertical ScrollBarView
-            var scrollBar = new ScrollBarView(logView, true, true)
+            _logScrollBar = new(_logView, true, true)
             {
                 Visible = true,
                 AutoHideScrollBars = true,
                 ShowScrollIndicator = true
             };
 
-            scrollBar.ChangedPosition += () => {
-                logView.TopRow = scrollBar.Position;
-                if (logView.TopRow != scrollBar.Position)
+            _userPane.Add(_userLabel);
+            _win.Add(_leftPane, _workerPane, _userPane);
+
+            _logScrollBar.ChangedPosition += () => {
+                _logView.TopRow = _logScrollBar.Position;
+                if (_logView.TopRow != _logScrollBar.Position)
                 {
-                    scrollBar.Position = logView.TopRow;
+                    _logScrollBar.Position = _logView.TopRow;
                 }
-                logView.SetNeedsDisplay();
+                _logView.SetNeedsDisplay();
             };
 
-            scrollBar.OtherScrollBarView.ChangedPosition += () => {
-                logView.LeftColumn = scrollBar.OtherScrollBarView.Position;
-                if (logView.LeftColumn != scrollBar.OtherScrollBarView.Position)
+            _logScrollBar.OtherScrollBarView.ChangedPosition += () => {
+                _logView.LeftColumn = _logScrollBar.OtherScrollBarView.Position;
+                if (_logView.LeftColumn != _logScrollBar.OtherScrollBarView.Position)
                 {
-                    scrollBar.OtherScrollBarView.Position = logView.LeftColumn;
+                    _logScrollBar.OtherScrollBarView.Position = _logView.LeftColumn;
                 }
-                logView.SetNeedsDisplay();
+                _logView.SetNeedsDisplay();
             };
 
-            logView.DrawContent += (e) => {
-                scrollBar.Size = logView.Lines - 1;
-                scrollBar.Position = logView.TopRow;
-                scrollBar.OtherScrollBarView.Size = logView.Maxlength;
-                scrollBar.OtherScrollBarView.Position = logView.LeftColumn;
-                scrollBar.LayoutSubviews();
-                scrollBar.Refresh();
+            _logView.DrawContent += (e) => {
+                _logScrollBar.Size = _logView.Lines - 1;
+                _logScrollBar.Position = _logView.TopRow;
+                _logScrollBar.OtherScrollBarView.Size = _logView.Maxlength;
+                _logScrollBar.OtherScrollBarView.Position = _logView.LeftColumn;
+                _logScrollBar.LayoutSubviews();
+                _logScrollBar.Refresh();
             };
-
-            _logView = logView;
-            _logScrollBar = scrollBar;
-
-            win.Add(leftPane, workerPane, userPane);
 
             var wordWrapMenuItem = new MenuItem("_WordWrap", "", () => { })
             {
 
                 CheckType = MenuItemCheckStyle.Checked,
-                Checked = logView.WordWrap,
+                Checked = _logView.WordWrap,
             };
 
             wordWrapMenuItem.Action = () =>
             {
-                logView.WordWrap = !logView.WordWrap;
-                logView.SetNeedsDisplay();
-                wordWrapMenuItem.Checked = logView.WordWrap;
+                _logView.WordWrap = !_logView.WordWrap;
+                _logView.SetNeedsDisplay();
+                wordWrapMenuItem.Checked = _logView.WordWrap;
             };
 
             var menu = new MenuBar
@@ -165,18 +157,24 @@ namespace makefoxsrv
                 ]
             };
 
+            Stopwatch stopwatch = new Stopwatch();
+
             Application.MainLoop.AddIdle(() =>
             {
-                Update();
+                if (stopwatch.ElapsedMilliseconds >= 300)
+                {
+                    Update();
+                    stopwatch.Restart();
+                }
                 return true;
             });
 
-            logView.SetFocus();
+            _logView.SetFocus();
 
-            top.Add(win);
-            top.Add(menu);
+            _top.Add(_win);
+            _top.Add(menu);
 
-            top.KeyDown += (args) =>
+            _top.KeyDown += (args) =>
             {
                 if (args.KeyEvent.Key == (Key.CtrlMask | Key.C))
                 {
@@ -185,25 +183,15 @@ namespace makefoxsrv
                 }
             };
 
-            //guiTask = Task.Run(() =>
-            //{
-                try
-                {
-                    Application.Run(top);
-                }
-                catch (Exception ex)
-                {
-                    FoxLog.WriteLine($"Exception in GUI task: {ex.Message}");
-                    // Handle or log the exception as needed
-                }
-            //});
+            stopwatch.Start();
+
+            Application.Run(_top);
         }
 
         private static ConcurrentDictionary<int, Label> workerNameLabels = new ConcurrentDictionary<int, Label>();
         private static ConcurrentDictionary<int, Label> workerStatusLabels = new ConcurrentDictionary<int, Label>();
         private static ConcurrentDictionary<int, ProgressBar> workerProgressBars = new ConcurrentDictionary<int, ProgressBar>();
         private static int labelI = 0;
-
 
         public static void Update()
         {
@@ -234,114 +222,106 @@ namespace makefoxsrv
 
                 //Application.MainLoop.Invoke(() =>
                 //{
-                    if (workerPane is not null && workerPane.Visible == true)
+            if (_workerPane is not null && _workerPane.Visible == true)
+            {
+                foreach (var w in FoxWorker.workers)
+                {
+                    var worker = w.Value;
+                    var workerId = w.Key;
+
+                    var workerName = worker.name;
+
+                    Label? nameLabel;
+                    Label? statusLabel;
+                    ProgressBar? progressBar;
+
+                    if (!workerNameLabels.TryGetValue(workerId, out nameLabel))
                     {
-                        foreach (var w in FoxWorker.workers)
+                        // The index is missing, so add a new Label
+                        nameLabel = new Label()
                         {
-                            var worker = w.Value;
-                            var workerId = w.Key;
+                            Text = "Worker",
+                            AutoSize = false,
+                            X = 0,
+                            Y = labelI * 2,
+                            Width = Dim.Fill(),
+                            TextAlignment = TextAlignment.Left
+                        };
 
-                            var workerName = worker.name;
+                        statusLabel = new Label()
+                        {
+                            Text = "OFFLINE",
+                            AutoSize = false,
+                            X = 0,
+                            Y = labelI * 2 + 1,
+                            Width = Dim.Fill(),
+                            TextAlignment = TextAlignment.Left,
+                            Visible = true
+                        };
 
-                            Label? nameLabel;
-                            Label? statusLabel;
-                            ProgressBar? progressBar;
+                        progressBar = new ProgressBar()
+                        {
+                            X = 0,
+                            Y = labelI * 2 + 1,
+                            Width = Dim.Fill(),
+                            Visible = false,
+                            Fraction = 0.0f // Update this value to reflect progress
+                        };
 
-                            if (!workerNameLabels.TryGetValue(workerId, out nameLabel))
-                            {
-                                // The index is missing, so add a new Label
-                                nameLabel = new Label()
-                                {
-                                    Text = "Worker",
-                                    AutoSize = false,
-                                    X = 0,
-                                    Y = labelI * 2,
-                                    Width = Dim.Fill(),
-                                    TextAlignment = TextAlignment.Left
-                                };
-
-                                statusLabel = new Label()
-                                {
-                                    Text = "OFFLINE",
-                                    AutoSize = false,
-                                    X = 0,
-                                    Y = labelI * 2 + 1,
-                                    Width = Dim.Fill(),
-                                    TextAlignment = TextAlignment.Left,
-                                    Visible = true
-                                };
-
-                                progressBar = new ProgressBar()
-                                {
-                                    X = 0,
-                                    Y = labelI * 2 + 1,
-                                    Width = Dim.Fill(),
-                                    Visible = false,
-                                    Fraction = 0.0f // Update this value to reflect progress
-                                };
-
-                                workerNameLabels.TryAdd(workerId, nameLabel);
-                                workerStatusLabels.TryAdd(workerId, statusLabel);
-                                workerProgressBars.TryAdd(workerId, progressBar);
-                                workerPane.Add(nameLabel);
-                                workerPane.Add(progressBar);
-                                workerPane.Add(statusLabel);
-                                labelI++;
-                            }
-                            else
-                            {
-                                workerProgressBars.TryGetValue(workerId, out progressBar);
-                                workerStatusLabels.TryGetValue(workerId, out statusLabel);
-                            }
-
-                            nameLabel.Text = $"Worker {workerId} - {workerName}";
-                            if (!worker.online)
-                            {
-                                statusLabel.Text = "OFFLINE";
-                                statusLabel.ColorScheme = redScheme;
-                                statusLabel.Visible = true;
-                                progressBar.Visible = false;
-                            }
-                            else if (worker.PercentComplete is null)
-                            {
-                                statusLabel.Text = "IDLE";
-                                statusLabel.ColorScheme = greyScheme;
-                                statusLabel.Visible = true;
-                                progressBar.Visible = false;
-                            }
-                            else if (worker.PercentComplete is not null)
-                            {
-                                progressBar.Fraction = (float)(worker.PercentComplete / 100f);
-                                progressBar.Visible = true;
-                                statusLabel.Text = "WORKING";
-                                statusLabel.Visible = false;
-                            }
-
-                            workerPane.Height = Dim.Sized((FoxWorker.workers.Count * 2) + 2);
-                        }
+                        workerNameLabels.TryAdd(workerId, nameLabel);
+                        workerStatusLabels.TryAdd(workerId, statusLabel);
+                        workerProgressBars.TryAdd(workerId, progressBar);
+                        _workerPane.Add(nameLabel);
+                        _workerPane.Add(progressBar);
+                        _workerPane.Add(statusLabel);
+                        labelI++;
+                    }
+                    else
+                    {
+                        workerProgressBars.TryGetValue(workerId, out progressBar);
+                        workerStatusLabels.TryGetValue(workerId, out statusLabel);
                     }
 
-                    //manualResetEvent.Set();
-                //});
+                    if (progressBar is not null && statusLabel is not null)
+                    {
+                        nameLabel.Text = $"Worker {workerId} - {workerName}";
+                        if (!worker.online)
+                        {
+                            statusLabel.Text = "OFFLINE";
+                            statusLabel.ColorScheme = redScheme;
+                            statusLabel.Visible = true;
+                            progressBar.Visible = false;
+                        }
+                        else if (worker.PercentComplete is null)
+                        {
+                            statusLabel.Text = "IDLE";
+                            statusLabel.ColorScheme = greyScheme;
+                            statusLabel.Visible = true;
+                            progressBar.Visible = false;
+                        }
+                        else if (worker.PercentComplete is not null)
+                        {
+                            progressBar.Fraction = (float)(worker.PercentComplete / 100f);
+                            progressBar.Visible = true;
+                            statusLabel.Text = "WORKING";
+                            statusLabel.Visible = false;
+                        }
 
-                //manualResetEvent.Wait();
-                //manualResetEvent.Reset();
+                        _workerPane.Height = Dim.Sized((FoxWorker.workers.Count * 2) + 2);
+                    }
+                }
+            }
 
-                using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
-
-                SQL.Open();
-
-                int height = 1;
-                //Application.MainLoop.Invoke (() => {
-                    height = userPane.Frame.Height;
-                //    manualResetEvent.Set();
-                //});
-
-                //manualResetEvent.Wait(); // Block until the reset event is signaled
-                //manualResetEvent.Reset();
+            if (_userPane is not null && _userLabel is not null && _userPane.Visible == true)
+            {
+                int height = _userPane.Frame.Height;
 
                 if (height > 0)
                 {
+                    using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+
+                    SQL.Open();
+
                     MySqlCommand cmd = new MySqlCommand(@$"
                         SELECT u.username, q.uid, MAX(q.date_added) AS recent_date
                         FROM queue q
@@ -353,7 +333,7 @@ namespace makefoxsrv
 
                     int rows = 0;
 
-                    using (var reader =  cmd.ExecuteReader())
+                    using (var reader = cmd.ExecuteReader())
                     {
                         if (reader.HasRows)
                         {
@@ -371,21 +351,15 @@ namespace makefoxsrv
                                 rows++;
                             }
 
-                            //Application.MainLoop.Invoke(() => {
-                                userLabel.Text = labelText;
-                            //});
+                            _userLabel.Text = labelText;
                         }
                     }
                 }
+            }
 
-                if (logBuffer.Length > 0)
-                {
+            if (_logView is not null && _logScrollBar is not null && _logView.Visible && logBuffer.Length > 0)
+            {
                 const int maxTextLength = 10 * 1024 * 1024; // 10MB in characters
-
-                if (_logView is null || _logScrollBar is null)
-                {
-                    return;
-                }
 
                 var linesBeforeUpdate = _logView.Text.Split("\n");
                 // Determine if the user has scrolled to the bottom
@@ -406,7 +380,6 @@ namespace makefoxsrv
                     _logView.Text = _logView.Text.Substring(removeLength);
                 }
 
-
                 if (isUserAtBottom)
                 {
                     // Scroll to the bottom if the user was already there
@@ -420,28 +393,7 @@ namespace makefoxsrv
                     _logView.TopRow = originalTopRow;
                 }
             }
-
-                //try
-                //{
-                //    //await Task.Delay(500, cts.Token);
-                //}
-                //catch (TaskCanceledException ex)
-                //{
-                    //break;
-                //}
-            //}
-
-            //try
-            //{
-            //        Application.RequestStop();
-            //}
-            //catch { }
-
-            //if (guiTask is not null)
-            //    await guiTask;
         }
-
-        private static string logBuffer = "";
 
         public static void AppendLog(string value)
         {

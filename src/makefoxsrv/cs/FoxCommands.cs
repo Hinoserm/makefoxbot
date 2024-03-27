@@ -86,7 +86,7 @@ namespace makefoxsrv
             var c = command.Split('@', 2);
             if (c.Count() == 2)
             {
-                if (c[1].ToLower() != t.botClient.User.username.ToLower())
+                if (c[1].ToLower() != FoxTelegram.Client.User.username.ToLower())
                     return; // Not for us, skip it.
 
                 command = c[0];
@@ -125,14 +125,14 @@ namespace makefoxsrv
         {
             var methodInfo = commandFunction.Method;
             var attribute = methodInfo.GetCustomAttribute<CommandDescriptionAttribute>();
-            return attribute?.Description;
+            return attribute?.Description ?? "";
         }
 
         public static string GetCommandArguments(Func<FoxTelegram, Message, FoxUser, String?, Task> commandFunction)
         {
             var methodInfo = commandFunction.Method;
             var attribute = methodInfo.GetCustomAttribute<CommandArgumentsAttribute>();
-            return attribute?.Arguments;
+            return attribute?.Arguments ?? "";
         }
 
         public static string GetCommandDescription(string commandName)
@@ -141,12 +141,12 @@ namespace makefoxsrv
             if (methodInfo != null)
             {
                 var attribute = methodInfo.GetCustomAttribute<CommandDescriptionAttribute>();
-                return attribute?.Description;
+                return attribute?.Description ?? "";
             }
-            return null;
+            return "";
         }
 
-        private static Func<FoxTelegram, Message, FoxUser, String?, Task> FindBestMatch(string command)
+        private static Func<FoxTelegram, Message, FoxUser, String?, Task>? FindBestMatch(string command)
         {
             List<string> potentialMatches = new List<string>();
 
@@ -190,23 +190,6 @@ namespace makefoxsrv
             }
         }
 
-        /* public static BotCommand[] GenerateTelegramBotCommands()
-        {
-            var commandList = CommandMap
-                .GroupBy(pair => pair.Value, pair => pair.Key.TrimStart('/'))
-                .Select(group => new BotCommand
-                {
-                    Command = group.OrderByDescending(cmd => cmd.Length).First(),
-                    Description = GetCommandDescription(group.Key)
-                })
-                .Where(cmd => !string.IsNullOrWhiteSpace(cmd.Description))
-                .OrderBy(cmd => cmd.Command) // Order commands alphabetically
-                .ToArray();
-
-            return commandList;
-        } */
-
-        // Hypothetical method to convert command descriptions to a format for setting bot commands
         public static async Task SetBotCommands(Client client)
         {
             var commandList = CommandMap
@@ -221,8 +204,6 @@ namespace makefoxsrv
                 .Select(cmd => new TL.BotCommand { command = cmd.Command, description = cmd.Description })
                 .ToArray();
 
-            // Example of how you might use the commandList with WTelegramClient
-            // This assumes you have a method or context where you're setting bot commands
             await client.Bots_SetBotCommands(new TL.BotCommandScopeUsers(), null, commandList);
         }
 
@@ -317,7 +298,7 @@ namespace makefoxsrv
             {
                 buttons = new TL.KeyboardButtonCallback[]
                 {
-                    new TL.KeyboardButtonCallback { text = "✨💰 💳 $600 (Lifetime Access!) 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate 600 lifetime") }
+                    new() { text = "✨💰 💳 $600 (Lifetime Access!) 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate 600 lifetime") }
                 }
             });
 
@@ -326,7 +307,7 @@ namespace makefoxsrv
             {
                 buttons = new TL.KeyboardButtonCallback[]
                 {
-                    new TL.KeyboardButtonCallback { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/donate cancel") }
+                    new() { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/donate cancel") }
                 }
             });
 
@@ -347,7 +328,7 @@ Our service is provided on a best-effort basis, without express or implied warra
 
 We sincerely appreciate your support and understanding. Your contribution directly impacts our ability to maintain and enhance our service, ensuring a robust platform for all users.";
 
-            var entities = t.botClient.HtmlToEntities(ref msg);
+            var entities = FoxTelegram.Client.HtmlToEntities(ref msg);
 
             await t.SendMessageAsync(
                 text: msg,
@@ -556,7 +537,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
-            if (await FoxWorker.GetWorkersForModel(settings.model) is null)
+            if (await FoxWorker.GetWorkersForModel(settings.model ?? "") is null)
             {
                 await t.SendMessageAsync(
                     text: $"❌ There are no workers available to handle your currently selected model ({settings.model}).\r\n\r\nPlease try again later or select a different /model.",

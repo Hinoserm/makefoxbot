@@ -49,8 +49,6 @@ namespace makefoxsrv
         private static async Task CallbackCmdModel(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
         {
 
-            long info_id = 0;
-
             if (argument is null || argument.Length <= 0)
             {
                 /* await botClient.EditMessageTextAsync(
@@ -63,7 +61,7 @@ namespace makefoxsrv
                 return;
             }
 
-            await t.botClient.Messages_SetBotCallbackAnswer(query.query_id, 0);
+            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
 
             if (argument == "cancel")
             {
@@ -91,7 +89,7 @@ namespace makefoxsrv
 
                     settings.model = argument;
 
-                    settings.Save();
+                    await settings.Save();
 
                     await t.EditMessageAsync(
                             text: "✅ Model selected: " + argument,
@@ -156,7 +154,7 @@ namespace makefoxsrv
                     new TL.LabeledPrice { label = days == -1 ? "Lifetime Access" : $"{days} Days Access", amount = (int)(amount * 100) },
                 };
 
-                await t.botClient.Messages_SetBotCallbackAnswer(query.query_id, 0);
+                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
 
                 var inputInvoice = new TL.InputMediaInvoice
                 {
@@ -187,7 +185,7 @@ namespace makefoxsrv
 
                 try
                 {
-                    await t.botClient.Messages_SendMedia(
+                    await FoxTelegram.Client.Messages_SendMedia(
                         media: inputInvoice,
                         peer: t.Peer,
                         message: "Thank you!",
@@ -239,7 +237,7 @@ namespace makefoxsrv
             if (q is null)
                 return;
 
-            await t.botClient.Messages_SetBotCallbackAnswer(query.query_id, 0);
+            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
 
             if (q is not null && q.telegramUserId == t.User.ID)
             {
@@ -285,7 +283,7 @@ namespace makefoxsrv
 
             int help_id = 1;
 
-            await t.botClient.Messages_SetBotCallbackAnswer(query.query_id, 0);
+            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
 
             if (argument is null || argument.Length <= 0 || !int.TryParse(argument, out help_id))
                 help_id = 1;
@@ -339,7 +337,7 @@ namespace makefoxsrv
 
             var q = await FoxQueue.Get(info_id);
 
-            await t.botClient.Messages_SetBotCallbackAnswer(query.query_id, 0, "Transferring, please wait...");
+            await t.SendCallbackAnswer(query.query_id, 0, "Transferring, please wait...");
 
             if (q is not null && q.telegramUserId == t.User.ID)
             {
@@ -348,9 +346,9 @@ namespace makefoxsrv
                 if (img is null)
                     throw new Exception("Unable to locate image");
 
-                var inputImage = await t.botClient.UploadFileAsync(new MemoryStream(img.Image), "image.png");
+                var inputImage = await FoxTelegram.Client.UploadFileAsync(new MemoryStream(img.Image), "image.png");
 
-                var msg = await t.botClient.SendMessageAsync(t.Peer, "", new InputMediaUploadedDocument(inputImage, "image/png"));
+                var msg = await FoxTelegram.Client.SendMessageAsync(t.Peer, "", new InputMediaUploadedDocument(inputImage, "image/png"));
 
                 //await img.SaveFullTelegramFileIds(message.Document.FileId, message.Document.FileUniqueId);
 
@@ -376,7 +374,7 @@ namespace makefoxsrv
 
             var q = await FoxQueue.Get(info_id);
 
-            await t.botClient.Messages_SetBotCallbackAnswer(query.query_id, 0, "Selected for img2img");
+            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Selected for img2img");
 
             if (q is not null && q.telegramUserId == t.User.ID)
             {

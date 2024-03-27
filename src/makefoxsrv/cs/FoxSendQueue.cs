@@ -53,9 +53,9 @@ namespace makefoxsrv
 
                 try
                 {
-                    var inputImage = await t.botClient.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(q.output_image.Image)), "image.jpg");
+                    var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(q.output_image.Image)), "image.jpg");
 
-                    var msg = await t.botClient.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
+                    var msg = await FoxTelegram.Client.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
                 }
                 catch (Exception ex)
                 {
@@ -63,9 +63,9 @@ namespace makefoxsrv
                     {
                         try
                         {
-                            var inputImage = await t.botClient.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(q.output_image.Image)), "image.jpg");
+                            var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(q.output_image.Image)), "image.jpg");
 
-                            var msg = await t.botClient.SendMediaAsync(q.telegram.Peer, "", inputImage);
+                            var msg = await FoxTelegram.Client.SendMediaAsync(q.telegram.Peer, "", inputImage);
                         }
                         catch (Exception ex2)
                         {
