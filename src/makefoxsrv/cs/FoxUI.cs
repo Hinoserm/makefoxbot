@@ -111,7 +111,7 @@ namespace makefoxsrv
                 ShowScrollIndicator = true
             };
 
-            scrollBar.ChangedPosition += (a,b) => {
+            scrollBar.ChangedPosition += () => {
                 logView.TopRow = scrollBar.Position;
                 if (logView.TopRow != scrollBar.Position)
                 {
@@ -120,7 +120,7 @@ namespace makefoxsrv
                 logView.SetNeedsDisplay();
             };
 
-            scrollBar.OtherScrollBarView.ChangedPosition += (a,b) => {
+            scrollBar.OtherScrollBarView.ChangedPosition += () => {
                 logView.LeftColumn = scrollBar.OtherScrollBarView.Position;
                 if (logView.LeftColumn != scrollBar.OtherScrollBarView.Position)
                 {
@@ -129,7 +129,7 @@ namespace makefoxsrv
                 logView.SetNeedsDisplay();
             };
 
-            logView.DrawContent += (a,e) => {
+            logView.DrawContent += (e) => {
                 scrollBar.Size = logView.Lines - 1;
                 scrollBar.Position = logView.TopRow;
                 scrollBar.OtherScrollBarView.Size = logView.Maxlength;
@@ -165,35 +165,38 @@ namespace makefoxsrv
                 ]
             };
 
-
+            Application.MainLoop.AddIdle(() =>
+            {
+                Update();
+                return true;
+            });
 
             logView.SetFocus();
 
             top.Add(win);
             top.Add(menu);
 
-            //Application.Top.KeyDown += (a, args) =>
-            //{
-            //    if (args.KeyEvent.Key == (Key.CtrlMask | Key.C))
-            //    {
-            //        Application.RequestStop();
-            //        args.Handled = true; // Mark the event as handled
-            //    }
-            //};
-
-            guiTask = Task.Run(() =>
+            top.KeyDown += (args) =>
             {
+                if (args.KeyEvent.Key == (Key.CtrlMask | Key.C))
+                {
+                    Application.RequestStop();
+                    args.Handled = true; // Mark the event as handled
+                }
+            };
+
+            //guiTask = Task.Run(() =>
+            //{
                 try
                 {
                     Application.Run(top);
-                    cts.Cancel();
                 }
                 catch (Exception ex)
                 {
                     FoxLog.WriteLine($"Exception in GUI task: {ex.Message}");
                     // Handle or log the exception as needed
                 }
-            });
+            //});
         }
 
         private static ConcurrentDictionary<int, Label> workerNameLabels = new ConcurrentDictionary<int, Label>();
@@ -202,7 +205,7 @@ namespace makefoxsrv
         private static int labelI = 0;
 
 
-        public static async Task Run(CancellationTokenSource cts)
+        public static void Update()
         {
 
             // Define color schemes
@@ -225,12 +228,12 @@ namespace makefoxsrv
 
             var manualResetEvent = new ManualResetEventSlim(false); // Reset event to control the flow
 
-            while (!cts.IsCancellationRequested)
-            {
-                manualResetEvent.Reset();
+            //while (!cts.IsCancellationRequested)
+            //{
+                //manualResetEvent.Reset();
 
-                Application.Invoke(() =>
-                {
+                //Application.MainLoop.Invoke(() =>
+                //{
                     if (workerPane is not null && workerPane.Visible == true)
                     {
                         foreach (var w in FoxWorker.workers)
@@ -249,7 +252,7 @@ namespace makefoxsrv
                                 // The index is missing, so add a new Label
                                 nameLabel = new Label()
                                 {
-                                    Title = "Worker",
+                                    Text = "Worker",
                                     AutoSize = false,
                                     X = 0,
                                     Y = labelI * 2,
@@ -259,7 +262,7 @@ namespace makefoxsrv
 
                                 statusLabel = new Label()
                                 {
-                                    Title = "OFFLINE",
+                                    Text = "OFFLINE",
                                     AutoSize = false,
                                     X = 0,
                                     Y = labelI * 2 + 1,
@@ -318,24 +321,24 @@ namespace makefoxsrv
                         }
                     }
 
-                    manualResetEvent.Set();
-                });
+                    //manualResetEvent.Set();
+                //});
 
-                manualResetEvent.Wait();
-                manualResetEvent.Reset();
+                //manualResetEvent.Wait();
+                //manualResetEvent.Reset();
 
                 using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
-                await SQL.OpenAsync();
+                SQL.Open();
 
                 int height = 1;
-                Application.Invoke (() => {
+                //Application.MainLoop.Invoke (() => {
                     height = userPane.Frame.Height;
-                    manualResetEvent.Set();
-                });
+                //    manualResetEvent.Set();
+                //});
 
-                manualResetEvent.Wait(); // Block until the reset event is signaled
-                manualResetEvent.Reset();
+                //manualResetEvent.Wait(); // Block until the reset event is signaled
+                //manualResetEvent.Reset();
 
                 if (height > 0)
                 {
@@ -350,13 +353,13 @@ namespace makefoxsrv
 
                     int rows = 0;
 
-                    using (var reader = await cmd.ExecuteReaderAsync())
+                    using (var reader =  cmd.ExecuteReader())
                     {
                         if (reader.HasRows)
                         {
                             string labelText = "";
 
-                            while (await reader.ReadAsync())
+                            while (reader.Read())
                             {
                                 int uid = reader.GetInt32("uid");
                                 string username = reader.IsDBNull(reader.GetOrdinal("username")) ? "" : reader.GetString("username");
@@ -368,36 +371,15 @@ namespace makefoxsrv
                                 rows++;
                             }
 
-                            Application.Invoke(() => {
+                            //Application.MainLoop.Invoke(() => {
                                 userLabel.Text = labelText;
-                            });
+                            //});
                         }
                     }
                 }
 
-                try
+                if (logBuffer.Length > 0)
                 {
-                    await Task.Delay(500, cts.Token);
-                }
-                catch (TaskCanceledException ex)
-                {
-                    break;
-                }
-            }
-
-            //try
-            //{
-            //        Application.RequestStop();
-            //}
-            //catch { }
-
-            if (guiTask is not null)
-                await guiTask;
-        }
-        public static void AppendLog(string value)
-        {
-            Application.Invoke(() =>
-            {
                 const int maxTextLength = 10 * 1024 * 1024; // 10MB in characters
 
                 if (_logView is null || _logScrollBar is null)
@@ -411,7 +393,11 @@ namespace makefoxsrv
                 bool isUserAtBottom = _logView.TopRow + _logView.Frame.Height >= _logScrollBar.Size;
                 int originalTopRow = _logView.TopRow;
 
-                _logView.Text += value;
+                lock (logBuffer)
+                {
+                    _logView.Text += logBuffer;
+                    logBuffer = "";
+                }
 
                 // Trim the text if it exceeds the maximum length
                 if (_logView.Text.Length > maxTextLength)
@@ -425,7 +411,7 @@ namespace makefoxsrv
                 {
                     // Scroll to the bottom if the user was already there
                     //_textView.TopRow = Math.Max(0, lines.Length - _textView.Frame.Height);
-                    _logView.CursorPosition = new Point(_logView.Text.Length, _logView.Text.Count(c => c == '\n'));
+                    _logView.CursorPosition = new Terminal.Gui.Point(_logView.Text.Length, _logView.Text.Count(c => c == '\n'));
 
                 }
                 else
@@ -433,7 +419,33 @@ namespace makefoxsrv
                     //Maintain user's scroll position.
                     _logView.TopRow = originalTopRow;
                 }
-            });
+            }
+
+                //try
+                //{
+                //    //await Task.Delay(500, cts.Token);
+                //}
+                //catch (TaskCanceledException ex)
+                //{
+                    //break;
+                //}
+            //}
+
+            //try
+            //{
+            //        Application.RequestStop();
+            //}
+            //catch { }
+
+            //if (guiTask is not null)
+            //    await guiTask;
+        }
+
+        private static string logBuffer = "";
+
+        public static void AppendLog(string value)
+        {
+                logBuffer += value;
         }
     }
 }
