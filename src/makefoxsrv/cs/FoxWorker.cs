@@ -142,8 +142,8 @@ namespace makefoxsrv
             foreach (var worker in workers.Values)
             {
 
-                //_ = worker.Run(botClient);
-                _ = Task.Run(async () => await worker.Run());
+                _ = worker.Run();
+                //_ = Task.Run(async () => await worker.Run());
 
                 FoxLog.WriteLine($"Worker {worker.id} - Started.");
             }

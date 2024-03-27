@@ -9,10 +9,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Terminal.Gui;
-using static Unix.Terminal.Curses;
 using WTelegram;
 using makefoxsrv;
 using System.Linq.Expressions;
+using System.Drawing;
 
 namespace makefoxsrv
 {
@@ -28,10 +28,10 @@ namespace makefoxsrv
 
         public static void Start(CancellationTokenSource cts)
         {
-            Console.OutputEncoding = Encoding.UTF8;
+            //Console.OutputEncoding = Encoding.UTF8;
 
             Application.Init();
-            var Top = Application.Top;
+            var top = new Toplevel();
 
             // Create the top-level window to hold everything.
             var win = new Terminal.Gui.Window()
@@ -111,7 +111,7 @@ namespace makefoxsrv
                 ShowScrollIndicator = true
             };
 
-            scrollBar.ChangedPosition += () => {
+            scrollBar.ChangedPosition += (a,b) => {
                 logView.TopRow = scrollBar.Position;
                 if (logView.TopRow != scrollBar.Position)
                 {
@@ -120,7 +120,7 @@ namespace makefoxsrv
                 logView.SetNeedsDisplay();
             };
 
-            scrollBar.OtherScrollBarView.ChangedPosition += () => {
+            scrollBar.OtherScrollBarView.ChangedPosition += (a,b) => {
                 logView.LeftColumn = scrollBar.OtherScrollBarView.Position;
                 if (logView.LeftColumn != scrollBar.OtherScrollBarView.Position)
                 {
@@ -129,7 +129,7 @@ namespace makefoxsrv
                 logView.SetNeedsDisplay();
             };
 
-            logView.DrawContent += (e) => {
+            logView.DrawContent += (a,e) => {
                 scrollBar.Size = logView.Lines - 1;
                 scrollBar.Position = logView.TopRow;
                 scrollBar.OtherScrollBarView.Size = logView.Maxlength;
@@ -165,26 +165,27 @@ namespace makefoxsrv
                 ]
             };
 
-            Top.Add(menu);
+
 
             logView.SetFocus();
 
-            Application.Top.Add(win);
+            top.Add(win);
+            top.Add(menu);
 
-            Application.Top.KeyDown += (args) =>
-            {
-                if (args.KeyEvent.Key == (Key.CtrlMask | Key.C))
-                {
-                    Application.RequestStop();
-                    args.Handled = true; // Mark the event as handled
-                }
-            };
+            //Application.Top.KeyDown += (a, args) =>
+            //{
+            //    if (args.KeyEvent.Key == (Key.CtrlMask | Key.C))
+            //    {
+            //        Application.RequestStop();
+            //        args.Handled = true; // Mark the event as handled
+            //    }
+            //};
 
             guiTask = Task.Run(() =>
             {
                 try
                 {
-                    Application.Run();
+                    Application.Run(top);
                     cts.Cancel();
                 }
                 catch (Exception ex)
@@ -207,17 +208,19 @@ namespace makefoxsrv
             // Define color schemes
             var redScheme = new ColorScheme
             {
-                Normal = Terminal.Gui.Attribute.Make(Color.BrightRed, Color.Blue),
+                Normal = new Terminal.Gui.Attribute(Terminal.Gui.Color.BrightRed, Terminal.Gui.Color.Blue)
             };
 
             var greenScheme = new ColorScheme
             {
-                Normal = Terminal.Gui.Attribute.Make(Color.BrightGreen, Color.Blue),
+                //Normal = Terminal.Gui.Attribute.Make(Color.BrightGreen, Color.Blue),
+                Normal = new Terminal.Gui.Attribute(Terminal.Gui.Color.BrightGreen, Terminal.Gui.Color.Blue)
             };
 
             var greyScheme = new ColorScheme
             {
-                Normal = Terminal.Gui.Attribute.Make(Terminal.Gui.Color.Gray, Color.Blue),
+                //Normal = Terminal.Gui.Attribute.Make(Terminal.Gui., Color.Blue),
+                Normal = new Terminal.Gui.Attribute(Terminal.Gui.Color.Gray, Terminal.Gui.Color.Blue)
             };
 
             var manualResetEvent = new ManualResetEventSlim(false); // Reset event to control the flow
@@ -226,7 +229,7 @@ namespace makefoxsrv
             {
                 manualResetEvent.Reset();
 
-                Application.MainLoop.Invoke(() =>
+                Application.Invoke(() =>
                 {
                     if (workerPane is not null && workerPane.Visible == true)
                     {
@@ -244,8 +247,9 @@ namespace makefoxsrv
                             if (!workerNameLabels.TryGetValue(workerId, out nameLabel))
                             {
                                 // The index is missing, so add a new Label
-                                nameLabel = new Label("Worker")
+                                nameLabel = new Label()
                                 {
+                                    Title = "Worker",
                                     AutoSize = false,
                                     X = 0,
                                     Y = labelI * 2,
@@ -253,8 +257,9 @@ namespace makefoxsrv
                                     TextAlignment = TextAlignment.Left
                                 };
 
-                                statusLabel = new Label("OFFLINE")
+                                statusLabel = new Label()
                                 {
+                                    Title = "OFFLINE",
                                     AutoSize = false,
                                     X = 0,
                                     Y = labelI * 2 + 1,
@@ -324,7 +329,7 @@ namespace makefoxsrv
                 await SQL.OpenAsync();
 
                 int height = 1;
-                Application.MainLoop.Invoke (() => {
+                Application.Invoke (() => {
                     height = userPane.Frame.Height;
                     manualResetEvent.Set();
                 });
@@ -363,7 +368,7 @@ namespace makefoxsrv
                                 rows++;
                             }
 
-                            Application.MainLoop.Invoke(() => {
+                            Application.Invoke(() => {
                                 userLabel.Text = labelText;
                             });
                         }
@@ -372,7 +377,7 @@ namespace makefoxsrv
 
                 try
                 {
-                    await Task.Delay(200, cts.Token);
+                    await Task.Delay(500, cts.Token);
                 }
                 catch (TaskCanceledException ex)
                 {
@@ -391,7 +396,7 @@ namespace makefoxsrv
         }
         public static void AppendLog(string value)
         {
-            Application.MainLoop.Invoke(() =>
+            Application.Invoke(() =>
             {
                 const int maxTextLength = 10 * 1024 * 1024; // 10MB in characters
 
@@ -420,7 +425,8 @@ namespace makefoxsrv
                 {
                     // Scroll to the bottom if the user was already there
                     //_textView.TopRow = Math.Max(0, lines.Length - _textView.Frame.Height);
-                    _logView.CursorPosition = new Terminal.Gui.Point(_logView.Text.Length, _logView.Text.Count(c => c == '\n'));
+                    _logView.CursorPosition = new Point(_logView.Text.Length, _logView.Text.Count(c => c == '\n'));
+
                 }
                 else
                 {

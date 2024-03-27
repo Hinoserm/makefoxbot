@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Management;
 using System.Text;
 using System.Threading.Tasks;
 using TL;
@@ -191,7 +190,7 @@ namespace makefoxsrv
                     await t.botClient.Messages_SendMedia(
                         media: inputInvoice,
                         peer: t.Peer,
-                        message: "bob",
+                        message: "Thank you!",
                         random_id: Helpers.RandomLong(),
                         reply_markup: replyMarkup
                      );
