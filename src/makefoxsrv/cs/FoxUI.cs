@@ -31,6 +31,9 @@ namespace makefoxsrv
         private static ScrollBarView? _logScrollBar;
 
         private static string logBuffer = "";
+        
+
+        public static bool IsRunning { get; private set; } = true;
 
         public static void Start(CancellationTokenSource cts)
         {
@@ -115,30 +118,42 @@ namespace makefoxsrv
             };
 
             _logScrollBar.ChangedPosition += () => {
-                _logView.TopRow = _logScrollBar.Position;
-                if (_logView.TopRow != _logScrollBar.Position)
+                try
                 {
-                    _logScrollBar.Position = _logView.TopRow;
+                    _logView.TopRow = _logScrollBar.Position;
+                    if (_logView.TopRow != _logScrollBar.Position)
+                    {
+                        _logScrollBar.Position = _logView.TopRow;
+                    }
+                    _logView.SetNeedsDisplay();
                 }
-                _logView.SetNeedsDisplay();
+                catch { }
             };
 
             _logScrollBar.OtherScrollBarView.ChangedPosition += () => {
-                _logView.LeftColumn = _logScrollBar.OtherScrollBarView.Position;
-                if (_logView.LeftColumn != _logScrollBar.OtherScrollBarView.Position)
+                try
                 {
-                    _logScrollBar.OtherScrollBarView.Position = _logView.LeftColumn;
+                    _logView.LeftColumn = _logScrollBar.OtherScrollBarView.Position;
+                    if (_logView.LeftColumn != _logScrollBar.OtherScrollBarView.Position)
+                    {
+                        _logScrollBar.OtherScrollBarView.Position = _logView.LeftColumn;
+                    }
+                    _logView.SetNeedsDisplay();
                 }
-                _logView.SetNeedsDisplay();
+                catch { }
             };
 
             _logView.DrawContent += (e) => {
-                _logScrollBar.Size = _logView.Lines - 1;
-                _logScrollBar.Position = _logView.TopRow;
-                _logScrollBar.OtherScrollBarView.Size = _logView.Maxlength;
-                _logScrollBar.OtherScrollBarView.Position = _logView.LeftColumn;
-                _logScrollBar.LayoutSubviews();
-                _logScrollBar.Refresh();
+                try
+                {
+                    _logScrollBar.Size = _logView.Lines - 1;
+                    _logScrollBar.Position = _logView.TopRow;
+                    _logScrollBar.OtherScrollBarView.Size = _logView.Maxlength;
+                    _logScrollBar.OtherScrollBarView.Position = _logView.LeftColumn;
+                    _logScrollBar.LayoutSubviews();
+                    _logScrollBar.Refresh();
+                }
+                catch { }
             };
 
             var wordWrapMenuItem = new MenuItem("_WordWrap", "", () => { })
@@ -169,7 +184,16 @@ namespace makefoxsrv
             {
                 if (stopwatch.ElapsedMilliseconds >= 300)
                 {
-                    Update();
+                    try
+                    {
+                        Update();
+                    }
+                    catch (Exception ex)
+                    {
+                        // Print the stack trace of the exception
+                        FoxLog.WriteLine("UI Update Exception: " + ex.Message);
+                        FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
+                    }
                     stopwatch.Restart();
                 }
                 return true;
@@ -202,11 +226,37 @@ namespace makefoxsrv
                     {
                         await UserUpdate();
                         await Task.Delay(1000, cts.Token);
-                    } catch (TaskCanceledException) { }
+                    } catch (TaskCanceledException) {
+                        //Do nothing.
+                    } catch (Exception ex)
+                    {
+                        FoxLog.WriteLine("User Update Exception: " + ex.Message);
+                        FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
+                    }
                 }
             });
 
-            Application.Run(_top);
+            try
+            {
+                Application.Run(_top);
+                FoxUI.IsRunning = false;
+                Application.Shutdown();
+            } catch (TaskCanceledException) {
+                //Do nothing.
+            }
+            catch (Exception ex)
+            {
+                Application.Shutdown();
+
+                FoxUI.IsRunning = false;
+
+                FoxLog.WriteLine("User Update Exception: " + ex.Message);
+                FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
+
+                while (!cts.IsCancellationRequested) {
+                    Task.Delay(1000).Wait();
+                }
+            }
         }
 
         private static ConcurrentDictionary<int, Label> workerNameLabels = new ConcurrentDictionary<int, Label>();
@@ -375,7 +425,16 @@ namespace makefoxsrv
                         {
                             progressBar.Fraction = (float)(worker.PercentComplete / 100f);
                             progressBar.Visible = true;
-                            statusLabel.Text = $"{worker.qitem.settings.width}x{worker.qitem.settings.height} {worker.qitem.settings.steps} {worker.qitem.settings.model}";
+                            if (worker.qitem is not null && worker.qitem.settings is not null)
+                            {
+                                statusLabel.Text = $"{worker.qitem.settings.width}x{worker.qitem.settings.height} {worker.qitem.settings.steps} {worker.qitem.settings.model}";
+                                //statusLabel.Visible = false;
+                            }
+                            else
+                            {
+                                statusLabel.Text = "WORKING";
+                                statusLabel.ColorScheme = greenScheme;
+                            }
                             //statusLabel.Visible = false;
                         }
 
@@ -433,7 +492,15 @@ namespace makefoxsrv
 
         public static void AppendLog(string value)
         {
+            if (IsRunning)
+            {
                 logBuffer += value;
+            }
+            else
+            {
+                Console.WriteLine(logBuffer + value);
+                logBuffer = "";
+            }
         }
     }
 }
