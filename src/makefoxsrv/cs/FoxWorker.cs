@@ -32,6 +32,19 @@ namespace makefoxsrv
         public bool online = true;       //Worker online status
         public FoxQueue? qitem = null;   //If we're operating, this is the current queue item being processed.
 
+        private ManualResetEvent enabledEvent = new ManualResetEvent(true); // Initially enabled
+        public bool Enabled
+        {
+            get => !enabledEvent.WaitOne(0); // If it waits 0 ms, it's checking the current state
+            set
+            {
+                if (value)
+                    enabledEvent.Set(); // Enable work
+                else
+                    enabledEvent.Reset(); // Disable work, causing the thread to block
+            }
+        }
+
         public string name;
 
         private static ConcurrentDictionary<int, FoxWorker> workers = new ConcurrentDictionary<int, FoxWorker>();
@@ -650,9 +663,11 @@ namespace makefoxsrv
             this.PercentComplete = null; //Set it back to null (IDLE) when finished.
         }
 
-        // Example instance method for running the worker thread logic
         private async Task Run()
         {
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
+            var waitHandles = new WaitHandle[] { enabledEvent, cts.Token.WaitHandle };
+
             while (!stopToken.IsCancellationRequested)
             {
                 try
@@ -660,7 +675,11 @@ namespace makefoxsrv
                     FoxQueue? q;
                     StableDiffusion? api;
 
-                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
+                    // Wait for either the enabledEvent to be set or cancellation
+                    WaitHandle.WaitAny(waitHandles);
+
+                    if (cts.Token.IsCancellationRequested)
+                        throw new OperationCanceledException(cts.Token);
 
                     //Wake up every now and then to make sure we're still online.
 
