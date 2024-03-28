@@ -16,6 +16,7 @@ using Autofocus.Config;
 using WTelegram;
 using makefoxsrv;
 using TL;
+using System.Linq.Expressions;
 
 namespace makefoxsrv
 {
@@ -45,7 +46,6 @@ namespace makefoxsrv
             public string Path { get; set; }
             public JsonElement Metadata { get; set; }
         }
-
 
         // Constructor to initialize the botClient and address
         private FoxWorker(int worker_id, string address, string name, CancellationToken cancellationToken)
@@ -818,7 +818,7 @@ namespace makefoxsrv
 
                             if (q.input_image is null)
                             {
-                                await q.Finish();
+                                await q.SetFinished();
                                 throw new Exception("The selected image was unable to be located");
                             }
 
@@ -907,7 +907,7 @@ namespace makefoxsrv
 
                         progress_cts.Cancel();
 
-                        await q.Finish();
+                        await q.SetFinished();
                         _ = FoxSendQueue.Send(q);
 
                         //FoxLog.WriteLine($"Finished image {q.id}.");
@@ -916,41 +916,48 @@ namespace makefoxsrv
                     catch (OperationCanceledException)
                     {
                         // Handle the cancellation specifically
-                        FoxLog.WriteLine($"Worker {id} - Cancelled");
+                        if (qitem is not null && qitem.stopToken.IsCancellationRequested)
+                        {
+                            FoxLog.WriteLine($"Worker {id} - Cancelled");
 
-                        qitem = null;
+                            qitem = null;
 
-                        using var httpClient = new HttpClient();
+                            using var httpClient = new HttpClient();
 
-                        var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null, cts.Token);
-                        response.EnsureSuccessStatusCode();
+                            var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null, cts.Token);
+                            response.EnsureSuccessStatusCode();
+                        }
+                        else
+                            throw; //If it wasn't a user cancellation request, re-throw the error.
                     }
                     catch (Exception ex)
                     { 
                         try
                         {
-                            await q.Finish(ex); //Mark it as ERROR'd.
-                        }
-                        catch { }
-
-                        try
-                        {
-                            await q.telegram.EditMessageAsync(
-                                id: q.msg_id,
-                                text: $"⏳ Error (will re-attempt soon)"
-                            );
+                            await q.SetError(ex); //Mark it as ERROR'd.
+                            Ping(); //Signal another worker to grab it.
                         }
                         catch { }
 
                         await HandleError(ex);
-
-
-                        //break; //Leave the queue loop.
                     }
 
                     qitem = null;
                  
                     //FoxLog.WriteLine("Worker Tick...");
+                }
+                catch (OperationCanceledException ex)
+                {
+                    if (qitem is not null)
+                    {
+                        try
+                        {
+                            await qitem.SetError(ex); //Mark it as ERROR'd.
+                            Ping(); //Signal another worker to grab it.
+                        } catch { }
+                    }
+
+                    break; //Leave the loop, we're shutting down
                 }
                 catch (Exception ex)
                 {
@@ -961,6 +968,7 @@ namespace makefoxsrv
             }
 
             FoxLog.WriteLine($"Worker {id} - Shutdown.");
+            workers.TryRemove(id, out _);
         }
     }
 }

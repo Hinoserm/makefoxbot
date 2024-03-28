@@ -119,7 +119,7 @@ namespace makefoxsrv
 
                 // new InputFileId(output_fileid)
 
-                await q.Finish();
+                await q.SetFinished();
 
                 bool success = false;
                 //while (!success)

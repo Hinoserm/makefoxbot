@@ -44,8 +44,6 @@ namespace makefoxsrv
         public DateTime? date_sent = null;
         public string? link_token = null;
 
-        public bool hamFist = false;
-
         public long telegramUserId;
         public long? telegramChatId = null;
 
@@ -547,7 +545,7 @@ FOR UPDATE;
             return null;
         }
 
-        public async Task Finish()
+        public async Task SetFinished()
         {
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
@@ -601,7 +599,7 @@ FOR UPDATE;
             }
         }
 
-        public async Task Finish(Exception ex)
+        public async Task SetError(Exception ex)
         {
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
@@ -616,6 +614,18 @@ FOR UPDATE;
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
+
+            try
+            {
+                if (telegram is not null)
+                {
+                    await telegram.EditMessageAsync(
+                        id: msg_id,
+                        text: $"⏳ Error (will re-attempt soon)"
+                    );
+                }
+            }
+            catch { }
         }
 
         public async Task SetCancelled(string reason = "Cancelled by user request")
@@ -716,7 +726,6 @@ FOR UPDATE;
         {
             this.stopToken.Cancel();
             await this.SetCancelled();
-            hamFist = true;
             if (telegram is not null)
             {
                 try
