@@ -14,6 +14,7 @@ using makefoxsrv;
 using System.Linq.Expressions;
 using System.Drawing;
 using System.Diagnostics;
+using System.Reflection.Metadata;
 
 namespace makefoxsrv
 {
@@ -185,6 +186,17 @@ namespace makefoxsrv
 
             stopwatch.Start();
 
+            _= Task.Run(async () =>
+            {
+                while (!cts.IsCancellationRequested)
+                {
+                    await UserUpdate();
+                    try { 
+                        await Task.Delay(1000, cts.Token);
+                    } catch (TaskCanceledException) { }
+                }
+            });
+
             Application.Run(_top);
         }
 
@@ -192,6 +204,54 @@ namespace makefoxsrv
         private static ConcurrentDictionary<int, Label> workerStatusLabels = new ConcurrentDictionary<int, Label>();
         private static ConcurrentDictionary<int, ProgressBar> workerProgressBars = new ConcurrentDictionary<int, ProgressBar>();
         private static int labelI = 0;
+
+        private static string userString = "";
+        private static int userSize = 10;
+
+        private static async Task UserUpdate()
+        {
+
+            if (userSize > 0)
+            {
+
+                using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+
+                await SQL.OpenAsync();
+
+                MySqlCommand cmd = new MySqlCommand(@$"
+                    SELECT u.username, q.uid, MAX(q.date_added) AS recent_date
+                    FROM queue q
+                    JOIN users u ON u.id = q.uid
+                    GROUP BY q.uid, u.username
+                    ORDER BY recent_date DESC
+                    LIMIT {userSize - 2};
+                    ", SQL);
+
+                int rows = 0;
+
+                using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    if (reader.HasRows)
+                    {
+                        string labelText = "";
+
+                        while (reader.Read())
+                        {
+                            int uid = reader.GetInt32("uid");
+                            string username = reader.IsDBNull(reader.GetOrdinal("username")) ? "" : reader.GetString("username");
+                            DateTime lastActive = reader.GetDateTime("recent_date");
+                            TimeSpan timeAgo = DateTime.Now - lastActive; // Assuming date_added is in UTC
+
+                            labelText += $"{uid.ToString().PadLeft(5, ' ')} : {username.PadRight(17, ' ')} : {timeAgo.ToShortPrettyFormat()}\r\n";
+
+                            rows++;
+                        }
+
+                        userString = labelText;
+                    }
+                }
+            }
+        }
 
         public static void Update()
         {
@@ -314,47 +374,12 @@ namespace makefoxsrv
 
             if (_userPane is not null && _userLabel is not null && _userPane.Visible == true)
             {
-                int height = _userPane.Frame.Height;
-
-                if (height > 0)
-                {
-                    using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
-
-                    SQL.Open();
-
-                    MySqlCommand cmd = new MySqlCommand(@$"
-                        SELECT u.username, q.uid, MAX(q.date_added) AS recent_date
-                        FROM queue q
-                        JOIN users u ON u.id = q.uid
-                        GROUP BY q.uid, u.username
-                        ORDER BY recent_date DESC
-                        LIMIT {height - 2};
-                        ", SQL);
-
-                    int rows = 0;
-
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        if (reader.HasRows)
-                        {
-                            string labelText = "";
-
-                            while (reader.Read())
-                            {
-                                int uid = reader.GetInt32("uid");
-                                string username = reader.IsDBNull(reader.GetOrdinal("username")) ? "" : reader.GetString("username");
-                                DateTime lastActive = reader.GetDateTime("recent_date");
-                                TimeSpan timeAgo = DateTime.Now - lastActive; // Assuming date_added is in UTC
-
-                                labelText += $"{uid.ToString().PadLeft(5, ' ')} : {username.PadRight(17, ' ')} : {timeAgo.ToShortPrettyFormat()}\r\n";
-
-                                rows++;
-                            }
-
-                            _userLabel.Text = labelText;
-                        }
-                    }
-                }
+                userSize = _userPane.Frame.Height;
+                _userLabel.Text = userString;
+            }
+            else
+            {
+                userSize = 0;
             }
 
             if (_logView is not null && _logScrollBar is not null && _logView.Visible && logBuffer.Length > 0)
