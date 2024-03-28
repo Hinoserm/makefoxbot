@@ -346,7 +346,7 @@ namespace makefoxsrv
                 //{
             if (_workerPane is not null && _workerPane.Visible == true)
             {
-                foreach (var w in FoxWorker.workers)
+                foreach (var w in FoxWorker.GetAll())
                 {
                     var worker = w.Value;
                     var workerId = w.Key;
@@ -440,7 +440,7 @@ namespace makefoxsrv
                             //statusLabel.Visible = false;
                         }
 
-                        _workerPane.Height = Dim.Sized((FoxWorker.workers.Count * 3) + 2);
+                        _workerPane.Height = Dim.Sized((FoxWorker.GetAll().Count * 3) + 2);
                     }
                 }
             }
@@ -497,7 +497,7 @@ namespace makefoxsrv
             _logBuffer += value;
 
             if (!isRunning) //Also print to the console.
-                Console.WriteLine(_logBuffer + value);
+                Console.Write(value);
         }
     }
 }

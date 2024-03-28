@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 using WTelegram;
 using makefoxsrv;
 using TL;
+using System.Security.Policy;
 
 namespace makefoxsrv
 {
@@ -43,6 +44,8 @@ namespace makefoxsrv
         public DateTime? date_sent = null;
         public string? link_token = null;
 
+        public bool hamFist = false;
+
         public long telegramUserId;
         public long? telegramChatId = null;
 
@@ -57,6 +60,8 @@ namespace makefoxsrv
 
         public FoxImage? output_image = null;
         public FoxImage? input_image = null;
+
+        public CancellationTokenSource stopToken = new();
 
         public static string GenerateShortId(int length = 8)
         {
@@ -613,7 +618,7 @@ FOR UPDATE;
             }
         }
 
-        public async Task Cancel(string reason = "Cancelled by user request")
+        public async Task SetCancelled(string reason = "Cancelled by user request")
         {
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
@@ -705,6 +710,23 @@ FOR UPDATE;
             }
 
             return null;
+        }
+
+        public async Task Cancel()
+        {
+            this.stopToken.Cancel();
+            await this.SetCancelled();
+            hamFist = true;
+            if (telegram is not null)
+            {
+                try
+                {
+                    await this.telegram.EditMessageAsync(
+                        id: this.msg_id,
+                        text: "❌ Cancelled."
+                    );
+                } catch { }
+            }
         }
     }
 }

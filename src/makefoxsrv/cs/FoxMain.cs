@@ -221,7 +221,7 @@ namespace makefoxsrv
                 try
                 {
                     //Load workers BEFORE processing input from telegram.
-                    await FoxWorker.LoadWorkers();
+                    await FoxWorker.LoadWorkers(cts.Token);
 
                     await FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
 

@@ -278,90 +278,112 @@ We are committed to using your donation to further develop and maintain the serv
                     User? user = null;
                     ChatBase? chat = null;
                     FoxTelegram? t = null;
+                    int msg_id = 0;
 
                     //FoxLog.WriteLine("Update type from Telegram: " + update.GetType().Name);
 
-                    switch (update)
+                    try
                     {
-                        case UpdateNewMessage unm:
-                            switch (unm.message)
+                        switch (update)
+                        {
+                            case UpdateNewMessage unm:
+                                switch (unm.message)
+                                {
+                                    case Message m:
+                                        updates.Users.TryGetValue(m.from_id ?? m.peer_id, out user);
+                                        updates.Chats.TryGetValue(m.peer_id, out chat);
+
+                                        if (user is null)
+                                            throw new Exception("Invalid telegram user");
+
+                                        t = new FoxTelegram(user, chat);
+                                        msg_id = m.ID;
+
+                                        if (m.media is MessageMediaPhoto { photo: Photo photo })
+                                        {
+                                            _ = FoxImage.SaveImageFromTelegram(t, m, photo);
+                                        }
+                                        else
+                                        {
+                                            _ = HandleMessageAsync(t, m);
+                                        }
+
+                                        break;
+                                    case MessageService ms:
+                                        switch (ms.action)
+                                        {
+                                            case MessageActionPaymentSentMe payment:
+
+                                                updates.Users.TryGetValue(ms.from_id ?? ms.peer_id, out user);
+                                                updates.Chats.TryGetValue(ms.peer_id, out chat);
+
+                                                if (user is null)
+                                                    throw new Exception("Invalid telegram user");
+
+                                                t = new FoxTelegram(user, chat);
+                                                msg_id = ms.ID;
+
+                                                await HandlePayment(t, ms, payment);
+                                                break;
+                                            default:
+                                                FoxLog.WriteLine("Unexpected service message type: " + ms.action.GetType().Name);
+                                                break;
+                                        }
+                                        break;
+                                    default:
+                                        FoxLog.WriteLine("Unexpected message type: " + unm.GetType().Name);
+                                        break;
+                                }
+
+                                break;
+                            case UpdateDeleteChannelMessages udcm:
+                                FoxLog.WriteLine("Deleted chat messages " + udcm.messages.Length);
+                                break;
+                            case UpdateDeleteMessages udm:
+                                FoxLog.WriteLine("Deleted messages " + udm.messages.Length);
+                                break;
+
+                            case UpdateBotCallbackQuery ucbk:
+                                updates.Users.TryGetValue(ucbk.user_id, out user);
+
+                                if (user is null)
+                                    throw new Exception("Invalid telegram user");
+
+                                var p = updates.UserOrChat(ucbk.peer);
+
+                                if (p is ChatBase c)
+                                    chat = c;
+
+                                t = new FoxTelegram(user, chat);
+
+                                FoxLog.WriteLine($"Callback: {user} in {chat}> {System.Text.Encoding.ASCII.GetString(ucbk.data)}");
+
+                                _ = FoxCallbacks.Handle(t, ucbk, System.Text.Encoding.ASCII.GetString(ucbk.data));
+
+                                break;
+                            case UpdateBotPrecheckoutQuery upck:
+                                await _Client.Messages_SetBotPrecheckoutResults(upck.query_id, null, true);
+                                break;
+                            default:
+                                FoxLog.WriteLine("Unexpected update type from Telegram: " + update.GetType().Name);
+                                break; // there are much more update types than the above example cases
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.WriteLine("Error in HandleUpdateAsync: " + ex.Message);
+                        FoxLog.WriteLine("Backtrace : " + ex.StackTrace);
+
+                        if (t is not null)
+                        {
+                            try
                             {
-                                case Message m:
-                                    updates.Users.TryGetValue(m.from_id ?? m.peer_id, out user);
-                                    updates.Chats.TryGetValue(m.peer_id, out chat);
-
-                                    if (user is null)
-                                        throw new Exception("Invalid telegram user");
-
-                                    t = new FoxTelegram(user, chat);
-
-                                    if (m.media is MessageMediaPhoto { photo: Photo photo })
-                                    {
-                                        _ = FoxImage.SaveImageFromTelegram(t, m, photo);
-                                    }
-                                    else
-                                    {
-                                        _ = HandleMessageAsync(t, m);
-                                    }
-
-                                    break;
-                                case MessageService ms:
-                                    switch (ms.action)
-                                    {
-                                        case MessageActionPaymentSentMe payment:
-
-                                            updates.Users.TryGetValue(ms.from_id ?? ms.peer_id, out user);
-                                            updates.Chats.TryGetValue(ms.peer_id, out chat);
-
-                                            if (user is null)
-                                                throw new Exception("Invalid telegram user");
-
-                                            t = new FoxTelegram(user, chat);
-
-                                            await HandlePayment(t, ms, payment);
-                                            break;
-                                        default:
-                                            FoxLog.WriteLine("Unexpected service message type: " + ms.action.GetType().Name);
-                                            break;
-                                    }
-                                    break;
-                                default:
-                                    FoxLog.WriteLine("Unexpected message type: " + unm.GetType().Name);
-                                    break;
-                            }
-
-                            break;
-                        case UpdateDeleteChannelMessages udcm:
-                            FoxLog.WriteLine("Deleted chat messages " + udcm.messages.Length);
-                            break;
-                        case UpdateDeleteMessages udm:
-                            FoxLog.WriteLine("Deleted messages " + udm.messages.Length);
-                            break;
-
-                        case UpdateBotCallbackQuery ucbk:
-                            updates.Users.TryGetValue(ucbk.user_id, out user);
-
-                            if (user is null)
-                                throw new Exception("Invalid telegram user");
-
-                            var p = updates.UserOrChat(ucbk.peer);
-
-                            if (p is ChatBase c)
-                                chat = c;
-
-                            t = new FoxTelegram(user, chat);
-
-                            FoxLog.WriteLine($"Callback: {user} in {chat}> {System.Text.Encoding.ASCII.GetString(ucbk.data)}");
-
-                            _ = FoxCallbacks.Handle(t, ucbk, System.Text.Encoding.ASCII.GetString(ucbk.data));
-
-                            break;
-                        case UpdateBotPrecheckoutQuery upck:
-                            await _Client.Messages_SetBotPrecheckoutResults(upck.query_id, null, true);
-                            break;
-                        default:
-                            FoxLog.WriteLine("Unexpected update type from Telegram: " + update.GetType().Name);
-                            break; // there are much more update types than the above example cases
+                                await t.SendMessageAsync(
+                                    text: "❌ Error! \"" + ex.Message + "\"",
+                                    replyToMessageId: msg_id
+                                );
+                            } catch { }
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -465,17 +487,3 @@ We are committed to using your donation to further develop and maintain the serv
         }
     }
 }
-
-
-//    }
-//}
-//catch (Exception ex)
-//{
-//    Message waitMsg = await botClient.SendTextMessageAsync(
-//        chatId: update.Message.Chat.Id,
-//        text: "❌ Error! \"" + ex.Message + "\"",
-//        replyToMessageId: update.Message.MessageId,
-//        cancellationToken: cancellationToken
-//    );
-//    FoxLog.WriteLine("Error processing: " + ex.Message);
-//}

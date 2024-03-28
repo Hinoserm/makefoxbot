@@ -22,8 +22,8 @@ namespace makefoxsrv
     internal class FoxWorker
     {
         private int id;
-        private CancellationTokenSource cts;
-        private CancellationTokenSource cts_stop; //For gracefully stopping a generation
+        private CancellationTokenSource stopToken = new(); //Token to stop this worker specifically
+
         private readonly string address;
         private static SemaphoreSlim semaphore = new SemaphoreSlim(0, int.MaxValue);
         private bool semaphoreAcquired = false;
@@ -33,7 +33,8 @@ namespace makefoxsrv
 
         public string name;
 
-        public static ConcurrentDictionary<int, FoxWorker> workers = new ConcurrentDictionary<int, FoxWorker>();
+        private static ConcurrentDictionary<int, FoxWorker> workers = new ConcurrentDictionary<int, FoxWorker>();
+        private static CancellationToken cancellationToken;
 
         public double? PercentComplete = null;
 
@@ -47,18 +48,16 @@ namespace makefoxsrv
 
 
         // Constructor to initialize the botClient and address
-        private FoxWorker(int worker_id, string address, string name)
+        private FoxWorker(int worker_id, string address, string name, CancellationToken cancellationToken)
         {
             this.address = address;
             this.id = worker_id;
             this.name = name;
-            this.cts = new CancellationTokenSource();
-            this.cts_stop = new CancellationTokenSource();
         }
 
-        private static FoxWorker CreateWorker(int worker_id, string address, string name)
+        private static FoxWorker CreateWorker(int worker_id, string address, string name, CancellationToken cancellationToken)
         {
-            var worker = new FoxWorker(worker_id, address, name);
+            var worker = new FoxWorker(worker_id, address, name, cancellationToken);
 
             bool added = workers.TryAdd(worker_id, worker); // Store the worker instance
             if (!added)
@@ -91,20 +90,22 @@ namespace makefoxsrv
             return null;
         }
 
-        public static async Task LoadWorkers()
+        public static async Task LoadWorkers(CancellationToken cancellationToken)
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
-            await SQL.OpenAsync();
+            FoxWorker.cancellationToken = cancellationToken;
+
+            await SQL.OpenAsync(cancellationToken);
 
             MySqlCommand cmd = new MySqlCommand("SELECT id, url, name FROM workers WHERE enabled > 0", SQL);
 
-            using (var reader = await cmd.ExecuteReaderAsync())
+            using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
             {
                 if (!reader.HasRows)
                     throw new Exception("No workers available in the database.");
 
-                while (await reader.ReadAsync())
+                while (await reader.ReadAsync(cancellationToken))
                 {
                     int id = reader.GetInt32("id");
                     string url = reader.GetString("url");
@@ -112,7 +113,7 @@ namespace makefoxsrv
 
                     FoxLog.WriteLine($"Loading worker {id} - {url}");
 
-                    var worker = CreateWorker(id, url, name);
+                    var worker = CreateWorker(id, url, name, cancellationToken);
                     await worker.SetStartDate();
 
                     try
@@ -156,6 +157,18 @@ namespace makefoxsrv
             }
         }
 
+        public static FoxWorker? Get(int workerId)
+        {
+            workers.TryGetValue(workerId, out FoxWorker? worker);
+
+            return worker;
+        }
+
+        public static ConcurrentDictionary<int, FoxWorker> GetAll()
+        {
+            return workers;
+        }
+
         public static bool CancelIfUserMatches(int worker_id, ulong uid)
         {
             var worker = workers[worker_id];
@@ -177,16 +190,17 @@ namespace makefoxsrv
         {
             FoxLog.WriteLine($"Worker {id} stopping due to request... ");
 
-            cts_stop.Cancel();
+            stopToken.Cancel();
         }
 
         private async Task<StableDiffusion?> ConnectAPI(bool throw_error = true)
         {
             try
             {
-
                 if (this.api is null)
                     this.api = new StableDiffusion(address);
+
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
 
                 await this.api.Ping(cts.Token);
 
@@ -209,6 +223,8 @@ namespace makefoxsrv
 
             if (api is null)
                 throw new Exception("Unable to connect to host.");
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
 
             var models = await api.StableDiffusionModels(cts.Token);
 
@@ -382,6 +398,8 @@ namespace makefoxsrv
             if (api is null)
                 throw new Exception("Unable to connect to host.");
 
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
+
             var embeddings = await api.Embeddings(cts.Token); // Get embeddings instead of models
 
             FoxLog.WriteLine("Embeddings Information:");
@@ -504,11 +522,13 @@ namespace makefoxsrv
             semaphore.Release(count);
         }
 
-        private static void CancelWorker(int workerId)
+        private static void StopWorker(int workerId)
         {
-            if (workers.TryRemove(workerId, out FoxWorker worker))
+            if (workers.TryRemove(workerId, out FoxWorker? worker))
             {
-                worker.cts.Cancel();
+                if (worker is not null)
+                    worker.stopToken.Cancel();
+
                 // Perform any additional cleanup if necessary
             }
         }
@@ -633,12 +653,14 @@ namespace makefoxsrv
         // Example instance method for running the worker thread logic
         private async Task Run()
         {
-            while (true)
+            while (!stopToken.IsCancellationRequested)
             {
                 try
                 {
                     FoxQueue? q;
                     StableDiffusion? api;
+
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
 
                     //Wake up every now and then to make sure we're still online.
 
@@ -745,7 +767,7 @@ namespace makefoxsrv
 
                         await SetUsedDate(q.id);
 
-                        using var comboCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, cts_stop.Token);
+                        using var ctsLoop = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, q.stopToken.Token);
 
                         var t = q.telegram;
 
@@ -786,7 +808,7 @@ namespace makefoxsrv
 
                         using CancellationTokenSource progress_cts = new CancellationTokenSource();
 
-                        using var comboBreaker = CancellationTokenSource.CreateLinkedTokenSource(comboCts.Token, progress_cts.Token);
+                        using var comboBreaker = CancellationTokenSource.CreateLinkedTokenSource(ctsLoop.Token, progress_cts.Token);
 
                         _= this.MonitorProgressAsync(q, comboBreaker);
 
@@ -803,9 +825,9 @@ namespace makefoxsrv
                             //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
                             //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
-                            var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
-                            var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
-                            //var sampler = await api.Sampler("Restart", comboCts.Token);
+                            var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
+                            var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
+                            //var sampler = await api.Sampler("Restart", ctsLoop.Token);
 
                             var img = new Base64EncodedImage(q.input_image.Image);
 
@@ -839,7 +861,7 @@ namespace makefoxsrv
                                         CfgScale = (double)settings.cfgscale
                                     },
                                 }
-                            , comboCts.Token);
+                            , ctsLoop.Token);
 
                             await q.SaveOutputImage(img2img.Images.Last().Data.ToArray());
                         }
@@ -848,9 +870,9 @@ namespace makefoxsrv
                             //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
                             //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
-                            var model = await api.StableDiffusionModel(settings.model, comboCts.Token);
-                            var sampler = await api.Sampler("DPM++ 2M Karras", comboCts.Token);
-                            //var sampler = await api.Sampler("Restart", comboCts.Token);
+                            var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
+                            var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
+                            //var sampler = await api.Sampler("Restart", ctsLoop.Token);
 
                             var txt2img = await api.TextToImage(
                                 new()
@@ -878,7 +900,7 @@ namespace makefoxsrv
                                         CfgScale = (double)settings.cfgscale
                                     },
                                 }
-                            , comboCts.Token);
+                            , ctsLoop.Token);
 
                             await q.SaveOutputImage(txt2img.Images.Last().Data.ToArray());
                         }
@@ -894,24 +916,14 @@ namespace makefoxsrv
                     catch (OperationCanceledException)
                     {
                         // Handle the cancellation specifically
-                        FoxLog.WriteLine($"Worker {id} - User Cancellation");
-
-                        await q.Cancel();
-
-                        cts_stop = new CancellationTokenSource();
-
-                        try {
-                            using var httpClient = new HttpClient();
-
-                            var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null);
-                            response.EnsureSuccessStatusCode();
-                            _ = qitem.telegram.EditMessageAsync(
-                                id: qitem.msg_id,
-                                text: "❌ Cancelled."
-                            );
-                        } catch { throw;  }
+                        FoxLog.WriteLine($"Worker {id} - Cancelled");
 
                         qitem = null;
+
+                        using var httpClient = new HttpClient();
+
+                        var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null, cts.Token);
+                        response.EnsureSuccessStatusCode();
                     }
                     catch (Exception ex)
                     { 
@@ -944,9 +956,11 @@ namespace makefoxsrv
                 {
                     await HandleError(ex);
                     //FoxLog.WriteLine("Error worker: " + ex.Message);
-                    //await Task.Delay(3000, cts.Token);
+                    //await Task.Delay(3000, ctsLoop.Token);
                 }
             }
+
+            FoxLog.WriteLine($"Worker {id} - Shutdown.");
         }
     }
 }

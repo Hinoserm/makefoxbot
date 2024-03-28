@@ -61,7 +61,7 @@ namespace makefoxsrv
             //--------------- -----------------
             { "/model",       CmdModel },
             //--------------- -----------------
-            //{ "/cancel",      CmdCancel },
+            { "/cancel",      CmdCancel },
             //--------------- -----------------
             { "/donate",      CmdDonate },
             //--------------- -----------------
@@ -994,115 +994,102 @@ We sincerely appreciate your support and understanding. Your contribution direct
             );
         }
 
-        //[CommandDescription("Cancel all pending requests.")]
-        //[CommandArguments("")]
-        //private static async Task CmdCancel(WTelegram.Client botClient, User tUser, ChatBase? tChat, InputPeer tPeer, Message message, FoxUser user, String? argument)
-        //{
-        //    int count = 0;
-        //    using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+        [CommandDescription("Cancel all pending requests.")]
+        [CommandArguments("")]
+        private static async Task CmdCancel(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            int count = 0;
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
-        //    await SQL.OpenAsync();
+            await SQL.OpenAsync();
 
-        //    var cancelMsg = await botClient.SendTextMessageAsync(
-        //        chatId: message.Chat.Id,
-        //        text: $"⏳ Cancelling...",
-        //        replyToMessageId: message.MessageId,
-        //        cancellationToken: cancellationToken
-        //    );
+            var cancelMsg = await t.SendMessageAsync(
+                text: $"⏳ Cancelling...",
+                replyToMessageId: message.ID
+            );
 
-        //    List<ulong> pendingIds = new List<ulong>();
+            List<ulong> pendingIds = new List<ulong>();
 
-        //    using (var cmd2 = new MySqlCommand("SELECT id,msg_id,tele_chatid FROM queue WHERE uid = @id AND status = 'PENDING' OR status = 'ERROR'", SQL))
-        //    {
-        //        cmd2.Parameters.AddWithValue("id", user.UID);
-        //        using var reader = await cmd2.ExecuteReaderAsync();
+            using (var cmd2 = new MySqlCommand("SELECT id,msg_id FROM queue WHERE uid = @id AND status = 'PENDING' OR status = 'ERROR'", SQL))
+            {
+                cmd2.Parameters.AddWithValue("id", user.UID);
+                using var reader = await cmd2.ExecuteReaderAsync();
 
-        //        while (await reader.ReadAsync())
-        //        {
-        //            ulong q_id = reader.GetUInt64("id");
-        //            long chat_id = reader.GetInt64("tele_chatid");
-        //            int msg_id = reader.GetInt32("msg_id");
+                while (await reader.ReadAsync())
+                {
+                    ulong q_id = reader.GetUInt64("id");
+                    int msg_id = reader.GetInt32("msg_id");
 
-        //            try
-        //            {
-        //                await botClient.EditMessageTextAsync(
-        //                    chatId: chat_id,
-        //                    messageId: msg_id,
-        //                    text: "❌ Cancelled."
-        //                );
-        //            } catch
-        //            {
-        //                //Don't care about this failure.
-        //            }
+                    try
+                    {
+                        await t.EditMessageAsync(
+                            id: msg_id,
+                            text: "❌ Cancelled."
+                        );
+                    } catch
+                    {
+                        //Don't care about this failure.
+                    }
 
-        //            pendingIds.Add(q_id);
+                    pendingIds.Add(q_id);
 
-        //            count++;
-        //        }
-        //    }
+                    count++;
+                }
+            }
 
-        //    if (pendingIds.Count > 0)
-        //    {
-        //        // Create a comma-separated list of IDs for the SQL query
-        //        var idsString = string.Join(",", pendingIds);
-        //        using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
-        //        {
-        //            await cmd3.ExecuteNonQueryAsync();
-        //        }
-        //    }
+            if (pendingIds.Count > 0)
+            {
+                // Create a comma-separated list of IDs for the SQL query
+                var idsString = string.Join(",", pendingIds);
+                using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
+                {
+                    await cmd3.ExecuteNonQueryAsync();
+                }
+            }
 
+            List<ulong> processingIds = new List<ulong>();
 
-        //    List<ulong> processingIds = new List<ulong>();
+            using (var cmd2 = new MySqlCommand("SELECT id,worker,msg_id FROM queue WHERE uid = @id AND status = 'PROCESSING'", SQL))
+            {
+                cmd2.Parameters.AddWithValue("id", user.UID);
+                using var r = await cmd2.ExecuteReaderAsync();
 
-        //    using (var cmd2 = new MySqlCommand("SELECT id,worker,msg_id,tele_chatid FROM queue WHERE uid = @id AND status = 'PROCESSING'", SQL))
-        //    {
-        //        cmd2.Parameters.AddWithValue("id", user.UID);
-        //        using var r = await cmd2.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    int? worker_id = (r["worker"] is DBNull) ? null : r.GetInt32("worker");
+                    ulong q_id = r.GetUInt64("id");
+                    int msg_id = r.GetInt32("msg_id");
 
-        //        while (await r.ReadAsync())
-        //        {
-        //            int? worker_id = (r["worker"] is DBNull) ? null : r.GetInt32("worker");
-        //            ulong q_id = r.GetUInt64("id");
-        //            long chat_id = r.GetInt64("tele_chatid");
-        //            int msg_id = r.GetInt32("msg_id");
+                    //if (worker_id is not null && FoxWorker.CancelIfUserMatches(worker_id.Value, user.UID))
 
-        //            if (worker_id is not null && FoxWorker.CancelIfUserMatches(worker_id.Value, user.UID))
-        //                processingIds.Add(q_id);
+                    if (worker_id is not null)
+                    {
+                        var w = FoxWorker.Get(worker_id.Value);
+                        if (w is not null && w.qitem is not null) {
+                            await w.qitem.Cancel();
+                        }
+                    }
 
-        //            try {
-        //                await botClient.EditMessageTextAsync(
-        //                    chatId: chat_id,
-        //                    messageId: msg_id,
-        //                    text: "⏳ Cancelling..."
-        //                );
+                    processingIds.Add(q_id);
+                    count++;
+                }
+            }
 
-        //            }
-        //            catch
-        //            {
-        //                //Don't care about this failure.
-        //            }
+            if (processingIds.Count > 0)
+            {
+                // Create a comma-separated list of IDs for the SQL query
+                var idsString = string.Join(",", processingIds);
+                using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
+                {
+                    await cmd3.ExecuteNonQueryAsync();
+                }
+            }
 
-        //            count++;
-        //        }
-        //    }
-
-        //    if (processingIds.Count > 0)
-        //    {
-        //        // Create a comma-separated list of IDs for the SQL query
-        //        var idsString = string.Join(",", processingIds);
-        //        using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
-        //        {
-        //            await cmd3.ExecuteNonQueryAsync();
-        //        }
-        //    }
-
-        //    await botClient.EditMessageTextAsync(
-        //        chatId: message.Chat.Id,
-        //        text: $"✅ Cancelled {count} items.",
-        //        messageId: cancelMsg.MessageId,
-        //        cancellationToken: cancellationToken
-        //    );
-        //}
+            await t.EditMessageAsync(
+                text: $"✅ Cancelled {count} items.",
+                id: cancelMsg.ID
+            );
+        }
 
         [CommandDescription("Change the size of the output, e.g. /setsize 768x768")]
         [CommandArguments("<width>x<height>")]
