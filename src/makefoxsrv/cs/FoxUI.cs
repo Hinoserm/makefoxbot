@@ -48,7 +48,7 @@ namespace makefoxsrv
             //{
             //    X = 0,
             //    Y = 0,
-            //    Width = Dim.Fill() - 38,
+            //    Width = Dim.Fill() - 42,
             //    Height = Dim.Fill(),
             //};
 
@@ -57,7 +57,7 @@ namespace makefoxsrv
                 Title = "Log",
                 X = 0,
                 Y = 0,
-                Width = Dim.Fill() - 38,
+                Width = Dim.Fill() - 42,
                 Height = Dim.Fill(),
             };
 
@@ -66,7 +66,7 @@ namespace makefoxsrv
                 Title = "Workers",
                 X = Pos.Right(_leftPane),
                 Y = 0,
-                Width = Dim.Sized(38),
+                Width = Dim.Sized(42),
                 Height = Dim.Sized(8)
             };
 
@@ -252,7 +252,7 @@ namespace makefoxsrv
                             DateTime lastActive = reader.GetDateTime("recent_date");
                             TimeSpan timeAgo = DateTime.Now - lastActive; // Assuming date_added is in UTC
 
-                            labelText += $"{uid.ToString().PadLeft(5, ' ')} : {username.PadRight(17, ' ')} : {timeAgo.ToShortPrettyFormat()}\r\n";
+                            labelText += $"{uid.ToString().PadLeft(5, ' ')} : {username.PadRight(24, ' ')} : {timeAgo.ToShortPrettyFormat()}\r\n";
 
                             rows++;
                         }

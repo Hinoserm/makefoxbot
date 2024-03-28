@@ -73,31 +73,28 @@ namespace makefoxsrv
             else
             {
                 if (argument == "default")
-                    argument = "indigoFurryMix_v105Hybrid"; //Current default
-
-
-                if (await FoxWorker.GetWorkersForModel(argument) is null)
+                {
+                    argument = null;
+                } else if (await FoxWorker.GetWorkersForModel(argument) is null)
                 {
                     await t.EditMessageAsync(
                         text: "❌ There are no workers currently available that can handle that model.  Please try again later.",
                         id: query.msg_id
                     );
-                }
-                else
-                {
-                    var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-                    settings.model = argument;
-
-                    await settings.Save();
-
-                    await t.EditMessageAsync(
-                            text: "✅ Model selected: " + argument,
-                            id: query.msg_id
-                        );
+                    return;
                 }
 
+                var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
+                settings.model = argument;
+
+                await settings.Save();
+
+                await t.EditMessageAsync(
+                        text: "✅ Model selected: " + settings.model,
+                        id: query.msg_id
+                    );
             }
         }
 
