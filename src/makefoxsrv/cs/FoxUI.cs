@@ -38,12 +38,19 @@ namespace makefoxsrv
             
             _win = new Window()
             {
-                Title = "MakeFoxSrv",
                 X = 0,
                 Y = 1, // Leave one row for the top-level menu
                 Width = Dim.Fill(),
                 Height = Dim.Fill()
             };
+
+            //TabView tabView = new()
+            //{
+            //    X = 0,
+            //    Y = 0,
+            //    Width = Dim.Fill() - 38,
+            //    Height = Dim.Fill(),
+            //};
 
             _leftPane = new()
             {
@@ -93,10 +100,11 @@ namespace makefoxsrv
                 WordWrap = false, // Enable word wrap
                 ColorScheme = new()
                 {
-                    Normal = Terminal.Gui.Attribute.Make(Terminal.Gui.Color.Black, Terminal.Gui.Color.Gray),
+                    Normal = Terminal.Gui.Attribute.Make(Terminal.Gui.Color.Black, Terminal.Gui.Color.Gray)
                 }
             };
 
+            //tabView.AddTab(new TabView.Tab { Text = "Log", View = _logView }, true);
             _leftPane.Add(_logView);
 
             _logScrollBar = new(_logView, true, true)
@@ -105,9 +113,6 @@ namespace makefoxsrv
                 AutoHideScrollBars = true,
                 ShowScrollIndicator = true
             };
-
-            _userPane.Add(_userLabel);
-            _win.Add(_leftPane, _workerPane, _userPane);
 
             _logScrollBar.ChangedPosition += () => {
                 _logView.TopRow = _logScrollBar.Position;
@@ -172,6 +177,9 @@ namespace makefoxsrv
 
             _logView.SetFocus();
 
+            _userPane.Add(_userLabel);
+            _win.Add(_leftPane, _workerPane, _userPane); 
+
             _top.Add(_win);
             _top.Add(menu);
 
@@ -190,8 +198,9 @@ namespace makefoxsrv
             {
                 while (!cts.IsCancellationRequested)
                 {
-                    await UserUpdate();
-                    try { 
+                    try
+                    {
+                        await UserUpdate();
                         await Task.Delay(1000, cts.Token);
                     } catch (TaskCanceledException) { }
                 }
@@ -239,6 +248,7 @@ namespace makefoxsrv
                         {
                             int uid = reader.GetInt32("uid");
                             string username = reader.IsDBNull(reader.GetOrdinal("username")) ? "" : reader.GetString("username");
+
                             DateTime lastActive = reader.GetDateTime("recent_date");
                             TimeSpan timeAgo = DateTime.Now - lastActive; // Assuming date_added is in UTC
 
@@ -303,7 +313,7 @@ namespace makefoxsrv
                             Text = "Worker",
                             AutoSize = false,
                             X = 0,
-                            Y = labelI * 2,
+                            Y = labelI * 3,
                             Width = Dim.Fill(),
                             TextAlignment = TextAlignment.Left
                         };
@@ -313,7 +323,7 @@ namespace makefoxsrv
                             Text = "OFFLINE",
                             AutoSize = false,
                             X = 0,
-                            Y = labelI * 2 + 1,
+                            Y = labelI * 3 + 1,
                             Width = Dim.Fill(),
                             TextAlignment = TextAlignment.Left,
                             Visible = true
@@ -322,9 +332,9 @@ namespace makefoxsrv
                         progressBar = new ProgressBar()
                         {
                             X = 0,
-                            Y = labelI * 2 + 1,
+                            Y = labelI * 3 + 2,
                             Width = Dim.Fill(),
-                            Visible = false,
+                            Visible = true,
                             Fraction = 0.0f // Update this value to reflect progress
                         };
 
@@ -350,24 +360,26 @@ namespace makefoxsrv
                             statusLabel.Text = "OFFLINE";
                             statusLabel.ColorScheme = redScheme;
                             statusLabel.Visible = true;
-                            progressBar.Visible = false;
+                            //progressBar.Visible = false;
+                            progressBar.Fraction = 0;
                         }
                         else if (worker.PercentComplete is null)
                         {
                             statusLabel.Text = "IDLE";
                             statusLabel.ColorScheme = greyScheme;
                             statusLabel.Visible = true;
-                            progressBar.Visible = false;
+                            //progressBar.Visible = false;
+                            progressBar.Fraction = 0;
                         }
                         else if (worker.PercentComplete is not null)
                         {
                             progressBar.Fraction = (float)(worker.PercentComplete / 100f);
                             progressBar.Visible = true;
-                            statusLabel.Text = "WORKING";
-                            statusLabel.Visible = false;
+                            statusLabel.Text = $"{worker.qitem.settings.width}x{worker.qitem.settings.height} {worker.qitem.settings.steps} {worker.qitem.settings.model}";
+                            //statusLabel.Visible = false;
                         }
 
-                        _workerPane.Height = Dim.Sized((FoxWorker.workers.Count * 2) + 2);
+                        _workerPane.Height = Dim.Sized((FoxWorker.workers.Count * 3) + 2);
                     }
                 }
             }
@@ -410,7 +422,6 @@ namespace makefoxsrv
                     // Scroll to the bottom if the user was already there
                     //_textView.TopRow = Math.Max(0, lines.Length - _textView.Frame.Height);
                     _logView.CursorPosition = new Terminal.Gui.Point(_logView.Text.Length, _logView.Text.Count(c => c == '\n'));
-
                 }
                 else
                 {

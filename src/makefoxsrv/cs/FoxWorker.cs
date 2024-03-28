@@ -29,7 +29,7 @@ namespace makefoxsrv
         private bool semaphoreAcquired = false;
         private StableDiffusion? api;
         public bool online = true;       //Worker online status
-        private FoxQueue? qitem = null;   //If we're operating, this is the current queue item being processed.
+        public FoxQueue? qitem = null;   //If we're operating, this is the current queue item being processed.
         private WTelegram.Client? botClient = null;
 
         public string name;
