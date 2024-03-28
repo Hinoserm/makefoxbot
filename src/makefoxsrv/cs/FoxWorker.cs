@@ -30,7 +30,6 @@ namespace makefoxsrv
         private StableDiffusion? api;
         public bool online = true;       //Worker online status
         public FoxQueue? qitem = null;   //If we're operating, this is the current queue item being processed.
-        private WTelegram.Client? botClient = null;
 
         public string name;
 
@@ -55,7 +54,6 @@ namespace makefoxsrv
             this.name = name;
             this.cts = new CancellationTokenSource();
             this.cts_stop = new CancellationTokenSource();
-            this.botClient = FoxTelegram.Client;
         }
 
         private static FoxWorker CreateWorker(int worker_id, string address, string name)

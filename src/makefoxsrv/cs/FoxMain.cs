@@ -158,6 +158,8 @@ namespace makefoxsrv
         {
             using CancellationTokenSource cts = new();
 
+            //ThreadPool.SetMaxThreads(200, 200);
+
             FoxLog.WriteLine($"Hello, World!  Version {GetVersion()}");
 
             string currentDirectory = Directory.GetCurrentDirectory();
@@ -167,6 +169,16 @@ namespace makefoxsrv
             try
             {
                 LoadSettings();
+
+                if (settings is null)
+                    throw new Exception("Unable to load settings.ini");
+
+                if (settings.TelegramApiId is null)
+                    throw new Exception("API_ID setting not set.");
+                if (settings.TelegramApiHash is null)
+                    throw new Exception("API_HASH setting not set.");
+                if (settings.TelegramBotToken is null)
+                    throw new Exception("BOT_TOKEN setting not set.");
             }
             catch (Exception ex)
             {
@@ -178,7 +190,7 @@ namespace makefoxsrv
 
             MySqlConnection sql;
 
-            FoxLog.Write("Connecting to database... ");
+            Console.Write("Connecting to database... ");
             try
             {
                 sql = new MySqlConnection(FoxMain.MySqlConnectionString);
@@ -194,45 +206,52 @@ namespace makefoxsrv
             FoxLog.WriteLine("done.");
 
 
-            await FoxSettings.LoadSettingsAsync();
+            try
+            {
+                await FoxSettings.LoadSettingsAsync();
 
+
+            } catch (Exception ex) {
+                FoxLog.WriteLine("Error: " + ex.Message);
+                return;
+            }
 
             _ = Task.Run(async () =>
             {
-
-                if (settings is null)
-                    throw new Exception("Failed to load settings.ini");
-
-                if (settings.TelegramApiId is null)
-                    throw new Exception("API_ID setting not set.");
-                if (settings.TelegramApiHash is null)
-                    throw new Exception("API_HASH setting not set.");
-                if (settings.TelegramBotToken is null)
-                    throw new Exception("BOT_TOKEN setting not set.");
-
-                //Load workers BEFORE processing input from telegram.
-                await FoxWorker.LoadWorkers();
-
-                await FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
-
-                await FoxCommandHandler.SetBotCommands(FoxTelegram.Client);
-
-                //await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
-
-                sql = new MySqlConnection(FoxMain.MySqlConnectionString);
-                sql.Open();
-
-                using (var cmd = new MySqlCommand($"UPDATE queue SET status = 'PENDING' WHERE status = 'PROCESSING'", sql))
+                try
                 {
-                    long stuck_count = cmd.ExecuteNonQuery();
-                    FoxLog.WriteLine($"Unstuck {stuck_count} queue items.");
+                    //Load workers BEFORE processing input from telegram.
+                    await FoxWorker.LoadWorkers();
+
+                    await FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
+
+                    await FoxCommandHandler.SetBotCommands(FoxTelegram.Client);
+
+                    //await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
+
+                    sql = new MySqlConnection(FoxMain.MySqlConnectionString);
+                    sql.Open();
+
+                    using (var cmd = new MySqlCommand($"UPDATE queue SET status = 'PENDING' WHERE status = 'PROCESSING'", sql))
+                    {
+                        long stuck_count = cmd.ExecuteNonQuery();
+                        FoxLog.WriteLine($"Unstuck {stuck_count} queue items.");
+                    }
+
+                    await FoxWorker.StartWorkers();
+
+                    //_ = FoxQueue.NotifyUserPositions(botClient, cts);
+
+                    //Console.ReadLine();
                 }
+                catch (Exception ex)
+                {
+                    Terminal.Gui.Application.RequestStop();
+                    cts.Cancel();
 
-                await FoxWorker.StartWorkers();
-
-                //_ = FoxQueue.NotifyUserPositions(botClient, cts);
-
-                //Console.ReadLine();
+                    FoxLog.WriteLine("Error: " + ex.Message);
+                    FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
+                }
             });
 
             FoxUI.Start(cts);

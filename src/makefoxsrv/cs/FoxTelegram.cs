@@ -14,11 +14,15 @@ namespace makefoxsrv
 {
     internal class FoxTelegram
     {
+
+        public static WTelegram.Client? Client
+        {
+            get => _Client ?? throw new InvalidOperationException("Client is null");
+        }
+
         public TL.User User {
             get => _User ?? throw new InvalidOperationException("User is null");
         }
-
-        public static WTelegram.Client? Client { get => _Client; }
 
         public TL.ChatBase? Chat { get => _Chat; }
         public TL.InputPeer? Peer { get => _Peer; }

@@ -30,10 +30,10 @@ namespace makefoxsrv
         private static TextView? _logView;
         private static ScrollBarView? _logScrollBar;
 
-        private static string logBuffer = "";
+        private static string _logBuffer = "";
         
 
-        public static bool IsRunning { get; private set; } = true;
+        public static bool isRunning { get; private set; } = false;
 
         public static void Start(CancellationTokenSource cts)
         {
@@ -218,28 +218,30 @@ namespace makefoxsrv
 
             stopwatch.Start();
 
-            _= Task.Run(async () =>
-            {
-                while (!cts.IsCancellationRequested)
-                {
-                    try
-                    {
-                        await UserUpdate();
-                        await Task.Delay(1000, cts.Token);
-                    } catch (TaskCanceledException) {
-                        //Do nothing.
-                    } catch (Exception ex)
-                    {
-                        FoxLog.WriteLine("User Update Exception: " + ex.Message);
-                        FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
-                    }
-                }
-            });
+            //_= Task.Run(async () =>
+            //{
+            //    while (!cts.IsCancellationRequested)
+            //    {
+            //        try
+            //        {
+            //            await UserUpdate();
+            //            await Task.Delay(1000, cts.Token);
+            //        } catch (TaskCanceledException) {
+            //            //Do nothing.
+            //        } catch (Exception ex)
+            //        {
+            //            FoxLog.WriteLine("User Update Exception: " + ex.Message);
+            //            FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
+            //        }
+            //    }
+            //});
 
             try
             {
-                Application.Run(_top);
-                FoxUI.IsRunning = false;
+                if (!cts.IsCancellationRequested)
+                    Application.Run(_top);
+
+                FoxUI.isRunning = false;
                 Application.Shutdown();
             } catch (TaskCanceledException) {
                 //Do nothing.
@@ -248,7 +250,7 @@ namespace makefoxsrv
             {
                 Application.Shutdown();
 
-                FoxUI.IsRunning = false;
+                FoxUI.isRunning = false;
 
                 FoxLog.WriteLine("User Update Exception: " + ex.Message);
                 FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
@@ -453,7 +455,7 @@ namespace makefoxsrv
                 userSize = 0;
             }
 
-            if (_logView is not null && _logScrollBar is not null && _logView.Visible && logBuffer.Length > 0)
+            if (_logView is not null && _logScrollBar is not null && _logView.Visible && _logBuffer.Length > 0)
             {
                 const int maxTextLength = 10 * 1024 * 1024; // 10MB in characters
 
@@ -463,10 +465,10 @@ namespace makefoxsrv
                 bool isUserAtBottom = _logView.TopRow + _logView.Frame.Height >= _logScrollBar.Size;
                 int originalTopRow = _logView.TopRow;
 
-                lock (logBuffer)
+                lock (_logBuffer)
                 {
-                    _logView.Text += logBuffer;
-                    logBuffer = "";
+                    _logView.Text += _logBuffer;
+                    _logBuffer = "";
                 }
 
                 // Trim the text if it exceeds the maximum length
@@ -492,15 +494,10 @@ namespace makefoxsrv
 
         public static void AppendLog(string value)
         {
-            if (IsRunning)
-            {
-                logBuffer += value;
-            }
-            else
-            {
-                Console.WriteLine(logBuffer + value);
-                logBuffer = "";
-            }
+            _logBuffer += value;
+
+            if (!isRunning) //Also print to the console.
+                Console.WriteLine(_logBuffer + value);
         }
     }
 }
