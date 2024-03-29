@@ -392,7 +392,7 @@ We are committed to using your donation to further develop and maintain the serv
             }
         }
 
-        private static async Task UpdateTelegramUser(User? user, bool ForceUpdate = false)
+        private static async Task UpdateTelegramUser(User user, bool ForceUpdate = false)
         {
             try
             {
@@ -518,11 +518,11 @@ We are committed to using your donation to further develop and maintain the serv
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine("updateTelegramChats error: " + ex.Message);
+                FoxLog.WriteLine($"updateTelegramUser error: chat={user.ID} {ex.Message}\r\n{ex.StackTrace}");
             }
         }
 
-        private static async Task UpdateTelegramChat(ChatBase? chat, bool ForceUpdate = false)
+        private static async Task UpdateTelegramChat(ChatBase chat, bool ForceUpdate = false)
         {
             try
             {
@@ -721,7 +721,7 @@ We are committed to using your donation to further develop and maintain the serv
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine("updateTelegramChats error: " + ex.Message);
+                FoxLog.WriteLine($"updateTelegramChat error: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
             }
         }
 
@@ -731,7 +731,14 @@ We are committed to using your donation to further develop and maintain the serv
             {
                 foreach (var user in users.Values)
                 {
-                    await UpdateTelegramUser(user, ForceUpdate);
+                    try
+                    {
+                        await UpdateTelegramUser(user, ForceUpdate);
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.WriteLine($"updateTelegramUsers error: chat={user.ID} {ex.Message}\r\n{ex.StackTrace}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -742,16 +749,17 @@ We are committed to using your donation to further develop and maintain the serv
 
         private static async Task UpdateTelegramChats(IDictionary<long, ChatBase> chats, bool ForceUpdate = false)
         {
-            try
+
+            foreach (var chat in chats.Values)
             {
-                foreach (var chat in chats.Values)
+                try
                 {
                     await UpdateTelegramChat(chat, ForceUpdate);
                 }
-            }
-            catch (Exception ex)
-            {
-                FoxLog.WriteLine($"updateTelegramChats error: {ex.Message}\r\n{ex.StackTrace}");
+                catch (Exception ex)
+                {
+                    FoxLog.WriteLine($"updateTelegramChats error: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
+                }
             }
         }
     }
