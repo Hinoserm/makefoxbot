@@ -621,13 +621,14 @@ We are committed to using your donation to further develop and maintain the serv
                                 cmd.Transaction = transaction;
                                 cmd.CommandText = @"
                                     INSERT INTO telegram_users
-                                    (id, access_hash, active, type, username, firstname, lastname, bio, flags, flags2, date_added, date_updated, photo_id, photo)
+                                    (id, access_hash, active, type, language, username, firstname, lastname, bio, flags, flags2, date_added, date_updated, photo_id, photo)
                                     VALUES 
-                                    (@id, @access_hash, @active, @type, @username, @firstname, @lastname, @bio, @flags, @flags2, @date_added, @date_updated, @photo_id, @photo)
+                                    (@id, @access_hash, @active, @type, @language, @username, @firstname, @lastname, @bio, @flags, @flags2, @date_added, @date_updated, @photo_id, @photo)
                                     ON DUPLICATE KEY UPDATE 
                                         access_hash = COALESCE(@access_hash, access_hash),
                                         active = COALESCE(@active, active),
                                         type = COALESCE(@type, type),
+                                        language = COALESCE(@language, language),
                                         username = COALESCE(@username, username),
                                         firstname = COALESCE(@firstname, firstname),
                                         lastname = COALESCE(@lastname, lastname),
@@ -644,6 +645,7 @@ We are committed to using your donation to further develop and maintain the serv
                                 cmd.Parameters.AddWithValue("access_hash", user.access_hash != 0 ? user.access_hash : null);
                                 cmd.Parameters.AddWithValue("active", user.IsActive);
                                 cmd.Parameters.AddWithValue("type", user.IsBot ? "BOT" : "USER");
+                                cmd.Parameters.AddWithValue("language", user.lang_code);
                                 cmd.Parameters.AddWithValue("username", user.MainUsername);
                                 cmd.Parameters.AddWithValue("firstname", user.first_name);
                                 cmd.Parameters.AddWithValue("lastname", user.last_name);
