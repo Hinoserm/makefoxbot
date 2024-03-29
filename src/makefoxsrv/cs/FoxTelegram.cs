@@ -374,7 +374,7 @@ We are committed to using your donation to further develop and maintain the serv
         {
             updates.CollectUsersChats(FoxTelegram.Users, FoxTelegram.Chats);
 
-            await UpdateTelegramUsers(updates.Users, true);
+            await UpdateTelegramUsers(updates.Users);
 
             _ = Task.Run(async () => {
                 await UpdateTelegramChats(updates.Chats);
@@ -515,8 +515,6 @@ We are committed to using your donation to further develop and maintain the serv
                 if (Client is null)
                     throw new Exception("Client is null");
 
-                FoxLog.WriteLine($"UpdateTelegramUser: {user}, {ForceUpdate}");
-
                 using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                 {
                     await SQL.OpenAsync();
@@ -532,7 +530,7 @@ We are committed to using your donation to further develop and maintain the serv
                         {
                             cmd.Connection = SQL;
                             cmd.Transaction = transaction;
-                            cmd.CommandText = "SELECT date_updated,date_added,photo_id FROM telegram_users WHERE id = @id";
+                            cmd.CommandText = "SELECT date_updated,date_added,photo_id,access_hash,username FROM telegram_users WHERE id = @id";
                             cmd.Parameters.AddWithValue("id", user.ID);
 
                             using var reader = await cmd.ExecuteReaderAsync();
@@ -548,6 +546,15 @@ We are committed to using your donation to further develop and maintain the serv
 
                                 if (dateAdded is null || dateUpdated < DateTime.Now.AddHours(-1))
                                     shouldUpdate = true; //If at least an hour has passed, force the update.
+
+                                String username = reader["username"] as string ?? "";
+                                long access_hash = reader["access_hash"] as long? ?? 0;
+
+                                if (username != user.MainUsername)
+                                    shouldUpdate = true; //Always update if username has changed.
+
+                                if (access_hash != user.access_hash)
+                                    shouldUpdate = true; //Always update if access hash has changed.
                             }
                             else
                                 shouldUpdate = true; //Always update if it's missing.
@@ -559,6 +566,8 @@ We are committed to using your donation to further develop and maintain the serv
                         if (shouldUpdate)
                         {
                             UserFull? fullUser = null;
+
+                            FoxLog.WriteLine($"UpdateTelegramUser: {user}, Forced={ForceUpdate}");
 
                             try
                             {
@@ -664,8 +673,6 @@ We are committed to using your donation to further develop and maintain the serv
                 if (Client is null)
                     throw new Exception("Client is null");
 
-                FoxLog.WriteLine($"UpdateTelegramChat: {chat}, {ForceUpdate}");
-
                 using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                 {
                     await SQL.OpenAsync();
@@ -681,7 +688,7 @@ We are committed to using your donation to further develop and maintain the serv
                         {
                             cmd.Connection = SQL;
                             cmd.Transaction = transaction;
-                            cmd.CommandText = "SELECT date_updated,date_added,photo_id FROM telegram_chats WHERE id = @id";
+                            cmd.CommandText = "SELECT date_updated,date_added,photo_id,access_hash FROM telegram_chats WHERE id = @id";
                             cmd.Parameters.AddWithValue("id", chat.ID);
 
                             using var reader = await cmd.ExecuteReaderAsync();
@@ -697,6 +704,14 @@ We are committed to using your donation to further develop and maintain the serv
 
                                 if (dateAdded is null || dateUpdated < DateTime.Now.AddHours(-1))
                                     shouldUpdate = true; //If at least an hour has passed, force the update.
+
+                                long access_hash = reader["access_hash"] as long? ?? 0;
+
+                                if (chat is Channel c)
+                                {
+                                    if (c.access_hash != access_hash)
+                                        shouldUpdate = true; //Always update if access hash has changed.
+                                }
                             }
                             else
                                 shouldUpdate = true; //Always update if it's missing.
@@ -712,6 +727,8 @@ We are committed to using your donation to further develop and maintain the serv
                             TL.Channel? group = null;
                             ChannelFull? fullChannel = null;
                             ChatFullBase? fullChat = null;
+
+                            FoxLog.WriteLine($"UpdateTelegramChat: {chat}, Forced={ForceUpdate}");
 
                             try
                             {
