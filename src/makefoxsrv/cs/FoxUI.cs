@@ -38,8 +38,7 @@ namespace makefoxsrv
 
         private static string _logBuffer = "";
         
-
-        public static bool isRunning { get; private set; } = true; //Start set to running to deal with a logging bug (hopefully temporary).
+        public static bool isRunning { get; private set; } = false;
 
         public static void Start(CancellationTokenSource cts)
         {
