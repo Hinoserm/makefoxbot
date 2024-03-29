@@ -546,7 +546,7 @@ We are committed to using your donation to further develop and maintain the serv
                         DateTime? dateAdded = null;
                         Byte[]? chatPhoto = null;
                         long? photoID = 0;
-                        var shouldUpdate = true;
+                        var shouldUpdate = ForceUpdate;
 
                         using (var cmd = new MySqlCommand())
                         {
@@ -707,6 +707,16 @@ We are committed to using your donation to further develop and maintain the serv
                                     groupAdmins.CollectUsersChats(FoxTelegram.Users, FoxTelegram.Chats);
 
                                     await UpdateTelegramUsers(groupAdmins.users);
+
+                                    using (var cmd = new MySqlCommand())
+                                    {
+                                        cmd.Connection = SQL;
+                                        cmd.Transaction = transaction;
+                                        cmd.CommandText = @"DELETE FROM telegram_chat_admins WHERE chatid = @chatid";
+                                        cmd.Parameters.AddWithValue("chatid", chat.ID);
+
+                                        await cmd.ExecuteNonQueryAsync();
+                                    }
 
                                     foreach (var p in groupAdmins.participants)
                                     {
