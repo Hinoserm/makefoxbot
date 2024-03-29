@@ -32,21 +32,18 @@ namespace makefoxsrv
 
         private static string _logBuffer = "";
         
-        public static bool isRunning { get; private set; } = false;
+        public static bool hasStopped { get; private set; } = false;
 
         public static void Init()
         {
             //Console.OutputEncoding = Encoding.UTF8;
 
-            //Application.Init();
-            
-            //isRunning = true;
+            Application.Init();
         }
 
         public static void Start(CancellationTokenSource cts)
         {
-            isRunning = true;
-            Application.Init();
+            //Application.Init();
 
             _top = new()
             {
@@ -270,7 +267,7 @@ namespace makefoxsrv
                 if (!cts.IsCancellationRequested)
                     Application.Run(_top);
 
-                FoxUI.isRunning = false;
+                FoxUI.hasStopped = true;
                 Application.Shutdown();
             } catch (TaskCanceledException) {
                 //Do nothing.
@@ -279,7 +276,7 @@ namespace makefoxsrv
             {
                 Application.Shutdown();
 
-                FoxUI.isRunning = false;
+                FoxUI.hasStopped = true;
 
                 FoxLog.WriteLine("User Update Exception: " + ex.Message);
                 FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
@@ -525,7 +522,7 @@ namespace makefoxsrv
         {
             _logBuffer += value;
 
-            if (!isRunning) //Also print to the console.
+            if (hasStopped) //Also print to the console.
                 Console.Write(value);
         }
     }

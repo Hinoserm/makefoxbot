@@ -564,14 +564,20 @@ We are committed to using your donation to further develop and maintain the serv
 
                                 MemoryStream memoryStream = new MemoryStream();
 
-                                Photo? photo = (Photo?)fullUser.profile_photo;
+                                PhotoBase photo = fullUser.profile_photo;
 
-                                if (photo is not null && photo.ID != photoID)
+
+                                switch (photo)
                                 {
-                                    photoID = photo.ID;
+                                    case Photo p:
+                                        if (photo.ID != photoID)
+                                        {
+                                            photoID = p.ID;
 
-                                    //await FoxTelegram.Client.DownloadFileAsync(photo, memoryStream, photo.LargestPhotoSize);
-                                    //photoBytes = memoryStream.ToArray();
+                                            //await FoxTelegram.Client.DownloadFileAsync(photo, memoryStream, photo.LargestPhotoSize);
+                                            //photoBytes = memoryStream.ToArray();
+                                        }
+                                    break;
                                 }
                             }
                             catch (WTelegram.WTException ex)
@@ -708,14 +714,20 @@ We are committed to using your donation to further develop and maintain the serv
                                 fullChat = (await Client.GetFullChat(chat)).full_chat;
                                 MemoryStream memoryStream = new MemoryStream();
 
-                                Photo? photo = (Photo?)fullChat?.ChatPhoto;
+                                PhotoBase photo = fullChat.ChatPhoto;
 
-                                if (photo is not null && photo.ID != photoID)
+                                switch (photo)
                                 {
-                                    photoID = photo.ID;
+                                    case Photo p:
+                                        if (photo.ID != photoID)
+                                        {
+                                            photoID = p.ID;
 
-                                    await FoxTelegram.Client.DownloadFileAsync(photo, memoryStream, photo.LargestPhotoSize);
-                                    chatPhoto = memoryStream.ToArray();
+                                            await FoxTelegram.Client.DownloadFileAsync(p, memoryStream, p.LargestPhotoSize);
+                                            chatPhoto = memoryStream.ToArray();
+                                        }
+
+                                        break;
                                 }
 
                                 fullChannel = fullChat as ChannelFull;
