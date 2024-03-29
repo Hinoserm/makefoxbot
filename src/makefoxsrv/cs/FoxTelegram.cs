@@ -688,7 +688,7 @@ We are committed to using your donation to further develop and maintain the serv
                         {
                             cmd.Connection = SQL;
                             cmd.Transaction = transaction;
-                            cmd.CommandText = "SELECT date_updated,date_added,photo_id,access_hash FROM telegram_chats WHERE id = @id";
+                            cmd.CommandText = "SELECT date_updated,date_added,photo_id,access_hash,title FROM telegram_chats WHERE id = @id";
                             cmd.Parameters.AddWithValue("id", chat.ID);
 
                             using var reader = await cmd.ExecuteReaderAsync();
@@ -706,6 +706,10 @@ We are committed to using your donation to further develop and maintain the serv
                                     shouldUpdate = true; //If at least an hour has passed, force the update.
 
                                 long access_hash = reader["access_hash"] as long? ?? 0;
+                                String? title = reader["title"] as string;
+
+                                if (title != chat.Title)
+                                    shouldUpdate = true; //Always update if title has changed.
 
                                 if (chat is Channel c)
                                 {
