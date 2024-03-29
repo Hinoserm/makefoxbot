@@ -247,11 +247,46 @@ We are committed to using your donation to further develop and maintain the serv
             }
         }
 
+        private static string ReplaceNonPrintableCharacters(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+            {
+                return input;
+            }
+
+            StringBuilder output = new StringBuilder();
+            foreach (char c in input)
+            {
+                if (c == '\r')
+                {
+                    output.Append("\\r");
+                }
+                else if (c == '\n')
+                {
+                    output.Append("\\n");
+                }
+                else if (Encoding.UTF8.GetByteCount(new[] { c }) == 1)
+                {
+                    output.Append(c);
+                }
+                else if (char.IsControl(c))
+                {
+                    output.Append('?');
+                }
+                else
+                {
+                    output.Append('?');
+                }
+            }
+
+            return output.ToString();
+        }
+
         private static async Task HandleMessageAsync(FoxTelegram t, Message msg)
         {
             // Only process text messages
 
-            FoxLog.WriteLine($"{msg.from_id} in {msg.peer_id}> {msg.message}");
+            FoxLog.WriteLine($"Message: {t.User}" + (t.Chat is not null ? $" in {t.Chat}" : "") + $"> {ReplaceNonPrintableCharacters(msg.message)}");
 
             if (msg.message is not null)
             {
@@ -430,7 +465,7 @@ We are committed to using your donation to further develop and maintain the serv
 
                                 t = new FoxTelegram(user, chat);
 
-                                FoxLog.WriteLine($"Callback: {user} in {chat}> {System.Text.Encoding.ASCII.GetString(ucbk.data)}");
+                                FoxLog.WriteLine($"Callback: {user}" + (chat is not null ? $" in {chat}" : "") + $"> {System.Text.Encoding.ASCII.GetString(ucbk.data)}");
 
                                 _ = FoxCallbacks.Handle(t, ucbk, System.Text.Encoding.ASCII.GetString(ucbk.data));
 
