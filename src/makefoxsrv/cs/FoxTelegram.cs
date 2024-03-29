@@ -373,10 +373,9 @@ We are committed to using your donation to further develop and maintain the serv
         {
             updates.CollectUsersChats(FoxTelegram.Users, FoxTelegram.Chats);
 
-            //Run these in the background.
-            _= Task.Run(async () => {
-                await UpdateTelegramUsers(updates.Users);
+            await UpdateTelegramUsers(updates.Users, true);
 
+            _ = Task.Run(async () => {
                 await UpdateTelegramChats(updates.Chats);
             });
 

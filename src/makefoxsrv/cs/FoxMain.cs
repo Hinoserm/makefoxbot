@@ -158,8 +158,6 @@ namespace makefoxsrv
         {
             using CancellationTokenSource cts = new();
 
-            ThreadPool.SetMaxThreads(200, 200);
-
             FoxLog.WriteLine($"Hello, World!  Version {GetVersion()}");
 
             string currentDirectory = Directory.GetCurrentDirectory();
@@ -190,7 +188,7 @@ namespace makefoxsrv
 
             MySqlConnection sql;
 
-            Console.Write("Connecting to database... ");
+            FoxLog.Write("Connecting to database... ");
             try
             {
                 sql = new MySqlConnection(FoxMain.MySqlConnectionString);

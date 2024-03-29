@@ -43,6 +43,8 @@ namespace makefoxsrv
 
         public static void Start(CancellationTokenSource cts)
         {
+            Console.OutputEncoding = Encoding.UTF8;
+
             Application.Init();
             
             _win = new Window()
@@ -188,7 +190,7 @@ namespace makefoxsrv
 
             Application.MainLoop.AddIdle(() =>
             {
-                if (stopwatch.ElapsedMilliseconds >= 300)
+                if (stopwatch.ElapsedMilliseconds >= 100)
                 {
                     try
                     {
@@ -244,6 +246,11 @@ namespace makefoxsrv
                     }
                 }
             });
+
+            /* Application.Resized += (args) =>
+            {
+                _win?.SetNeedsDisplay();
+            }; */
 
             try
             {
