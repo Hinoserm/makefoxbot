@@ -20,7 +20,13 @@ namespace makefoxsrv
 {
     internal class FoxUI
     {   
-        private static readonly Toplevel _top = new();
+        private static readonly Toplevel _top = new()
+        {
+            X = 0,
+            Y = 0,
+            Width = Dim.Fill(),
+            Height = Dim.Fill()
+        };
 
         private static Window? _win;
         private static FrameView? _leftPane;
@@ -218,23 +224,26 @@ namespace makefoxsrv
 
             stopwatch.Start();
 
-            //_= Task.Run(async () =>
-            //{
-            //    while (!cts.IsCancellationRequested)
-            //    {
-            //        try
-            //        {
-            //            await UserUpdate();
-            //            await Task.Delay(1000, cts.Token);
-            //        } catch (TaskCanceledException) {
-            //            //Do nothing.
-            //        } catch (Exception ex)
-            //        {
-            //            FoxLog.WriteLine("User Update Exception: " + ex.Message);
-            //            FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
-            //        }
-            //    }
-            //});
+            _ = Task.Run(async () =>
+            {
+                while (!cts.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await UserUpdate();
+                        await Task.Delay(1000, cts.Token);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        //Do nothing.
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.WriteLine("User Update Exception: " + ex.Message);
+                        FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
+                    }
+                }
+            });
 
             try
             {
