@@ -515,6 +515,8 @@ We are committed to using your donation to further develop and maintain the serv
                 if (Client is null)
                     throw new Exception("Client is null");
 
+                FoxLog.WriteLine($"UpdateTelegramUser: {user}, {ForceUpdate}");
+
                 using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                 {
                     await SQL.OpenAsync();
@@ -661,6 +663,8 @@ We are committed to using your donation to further develop and maintain the serv
 
                 if (Client is null)
                     throw new Exception("Client is null");
+
+                FoxLog.WriteLine($"UpdateTelegramChat: {chat}, {ForceUpdate}");
 
                 using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                 {
