@@ -264,7 +264,7 @@ We are committed to using your donation to further develop and maintain the serv
             updates.CollectUsersChats(FoxTelegram.Users, FoxTelegram.Chats);
 
             //Run these in the background.
-            Task.Run(async () => {
+            _= Task.Run(async () => {
                 await UpdateTelegramUsers(updates.Users);
 
                 await UpdateTelegramChats(updates.Chats);
@@ -451,9 +451,9 @@ We are committed to using your donation to further develop and maintain the serv
 
                                 MemoryStream memoryStream = new MemoryStream();
 
-                                Photo photo = (Photo)fullUser.profile_photo;
+                                Photo? photo = (Photo?)fullUser.profile_photo;
 
-                                if (photo.ID != photoID)
+                                if (photo is not null && photo.ID != photoID)
                                 {
                                     photoID = photo.ID;
 
@@ -463,7 +463,7 @@ We are committed to using your donation to further develop and maintain the serv
                             }
                             catch (Exception ex)
                             {
-                                FoxLog.WriteLine("Error getting full chat: " + ex.Message);
+                                FoxLog.WriteLine("Error getting full user: " + ex.Message);
                             }
 
                             using (var cmd = new MySqlCommand())
@@ -583,9 +583,9 @@ We are committed to using your donation to further develop and maintain the serv
                                 msgChatFull = await Client.GetFullChat(chat);
                                 MemoryStream memoryStream = new MemoryStream();
 
-                                Photo photo = (Photo)msgChatFull.full_chat.ChatPhoto;
+                                Photo? photo = (Photo?)msgChatFull.full_chat.ChatPhoto;
 
-                                if (photo.ID != photoID)
+                                if (photo is not null && photo.ID != photoID)
                                 {
                                     photoID = photo.ID;
 
