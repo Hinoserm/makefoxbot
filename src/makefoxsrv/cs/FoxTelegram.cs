@@ -541,7 +541,7 @@ We are committed to using your donation to further develop and maintain the serv
                         DateTime? dateAdded = null;
                         Byte[]? chatPhoto = null;
                         long? photoID = 0;
-                        var shouldUpdate = ForceUpdate;
+                        var shouldUpdate = true;
 
                         using (var cmd = new MySqlCommand())
                         {
@@ -576,14 +576,15 @@ We are committed to using your donation to further develop and maintain the serv
                             long? adminFlags = null;
                             var groupType = "GROUP";
                             TL.Channel? group = null;
-                            Messages_ChatFull? msgChatFull = null;
+                            ChannelFull? fullChannel = null;
+                            ChatFullBase? fullChat = null;
 
                             try
                             {
-                                msgChatFull = await Client.GetFullChat(chat);
+                                fullChat = (await Client.GetFullChat(chat)).full_chat;
                                 MemoryStream memoryStream = new MemoryStream();
 
-                                Photo? photo = (Photo?)msgChatFull.full_chat.ChatPhoto;
+                                Photo? photo = (Photo?)fullChat?.ChatPhoto;
 
                                 if (photo is not null && photo.ID != photoID)
                                 {
@@ -592,37 +593,48 @@ We are committed to using your donation to further develop and maintain the serv
                                     await FoxTelegram.Client.DownloadFileAsync(photo, memoryStream, photo.LargestPhotoSize);
                                     chatPhoto = memoryStream.ToArray();
                                 }
+
+                                fullChannel = fullChat as ChannelFull;
                             }
                             catch (Exception ex)
                             {
-                                FoxLog.WriteLine("Error getting full chat: " + ex.Message);
+                                if (ex.Message != "CHANNEL_PRIVATE")
+                                    FoxLog.WriteLine($"Error getting full chat: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
                             }
-
-                            ChatFullBase? fullChat = msgChatFull?.full_chat;
-                            ChannelFull? fullChannel = fullChat as ChannelFull;
 
                             if (chat.IsChannel || chat.IsGroup)
                             {
-                                group = (TL.Channel)chat;
-                                var admin = group.admin_rights;
-                                if (admin is not null)
-                                    adminFlags = ((long)admin.flags);
+                                switch (chat)
+                                {
+                                    case Channel g:
+                                        group = g;
 
-                                if (chat.IsChannel)
-                                {
-                                    groupType = "CHANNEL";
-                                }
-                                else if (chat.IsGroup)
-                                {
-                                    groupType = "GROUP";
-                                    if (group.flags.HasFlag(TL.Channel.Flags.megagroup))
-                                    {
-                                        groupType = "SUPERGROUP";
-                                    }
-                                    else if (group.flags.HasFlag(TL.Channel.Flags.gigagroup))
-                                    {
-                                        groupType = "GIGAGROUP";
-                                    }
+                                        var admin = group.admin_rights;
+                                        if (admin is not null)
+                                            adminFlags = ((long)admin.flags);
+
+                                        if (chat.IsChannel)
+                                        {
+                                            groupType = "CHANNEL";
+                                        }
+                                        else if (chat.IsGroup)
+                                        {
+                                            groupType = "GROUP";
+                                            if (group.flags.HasFlag(TL.Channel.Flags.megagroup))
+                                            {
+                                                groupType = "SUPERGROUP";
+                                            }
+                                            else if (group.flags.HasFlag(TL.Channel.Flags.gigagroup))
+                                            {
+                                                groupType = "GIGAGROUP";
+                                            }
+                                        }
+
+                                        break;
+                                    case Chat c:
+
+                                        groupType = "UNKNOWN";
+                                        break;
                                 }
                             }
 
@@ -676,7 +688,7 @@ We are committed to using your donation to further develop and maintain the serv
                                 await cmd.ExecuteNonQueryAsync();
                             }
 
-                            if (group is not null)
+                            if (group is not null && (!group.IsChannel || group.flags.HasFlag(Channel.Flags.has_admin_rights)))
                             {
                                 try
                                 {
@@ -710,7 +722,8 @@ We are committed to using your donation to further develop and maintain the serv
                                 }
                                 catch (Exception ex)
                                 {
-                                    FoxLog.WriteLine("Error getting group admins: " + ex.Message);
+                                    if (ex.Message != "CHANNEL_PRIVATE" /*&& ex.Message != "CHAT_ADMIN_REQUIRED"*/)
+                                        FoxLog.WriteLine($"Error getting group admins: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
                                 }
                             }
                         }
