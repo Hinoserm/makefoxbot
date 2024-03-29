@@ -27,10 +27,13 @@ namespace makefoxsrv
         private static FrameView? _workerPane;
         private static FrameView? _userPane;
         private static Label? _userLabel;
+        private static Label? _statsLabel;
         private static TextView? _logView;
         private static ScrollBarView? _logScrollBar;
 
         private static string _logBuffer = "";
+
+        private static string _statsString = "LOADING";
         
         public static bool hasStopped { get; private set; } = false;
 
@@ -40,6 +43,7 @@ namespace makefoxsrv
 
             //Application.Init();
         }
+
 
         public static void Start(CancellationTokenSource cts)
         {
@@ -93,12 +97,32 @@ namespace makefoxsrv
                 X = Pos.Right(_leftPane),
                 Y = Pos.Bottom(_workerPane),
                 Width = _workerPane.Width,
-                Height = Dim.Fill()
+                Height = Dim.Fill() - 8
+            };
+
+            FrameView _statsPane = new()
+            {
+                Title = "Stats",
+                X = Pos.Right(_leftPane),
+                Y = Pos.Bottom(_userPane),
+                Width = Dim.Sized(42),
+                Height = Dim.Sized(8)
             };
 
             _userLabel = new()
             {
                 X = 0,
+                Y = 0,
+                AutoSize = false,
+                Width = Dim.Fill(),
+                Height = Dim.Fill(),
+                TextAlignment = TextAlignment.Left,
+                Visible = true
+            };
+
+            _statsLabel = new()
+            {
+                X = 1,
                 Y = 0,
                 AutoSize = false,
                 Width = Dim.Fill(),
@@ -220,7 +244,8 @@ namespace makefoxsrv
             _logView.SetFocus();
 
             _userPane.Add(_userLabel);
-            _win.Add(_leftPane, _workerPane, _userPane); 
+            _statsPane.Add(_statsLabel);
+            _win.Add(_leftPane, _workerPane, _userPane, _statsPane); 
 
             _top.Add(_win);
             _top.Add(menu);
@@ -339,6 +364,8 @@ namespace makefoxsrv
                     }
                 }
             }
+
+            _statsString = $"Users: {FoxUser.UserCount()}";
         }
 
         public static void Update()
@@ -524,6 +551,11 @@ namespace makefoxsrv
 
                     _leftPane.Title = "Log (Paused)";
                 }
+            }
+
+            if (_statsLabel is not null && _statsLabel.Visible)
+            {
+                _statsLabel.Text = _statsString;
             }
         }
 

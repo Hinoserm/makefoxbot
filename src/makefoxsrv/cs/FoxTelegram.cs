@@ -88,7 +88,15 @@ namespace makefoxsrv
 
             _Client = new WTelegram.Client(appID, apiHash, sessionFile);
 
-            _Client.OnUpdate += (update) => HandleUpdateAsync(update);
+            _Client.OnUpdate += (update) =>
+            {
+                _ = Task.Run(async () =>
+                {
+                    await HandleUpdateAsync(update);
+                });
+
+                return Task.CompletedTask;
+            };
 
             _Client.FloodRetryThreshold = 0;
 
@@ -880,14 +888,21 @@ We are committed to using your donation to further develop and maintain the serv
                                         var adminType = "UNKNOWN";
 
                                         groupAdmins.users.TryGetValue(p.UserId, out User? user);
+                                        string? admRank = admin?.rank;
+                                        long? admFlags = (long ?)admin?.admin_rights.flags;
 
                                         switch (p)
                                         {
                                             case ChannelParticipantAdmin _:
                                                 adminType = "ADMIN";
                                                 break;
-                                            case ChannelParticipantCreator _:
+                                            case ChannelParticipantCreator creator:
                                                 adminType = "CREATOR";
+
+                                                admRank = creator.rank;
+                                                admFlags = (long ?)creator.admin_rights.flags;
+
+
                                                 break;
                                             default:
                                                 FoxLog.WriteLine($"Unexpected participant type: chat={chat.ID} {p.GetType().Name}");
@@ -902,8 +917,8 @@ We are committed to using your donation to further develop and maintain the serv
                                             cmd.Parameters.AddWithValue("chatid", chat.ID);
                                             cmd.Parameters.AddWithValue("userid", p.UserId);
                                             cmd.Parameters.AddWithValue("type", adminType);
-                                            cmd.Parameters.AddWithValue("flags", admin?.admin_rights.flags);
-                                            cmd.Parameters.AddWithValue("rank", admin?.rank);
+                                            cmd.Parameters.AddWithValue("flags", admFlags);
+                                            cmd.Parameters.AddWithValue("rank", admRank);
                                             cmd.Parameters.AddWithValue("now", DateTime.Now);
 
                                             await cmd.ExecuteNonQueryAsync();
@@ -952,6 +967,38 @@ We are committed to using your donation to further develop and maintain the serv
 
         private static async Task UpdateTelegramChats(IDictionary<long, ChatBase> chats, bool ForceUpdate = false)
         {
+            //try
+            //{
+            //    using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            //    {
+            //        await SQL.OpenAsync();
+
+            //        using (var cmd = new MySqlCommand())
+            //        {
+            //            cmd.Connection = SQL;
+            //            cmd.CommandText = "SELECT id FROM telegram_chats WHERE (" + string.Join(" OR ", chats.Keys.Select(k => $"id = {k}")) + ") AND date_updated <= @date";
+            //            cmd.Parameters.AddWithValue("date", DateTime.Now.AddHours(-1));
+
+            //            using var reader = await cmd.ExecuteReaderAsync();
+
+            //            if (reader.HasRows)
+            //            {
+            //                while (await reader.ReadAsync())
+            //                {
+            //                    long chatId = reader.GetInt64(0);
+            //                    if (chats.TryGetValue(chatId, out ChatBase? chat))
+            //                    {
+            //                        FoxLog.WriteLine("UpdateTelegramChats: " + chat);
+            //                        await UpdateTelegramChat(chat, ForceUpdate);
+            //                    }
+            //                }
+            //            }
+            //        }
+            //    }
+            //} catch (Exception ex)
+            //{
+            //    FoxLog.WriteLine($"updateTelegramChats error: {ex.Message}\r\n{ex.StackTrace}");
+            //}   
 
             foreach (var chat in chats.Values)
             {

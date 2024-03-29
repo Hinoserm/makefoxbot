@@ -375,8 +375,28 @@ namespace makefoxsrv
                 return this.accessLevel;
         }
 
-        private FoxUser() {
+        public static int UserCount(DateTime? since = null)
+        {
+            int count = 0;
 
+            if (since is null)
+                since = DateTime.MinValue;
+
+            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            {
+                SQL.Open();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = "SELECT COUNT(*) FROM users WHERE date_added >= @since";
+                    cmd.Parameters.AddWithValue("since", since);
+
+                    count = Convert.ToInt32(cmd.ExecuteScalar());
+                }
+            }
+
+            return count;
         }
     }
 }
