@@ -38,15 +38,15 @@ namespace makefoxsrv
         {
             Console.OutputEncoding = Encoding.UTF8;
 
-            Application.Init();
+            //Application.Init();
             
-            isRunning = true;
+            //isRunning = true;
         }
 
         public static void Start(CancellationTokenSource cts)
         {
 
-            //Application.Init();
+            Application.Init();
 
             _top = new()
             {
