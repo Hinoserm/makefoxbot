@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Policy;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -573,9 +574,20 @@ We are committed to using your donation to further develop and maintain the serv
                                     //photoBytes = memoryStream.ToArray();
                                 }
                             }
+                            catch (WTelegram.WTException ex)
+                            {
+                                //If we can't edit, we probably hit a rate limit with this user.
+
+                                if (ex is RpcException rex)
+                                {
+                                    FoxLog.WriteLine($"Error getting full user={user} x={rex.X} code={rex.Code} > {ex.Message}");
+                                }
+                                else
+                                    FoxLog.WriteLine($"Error getting full user={user} {ex.Message}");
+                            }
                             catch (Exception ex)
                             {
-                                FoxLog.WriteLine("Error getting full user: " + ex.Message);
+                                FoxLog.WriteLine("Error getting full user={user}: " + ex.Message);
                             }
 
                             using (var cmd = new MySqlCommand())

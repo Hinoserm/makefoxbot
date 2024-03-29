@@ -44,6 +44,8 @@ namespace makefoxsrv
         {
             Console.OutputEncoding = Encoding.UTF8;
 
+            Application.UseSystemConsole = true;
+
             Application.Init();
             
             _win = new Window()
@@ -189,6 +191,8 @@ namespace makefoxsrv
 
             Application.MainLoop.AddIdle(() =>
             {
+                Task.Delay(10).Wait();
+
                 if (stopwatch.ElapsedMilliseconds >= 100)
                 {
                     try
