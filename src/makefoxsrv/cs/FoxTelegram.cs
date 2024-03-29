@@ -641,7 +641,7 @@ We are committed to using your donation to further develop and maintain the serv
                                 ";
 
                                 cmd.Parameters.AddWithValue("id", user.ID);
-                                cmd.Parameters.AddWithValue("access_hash", user.access_hash);
+                                cmd.Parameters.AddWithValue("access_hash", user.access_hash != 0 ? user.access_hash : null);
                                 cmd.Parameters.AddWithValue("active", user.IsActive);
                                 cmd.Parameters.AddWithValue("type", user.IsBot ? "BOT" : "USER");
                                 cmd.Parameters.AddWithValue("username", user.MainUsername);
@@ -821,7 +821,7 @@ We are committed to using your donation to further develop and maintain the serv
                                     VALUES 
                                     (@id, @access_hash, @active, @username, @title, @type, @level, @flags, @flags2, @description, @admin_flags, @participants, @photo_id, @photo, @date_updated, @date_updated)
                                     ON DUPLICATE KEY UPDATE 
-                                        access_hash = VALUE(access_hash),
+                                        access_hash = COALESCE(@access_hash, access_hash),
                                         active = VALUE(active),
                                         username = VALUE(username),
                                         title = VALUE(title),
@@ -839,7 +839,7 @@ We are committed to using your donation to further develop and maintain the serv
                                 ";
 
                                 cmd.Parameters.AddWithValue("id", chat.ID);
-                                cmd.Parameters.AddWithValue("access_hash", group?.access_hash);
+                                cmd.Parameters.AddWithValue("access_hash", group?.access_hash != 0 ? group?.access_hash : null);
                                 cmd.Parameters.AddWithValue("active", chat.IsActive);
                                 cmd.Parameters.AddWithValue("username", chat.MainUsername);
                                 cmd.Parameters.AddWithValue("title", chat.Title);
@@ -853,7 +853,7 @@ We are committed to using your donation to further develop and maintain the serv
 
                                 cmd.Parameters.AddWithValue("description", fullChat?.About);
                                 cmd.Parameters.AddWithValue("participants", fullChat?.ParticipantsCount ?? group?.participants_count);
-                                cmd.Parameters.AddWithValue("slowmode_next_date", fullChannel?.slowmode_next_send_date);
+                                //cmd.Parameters.AddWithValue("slowmode_next_date", fullChannel?.slowmode_next_send_date);
 
                                 cmd.Parameters.AddWithValue("photo_id", photoID);
                                 cmd.Parameters.AddWithValue("photo", chatPhoto);
@@ -884,24 +884,26 @@ We are committed to using your donation to further develop and maintain the serv
 
                                     foreach (var p in groupAdmins.participants)
                                     {
-                                        var admin = p as ChannelParticipantAdmin;
                                         var adminType = "UNKNOWN";
+                                        string? admRank = null;
+                                        long? admFlags = null;
 
                                         groupAdmins.users.TryGetValue(p.UserId, out User? user);
-                                        string? admRank = admin?.rank;
-                                        long? admFlags = (long ?)admin?.admin_rights.flags;
 
                                         switch (p)
                                         {
-                                            case ChannelParticipantAdmin _:
+                                            case ChannelParticipantAdmin admin:
                                                 adminType = "ADMIN";
+
+                                                admRank = admin.rank;
+                                                admFlags = (long)admin.admin_rights.flags;
+
                                                 break;
                                             case ChannelParticipantCreator creator:
                                                 adminType = "CREATOR";
 
                                                 admRank = creator.rank;
-                                                admFlags = (long ?)creator.admin_rights.flags;
-
+                                                admFlags = (long)creator.admin_rights.flags;
 
                                                 break;
                                             default:

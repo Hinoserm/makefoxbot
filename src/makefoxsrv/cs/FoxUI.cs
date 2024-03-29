@@ -184,7 +184,7 @@ namespace makefoxsrv
             _logView.DrawContent += (e) => {
                 try
                 {
-                    _logScrollBar.Size = _logView.Lines + _logBuffer.Split("\r").Count() - 1;
+                    _logScrollBar.Size = _logView.Lines /* + _logBuffer.Split("\r").Count() */ - 1;
                     _logScrollBar.Position = _logView.TopRow;
                     _logScrollBar.OtherScrollBarView.Size = _logView.Maxlength;
                     _logScrollBar.OtherScrollBarView.Position = _logView.LeftColumn;
@@ -515,7 +515,7 @@ namespace makefoxsrv
                 var linesBeforeUpdate = _logView.Text.Split("\n");
                 // Determine if the user has scrolled to the bottom
                 //bool isUserAtBottom = _textView.TopRow + _textView.Frame.Height >= linesBeforeUpdate.Length;
-                bool isUserAtBottom = _logView.TopRow + _logView.Frame.Height >= (_logScrollBar.Size - _logBuffer.Split("\r").Count());
+                bool isUserAtBottom = _logView.TopRow + _logView.Frame.Height >= (_logScrollBar.Size);
                 int originalTopRow = _logView.TopRow;
 
                 if (isUserAtBottom && !_logView.Selecting)
@@ -546,8 +546,8 @@ namespace makefoxsrv
                 {
                     //Maintain user's scroll position.
                     //_logView.TopRow = originalTopRow;
-                    if (_logBuffer.Length > 0)
-                        _logScrollBar.Size = _logView.Lines + _logBuffer.Split("\r").Count() - 1;
+                    //if (_logBuffer.Length > 0)
+                    //    _logScrollBar.Size = _logView.Lines + _logBuffer.Split("\r").Count() - 1;
 
                     _leftPane.Title = "Log (Paused)";
                 }
