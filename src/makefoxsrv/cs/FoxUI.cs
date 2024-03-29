@@ -19,14 +19,8 @@ using System.Reflection.Metadata;
 namespace makefoxsrv
 {
     internal class FoxUI
-    {   
-        private static readonly Toplevel _top = new()
-        {
-            X = 0,
-            Y = 0,
-            Width = Dim.Fill(),
-            Height = Dim.Fill()
-        };
+    {
+        private static Toplevel _top;
 
         private static Window? _win;
         private static FrameView? _leftPane;
@@ -42,15 +36,25 @@ namespace makefoxsrv
 
         public static void Init()
         {
-            //Console.OutputEncoding = Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
 
             Application.Init();
+            
+            isRunning = true;
         }
 
         public static void Start(CancellationTokenSource cts)
         {
 
             //Application.Init();
+
+            _top = new()
+            {
+                X = 0,
+                Y = 0,
+                Width = Dim.Fill(),
+                Height = Dim.Fill()
+            };
 
             _win = new Window()
             {
