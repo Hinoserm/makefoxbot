@@ -637,8 +637,12 @@ We are committed to using your donation to further develop and maintain the serv
 
                                         break;
                                     case Chat c:
-
+                                        groupType = "GROUP";
+                                        break;
+                                    default:
                                         groupType = "UNKNOWN";
+
+                                        FoxLog.WriteLine($"Unexpected chat type: chat={chat.ID} {chat.GetType().Name}");
                                         break;
                                 }
                             }
