@@ -618,6 +618,9 @@ namespace makefoxsrv
 
             semaphoreAcquired = false;
 
+            if (qitem is not null)
+                await qitem.SetError(ex);
+
             qitem = null; //Clearly we're not working on an item anymore, better clear it to be safe.
         }
 
@@ -800,27 +803,13 @@ namespace makefoxsrv
                                 text: $"⏳ Generating now..."
                             );
                         }
-                        catch (Exception ex) {
+                        catch (WTelegram.WTException ex)
+                        {
                             //If we can't edit, we probably hit a rate limit with this user.
-                            
 
-                            Match match = Regex.Match(ex.Message, @"Too Many Requests: retry after (\d+)");
-
-                            if (match.Success)
-                            {
-                                // If the message matches, extract the number
-                                int retryAfterSeconds = int.Parse(match.Groups[1].Value) + 3;
-                                FoxLog.WriteLine($"Worker {id} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
-
-                                // Wait for the specified number of seconds before retrying
-                                //await Task.Delay(retryAfterSeconds * 1000);
-
-                                //Ideally we need some way to set a "retryAfterSecs" item on this request in the queue.
-
-                                await HandleError(ex);
-                                continue;
-                            } else
-                                FoxLog.WriteLine("Edit msg failed " + ex.Message); //We don't care if editing fails in other cases, like the message being missing.
+                            if (ex is RpcException rex)
+                                if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
+                                    throw;
                         } 
 
                         var settings = q.settings;                            
@@ -831,7 +820,7 @@ namespace makefoxsrv
 
                         _= this.MonitorProgressAsync(q, comboBreaker);
 
-                        if (q.type == "IMG2IMG")
+                        if (q.type == FoxQueue.QueueType.IMG2IMG)
                         {
                             q.input_image = await FoxImage.Load(settings.selected_image);
 
@@ -884,7 +873,7 @@ namespace makefoxsrv
 
                             await q.SaveOutputImage(img2img.Images.Last().Data.ToArray());
                         }
-                        else if (q.type == "TXT2IMG")
+                        else if (q.type == FoxQueue.QueueType.TXT2IMG)
                         {
                             //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
@@ -932,6 +921,29 @@ namespace makefoxsrv
                         //FoxLog.WriteLine($"Finished image {q.id}.");
 
                     }
+                    catch (WTelegram.WTException ex)
+                    {
+                        //If we can't edit, we probably hit a rate limit with this user.
+
+                        if (ex is RpcException rex)
+                        {
+                            if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
+                            {
+                                // If the message matches, extract the number
+                                int retryAfterSeconds = rex.X;
+                                FoxLog.WriteLine($"Worker {id} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+
+                                if (qitem is not null)
+                                {
+                                    await qitem.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
+                                }
+
+                                qitem = null;
+                            }
+                        }
+                        else
+                            FoxLog.WriteLine($"Telegram error {ex.Message}\r\n{ex.StackTrace}");
+                    }
                     catch (OperationCanceledException)
                     {
                         // Handle the cancellation specifically
@@ -951,14 +963,8 @@ namespace makefoxsrv
                     }
                     catch (Exception ex)
                     { 
-                        try
-                        {
-                            await q.SetError(ex); //Mark it as ERROR'd.
-                            Ping(); //Signal another worker to grab it.
-                        }
-                        catch { }
-
                         await HandleError(ex);
+                        Ping(); //Signal another worker to grab it.
                     }
 
                     qitem = null;

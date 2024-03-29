@@ -89,6 +89,8 @@ namespace makefoxsrv
 
             _Client.OnUpdate += (update) => HandleUpdateAsync(update);
 
+            _Client.FloodRetryThreshold = 0;
+
             await _Client.LoginBotIfNeeded(botToken);
 
             FoxLog.WriteLine($"We are logged-in as {_Client.User} (id {_Client.User.id})");
@@ -113,15 +115,33 @@ namespace makefoxsrv
 
             long random_id = Helpers.RandomLong();
 
-            var updates = await _Client.Messages_SendMessage(
-                        peer: _Peer,
-                        random_id: random_id,
-                        message: text,
-                        reply_to: replyToMessageId == 0 ? null : new InputReplyToMessage { reply_to_msg_id = replyToMessageId },
-                        reply_markup: replyInlineMarkup,
-                        entities: entities,
-                        no_webpage: disableWebPagePreview
-                    );
+            UpdatesBase? updates;
+
+
+            if (media is not null)
+            {
+                updates = await _Client.Messages_SendMedia(
+                    peer: _Peer,
+                    random_id: random_id,
+                    message: text,
+                    reply_to: replyToMessageId == 0 ? null : new InputReplyToMessage { reply_to_msg_id = replyToMessageId },
+                    reply_markup: replyInlineMarkup,
+                    entities: entities,
+                    media: media
+                );
+            }
+            else
+            {
+                updates = await _Client.Messages_SendMessage(
+                            peer: _Peer,
+                            random_id: random_id,
+                            message: text,
+                            reply_to: replyToMessageId == 0 ? null : new InputReplyToMessage { reply_to_msg_id = replyToMessageId },
+                            reply_markup: replyInlineMarkup,
+                            entities: entities,
+                            no_webpage: disableWebPagePreview
+                        );
+            }
 
             if (updates is UpdateShortSentMessage sent)
                 return new Message
@@ -264,6 +284,56 @@ We are committed to using your donation to further develop and maintain the serv
             }
         }
 
+        private static async Task HandleDeleteMessagesAsync(int[] messages)
+        {
+            try
+            {
+                using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+                {
+                    await SQL.OpenAsync();
+
+                    using (var transaction = await SQL.BeginTransactionAsync())
+                    {
+                        using (var cmd = new MySqlCommand())
+                        {
+                            cmd.Connection = SQL;
+                            cmd.Transaction = transaction;
+
+                            cmd.CommandText = "UPDATE telegram_log SET message_deleted = 1 WHERE message_id IN (" + string.Join(",", messages) + ")";
+
+                            await cmd.ExecuteNonQueryAsync();
+                        }
+
+                        using (var cmd = new MySqlCommand())
+                        {
+                            cmd.Connection = SQL;
+                            cmd.Transaction = transaction;
+
+                            cmd.CommandText = "UPDATE images SET hidden = 1 WHERE telegram_msgid IN (" + string.Join(",", messages) + ")";
+
+                            await cmd.ExecuteNonQueryAsync();
+                        }
+
+                        using (var cmd = new MySqlCommand())
+                        {
+                            cmd.Connection = SQL;
+                            cmd.Transaction = transaction;
+
+                            cmd.CommandText = "UPDATE queue SET msg_deleted = 1 WHERE msg_id IN (" + string.Join(",", messages) + ")";
+
+                            await cmd.ExecuteNonQueryAsync();
+                        }
+
+                        transaction.Commit();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FoxLog.WriteLine("Error in HandleDeleteMessagesAsync: " + ex.Message);
+            }
+        }
+
         private static async Task HandleUpdateAsync(UpdatesBase updates)
         {
             updates.CollectUsersChats(FoxTelegram.Users, FoxTelegram.Chats);
@@ -341,10 +411,10 @@ We are committed to using your donation to further develop and maintain the serv
 
                                 break;
                             case UpdateDeleteChannelMessages udcm:
-                                FoxLog.WriteLine("Deleted chat messages " + udcm.messages.Length);
+                                _= HandleDeleteMessagesAsync(udcm.messages);
                                 break;
                             case UpdateDeleteMessages udm:
-                                FoxLog.WriteLine("Deleted messages " + udm.messages.Length);
+                                _= HandleDeleteMessagesAsync(udm.messages);
                                 break;
 
                             case UpdateBotCallbackQuery ucbk:
@@ -367,6 +437,9 @@ We are committed to using your donation to further develop and maintain the serv
                                 break;
                             case UpdateBotPrecheckoutQuery upck:
                                 await _Client.Messages_SetBotPrecheckoutResults(upck.query_id, null, true);
+                                break;
+                            case UpdateReadChannelOutbox urco:
+                                //User has read our messages (and we're an admin in the channel)
                                 break;
                             default:
                                 FoxLog.WriteLine("Unexpected update type from Telegram: " + update.GetType().Name);
@@ -422,7 +495,7 @@ We are committed to using your donation to further develop and maintain the serv
                         {
                             cmd.Connection = SQL;
                             cmd.Transaction = transaction;
-                            cmd.CommandText = "SELECT date_updated,date_added,photo_id FROM telegram_users WHERE id = @id FOR UPDATE";
+                            cmd.CommandText = "SELECT date_updated,date_added,photo_id FROM telegram_users WHERE id = @id";
                             cmd.Parameters.AddWithValue("id", user.ID);
 
                             using var reader = await cmd.ExecuteReaderAsync();
@@ -552,7 +625,7 @@ We are committed to using your donation to further develop and maintain the serv
                         {
                             cmd.Connection = SQL;
                             cmd.Transaction = transaction;
-                            cmd.CommandText = "SELECT date_updated,date_added,photo_id FROM telegram_chats WHERE id = @id FOR UPDATE";
+                            cmd.CommandText = "SELECT date_updated,date_added,photo_id FROM telegram_chats WHERE id = @id";
                             cmd.Parameters.AddWithValue("id", chat.ID);
 
                             using var reader = await cmd.ExecuteReaderAsync();
@@ -721,16 +794,31 @@ We are committed to using your donation to further develop and maintain the serv
                                     foreach (var p in groupAdmins.participants)
                                     {
                                         var admin = p as ChannelParticipantAdmin;
+                                        var adminType = "UNKNOWN";
 
                                         groupAdmins.users.TryGetValue(p.UserId, out User? user);
+
+                                        switch (p)
+                                        {
+                                            case ChannelParticipantAdmin _:
+                                                adminType = "ADMIN";
+                                                break;
+                                            case ChannelParticipantCreator _:
+                                                adminType = "CREATOR";
+                                                break;
+                                            default:
+                                                FoxLog.WriteLine($"Unexpected participant type: chat={chat.ID} {p.GetType().Name}");
+                                                break;
+                                        }
 
                                         using (var cmd = new MySqlCommand())
                                         {
                                             cmd.Connection = SQL;
                                             cmd.Transaction = transaction;
-                                            cmd.CommandText = "REPLACE INTO telegram_chat_admins (chatid, userid, rank, flags, date_updated) VALUES (@chatid, @userid, @rank, @flags, @now)";
+                                            cmd.CommandText = "REPLACE INTO telegram_chat_admins (chatid, userid, type, rank, flags, date_updated) VALUES (@chatid, @userid, @type, @rank, @flags, @now)";
                                             cmd.Parameters.AddWithValue("chatid", chat.ID);
                                             cmd.Parameters.AddWithValue("userid", p.UserId);
+                                            cmd.Parameters.AddWithValue("type", adminType);
                                             cmd.Parameters.AddWithValue("flags", admin?.admin_rights.flags);
                                             cmd.Parameters.AddWithValue("rank", admin?.rank);
                                             cmd.Parameters.AddWithValue("now", DateTime.Now);

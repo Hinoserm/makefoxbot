@@ -158,7 +158,7 @@ namespace makefoxsrv
         {
             using CancellationTokenSource cts = new();
 
-            //ThreadPool.SetMaxThreads(200, 200);
+            ThreadPool.SetMaxThreads(200, 200);
 
             FoxLog.WriteLine($"Hello, World!  Version {GetVersion()}");
 

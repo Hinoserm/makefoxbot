@@ -38,7 +38,14 @@ namespace makefoxsrv
         public ulong id;
         public ulong UID;
         public long reply_msg;
-        public string type;
+        public enum QueueType
+        {
+            UNKNOWN,
+            IMG2IMG,
+            TXT2IMG
+        }
+
+        public QueueType type;
         public int msg_id;
         public DateTime creation_time;
         public DateTime? date_sent = null;
@@ -271,7 +278,7 @@ namespace makefoxsrv
 
                         q.telegram = new FoxTelegram(q.telegramUserId, Convert.ToInt64(r["user_access_hash"]), q.telegramChatId, r["chat_access_hash"] is DBNull ? null : Convert.ToInt64(r["chat_access_hash"]));
 
-                        q.type = Convert.ToString(r["type"]);
+                        q.type = Enum.Parse<FoxQueue.QueueType>(Convert.ToString(r["type"]) ?? "UNKNOWN");
 
                         if (!(r["steps"] is DBNull))
                             settings.steps = Convert.ToInt16(r["steps"]);
@@ -348,6 +355,7 @@ LEFT JOIN telegram_users tu ON tu.id = q.tele_id
 LEFT JOIN telegram_chats tc ON tc.id = q.tele_chatid
 WHERE 
     q.status IN ('PENDING', 'ERROR')
+    AND (q.retry_date IS NULL OR q.retry_date <= @now)
     AND (w.max_img_size IS NULL OR q.width * q.height <= w.max_img_size)
     AND (w.max_img_steps IS NULL OR q.steps <= w.max_img_steps)
 ORDER BY 
@@ -384,7 +392,7 @@ FOR UPDATE;
 
                                 q.telegram = new FoxTelegram(q.telegramUserId, Convert.ToInt64(r["user_access_hash"]), q.telegramChatId, r["chat_access_hash"] is DBNull ? null : Convert.ToInt64(r["chat_access_hash"]));
 
-                                q.type = Convert.ToString(r["type"]);
+                                q.type = Enum.Parse<FoxQueue.QueueType>(Convert.ToString(r["type"]) ?? "UNKNOWN");
 
                                 if (!(r["steps"] is DBNull))
                                     settings.steps = Convert.ToInt16(r["steps"]);
@@ -554,8 +562,9 @@ FOR UPDATE;
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = $"UPDATE queue SET status = 'FINISHED', date_finished = @now WHERE id = @id";
+                    cmd.CommandText = $"UPDATE queue SET status = 'FINISHED', date_finished = @now, msg_id = @msg_id WHERE id = @id";
                     cmd.Parameters.AddWithValue("id", this.id);
+                    cmd.Parameters.AddWithValue("msg_id", this.msg_id);
                     cmd.Parameters.AddWithValue("now", DateTime.Now);
                     await cmd.ExecuteNonQueryAsync();
                 }
@@ -599,7 +608,7 @@ FOR UPDATE;
             }
         }
 
-        public async Task SetError(Exception ex)
+        public async Task SetError(Exception ex, DateTime? RetryWhen = null)
         {
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
@@ -607,8 +616,9 @@ FOR UPDATE;
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = $"UPDATE queue SET status = 'ERROR', error_str = @error, date_failed = @now WHERE id = @id";
+                    cmd.CommandText = $"UPDATE queue SET status = 'ERROR', error_str = @error, retry_date = @retry_date, date_failed = @now WHERE id = @id";
                     cmd.Parameters.AddWithValue("id", this.id);
+                    cmd.Parameters.AddWithValue("retry_date", RetryWhen);
                     cmd.Parameters.AddWithValue("error", ex.Message);
                     cmd.Parameters.AddWithValue("now", DateTime.Now);
                     await cmd.ExecuteNonQueryAsync();
@@ -658,7 +668,7 @@ FOR UPDATE;
             return number;
         }
 
-        public static async Task<FoxQueue?> Add(FoxUser user, TL.User tUser, TL.ChatBase? tChat, FoxUserSettings settings, string type, int msg_id, long? reply_msg = null)
+        public static async Task<FoxQueue?> Add(FoxUser user, TL.User tUser, TL.ChatBase? tChat, FoxUserSettings settings, QueueType type, int msg_id, long? reply_msg = null)
         {
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
@@ -690,7 +700,7 @@ FOR UPDATE;
                     cmd.Connection = SQL;
                     cmd.CommandText = "INSERT INTO queue (status, type, uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed, reply_msg, msg_id, date_added, link_token, model) VALUES ('PENDING', @type, @uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @reply_msg, @msg_id, @now, @token, @model)";
                     cmd.Parameters.AddWithValue("uid", user.UID);
-                    cmd.Parameters.AddWithValue("type", q.type);
+                    cmd.Parameters.AddWithValue("type", q.type.ToString());
                     cmd.Parameters.AddWithValue("tele_id", q.telegramUserId);
                     cmd.Parameters.AddWithValue("tele_chatid", q.telegramChatId);
                     cmd.Parameters.AddWithValue("steps", settings.steps);

@@ -70,6 +70,7 @@ namespace makefoxsrv
 
         public static async Task HandleCommand(FoxTelegram t, Message message)
         {
+            var explicitlyNamed = (t.Chat is null);
 
             if (message is null)
                 throw new ArgumentNullException();
@@ -89,6 +90,7 @@ namespace makefoxsrv
                 if (c[1].ToLower() != FoxTelegram.Client.User.username.ToLower())
                     return; // Not for us, skip it.
 
+                explicitlyNamed = true;
                 command = c[0];
             }
 
@@ -112,7 +114,7 @@ namespace makefoxsrv
 
                 await commandHandler(t, message, fUser, argument);
             }
-            else if (t.Chat is null)
+            else if (explicitlyNamed) //Only send this message if we were explicitly named in the chat (e.g. /command@botname)
             {
 
                 await t.SendMessageAsync(
@@ -361,7 +363,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
             try
             {
 
-                await FoxQueue.Add(user, t.User, t.Chat, settings, "TXT2IMG", waitMsg.ID, message.ID);
+                await FoxQueue.Add(user, t.User, t.Chat, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
             }
             catch (Exception ex) 
             {
@@ -552,7 +554,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 replyToMessageId: message.ID
             );
 
-            var q = await FoxQueue.Add(user, t.User, t.Chat, settings, "IMG2IMG", waitMsg.ID, message.ID);
+            var q = await FoxQueue.Add(user, t.User, t.Chat, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, message.ID);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
@@ -629,7 +631,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 replyToMessageId: message.ID
             );
 
-            var q = await FoxQueue.Add(user, t.User, t.Chat, settings, "TXT2IMG", waitMsg.ID, message.ID);
+            var q = await FoxQueue.Add(user, t.User, t.Chat, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
@@ -644,10 +646,8 @@ We sincerely appreciate your support and understanding. Your contribution direct
                     text: $"⏳ In queue ({q.position} of {q.total})..."
                 );
             }
-            catch { FoxLog.WriteLine("WOOP"); }
+            catch { }
         }
-
-
 
         [CommandDescription("Change current AI model.")]
         [CommandArguments("")]
@@ -1022,13 +1022,14 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
                     try
                     {
-                        await t.EditMessageAsync(
+                        _= t.EditMessageAsync(
                             id: msg_id,
                             text: "❌ Cancelled."
                         );
-                    } catch
+                    } catch (Exception ex)
                     {
                         //Don't care about this failure.
+                        FoxLog.WriteLine("Failed to edit message: " + msg_id.ToString());
                     }
 
                     pendingIds.Add(q_id);
