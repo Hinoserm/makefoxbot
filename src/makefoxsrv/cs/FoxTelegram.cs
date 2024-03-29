@@ -67,7 +67,12 @@ namespace makefoxsrv
             if (chatId is not null && chatAccessHash is not null)
             {
                 _Peer = new InputPeerChannel(chatId.Value, chatAccessHash.Value);
-            } else
+            }
+            else if (chatId is not null)
+            {
+                _Peer = new InputPeerChat(chatId.Value);
+            }
+            else
             {
                 _Peer = new InputPeerUser(userId, userAccessHash);
             }
