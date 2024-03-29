@@ -40,14 +40,18 @@ namespace makefoxsrv
         
         public static bool isRunning { get; private set; } = false;
 
-        public static void Start(CancellationTokenSource cts)
+        public static void Init()
         {
-            Console.OutputEncoding = Encoding.UTF8;
-
-            //Application.UseSystemConsole = true;
+            //Console.OutputEncoding = Encoding.UTF8;
 
             Application.Init();
-            
+        }
+
+        public static void Start(CancellationTokenSource cts)
+        {
+
+            //Application.Init();
+
             _win = new Window()
             {
                 X = 0,
@@ -189,6 +193,8 @@ namespace makefoxsrv
 
             Stopwatch stopwatch = new Stopwatch();
 
+            stopwatch.Start();
+
             Application.MainLoop.AddIdle(() =>
             {
                 Task.Delay(10).Wait();
@@ -227,7 +233,7 @@ namespace makefoxsrv
                 }
             };
 
-            stopwatch.Start();
+           
 
             _ = Task.Run(async () =>
             {
