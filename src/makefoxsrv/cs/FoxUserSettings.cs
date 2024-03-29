@@ -129,7 +129,8 @@ namespace makefoxsrv
                     {
                         cmd.Connection = SQL;
                         cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = {tuser.ID} AND tele_chatid = {tchat.ID}";
-                        await using var reader = await cmd.ExecuteReaderAsync();
+                        using var reader = await cmd.ExecuteReaderAsync();
+
                         if (reader.HasRows && await reader.ReadAsync())
                         {
                             if (!(reader["steps"] is DBNull))
@@ -162,7 +163,7 @@ namespace makefoxsrv
                 {
                     cmd.Connection = SQL;
                     cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = {tuser.ID} AND tele_chatid = 0";
-                    await using var reader = await cmd.ExecuteReaderAsync();
+                    using var reader = await cmd.ExecuteReaderAsync();
                     if (reader.HasRows && await reader.ReadAsync())
                     {
                         if (!(reader["steps"] is DBNull))
@@ -194,7 +195,7 @@ namespace makefoxsrv
                 {
                     cmd.Connection = SQL;
                     cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = 0";
-                    await using var reader = await cmd.ExecuteReaderAsync();
+                    using var reader = await cmd.ExecuteReaderAsync();
                     if (reader.HasRows && await reader.ReadAsync())
                     {
                         if (!(reader["steps"] is DBNull))

@@ -1137,7 +1137,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                     replyToMessageId: message.ID
                 );
                 return;
-            } else if (width > 1280 || height > 1280 && !user.CheckAccessLevel(AccessLevel.ADMIN))
+            } else if ((width > 1280 || height > 1280) && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendMessageAsync(
                     text: "❌ Dimension cannot be greater than 1280.",

@@ -328,7 +328,7 @@ namespace makefoxsrv
 
                     MemoryStream memoryStream = new MemoryStream();
 
-                    var fileType = await FoxTelegram.Client.DownloadFileAsync(photo, memoryStream);
+                    var fileType = await FoxTelegram.Client.DownloadFileAsync(photo, memoryStream, photo.LargestPhotoSize);
                     var fileName = $"{photo.id}.jpg";
                     if (fileType is not Storage_FileType.unknown and not Storage_FileType.partial)
                         fileName = $"{photo.id}.{fileType}";
