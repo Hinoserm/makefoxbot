@@ -36,7 +36,7 @@ namespace makefoxsrv
 
         public static void Init()
         {
-            Console.OutputEncoding = Encoding.UTF8;
+            //Console.OutputEncoding = Encoding.UTF8;
 
             //Application.Init();
             
