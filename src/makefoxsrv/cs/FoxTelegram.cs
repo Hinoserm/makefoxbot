@@ -266,17 +266,17 @@ We are committed to using your donation to further develop and maintain the serv
                 {
                     output.Append("\\n");
                 }
-                else if (Encoding.UTF8.GetByteCount(new[] { c }) == 1)
-                {
-                    output.Append(c);
-                }
-                else if (char.IsControl(c))
-                {
-                    output.Append('?');
-                }
+                //else if (Encoding.UTF8.GetByteCount(new[] { c }) == 1)
+                //{
+                //    output.Append(c);
+                //}
+                //else if (char.IsControl(c))
+                //{
+                //    output.Append('?');
+                //}
                 else
                 {
-                    output.Append('?');
+                    output.Append(c);
                 }
             }
 

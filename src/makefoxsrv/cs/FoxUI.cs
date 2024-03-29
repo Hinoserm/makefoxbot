@@ -160,7 +160,7 @@ namespace makefoxsrv
             _logView.DrawContent += (e) => {
                 try
                 {
-                    _logScrollBar.Size = _logView.Lines - 1;
+                    _logScrollBar.Size = _logView.Lines + _logBuffer.Split("\r").Count() - 1;
                     _logScrollBar.Position = _logView.TopRow;
                     _logScrollBar.OtherScrollBarView.Size = _logView.Maxlength;
                     _logScrollBar.OtherScrollBarView.Position = _logView.LeftColumn;
@@ -481,39 +481,48 @@ namespace makefoxsrv
                 userSize = 0;
             }
 
-            if (_logBuffer.Length > 0 && _logView is not null && _logScrollBar is not null && _logView.Visible && _logBuffer.Length > 0)
+            if (_logView is not null && _logScrollBar is not null && _logView.Visible)
             {
                 const int maxTextLength = 10 * 1024 * 1024; // 10MB in characters
 
                 var linesBeforeUpdate = _logView.Text.Split("\n");
                 // Determine if the user has scrolled to the bottom
                 //bool isUserAtBottom = _textView.TopRow + _textView.Frame.Height >= linesBeforeUpdate.Length;
-                bool isUserAtBottom = _logView.TopRow + _logView.Frame.Height >= _logScrollBar.Size;
+                bool isUserAtBottom = _logView.TopRow + _logView.Frame.Height >= (_logScrollBar.Size - _logBuffer.Split("\r").Count());
                 int originalTopRow = _logView.TopRow;
 
-                lock (_logBuffer)
+                if (isUserAtBottom && !_logView.Selecting)
                 {
-                    _logView.Text += _logBuffer;
-                    _logBuffer = "";
-                }
+                    if (_logBuffer.Length > 0)
+                    {
+                        lock (_logBuffer)
+                        {
+                            _logView.Text += _logBuffer;
+                            _logBuffer = "";
+                        }
 
-                // Trim the text if it exceeds the maximum length
-                if (_logView.Text.Length > maxTextLength)
-                {
-                    int removeLength = _logView.Text.Length - maxTextLength;
-                    _logView.Text = _logView.Text.Substring(removeLength);
-                }
+                        // Trim the text if it exceeds the maximum length
+                        if (_logView.Text.Length > maxTextLength)
+                        {
+                            int removeLength = _logView.Text.Length - maxTextLength;
+                            _logView.Text = _logView.Text.Substring(removeLength);
+                        }
 
-                if (isUserAtBottom)
-                {
-                    // Scroll to the bottom if the user was already there
-                    //_textView.TopRow = Math.Max(0, lines.Length - _textView.Frame.Height);
-                    _logView.CursorPosition = new Terminal.Gui.Point(_logView.Text.Length, _logView.Text.Count(c => c == '\n'));
+                        // Scroll to the bottom if the user was already there
+                        //_textView.TopRow = Math.Max(0, lines.Length - _textView.Frame.Height);
+                        _logView.CursorPosition = new Terminal.Gui.Point(_logView.Text.Length, _logView.Text.Count(c => c == '\n'));
+                    }
+
+                    _leftPane.Title = "Log";
                 }
                 else
                 {
                     //Maintain user's scroll position.
-                    _logView.TopRow = originalTopRow;
+                    //_logView.TopRow = originalTopRow;
+                    if (_logBuffer.Length > 0)
+                        _logScrollBar.Size = _logView.Lines + _logBuffer.Split("\r").Count() - 1;
+
+                    _leftPane.Title = "Log (Paused)";
                 }
             }
         }
