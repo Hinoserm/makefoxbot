@@ -44,7 +44,7 @@ namespace makefoxsrv
         {
             Console.OutputEncoding = Encoding.UTF8;
 
-            Application.UseSystemConsole = true;
+            //Application.UseSystemConsole = true;
 
             Application.Init();
             
@@ -474,7 +474,7 @@ namespace makefoxsrv
                 userSize = 0;
             }
 
-            if (_logView is not null && _logScrollBar is not null && _logView.Visible && _logBuffer.Length > 0)
+            if (_logBuffer.Length > 0 && _logView is not null && _logScrollBar is not null && _logView.Visible && _logBuffer.Length > 0)
             {
                 const int maxTextLength = 10 * 1024 * 1024; // 10MB in characters
 
