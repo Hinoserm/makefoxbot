@@ -45,7 +45,7 @@ namespace makefoxsrv
 
         public static void Start(CancellationTokenSource cts)
         {
-
+            isRunning = true;
             Application.Init();
 
             _top = new()
