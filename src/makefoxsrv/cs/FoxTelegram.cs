@@ -547,8 +547,8 @@ We are committed to using your donation to further develop and maintain the serv
                                 if (dateAdded is null || dateUpdated < DateTime.Now.AddHours(-1))
                                     shouldUpdate = true; //If at least an hour has passed, force the update.
 
-                                String username = reader["username"] as string ?? "";
-                                long access_hash = reader["access_hash"] as long? ?? 0;
+                                String? username = reader["username"] as string;
+                                long? access_hash = reader["access_hash"] as long?;
 
                                 if (username != user.MainUsername)
                                     shouldUpdate = true; //Always update if username has changed.
