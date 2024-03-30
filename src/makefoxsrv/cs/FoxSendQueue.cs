@@ -28,19 +28,19 @@ namespace makefoxsrv
 
         public static async Task Send(FoxQueue q)
         {
-            if (q.output_image is not null)
+
+            var OutputImage = await q.GetOutputImage();
+            if (OutputImage is not null)
             {
-                var t = q.telegram;
+                var t = q.Telegram;
 
                 if (t is null)
                     throw new Exception("Telegram object not initalized!");
 
-                await q.SetSending();
-
                 try
                 {
                     await t.EditMessageAsync(
-                        id: q.msg_id,
+                        id: q.MessageID,
                         text: $"⏳ Uploading..."
                     );
                 }
@@ -70,7 +70,7 @@ namespace makefoxsrv
                     //We don't usually care if editing fails.
                 }
 
-                var new_msgid = q.msg_id;
+                var oldMessageID = q.MessageID;
 
                 try
                 {
@@ -82,27 +82,27 @@ namespace makefoxsrv
                             new TL.KeyboardButtonRow {
                                 buttons = new TL.KeyboardButtonCallback[]
                                 {
-                                    new TL.KeyboardButtonCallback { text = "👍", data = System.Text.Encoding.ASCII.GetBytes("/vote up " + q.id) },
-                                    new TL.KeyboardButtonCallback { text = "👎", data = System.Text.Encoding.ASCII.GetBytes("/vote down " + q.id) },
-                                    new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.id)},
-                                    new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.id)},
+                                    new TL.KeyboardButtonCallback { text = "👍", data = System.Text.Encoding.ASCII.GetBytes("/vote up " + q.ID) },
+                                    new TL.KeyboardButtonCallback { text = "👎", data = System.Text.Encoding.ASCII.GetBytes("/vote down " + q.ID) },
+                                    new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.ID)},
+                                    new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.ID)},
                                 }
                             },
                             new TL.KeyboardButtonRow
                             {
                                 buttons = new TL.KeyboardButtonCallback[]
                                 {
-                                    new TL.KeyboardButtonCallback { text = "Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.id)},
+                                    new TL.KeyboardButtonCallback { text = "Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.ID)},
                                 }
                             }
                         }
                     };
 
-                    var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(q.output_image.Image)), "image.jpg");
+                    var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image)), "image.jpg");
 
                     //var msg = await FoxTelegram.Client.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
 
-                    System.TimeSpan diffResult = DateTime.Now.Subtract(q.creation_time);
+                    System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
                     System.TimeSpan GPUTime = await q.GetGPUTime();
                     string messageText = $"✅ Complete! (Took {diffResult.ToPrettyFormat()} - GPU: {GPUTime.ToPrettyFormat()}";
 
@@ -110,10 +110,10 @@ namespace makefoxsrv
                         media: new InputMediaUploadedPhoto() { file = inputImage },
                         text: (t.Chat is not null ? messageText : null),
                         replyInlineMarkup: (t.Chat is not null ? inlineKeyboardButtons : null),
-                        replyToMessageId: (int)q.reply_msg
+                        replyToMessageId: q.ReplyMessageID ?? 0
                         );
 
-                    new_msgid = msg.ID;
+                    await q.SetStatus(FoxQueue.QueueStatus.FINISHED, msg.ID);
 
                     if (t.Chat is null) // Only offer the buttons in private chats, not groups.
                     {
@@ -158,19 +158,20 @@ namespace makefoxsrv
 
                 try
                 {
-                    await t.DeleteMessage(q.msg_id);
+                    await t.DeleteMessage(oldMessageID);
                 }
                 catch { } // We don't care if editing fails
-
-                q.msg_id = new_msgid;
-                await q.SetFinished();
             } else {
                 try
                 {
-                    await q.telegram.EditMessageAsync(
-                        id: q.msg_id,
-                        text: $"❌ An unexpected error occured.  Please try again."
-                    );
+                    if (q.ReplyMessageID is not null && q.Telegram is not null)
+                    {
+                        await q.Telegram.EditMessageAsync(
+                            id: q.ReplyMessageID.Value,
+                            text: $"❌ An unexpected error occured.  Please try again."
+                        );
+                    }
+
                     FoxLog.WriteLine("SendQueue: Unexpected error; output image was null.");
                 }
                 catch { } //We don't care if editing fails.

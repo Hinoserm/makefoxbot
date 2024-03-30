@@ -363,7 +363,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
             try
             {
 
-                await FoxQueue.Add(user, t.User, t.Chat, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
+                await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
             }
             catch (Exception ex) 
             {
@@ -529,7 +529,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                     break;
             }
 
-            if (await FoxQueue.GetCount(user.UID) >= q_limit)
+            if (await FoxQueue.GetCount(user) >= q_limit)
             {
                 await t.SendMessageAsync(
                     text: $"❌ Maximum of {q_limit} queued requests per user.",
@@ -554,11 +554,11 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 replyToMessageId: message.ID
             );
 
-            var q = await FoxQueue.Add(user, t.User, t.Chat, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, message.ID);
+            var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, message.ID);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
-            await q.CheckPosition(); // Load the queue position and total.
+            //await q.CheckPosition(); // Load the queue position and total.
 
             FoxWorker.Ping();
 
@@ -566,7 +566,8 @@ We sincerely appreciate your support and understanding. Your contribution direct
             {
                 await t.EditMessageAsync(
                     id: message.ID,
-                    text: $"⏳ In queue ({q.position} of {q.total})..."
+                    //text: $"⏳ In queue ({q.position} of {q.total})..."
+                    text: $"⏳ Added to queue..."
                 );
             }
             catch { }
@@ -606,7 +607,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                     break;
             }
 
-            if (await FoxQueue.GetCount(user.UID) >= q_limit)
+            if (await FoxQueue.GetCount(user) >= q_limit)
             {
                 await t.SendMessageAsync(
                     text: $"❌Maximum of {q_limit} queued requests per user.",
@@ -631,11 +632,11 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 replyToMessageId: message.ID
             );
 
-            var q = await FoxQueue.Add(user, t.User, t.Chat, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
+            var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
-            await q.CheckPosition(); // Load the queue position and total.
+            //await q.CheckPosition(); // Load the queue position and total.
 
             FoxWorker.Ping();
 
@@ -643,7 +644,8 @@ We sincerely appreciate your support and understanding. Your contribution direct
             {
                 await t.EditMessageAsync(
                     id: waitMsg.ID,
-                    text: $"⏳ In queue ({q.position} of {q.total})..."
+                    //text: $"⏳ In queue ({q.position} of {q.total})..."
+                    text: $"⏳ Added to queue..."
                 );
             }
             catch { }
@@ -1066,8 +1068,8 @@ We sincerely appreciate your support and understanding. Your contribution direct
                     if (worker_id is not null)
                     {
                         var w = FoxWorker.Get(worker_id.Value);
-                        if (w is not null && w.qitem is not null) {
-                            await w.qitem.Cancel();
+                        if (w is not null && w.qItem is not null) {
+                            await w.qItem.Cancel();
                         }
                     }
 

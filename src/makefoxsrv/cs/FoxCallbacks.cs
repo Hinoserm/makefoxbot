@@ -236,7 +236,7 @@ namespace makefoxsrv
 
             await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
 
-            if (q is not null && q.telegramUserId == t.User.ID)
+            if (q is not null && q.Telegram?.User.ID == t.User.ID)
             {
                 // Construct the inline keyboard buttons and rows
                 var inlineKeyboardButtons = new ReplyInlineMarkup()
@@ -246,28 +246,28 @@ namespace makefoxsrv
                         new TL.KeyboardButtonRow {
                             buttons = new TL.KeyboardButtonCallback[]
                             {
-                                new TL.KeyboardButtonCallback { text = "👍", data = System.Text.Encoding.ASCII.GetBytes("/vote up " + q.id) },
-                                new TL.KeyboardButtonCallback { text = "👎", data = System.Text.Encoding.ASCII.GetBytes("/vote down " + q.id) },
-                                new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.id)},
-                                new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.id)},
+                                new TL.KeyboardButtonCallback { text = "👍", data = System.Text.Encoding.ASCII.GetBytes("/vote up " + q.ID) },
+                                new TL.KeyboardButtonCallback { text = "👎", data = System.Text.Encoding.ASCII.GetBytes("/vote down " + q.ID) },
+                                new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.ID)},
+                                new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.ID)},
                             }
                         }
                     }
                 };
 
-                System.TimeSpan diffResult = DateTime.Now.Subtract(q.creation_time);
+                System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
                 System.TimeSpan GPUTime = await q.GetGPUTime();
 
                 await t.EditMessageAsync(
-                    text: $"🖤Prompt: {q.settings.prompt}\r\n" +
-                          $"🐊Negative: {q.settings.negative_prompt}\r\n" +
-                          $"🖥️ Size: {q.settings.width}x{q.settings.height}\r\n" +
-                          $"🪜Sampler Steps: {q.settings.steps}\r\n" +
-                          $"🧑‍🎨CFG Scale: {q.settings.cfgscale}\r\n" +
-                          $"👂Denoising Strength: {q.settings.denoising_strength}\r\n" +
-                          $"🧠Model: {q.settings.model}\r\n" +
-                          $"🌱Seed: {q.settings.seed}\r\n" +
-                          (q.worker_id is not null ? $"👷Worker: " + (await FoxWorker.GetWorkerName(q.worker_id) ?? "(unknown)") + "\r\n" : "") +
+                    text: $"🖤Prompt: {q.Settings.prompt}\r\n" +
+                          $"🐊Negative: {q.Settings.negative_prompt}\r\n" +
+                          $"🖥️ Size: {q.Settings.width}x{q.Settings.height}\r\n" +
+                          $"🪜Sampler Steps: {q.Settings.steps}\r\n" +
+                          $"🧑‍🎨CFG Scale: {q.Settings.cfgscale}\r\n" +
+                          $"👂Denoising Strength: {q.Settings.denoising_strength}\r\n" +
+                          $"🧠Model: {q.Settings.model}\r\n" +
+                          $"🌱Seed: {q.Settings.seed}\r\n" +
+                          (q.WorkerID is not null ? $"👷Worker: " + (await FoxWorker.GetWorkerName(q.WorkerID) ?? "(unknown)") + "\r\n" : "") +
                           $"⏳Render Time: {GPUTime.ToPrettyFormat()}\r\n",
                     id: query.msg_id,
                     replyInlineMarkup: inlineKeyboardButtons
@@ -336,9 +336,9 @@ namespace makefoxsrv
 
             await t.SendCallbackAnswer(query.query_id, 0, "Transferring, please wait...");
 
-            if (q is not null && q.telegramUserId == t.User.ID)
+            if (q is not null && q.Telegram?.User.ID == t.User.ID)
             {
-                var img = await q.LoadOutputImage();
+                var img = await q.GetOutputImage();
 
                 if (img is null)
                     throw new Exception("Unable to locate image");
@@ -373,14 +373,14 @@ namespace makefoxsrv
 
             await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Selected for img2img");
 
-            if (q is not null && q.telegramUserId == t.User.ID)
+            if (q is not null && q.Telegram?.User.ID == t.User.ID)
             {
                 var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-                if (q.image_id is null)
+                if (q.OutputImageID is null)
                     return;
 
-                settings.selected_image = (ulong)q.image_id;
+                settings.selected_image = (ulong)q.OutputImageID;
 
                 await settings.Save();
 
@@ -391,17 +391,17 @@ namespace makefoxsrv
                         new TL.KeyboardButtonRow {
                             buttons = new TL.KeyboardButtonCallback[]
                             {
-                                new TL.KeyboardButtonCallback { text = "👍", data = System.Text.Encoding.ASCII.GetBytes("/vote up " + q.id) },
-                                new TL.KeyboardButtonCallback { text = "👎", data = System.Text.Encoding.ASCII.GetBytes("/vote down " + q.id) },
-                                new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.id)},
-                                new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.id)},
+                                new TL.KeyboardButtonCallback { text = "👍", data = System.Text.Encoding.ASCII.GetBytes("/vote up " + q.ID) },
+                                new TL.KeyboardButtonCallback { text = "👎", data = System.Text.Encoding.ASCII.GetBytes("/vote down " + q.ID) },
+                                new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.ID)},
+                                new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.ID)},
                             }
                         },
                         new TL.KeyboardButtonRow
                         {
                             buttons = new TL.KeyboardButtonCallback[]
                             {
-                                new TL.KeyboardButtonCallback { text = "Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.id)},
+                                new TL.KeyboardButtonCallback { text = "Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.ID)},
                             }
                         }
                      }

@@ -84,6 +84,22 @@ namespace makefoxsrv
             return (width, height);
         }
 
+        public static async Task<bool> IsImageValid(ulong imageID)
+        {
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+
+            await SQL.OpenAsync();
+
+            using (var cmd = new MySqlCommand("SELECT COUNT(*) FROM images WHERE id = @id", SQL))
+            {
+                cmd.Parameters.AddWithValue("id", imageID);
+
+                var result = await cmd.ExecuteScalarAsync();
+
+                return Convert.ToInt32(result) > 0;
+            }
+        }
+
         private static int RoundUpToNearestMultipleWithinLimit(int value, int multiple, int limit)
         {
             int roundedValue = ((value + multiple - 1) / multiple) * multiple;

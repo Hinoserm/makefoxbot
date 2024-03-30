@@ -17,12 +17,14 @@ using WTelegram;
 using makefoxsrv;
 using TL;
 using System.Linq.Expressions;
+using Terminal.Gui;
 
 namespace makefoxsrv
 {
     internal class FoxWorker
     {
-        private int id;
+        public int ID { get; private set; }
+
         private CancellationTokenSource stopToken = new(); //Token to stop this worker specifically
 
         private readonly string address;
@@ -30,9 +32,24 @@ namespace makefoxsrv
         private bool semaphoreAcquired = false;
         private StableDiffusion? api;
         public bool online = true;       //Worker online status
-        public FoxQueue? qitem = null;   //If we're operating, this is the current queue item being processed.
+        public FoxQueue? qItem = null;   //If we're operating, this is the current queue item being processed.
+
+        public DateTime StartDate { get; private set; } //Worker start date
+        public DateTime? TaskStartDate { get; private set; } = null;
+        
+        static public TimeSpan ProgressUpdateInterval { get; set; } = TimeSpan.FromMilliseconds(100);
 
         private ManualResetEvent enabledEvent = new ManualResetEvent(true); // Initially enabled
+
+        public static event EventHandler<WorkerEventArgs>? OnWorkerStart;
+        public static event EventHandler<WorkerEventArgs>? OnWorkerStop;
+        public static event EventHandler<ErrorEventArgs>? OnWorkerError;
+        public static event EventHandler<TaskEventArgs>? OnTaskStart;
+        public static event EventHandler<TaskErrorEventArgs>? OnTaskError;
+        public static event EventHandler<TaskEventArgs>? OnTaskCompleted;
+        public static event EventHandler<TaskEventArgs>? OnTaskCancelled;
+        public static event EventHandler<ProgressUpdateEventArgs>? OnTaskProgress;
+
         public bool Enabled
         {
             get => !enabledEvent.WaitOne(0); // If it waits 0 ms, it's checking the current state
@@ -50,7 +67,7 @@ namespace makefoxsrv
         private static ConcurrentDictionary<int, FoxWorker> workers = new ConcurrentDictionary<int, FoxWorker>();
         private static CancellationToken cancellationToken;
 
-        public double? PercentComplete = null;
+        public IProgress? Progress = null;
 
         private class Lora
         {
@@ -64,7 +81,7 @@ namespace makefoxsrv
         private FoxWorker(int worker_id, string address, string name, CancellationToken cancellationToken)
         {
             this.address = address;
-            this.id = worker_id;
+            this.ID = worker_id;
             this.name = name;
         }
 
@@ -137,7 +154,7 @@ namespace makefoxsrv
                     }
                     catch (Exception ex)
                     {
-                        FoxLog.WriteLine($"Worker {worker.id} - Failed due to error: {ex.Message}");
+                        FoxLog.WriteLine($"Worker {worker.ID} - Failed due to error: {ex.Message}");
                     }
 
                     //_ = worker.Run(botClient);
@@ -155,9 +172,29 @@ namespace makefoxsrv
             {
 
                 //_ = worker.Run();
-                _ = Task.Run(async () => await worker.Run());
+                //_ = Task.Run(async () => await worker.Start());
 
-                FoxLog.WriteLine($"Worker {worker.id} - Started.");
+                var workerThread = new Thread(() =>
+                {
+                    try
+                    {
+                        worker.Start().GetAwaiter().GetResult(); // This runs in a new thread
+                    } catch (Exception ex)
+                    {
+                        try
+                        {
+                            worker.HandleError(ex).Wait();
+                            worker.HandleShutdown();
+                        } catch (Exception ex2)
+                        {
+                            FoxLog.WriteLine($"Worker {worker.ID} - Error handling error: {ex2.Message}");
+                        }
+                    }
+                });
+                workerThread.IsBackground = true;
+                workerThread.Start();
+
+                FoxLog.WriteLine($"Worker {worker.ID} - Started.");
             }
 
             var qCount = await FoxQueue.GetCount();
@@ -182,26 +219,9 @@ namespace makefoxsrv
             return workers;
         }
 
-        public static bool CancelIfUserMatches(int worker_id, ulong uid)
-        {
-            var worker = workers[worker_id];
-
-            if (worker.qitem is null)
-                return false;
-
-            if (worker.qitem.UID != uid)
-                return false;
-
-            //await worker.qitem.Cancel();
-
-            worker.Stop();
-
-            return true;
-        }
-
         public void Stop()
         {
-            FoxLog.WriteLine($"Worker {id} stopping due to request... ");
+            FoxLog.WriteLine($"Worker {ID} stopping due to request... ");
 
             stopToken.Cancel();
         }
@@ -248,7 +268,7 @@ namespace makefoxsrv
             //Clear the list for this worker and start fresh.
             using (var cmd = new MySqlCommand($"DELETE FROM worker_models WHERE worker_id = @id", SQL))
             {
-                cmd.Parameters.AddWithValue("id", id);
+                cmd.Parameters.AddWithValue("id", ID);
                 await cmd.ExecuteNonQueryAsync();
             }
 
@@ -258,7 +278,7 @@ namespace makefoxsrv
 
                 using (var cmd = new MySqlCommand($"INSERT INTO worker_models (worker_id, model_name, model_hash, model_sha256, model_title, model_filename, model_config) VALUES (@id, @model_name, @model_hash, @model_sha256, @model_title, @model_filename, @model_config)", SQL))
                 {
-                    cmd.Parameters.AddWithValue("@id", id);
+                    cmd.Parameters.AddWithValue("@id", ID);
                     cmd.Parameters.AddWithValue("@model_name", model.ModelName);
                     cmd.Parameters.AddWithValue("@model_hash", model.Hash);
                     cmd.Parameters.AddWithValue("@model_sha256", model.SHA256);
@@ -271,7 +291,7 @@ namespace makefoxsrv
                 model_count++;
             }
 
-            FoxLog.WriteLine($"  Worker {id} - Loaded {model_count} available models");
+            FoxLog.WriteLine($"  Worker {ID} - Loaded {model_count} available models");
         }
 
         public async Task GetLoRAInfo()
@@ -302,7 +322,7 @@ namespace makefoxsrv
                 var loraNames = string.Join(",", lorasToKeep.Select(n => $"'{n.Replace("'", "''")}'"));
 
                 var cmd = new MySqlCommand($"DELETE FROM worker_loras WHERE worker_id = @workerId AND name NOT IN ({loraNames})", SQL, transaction);
-                cmd.Parameters.AddWithValue("@workerId", id);
+                cmd.Parameters.AddWithValue("@workerId", ID);
 
                 await cmd.ExecuteNonQueryAsync();
 
@@ -314,7 +334,7 @@ namespace makefoxsrv
                         INSERT INTO worker_loras (worker_id, name, alias, path)
                         VALUES (@workerId, @name, @alias, @path)
                         ON DUPLICATE KEY UPDATE alias=VALUES(alias), path=VALUES(path);", SQL, transaction);
-                    insertOrUpdateCmd.Parameters.AddWithValue("@workerId", id);
+                    insertOrUpdateCmd.Parameters.AddWithValue("@workerId", ID);
                     insertOrUpdateCmd.Parameters.AddWithValue("@name", lora.Name);
                     insertOrUpdateCmd.Parameters.AddWithValue("@alias", lora.Alias ?? "");
                     insertOrUpdateCmd.Parameters.AddWithValue("@path", lora.Path);
@@ -324,7 +344,7 @@ namespace makefoxsrv
                     var getLoraIdCmd = new MySqlCommand(@"
                         SELECT lora_id FROM worker_loras
                         WHERE worker_id = @workerId AND name = @name;", SQL, transaction);
-                    getLoraIdCmd.Parameters.AddWithValue("@workerId", id);
+                    getLoraIdCmd.Parameters.AddWithValue("@workerId", ID);
                     getLoraIdCmd.Parameters.AddWithValue("@name", lora.Name);
                     var loraId = Convert.ToInt64(await getLoraIdCmd.ExecuteScalarAsync());
 
@@ -381,7 +401,7 @@ namespace makefoxsrv
 
                     // Start a transaction
 
-                    var values = tagFrequencies.Select(tag => $"({loraId}, {id}, '{tag.Key.Replace("'", "''")}', {tag.Value})");
+                    var values = tagFrequencies.Select(tag => $"({loraId}, {ID}, '{tag.Key.Replace("'", "''")}', {tag.Value})");
                     var insertTagsCmdText = $"INSERT INTO worker_lora_tags (lora_id, worker_id, tag_name, frequency) VALUES {string.Join(", ", values)} ON DUPLICATE KEY UPDATE frequency=VALUES(frequency);";
                     if (values.Any())
                     {
@@ -393,7 +413,7 @@ namespace makefoxsrv
                 // Commit the transaction
                 await transaction.CommitAsync();
 
-                FoxLog.WriteLine($"  Worker {id} - Loaded {lora_count} LoRAs with {lora_tag_count} tags.");
+                FoxLog.WriteLine($"  Worker {ID} - Loaded {lora_count} LoRAs with {lora_tag_count} tags.");
             }
             catch (HttpRequestException e)
             {
@@ -546,7 +566,7 @@ namespace makefoxsrv
             }
         }
 
-        private async Task SetUsedDate(ulong? queue_id = null)
+        private async Task SetUsedDate()
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
@@ -555,8 +575,8 @@ namespace makefoxsrv
             using (var cmd = new MySqlCommand($"UPDATE workers SET last_queue_id = @queue_id, date_used = @now WHERE id = @id", SQL))
             {
                 cmd.Parameters.AddWithValue("now", DateTime.Now);
-                cmd.Parameters.AddWithValue("queue_id", queue_id);
-                cmd.Parameters.AddWithValue("id", id);
+                cmd.Parameters.AddWithValue("queue_id", this.qItem?.ID);
+                cmd.Parameters.AddWithValue("id", ID);
                 await cmd.ExecuteNonQueryAsync();
             }
         }
@@ -570,7 +590,7 @@ namespace makefoxsrv
             using (var cmd = new MySqlCommand($"UPDATE workers SET date_started = @now WHERE id = @id", SQL))
             {
                 cmd.Parameters.AddWithValue("now", DateTime.Now);
-                cmd.Parameters.AddWithValue("id", id);
+                cmd.Parameters.AddWithValue("id", ID);
                 await cmd.ExecuteNonQueryAsync();
             }
         }
@@ -585,7 +605,7 @@ namespace makefoxsrv
             {
                 cmd.Parameters.AddWithValue("error", ex.Message);
                 cmd.Parameters.AddWithValue("now", DateTime.Now);
-                cmd.Parameters.AddWithValue("id", id);
+                cmd.Parameters.AddWithValue("id", ID);
                 await cmd.ExecuteNonQueryAsync();
             }
         }
@@ -600,7 +620,7 @@ namespace makefoxsrv
             {
                 cmd.Parameters.AddWithValue("status", status);
                 cmd.Parameters.AddWithValue("now", DateTime.Now);
-                cmd.Parameters.AddWithValue("id", id);
+                cmd.Parameters.AddWithValue("id", ID);
                 await cmd.ExecuteNonQueryAsync();
             }
         }
@@ -608,71 +628,112 @@ namespace makefoxsrv
         private async Task HandleError(Exception ex)
         {
             online = false;
-            FoxLog.WriteLine($"Worker {id} is offline!\r\n  Error: " + ex.Message);
+            FoxLog.WriteLine($"Worker {ID} is offline!\r\n  Error: " + ex.Message);
             //await SetOnlineStatus(false); //SetFailedDate() already marks us as offline.
             await SetFailedDate(ex);
 
             //If we have the semaphore and crash, we better give it to someone else.
-            if (semaphoreAcquired)
-                semaphore.Release();
+            //if (semaphoreAcquired)
+            //    semaphore.Release();
 
-            semaphoreAcquired = false;
+            //semaphoreAcquired = false;
 
-            if (qitem is not null)
-                await qitem.SetError(ex);
-
-            qitem = null; //Clearly we're not working on an item anymore, better clear it to be safe.
-        }
-
-        private async Task MonitorProgressAsync(FoxQueue q, CancellationTokenSource cts)
-        {
-            int notifyTimer = 0;
-
-            if (api is null)
-                return;
-
-            while (!cts.IsCancellationRequested && online)
+            if (qItem is not null)
             {
-                try
-                {
-                    var p = await api.Progress(true);
-                    this.PercentComplete = Math.Round(p.Progress * 100, 2);
-
-                    try
-                    {
-                        if (!cts.IsCancellationRequested && this.PercentComplete > 3.0 && (notifyTimer >= 3000) && q.telegram is not null)
-                        {
-                            notifyTimer = 0;
-                            await q.telegram.EditMessageAsync(
-                                id: q.msg_id,
-                                text: $"⏳ Generating now ({(int)this.PercentComplete}%)..."
-                            );
-                        }
-                    }
-                    catch
-                    {
-                        //Don't care about telegram errors.
-                    }
-
-                    await Task.Delay(100, cts.Token);
-                    notifyTimer += 100;
-                }
-                catch
-                {
-                    break; //API error, stop the loop.
-                }
+                await qItem.SetError(ex);
+                OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
             }
 
-            this.PercentComplete = null; //Set it back to null (IDLE) when finished.
+            OnWorkerError?.Invoke(this, new ErrorEventArgs(ex));
+
+            TaskStartDate = null;
+            Progress = null;
+            qItem = null; //Clearly we're not working on an item anymore, better clear it to be safe.
         }
 
-        private async Task Run()
+        private CancellationTokenSource StartProgressMonitor(FoxQueue qItem, CancellationToken cancellationToken)
+        {   
+            CancellationTokenSource progressCTS = new CancellationTokenSource();
+
+            if (api is null)
+                return progressCTS;
+
+            _= Task.Run(async () =>
+            {
+                double lastProgress = 0;
+
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, progressCTS.Token);
+
+                while (!cts.IsCancellationRequested && online && qItem is not null)
+                {
+                    try
+                    {
+                        IProgress p = await api.Progress(true, cts.Token);
+
+                        if (p.Progress > lastProgress)
+                        {
+                            if (!online)
+                                break;
+
+                            if (qItem is null)
+                                break;
+
+                            lastProgress = p.Progress;
+
+                            float progressPercent = (float)Math.Round(p.Progress * 100, 2);
+
+                            this.Progress = p;
+
+                            if (qItem is not null)
+                            {
+                                OnTaskProgress?.Invoke(this, new ProgressUpdateEventArgs(qItem, p));
+                                _= qItem.Progress(this, p, progressPercent);
+                            }
+                            else
+                                break;
+
+
+                            if (p.Progress >= 1.0)
+                                break; //Stop when we hit 100%.
+                        }
+                        else if (lastProgress > 0 && p.Progress <= 0)
+                            break;
+
+                        await Task.Delay(ProgressUpdateInterval, cts.Token);
+                    }
+                    catch(Exception ex)
+                    {
+                        FoxLog.WriteLine($"Worker {ID} - Progress monitor error: {ex.Message}");
+                        break; //API error, stop the loop.
+                    }
+                }
+
+                this.Progress = null; //Set it back to null when finished.
+            });
+
+            return progressCTS;
+        }
+
+        private void HandleShutdown()
+        {
+            this.online = false;
+
+            OnWorkerStop?.Invoke(this, new WorkerEventArgs());
+
+            FoxLog.WriteLine($"Worker {ID} - Shutdown.");
+            workers.TryRemove(ID, out _);
+        }
+
+        private async Task Start()
         {
             var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
             var waitHandles = new WaitHandle[] { enabledEvent, cts.Token.WaitHandle };
 
+            OnWorkerStart?.Invoke(this, new WorkerEventArgs());
+
             while (!stopToken.IsCancellationRequested)
             {
+                CancellationTokenSource? progressCTS = null;
                 try
                 {
                     FoxQueue? q;
@@ -714,7 +775,7 @@ namespace makefoxsrv
                             //Wait a little bit to let the worker stablize if it's just starting up
                             await Task.Delay(8000, cts.Token);
 
-                            FoxLog.WriteLine($"Worker {id} is back online!");
+                            FoxLog.WriteLine($"Worker {ID} is back online!");
                             await SetOnlineStatus(true);
                             online = true;
 
@@ -724,11 +785,12 @@ namespace makefoxsrv
 
                     api = await ConnectAPI();
 
-                    if (!online) {
+                    if (!online)
+                    {
                         await SetOnlineStatus(true); //Appears to be working now.
                         online = true;
 
-                        FoxLog.WriteLine($"Worker {id} came back online unexpectedly");
+                        FoxLog.WriteLine($"Worker {ID} came back online unexpectedly");
                     }
 
                     var status = await api.QueueStatus();
@@ -751,7 +813,7 @@ namespace makefoxsrv
 
                     //while ((q = await FoxQueue.Pop(id)) is not null) //Work until the queue is empty
                     //{
-                    (q, int processingCount) = await FoxQueue.Pop(id);
+                    (q, int processingCount) = await FoxQueue.Pop(ID);
 
                     if (q is null)
                     {
@@ -768,7 +830,7 @@ namespace makefoxsrv
                                 semaphore.Release();
                             }
                             else
-                                FoxLog.WriteLine($"Worker {id} - That's odd... we have the semaphore, but can't find a queue item!");
+                                FoxLog.WriteLine($"Worker {ID} - That's odd... we have the semaphore, but can't find a queue item!");
                         }
 
                         continue;
@@ -778,58 +840,38 @@ namespace makefoxsrv
 
                     //FoxLog.WriteLine($"Starting image {q.id}...");
 
-                    qitem = q;
+                    qItem = q;
+                    this.TaskStartDate = DateTime.Now;
 
                     try
                     {
 
                         api = await ConnectAPI(true); // It's been a while, we should ping the API again.
 
-                        await q.SetWorker(id);
+                        await q.SetWorker(this);
 
-                        await SetUsedDate(q.id);
+                        await SetUsedDate();
 
                         using var ctsLoop = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, q.stopToken.Token);
 
-                        var t = q.telegram;
+                        //var t = q.telegram;
 
-                        if (t is null)
-                            throw new Exception("Telegram object not initialized");
+                        //if (t is null)
+                        //    throw new Exception("Telegram object not initialized");
 
-                        try
+                        OnTaskStart?.Invoke(this, new TaskEventArgs(qItem));
+                        qItem.Start(this);
+
+                        var settings = q.Settings;
+
+                        //_ = this.MonitorProgressAsync(q, comboBreaker);
+
+                        progressCTS = StartProgressMonitor(q, ctsLoop.Token);
+
+                        Byte[] outputImage;
+
+                        if (q.Type == FoxQueue.QueueType.IMG2IMG)
                         {
-                            await t.EditMessageAsync(
-                                id: q.msg_id,
-                                text: $"⏳ Generating now..."
-                            );
-                        }
-                        catch (WTelegram.WTException ex)
-                        {
-                            //If we can't edit, we probably hit a rate limit with this user.
-
-                            if (ex is RpcException rex)
-                                if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
-                                    throw;
-                        } 
-
-                        var settings = q.settings;                            
-
-                        using CancellationTokenSource progress_cts = new CancellationTokenSource();
-
-                        using var comboBreaker = CancellationTokenSource.CreateLinkedTokenSource(ctsLoop.Token, progress_cts.Token);
-
-                        _= this.MonitorProgressAsync(q, comboBreaker);
-
-                        if (q.type == FoxQueue.QueueType.IMG2IMG)
-                        {
-                            q.input_image = await FoxImage.Load(settings.selected_image);
-
-                            if (q.input_image is null)
-                            {
-                                await q.SetFinished();
-                                throw new Exception("The selected image was unable to be located");
-                            }
-
                             //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
                             //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
@@ -837,7 +879,12 @@ namespace makefoxsrv
                             var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
                             //var sampler = await api.Sampler("Restart", ctsLoop.Token);
 
-                            var img = new Base64EncodedImage(q.input_image.Image);
+                            FoxImage? inputImage = await q.GetInputImage();
+
+                            if (inputImage is null || inputImage.Image is null)
+                                throw new Exception("Input image could not be loaded.");
+
+                            var img = new Base64EncodedImage(inputImage.Image);
 
                             var img2img = await api.Image2Image(
                                 new()
@@ -856,7 +903,7 @@ namespace makefoxsrv
                                     Height = settings.height,
 
                                     Seed = new()
-                                    {   
+                                    {
                                         Seed = settings.seed
                                     },
 
@@ -871,9 +918,9 @@ namespace makefoxsrv
                                 }
                             , ctsLoop.Token);
 
-                            await q.SaveOutputImage(img2img.Images.Last().Data.ToArray());
+                            outputImage = img2img.Images.Last().Data.ToArray();
                         }
-                        else if (q.type == FoxQueue.QueueType.TXT2IMG)
+                        else if (q.Type == FoxQueue.QueueType.TXT2IMG)
                         {
                             //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
@@ -910,16 +957,18 @@ namespace makefoxsrv
                                 }
                             , ctsLoop.Token);
 
-                            await q.SaveOutputImage(txt2img.Images.Last().Data.ToArray());
-                        }
+                            outputImage = txt2img.Images.Last().Data.ToArray();
+                        } else
+                            throw new NotImplementedException("Request type not implemented.");
 
-                        progress_cts.Cancel();
+                        if (progressCTS is not null)
+                            progressCTS.Cancel();
 
-                        await q.SetFinished();
-                        _ = FoxSendQueue.Send(q);
+                        await q.Send(outputImage);
 
-                        //FoxLog.WriteLine($"Finished image {q.id}.");
+                        OnTaskCompleted?.Invoke(this, new TaskEventArgs(q));
 
+                        TaskStartDate = null;
                     }
                     catch (WTelegram.WTException ex)
                     {
@@ -931,27 +980,32 @@ namespace makefoxsrv
                             {
                                 // If the message matches, extract the number
                                 int retryAfterSeconds = rex.X;
-                                FoxLog.WriteLine($"Worker {id} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+                                FoxLog.WriteLine($"Worker {ID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
 
-                                if (qitem is not null)
+                                if (qItem is not null)
                                 {
-                                    await qitem.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
+                                    await qItem.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
+                                    OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
                                 }
 
-                                qitem = null;
+                                qItem = null;
                             }
                         }
-                        else
+                        else //We don't care about other telegram errors, but log them for debugging purposes.
                             FoxLog.WriteLine($"Telegram error {ex.Message}\r\n{ex.StackTrace}");
                     }
                     catch (OperationCanceledException)
                     {
                         // Handle the cancellation specifically
-                        if (qitem is not null && qitem.stopToken.IsCancellationRequested)
+                        if (qItem is not null && qItem.stopToken.IsCancellationRequested)
                         {
-                            FoxLog.WriteLine($"Worker {id} - Cancelled");
+                            FoxLog.WriteLine($"Worker {ID} - User Cancelled");
 
-                            qitem = null;
+                            OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
+
+                            qItem = null;
+                            TaskStartDate = null;
+                            Progress = null;
 
                             using var httpClient = new HttpClient();
 
@@ -962,24 +1016,29 @@ namespace makefoxsrv
                             throw; //If it wasn't a user cancellation request, re-throw the error.
                     }
                     catch (Exception ex)
-                    { 
+                    {
                         await HandleError(ex);
-                        Ping(); //Signal another worker to grab it.
+                    }
+                    finally
+                    {
+                        if (progressCTS is not null)
+                            progressCTS.Cancel();
                     }
 
-                    qitem = null;
-                 
-                    //FoxLog.WriteLine("Worker Tick...");
+                    qItem = null;
+                    TaskStartDate = null;
+                    Progress = null;
                 }
                 catch (OperationCanceledException ex)
                 {
-                    if (qitem is not null)
+                    if (qItem is not null)
                     {
                         try
                         {
-                            await qitem.SetError(ex); //Mark it as ERROR'd.
+                            OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
                             Ping(); //Signal another worker to grab it.
-                        } catch { }
+                        }
+                        catch { }
                     }
 
                     break; //Leave the loop, we're shutting down
@@ -990,10 +1049,64 @@ namespace makefoxsrv
                     //FoxLog.WriteLine("Error worker: " + ex.Message);
                     //await Task.Delay(3000, ctsLoop.Token);
                 }
+                finally
+                {
+                    if (progressCTS is not null)
+                        progressCTS.Cancel();
+                }
             }
 
-            FoxLog.WriteLine($"Worker {id} - Shutdown.");
-            workers.TryRemove(id, out _);
+            HandleShutdown();
+        }
+
+
+        public class WorkerEventArgs : EventArgs
+        {
+            // Any worker-specific event args if needed
+        }
+
+        public class TaskEventArgs : EventArgs
+        {
+            public FoxQueue qItem { get; }
+
+            public TaskEventArgs(FoxQueue queueItem)
+            {
+                qItem = queueItem;
+            }
+        }
+        public class TaskErrorEventArgs : EventArgs
+        {
+            public FoxQueue qItem { get; }
+            public Exception Exception { get; }
+
+            public TaskErrorEventArgs(FoxQueue queueItem, Exception ex)
+            {
+                qItem = queueItem;
+                Exception = ex;
+            }
+        }
+        public class ErrorEventArgs : EventArgs
+        {
+            public Exception Exception { get; }
+
+            public ErrorEventArgs(Exception error)
+            {
+                Exception = error;
+            }
+        }
+
+        public class ProgressUpdateEventArgs : EventArgs
+        {
+            public FoxQueue qItem { get; }
+            public double Percent { get; }
+            public IProgress Progress { get; }
+
+            public ProgressUpdateEventArgs(FoxQueue queueItem, IProgress progress)
+            {
+                qItem = queueItem;
+                Progress = progress;
+                Percent = Math.Round(progress.Progress * 100, 2);
+            }
         }
     }
 }

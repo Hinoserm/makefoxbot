@@ -22,6 +22,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using static System.Net.Mime.MediaTypeNames;
 using System.Runtime.Intrinsics.Arm;
+using Castle.Core.Smtp;
 
 
 public interface IMySettings
@@ -215,6 +216,13 @@ namespace makefoxsrv
                 FoxLog.WriteLine("Error: " + ex.Message);
                 return;
             }
+
+            FoxWorker.OnTaskProgress += (sender, e) =>
+            {
+                var w = (FoxWorker)sender!;
+
+                FoxLog.WriteLine($"Worker {w.name} progress: {e.Percent}%");
+            };
 
             _ = Task.Run(async () =>
             {

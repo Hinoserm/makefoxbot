@@ -397,106 +397,106 @@ namespace makefoxsrv
 
                 //Application.MainLoop.Invoke(() =>
                 //{
-            if (_workerPane is not null && _workerPane.Visible == true)
-            {
-                foreach (var w in FoxWorker.GetAll())
-                {
-                    var worker = w.Value;
-                    var workerId = w.Key;
+            //if (_workerPane is not null && _workerPane.Visible == true)
+            //{
+            //    foreach (var w in FoxWorker.GetAll())
+            //    {
+            //        var worker = w.Value;
+            //        var workerId = w.Key;
 
-                    var workerName = worker.name;
+            //        var workerName = worker.name;
 
-                    Label? nameLabel;
-                    Label? statusLabel;
-                    ProgressBar? progressBar;
+            //        Label? nameLabel;
+            //        Label? statusLabel;
+            //        ProgressBar? progressBar;
 
-                    if (!workerNameLabels.TryGetValue(workerId, out nameLabel))
-                    {
-                        // The index is missing, so add a new Label
-                        nameLabel = new Label()
-                        {
-                            Text = "Worker",
-                            AutoSize = false,
-                            X = 0,
-                            Y = labelI * 3,
-                            Width = Dim.Fill(),
-                            TextAlignment = TextAlignment.Left
-                        };
+            //        if (!workerNameLabels.TryGetValue(workerId, out nameLabel))
+            //        {
+            //            // The index is missing, so add a new Label
+            //            nameLabel = new Label()
+            //            {
+            //                Text = "Worker",
+            //                AutoSize = false,
+            //                X = 0,
+            //                Y = labelI * 3,
+            //                Width = Dim.Fill(),
+            //                TextAlignment = TextAlignment.Left
+            //            };
 
-                        statusLabel = new Label()
-                        {
-                            Text = "OFFLINE",
-                            AutoSize = false,
-                            X = 0,
-                            Y = labelI * 3 + 1,
-                            Width = Dim.Fill(),
-                            TextAlignment = TextAlignment.Left,
-                            Visible = true
-                        };
+            //            statusLabel = new Label()
+            //            {
+            //                Text = "OFFLINE",
+            //                AutoSize = false,
+            //                X = 0,
+            //                Y = labelI * 3 + 1,
+            //                Width = Dim.Fill(),
+            //                TextAlignment = TextAlignment.Left,
+            //                Visible = true
+            //            };
 
-                        progressBar = new ProgressBar()
-                        {
-                            X = 0,
-                            Y = labelI * 3 + 2,
-                            Width = Dim.Fill(),
-                            Visible = true,
-                            Fraction = 0.0f // Update this value to reflect progress
-                        };
+            //            progressBar = new ProgressBar()
+            //            {
+            //                X = 0,
+            //                Y = labelI * 3 + 2,
+            //                Width = Dim.Fill(),
+            //                Visible = true,
+            //                Fraction = 0.0f // Update this value to reflect progress
+            //            };
 
-                        workerNameLabels.TryAdd(workerId, nameLabel);
-                        workerStatusLabels.TryAdd(workerId, statusLabel);
-                        workerProgressBars.TryAdd(workerId, progressBar);
-                        _workerPane.Add(nameLabel);
-                        _workerPane.Add(progressBar);
-                        _workerPane.Add(statusLabel);
-                        labelI++;
-                    }
-                    else
-                    {
-                        workerProgressBars.TryGetValue(workerId, out progressBar);
-                        workerStatusLabels.TryGetValue(workerId, out statusLabel);
-                    }
+            //            workerNameLabels.TryAdd(workerId, nameLabel);
+            //            workerStatusLabels.TryAdd(workerId, statusLabel);
+            //            workerProgressBars.TryAdd(workerId, progressBar);
+            //            _workerPane.Add(nameLabel);
+            //            _workerPane.Add(progressBar);
+            //            _workerPane.Add(statusLabel);
+            //            labelI++;
+            //        }
+            //        else
+            //        {
+            //            workerProgressBars.TryGetValue(workerId, out progressBar);
+            //            workerStatusLabels.TryGetValue(workerId, out statusLabel);
+            //        }
 
-                    if (progressBar is not null && statusLabel is not null)
-                    {
-                        nameLabel.Text = $"Worker {workerId} - {workerName}";
-                        if (!worker.online)
-                        {
-                            statusLabel.Text = "OFFLINE";
-                            statusLabel.ColorScheme = redScheme;
-                            statusLabel.Visible = true;
-                            //progressBar.Visible = false;
-                            progressBar.Fraction = 0;
-                        }
-                        else if (worker.PercentComplete is null)
-                        {
-                            statusLabel.Text = "IDLE";
-                            statusLabel.ColorScheme = greyScheme;
-                            statusLabel.Visible = true;
-                            //progressBar.Visible = false;
-                            progressBar.Fraction = 0;
-                        }
-                        else if (worker.PercentComplete is not null)
-                        {
-                            progressBar.Fraction = (float)(worker.PercentComplete / 100f);
-                            progressBar.Visible = true;
-                            if (worker.qitem is not null && worker.qitem.settings is not null)
-                            {
-                                statusLabel.Text = $"{worker.qitem.settings.width}x{worker.qitem.settings.height} {worker.qitem.settings.steps} {worker.qitem.settings.model}";
-                                //statusLabel.Visible = false;
-                            }
-                            else
-                            {
-                                statusLabel.Text = "WORKING";
-                                statusLabel.ColorScheme = greenScheme;
-                            }
-                            //statusLabel.Visible = false;
-                        }
+            //        if (progressBar is not null && statusLabel is not null)
+            //        {
+            //            nameLabel.Text = $"Worker {workerId} - {workerName}";
+            //            if (!worker.online)
+            //            {
+            //                statusLabel.Text = "OFFLINE";
+            //                statusLabel.ColorScheme = redScheme;
+            //                statusLabel.Visible = true;
+            //                //progressBar.Visible = false;
+            //                progressBar.Fraction = 0;
+            //            }
+            //            else if (worker.Progress is null)
+            //            {
+            //                statusLabel.Text = "IDLE";
+            //                statusLabel.ColorScheme = greyScheme;
+            //                statusLabel.Visible = true;
+            //                //progressBar.Visible = false;
+            //                progressBar.Fraction = 0;
+            //            }
+            //            else if (worker.ProgressPercent is not null)
+            //            {
+            //                progressBar.Fraction = (float)(worker.ProgressPercent / 100f);
+            //                progressBar.Visible = true;
+            //                if (worker.qitem is not null && worker.qitem.settings is not null)
+            //                {
+            //                    statusLabel.Text = $"{worker.qitem.settings.width}x{worker.qitem.settings.height} {worker.qitem.settings.steps} {worker.qitem.settings.model}";
+            //                    //statusLabel.Visible = false;
+            //                }
+            //                else
+            //                {
+            //                    statusLabel.Text = "WORKING";
+            //                    statusLabel.ColorScheme = greenScheme;
+            //                }
+            //                //statusLabel.Visible = false;
+            //            }
 
-                        _workerPane.Height = Dim.Sized((FoxWorker.GetAll().Count * 3) + 2);
-                    }
-                }
-            }
+            //            _workerPane.Height = Dim.Sized((FoxWorker.GetAll().Count * 3) + 2);
+            //        }
+            //    }
+            //}
 
             if (_userPane is not null && _userLabel is not null && _userPane.Visible == true)
             {
