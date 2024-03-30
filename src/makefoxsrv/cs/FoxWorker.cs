@@ -701,7 +701,7 @@ namespace makefoxsrv
 
                         await Task.Delay(ProgressUpdateInterval, cts.Token);
                     }
-                    catch(Exception ex)
+                    catch(Exception ex) when (ex is not OperationCanceledException)
                     {
                         FoxLog.WriteLine($"Worker {ID} - Progress monitor error: {ex.Message}");
                         break; //API error, stop the loop.
