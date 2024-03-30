@@ -217,12 +217,12 @@ namespace makefoxsrv
                 return;
             }
 
-            FoxWorker.OnTaskProgress += (sender, e) =>
-            {
-                var w = (FoxWorker)sender!;
+            //FoxWorker.OnTaskProgress += (sender, e) =>
+            //{
+            //    var w = (FoxWorker)sender!;
 
-                FoxLog.WriteLine($"Worker {w.name} progress: {e.Percent}%");
-            };
+            //    FoxLog.WriteLine($"Worker {w.name} progress: {e.Percent}%");
+            //};
 
             _ = Task.Run(async () =>
             {
