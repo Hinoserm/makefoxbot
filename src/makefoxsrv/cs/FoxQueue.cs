@@ -25,7 +25,6 @@ namespace makefoxsrv
     {
         public enum QueueStatus
         {
-            NONE,
             PENDING,
             PROCESSING,
             SENDING,
@@ -40,7 +39,7 @@ namespace makefoxsrv
         }
         private static readonly SemaphoreSlim semaphore = new SemaphoreSlim(0);
 
-        public QueueStatus status = QueueStatus.NONE;
+        public QueueStatus status = QueueStatus.PENDING;
 
         public FoxUserSettings? Settings = null;
         public FoxUser? User = null;
@@ -191,7 +190,7 @@ namespace makefoxsrv
         {
             try
             {
-                if (this.UserNotifyTimer.ElapsedMilliseconds >= 1000 && progressPercent > 10.0 && this.Telegram is not null)
+                if (this.UserNotifyTimer.ElapsedMilliseconds >= 2000 && progressPercent > 10.0 && this.Telegram is not null)
                 {
                     await this.Telegram.EditMessageAsync(
                         id: this.MessageID,
@@ -734,7 +733,7 @@ FOR UPDATE;
                 cmd.Connection = SQL;
                 cmd.CommandText = $"UPDATE queue SET image_id = @image_id WHERE id = @id";
                 cmd.Parameters.AddWithValue("id", this.ID);
-                cmd.Parameters.AddWithValue("image_id", this.OutputImageID);
+                cmd.Parameters.AddWithValue("image_id", value.ID);
                 await cmd.ExecuteNonQueryAsync();
             }
 
