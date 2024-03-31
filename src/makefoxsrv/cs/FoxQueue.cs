@@ -88,7 +88,7 @@ namespace makefoxsrv
 
         public static async Task Enqueue(FoxQueue item)
         {
-            FoxLog.WriteLine($"Enqueueing task {item.ID}.");
+            FoxLog.WriteLine($"Enqueueing task {item.ID}.", LogLevel.LOG_DEBUG);
             lock (lockObj)
             {
                 // Determine the priority based on the user's access level
@@ -126,11 +126,11 @@ namespace makefoxsrv
 
                     if (itemToAssign is not null)
                     {
-                        FoxLog.WriteLine($"Task popped from queue: {itemToAssign.ID}");
+                        FoxLog.WriteLine($"Task popped from queue: {itemToAssign.ID}", LogLevel.LOG_DEBUG);
 
                         if (suitableWorker is not null)
                         {
-                            FoxLog.WriteLine($"Assigned task to {suitableWorker?.name ?? "unknown worker"}: {itemToAssign.ID}");
+                            FoxLog.WriteLine($"Assigned task to {suitableWorker?.name ?? "unknown worker"}: {itemToAssign.ID}", LogLevel.LOG_DEBUG);
 
                             suitableWorker.AssignTask(itemToAssign);
                         }
