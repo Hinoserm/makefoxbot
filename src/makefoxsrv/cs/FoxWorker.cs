@@ -732,11 +732,17 @@ namespace makefoxsrv
             if (qItem is not null)
             {
                 await qItem.SetError(ex);
-                OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                try
+                {
+                    OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                } catch { }
                 await FoxQueue.Enqueue(qItem);
             }
 
-            OnWorkerError?.Invoke(this, new ErrorEventArgs(ex));
+            try
+            {
+                OnWorkerError?.Invoke(this, new ErrorEventArgs(ex));
+            } catch { }
 
             TaskStartDate = null;
             Progress = null;
