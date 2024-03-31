@@ -29,6 +29,11 @@ namespace makefoxsrv
             {"DefaultDenoise",  0.75M},    // Default denoising strength for users
             {"DefaultCFGScale", 7.5M},     // Default CFG scale setting for users
             {"DefaultModel",    "indigoFurryMix_v105Hybrid" },
+            {"GetFullUser",     false },
+            {"GetUserPhoto",    false },
+            {"GetFullChat",     true },
+            {"GetChatPhoto",    false },
+            {"GetChatAdmins",   false },
         };
 
         private static object ConvertToType(string key, string value, Type type)
@@ -47,10 +52,27 @@ namespace makefoxsrv
             {
                 return result!;
             }
-            else
+            else if (type == typeof(bool))
             {
-                throw new ArgumentException($"Incompatible conversion: Unable to convert {key}='{value}' to {type}.");
+                if (int.TryParse(value, out var intValue))
+                {
+                    return intValue != 0;
+                }
+                else if (bool.TryParse(value, out var boolValue))
+                {
+                    return boolValue;
+                }
+                else if (value.Equals("yes", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+                else if (value.Equals("no", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
             }
+
+            throw new ArgumentException($"Incompatible conversion: Unable to convert {key}='{value}' to {type}.");
         }
 
         // Load or reload the default settings from the database asynchronously
@@ -106,6 +128,9 @@ namespace makefoxsrv
                 {
                     // Attempt to convert the value to the requested type T
                     Type targetType = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
+
+                    if (targetType != typeof(string) && value is string stringValue)
+                        return (T)ConvertToType(settingName, stringValue, targetType);
 
                     return (T)Convert.ChangeType(value, targetType);
                 }

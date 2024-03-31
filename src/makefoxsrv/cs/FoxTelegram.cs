@@ -534,69 +534,75 @@ We are committed to using your donation to further develop and maintain the serv
                         long? photoID = 0;
                         var shouldUpdate = ForceUpdate;
 
-                        using (var cmd = new MySqlCommand())
+                        if (FoxSettings.Get<bool>("GetFullUser") || FoxSettings.Get<bool>("GetUserPhoto"))
                         {
-                            cmd.Connection = SQL;
-                            cmd.Transaction = transaction;
-                            cmd.CommandText = "SELECT date_updated,date_added,photo_id,access_hash,username FROM telegram_users WHERE id = @id";
-                            cmd.Parameters.AddWithValue("id", user.ID);
-
-                            using var reader = await cmd.ExecuteReaderAsync();
-
-                            if (reader.HasRows)
+                            using (var cmd = new MySqlCommand())
                             {
-                                await reader.ReadAsync();
+                                cmd.Connection = SQL;
+                                cmd.Transaction = transaction;
+                                cmd.CommandText = "SELECT date_updated,date_added,photo_id,access_hash,username FROM telegram_users WHERE id = @id";
+                                cmd.Parameters.AddWithValue("id", user.ID);
 
-                                dateAdded = reader["date_added"] as DateTime?;
-                                photoID = reader["photo_id"] as long?;
+                                using var reader = await cmd.ExecuteReaderAsync();
 
-                                DateTime dateUpdated = reader.GetDateTime("date_updated");
+                                if (reader.HasRows)
+                                {
+                                    await reader.ReadAsync();
 
-                                if (dateAdded is null || dateUpdated < DateTime.Now.AddHours(-1))
-                                    shouldUpdate = true; //If at least an hour has passed, force the update.
+                                    dateAdded = reader["date_added"] as DateTime?;
+                                    photoID = reader["photo_id"] as long?;
 
-                                String? username = reader["username"] as string;
-                                long? access_hash = reader["access_hash"] as long?;
+                                    DateTime dateUpdated = reader.GetDateTime("date_updated");
 
-                                if (username != user.MainUsername)
-                                    shouldUpdate = true; //Always update if username has changed.
+                                    if (dateAdded is null || dateUpdated < DateTime.Now.AddHours(-1))
+                                        shouldUpdate = true; //If at least an hour has passed, force the update.
 
-                                if (access_hash != user.access_hash)
-                                    shouldUpdate = true; //Always update if access hash has changed.
+                                    String? username = reader["username"] as string;
+                                    long? access_hash = reader["access_hash"] as long?;
+
+                                    if (username != user.MainUsername)
+                                        shouldUpdate = true; //Always update if username has changed.
+
+                                    if (access_hash != user.access_hash)
+                                        shouldUpdate = true; //Always update if access hash has changed.
+                                }
+                                else
+                                    shouldUpdate = true; //Always update if it's missing.
                             }
-                            else
-                                shouldUpdate = true; //Always update if it's missing.
-
-                            if (dateAdded is null)
-                                dateAdded = DateTime.Now;
                         }
+                        else
+                            shouldUpdate = true; //Always update if we're not getting full user info.
 
                         if (shouldUpdate)
                         {
                             UserFull? fullUser = null;
 
-                            FoxLog.WriteLine($"UpdateTelegramUser: {user}, Forced={ForceUpdate}");
+                            //FoxLog.WriteLine($"UpdateTelegramUser: {user}, Forced={ForceUpdate}");
 
                             try
                             {
-                                fullUser = (await Client.Users_GetFullUser(user)).full_user;
-
-                                MemoryStream memoryStream = new MemoryStream();
-
-                                PhotoBase photo = fullUser.profile_photo;
-
-
-                                switch (photo)
+                                if (FoxSettings.Get<bool>("GetFullUser") || FoxSettings.Get<bool>("GetUserPhoto"))
                                 {
-                                    case Photo p:
-                                        if (photo.ID != photoID)
-                                        {
-                                            photoID = p.ID;
+                                    fullUser = (await Client.Users_GetFullUser(user)).full_user;
 
-                                            //await FoxTelegram.Client.DownloadFileAsync(photo, memoryStream, photo.LargestPhotoSize);
-                                            //photoBytes = memoryStream.ToArray();
+                                    if (FoxSettings.Get<bool>("GetUserPhoto"))
+                                    {
+                                        MemoryStream memoryStream = new MemoryStream();
+                                        PhotoBase photo = fullUser.profile_photo;
+
+                                        switch (photo)
+                                        {
+                                            case Photo p:
+                                                if (photo.ID != photoID)
+                                                {
+                                                    photoID = p.ID;
+
+                                                    await FoxTelegram.Client.DownloadFileAsync(p, memoryStream, p.LargestPhotoSize);
+                                                    photoBytes = memoryStream.ToArray();
+                                                }
+                                                break;
                                         }
-                                    break;
+                                    }
                                 }
                             }
                             catch (WTelegram.WTException ex)
@@ -635,7 +641,7 @@ We are committed to using your donation to further develop and maintain the serv
                                         bio = COALESCE(@bio, bio),
                                         flags = COALESCE(@flags, flags),
                                         flags2 = COALESCE(@flags2, flags2),
-                                        date_added = COALESCE(@date_added, date_added),
+                                        date_added = COALESCE(@date_added, COALESCE(date_added, @date_updated)),
                                         date_updated = COALESCE(@date_updated, date_updated),
                                         photo_id = COALESCE(@photo_id, photo_id),
                                         photo = COALESCE(@photo, photo);
@@ -694,45 +700,49 @@ We are committed to using your donation to further develop and maintain the serv
                         long? photoID = 0;
                         var shouldUpdate = ForceUpdate;
 
-                        using (var cmd = new MySqlCommand())
+
+                        if (FoxSettings.Get<bool>("GetFullChat") || FoxSettings.Get<bool>("GetChatPhoto") || FoxSettings.Get<bool>("GetChatAdmins"))
                         {
-                            cmd.Connection = SQL;
-                            cmd.Transaction = transaction;
-                            cmd.CommandText = "SELECT date_updated,date_added,photo_id,access_hash,title FROM telegram_chats WHERE id = @id";
-                            cmd.Parameters.AddWithValue("id", chat.ID);
 
-                            using var reader = await cmd.ExecuteReaderAsync();
-
-                            if (reader.HasRows)
+                            using (var cmd = new MySqlCommand())
                             {
-                                await reader.ReadAsync();
+                                cmd.Connection = SQL;
+                                cmd.Transaction = transaction;
+                                cmd.CommandText = "SELECT date_updated,date_added,photo_id,access_hash,title FROM telegram_chats WHERE id = @id";
+                                cmd.Parameters.AddWithValue("id", chat.ID);
 
-                                dateAdded = reader["date_added"] as DateTime?;
-                                photoID = reader["photo_id"] as long?;
+                                using var reader = await cmd.ExecuteReaderAsync();
 
-                                DateTime dateUpdated = reader.GetDateTime("date_updated");
-
-                                if (dateAdded is null || dateUpdated < DateTime.Now.AddHours(-1))
-                                    shouldUpdate = true; //If at least an hour has passed, force the update.
-
-                                long access_hash = reader["access_hash"] as long? ?? 0;
-                                String? title = reader["title"] as string;
-
-                                if (title != chat.Title)
-                                    shouldUpdate = true; //Always update if title has changed.
-
-                                if (chat is Channel c)
+                                if (reader.HasRows)
                                 {
-                                    if (c.access_hash != access_hash)
-                                        shouldUpdate = true; //Always update if access hash has changed.
-                                }
-                            }
-                            else
-                                shouldUpdate = true; //Always update if it's missing.
+                                    await reader.ReadAsync();
 
-                            if (dateAdded is null)
-                                dateAdded = DateTime.Now;
+                                    dateAdded = reader["date_added"] as DateTime?;
+                                    photoID = reader["photo_id"] as long?;
+
+                                    DateTime dateUpdated = reader.GetDateTime("date_updated");
+
+                                    if (dateAdded is null || dateUpdated < DateTime.Now.AddHours(-1))
+                                        shouldUpdate = true; //If at least an hour has passed, force the update.
+
+                                    long access_hash = reader["access_hash"] as long? ?? 0;
+                                    String? title = reader["title"] as string;
+
+                                    if (title != chat.Title)
+                                        shouldUpdate = true; //Always update if title has changed.
+
+                                    if (chat is Channel c)
+                                    {
+                                        if (c.access_hash != access_hash)
+                                            shouldUpdate = true; //Always update if access hash has changed.
+                                    }
+                                }
+                                else
+                                    shouldUpdate = true; //Always update if it's missing.
+                            }
                         }
+                        else
+                            shouldUpdate = true; //Always update if we're not getting full chat info.
 
                         if (shouldUpdate)
                         {
@@ -742,30 +752,36 @@ We are committed to using your donation to further develop and maintain the serv
                             ChannelFull? fullChannel = null;
                             ChatFullBase? fullChat = null;
 
-                            FoxLog.WriteLine($"UpdateTelegramChat: {chat}, Forced={ForceUpdate}");
+                            //FoxLog.WriteLine($"UpdateTelegramChat: {chat}, Forced={ForceUpdate}");
 
                             try
                             {
-                                fullChat = (await Client.GetFullChat(chat)).full_chat;
-                                MemoryStream memoryStream = new MemoryStream();
-
-                                PhotoBase photo = fullChat.ChatPhoto;
-
-                                switch (photo)
+                                if (FoxSettings.Get<bool>("GetFullChat") || FoxSettings.Get<bool>("GetChatPhoto") || FoxSettings.Get<bool>("GetChatAdmins"))
                                 {
-                                    case Photo p:
-                                        if (photo.ID != photoID)
+                                    fullChat = (await Client.GetFullChat(chat)).full_chat;
+                                    fullChannel = fullChat as ChannelFull;
+
+                                    if (FoxSettings.Get<bool>("GetChatPhoto"))
+                                    {
+                                        MemoryStream memoryStream = new MemoryStream();
+
+                                        PhotoBase photo = fullChat.ChatPhoto;
+
+                                        switch (photo)
                                         {
-                                            photoID = p.ID;
+                                            case Photo p:
+                                                if (photo.ID != photoID)
+                                                {
+                                                    photoID = p.ID;
 
-                                            await FoxTelegram.Client.DownloadFileAsync(p, memoryStream, p.LargestPhotoSize);
-                                            chatPhoto = memoryStream.ToArray();
+                                                    await FoxTelegram.Client.DownloadFileAsync(p, memoryStream, p.LargestPhotoSize);
+                                                    chatPhoto = memoryStream.ToArray();
+                                                }
+
+                                                break;
                                         }
-
-                                        break;
+                                    }
                                 }
-
-                                fullChannel = fullChat as ChannelFull;
                             }
                             catch (Exception ex)
                             {
@@ -836,7 +852,7 @@ We are committed to using your donation to further develop and maintain the serv
                                         participants = COALESCE(@participants, participants),
                                         photo_id = COALESCE(@photo_id, photo_id),
                                         photo = COALESCE(@photo, photo),
-                                        date_added = COALESCE(@date_added, date_added),
+                                        date_added = COALESCE(@date_added, COALESCE(date_added, @date_updated)),
                                         date_updated = COALESCE(@date_updated, date_updated)
                                 ";
 
@@ -863,7 +879,7 @@ We are committed to using your donation to further develop and maintain the serv
                                 await cmd.ExecuteNonQueryAsync();
                             }
 
-                            if (group is not null && (!group.IsChannel || group.flags.HasFlag(Channel.Flags.has_admin_rights)))
+                            if (FoxSettings.Get<bool>("GetChatAdmins") && group is not null && (!group.IsChannel || group.flags.HasFlag(Channel.Flags.has_admin_rights)))
                             {
                                 try
                                 {
