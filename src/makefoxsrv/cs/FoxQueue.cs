@@ -198,7 +198,7 @@ namespace makefoxsrv
                         LEFT JOIN telegram_users tu ON tu.id = q.tele_id
                         LEFT JOIN telegram_chats tc ON tc.id = q.tele_chatid
                         WHERE 
-                            q.status IN ('PENDING', 'ERROR')
+                            q.status IN ('PENDING', 'ERROR', 'PROCESSING', 'SENDING')
                         ORDER BY 
                             q.date_added ASC
                         ";

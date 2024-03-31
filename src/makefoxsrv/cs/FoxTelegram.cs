@@ -77,6 +77,12 @@ namespace makefoxsrv
             {
                 _Peer = new InputPeerUser(userId, userAccessHash);
             }
+
+            _User = new() { id = userId, access_hash = userAccessHash };
+            //Chat chat = new() { id = chatId, access_hash = userAccessHash };
+
+            if (this._Peer is null)
+                throw new InvalidOperationException("Peer is null");
         }
 
         public static async Task Connect(int appID, string apiHash, string botToken, string? sessionFile = null)
@@ -382,9 +388,12 @@ We are committed to using your donation to further develop and maintain the serv
         {
             updates.CollectUsersChats(FoxTelegram.Users, FoxTelegram.Chats);
 
-            await UpdateTelegramUsers(updates.Users);
+            _ = Task.Run(async () =>
+            {
+                await UpdateTelegramUsers(updates.Users);
 
-            await UpdateTelegramChats(updates.Chats);
+                await UpdateTelegramChats(updates.Chats);
+            });
 
             foreach (var update in updates.UpdateList)
             {

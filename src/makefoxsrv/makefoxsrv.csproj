@@ -65,12 +65,6 @@
     <!-- Delete the gitversion.txt file after reading it -->
     <Delete Files="$(MSBuildProjectDirectory)\gitversion.txt" />
   </Target>
-  
-  
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <!-- For Linux -->
-    <Exec Command="mv &quot;$(PublishDir)makefoxsrv&quot; &quot;$(MSBuildProjectDirectory)/../../bin/makefoxsrv&quot;" Condition="'$(OS)' != 'Windows_NT'" />
-  </Target>
 
 </Project>
 
