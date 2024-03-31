@@ -418,11 +418,11 @@ We are committed to using your donation to further develop and maintain the serv
 
                                         if (m.media is MessageMediaPhoto { photo: Photo photo })
                                         {
-                                            _ = FoxImage.SaveImageFromTelegram(t, m, photo);
+                                            await FoxImage.SaveImageFromTelegram(t, m, photo);
                                         }
                                         else
                                         {
-                                            _ = HandleMessageAsync(t, m);
+                                            await HandleMessageAsync(t, m);
                                         }
 
                                         break;
@@ -454,10 +454,10 @@ We are committed to using your donation to further develop and maintain the serv
 
                                 break;
                             case UpdateDeleteChannelMessages udcm:
-                                _= HandleDeleteMessagesAsync(udcm.messages);
+                                await HandleDeleteMessagesAsync(udcm.messages);
                                 break;
                             case UpdateDeleteMessages udm:
-                                _= HandleDeleteMessagesAsync(udm.messages);
+                                await HandleDeleteMessagesAsync(udm.messages);
                                 break;
 
                             case UpdateBotCallbackQuery ucbk:
@@ -475,7 +475,7 @@ We are committed to using your donation to further develop and maintain the serv
 
                                 FoxLog.WriteLine($"Callback: {user}" + (chat is not null ? $" in {chat}" : "") + $"> {System.Text.Encoding.ASCII.GetString(ucbk.data)}");
 
-                                _ = FoxCallbacks.Handle(t, ucbk, System.Text.Encoding.ASCII.GetString(ucbk.data));
+                                await FoxCallbacks.Handle(t, ucbk, System.Text.Encoding.ASCII.GetString(ucbk.data));
 
                                 break;
                             case UpdateBotPrecheckoutQuery upck:
