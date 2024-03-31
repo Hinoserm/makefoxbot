@@ -284,10 +284,13 @@ namespace makefoxsrv
                         FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
                     }
                 }
-            });
+            }, cts.Token);
 
             FoxWorker.OnTaskProgress += (sender, args) =>
             {
+                if (hasStopped)
+                    return;
+
                 var w = (FoxWorker)sender!;
 
                 workerProgressBars.TryGetValue(w.ID, out ProgressBar? progressBar);
@@ -298,6 +301,9 @@ namespace makefoxsrv
 
             FoxWorker.OnTaskStart += (sender, args) =>
             {
+                if (hasStopped)
+                    return;
+
                 var w = (FoxWorker)sender!;
 
                 workerStatusLabels.TryGetValue(w.ID, out Label? statusLabel);
@@ -308,6 +314,9 @@ namespace makefoxsrv
 
             FoxWorker.OnWorkerOffline += (sender, args) =>
             {
+                if (hasStopped)
+                    return;
+
                 var w = (FoxWorker)sender!;
 
                 FoxLog.WriteLine($"Worker {w.ID} is offline.");
@@ -320,6 +329,9 @@ namespace makefoxsrv
 
             FoxWorker.OnWorkerOnline += (sender, args) =>
             {
+                if (hasStopped)
+                    return;
+
                 var w = (FoxWorker)sender!;
 
                 FoxLog.WriteLine($"Worker {w.ID} is online.");
@@ -332,6 +344,9 @@ namespace makefoxsrv
 
             FoxWorker.OnTaskCompleted += (sender, args) =>
             {
+                if (hasStopped)
+                    return;
+
                 var w = (FoxWorker)sender!;
 
                 workerStatusLabels.TryGetValue(w.ID, out Label? statusLabel);

@@ -65,15 +65,19 @@ namespace makefoxsrv
                 {
                     _online = value;
 
-                    // If the state is changing to online, raise OnWorkerOnline; otherwise, raise OnWorkerOffline
-                    if (_online)
+                    try
                     {
-                        OnWorkerOnline?.Invoke(this, new WorkerEventArgs());
+                        // If the state is changing to online, raise OnWorkerOnline; otherwise, raise OnWorkerOffline
+                        if (_online)
+                        {
+                            OnWorkerOnline?.Invoke(this, new WorkerEventArgs());
+                        }
+                        else
+                        {
+                            OnWorkerOffline?.Invoke(this, new WorkerEventArgs());
+                        }
                     }
-                    else
-                    {
-                        OnWorkerOffline?.Invoke(this, new WorkerEventArgs());
-                    }
+                    catch { }
                 }
             }
         }
@@ -810,8 +814,9 @@ namespace makefoxsrv
 
         private async Task Start()
         {
-            var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var waitHandles = new WaitHandle[] { enabledEvent, cts.Token.WaitHandle };
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stopToken.Token);
+
+            //var waitHandles = new WaitHandle[] { enabledEvent, cts.Token.WaitHandle };
 
             this.ModelCapacity = 3;
 
@@ -821,14 +826,14 @@ namespace makefoxsrv
             {
                 Online = await ConnectAPI(false) is not null;
 
-                while (!stopToken.IsCancellationRequested)
+                while (!cts.IsCancellationRequested)
                 {
-                    var waitMs = 2000; //Default wait time
-
-                    var semaphoreAquired = await semaphore.WaitAsync(waitMs, cts.Token);
+                    var waitMs = 6000; //Default wait time
 
                     try
                     {
+                        var semaphoreAquired = await semaphore.WaitAsync(waitMs, cts.Token);
+
                         //WaitHandle.WaitAny(waitHandles);
 
                         StableDiffusion? api = await ConnectAPI(false);
@@ -902,14 +907,20 @@ namespace makefoxsrv
 
                 this.Online = false;
 
-                OnWorkerStop?.Invoke(this, new WorkerEventArgs());
+                try
+                {
+                    OnWorkerStop?.Invoke(this, new WorkerEventArgs());
+                }
+                catch {
+                    //Error?
+                }
 
                 FoxLog.WriteLine($"Worker {ID} - Shutdown.");
                 workers.TryRemove(ID, out _);
             });
         }
 
-        public async Task ProcessTask(CancellationToken cancellationToken)
+        public async Task ProcessTask(CancellationToken ctToken)
         {
             CancellationTokenSource? progressCTS = null;
 
@@ -923,7 +934,7 @@ namespace makefoxsrv
 
             await this.SetUsedDate();
 
-            var ctsLoop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, qItem.stopToken.Token);
+            var ctsLoop = CancellationTokenSource.CreateLinkedTokenSource(ctToken, qItem.stopToken.Token);
 
             OnTaskStart?.Invoke(this, new TaskEventArgs(qItem));
             await qItem.Start(this);

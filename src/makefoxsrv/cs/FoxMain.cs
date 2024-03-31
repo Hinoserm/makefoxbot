@@ -195,9 +195,9 @@ namespace makefoxsrv
             try
             {
                 sql = new MySqlConnection(FoxMain.MySqlConnectionString);
-                sql.Open();
-                sql.Ping();
-                sql.Dispose();
+                await sql.OpenAsync(cts.Token);
+                await sql.PingAsync(cts.Token);
+                await sql.DisposeAsync();
             }
             catch (Exception ex)
             {
@@ -238,7 +238,7 @@ namespace makefoxsrv
                     //await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
 
                     sql = new MySqlConnection(FoxMain.MySqlConnectionString);
-                    sql.Open();
+                    await sql.OpenAsync(cts.Token);
 
                     using (var cmd = new MySqlCommand($"UPDATE queue SET status = 'PENDING' WHERE status = 'PROCESSING'", sql))
                     {
@@ -250,7 +250,7 @@ namespace makefoxsrv
 
                     await FoxQueue.EnqueueOldItems();
 
-                    FoxQueue.StartTaskLoop();
+                    FoxQueue.StartTaskLoop(cts.Token);
 
                     //_ = FoxQueue.NotifyUserPositions(botClient, cts);
 
@@ -278,8 +278,6 @@ namespace makefoxsrv
                 //Wait for all workers to complete.
                 await Task.Delay(100);
             }
-
-
         }
     }
 }

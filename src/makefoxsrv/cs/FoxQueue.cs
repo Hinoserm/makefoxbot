@@ -98,17 +98,16 @@ namespace makefoxsrv
             queueSemaphore.Release();
         }
 
-        public static void StartTaskLoop()
+        public static void StartTaskLoop(CancellationToken cancellationToken)
         {
             _ = Task.Run(async () =>
             {
-                while (true)
+                while (!cancellationToken.IsCancellationRequested)
                 {
                     FoxQueue? itemToAssign = null;
                     FoxWorker? suitableWorker = null;
                     
-                    await queueSemaphore.WaitAsync(2000);
-
+                    await queueSemaphore.WaitAsync(2000, cancellationToken);
 
                     lock (lockObj)
                     {
