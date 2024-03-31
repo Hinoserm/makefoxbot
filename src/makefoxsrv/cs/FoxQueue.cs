@@ -201,11 +201,9 @@ namespace makefoxsrv
                             q.status IN ('PENDING', 'ERROR')
                         ORDER BY 
                             q.date_added ASC
-                        LIMIT 1
-                        FOR UPDATE;
                         ";
 
-                await using var r = await cmd.ExecuteReaderAsync();
+                using var r = await cmd.ExecuteReaderAsync();
 
                 while (await r.ReadAsync())
                 {
