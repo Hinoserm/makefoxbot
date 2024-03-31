@@ -1075,6 +1075,20 @@ namespace makefoxsrv
                         _ = FoxQueue.Enqueue(qItem);
                         qItem = null;
                     }
+                    else if (ex.Message == "INPUT_USER_DEACTIVATED")
+                    {
+                        FoxLog.WriteLine($"Worker {ID} - User deactivated. Stopping task.");
+
+                        if (qItem is not null)
+                        {
+                            await qItem.SetCancelled();
+                            OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
+                        }
+
+                        qItem = null;
+                    }
+                    else
+                        throw;
                 }
                 else //We don't care about other telegram errors, but log them for debugging purposes.
                     FoxLog.WriteLine($"Telegram error {ex.Message}\r\n{ex.StackTrace}");
