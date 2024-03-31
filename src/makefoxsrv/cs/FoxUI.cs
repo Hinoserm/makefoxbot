@@ -212,7 +212,11 @@ namespace makefoxsrv
             {
                 Menus =
                 [
-                    new MenuBarItem("_View", new[] { wordWrapMenuItem })
+                    new MenuBarItem("_View", new[] { wordWrapMenuItem }),
+                    new MenuBarItem("Reload _Settings", "", async () => {
+                        await FoxSettings.LoadSettingsAsync();
+                        FoxLog.WriteLine("Settings reloaded.");
+                    })
                 ]
             };
 
