@@ -68,6 +68,200 @@ namespace makefoxsrv
         public FoxWorker? Worker { get; private set; } = null;
         public int? WorkerID { get; private set; } = null;
 
+        private static readonly object lockObj = new object();
+        private static PriorityQueue<FoxQueue, (int Priority, ulong InverseId)> priorityQueue = new PriorityQueue<FoxQueue, (int, ulong)>();
+        private static Dictionary<AccessLevel, int> priorityMap = new Dictionary<AccessLevel, int>
+            {
+                { AccessLevel.ADMIN, 4 },  // Highest priority
+                { AccessLevel.PREMIUM, 3 },
+                { AccessLevel.BASIC, 2 },
+                { AccessLevel.BANNED, 1 }   // Lowest priority
+            };
+        private static SemaphoreSlim queueSemaphore = new SemaphoreSlim(0, int.MaxValue);
+
+        static FoxQueue()
+        {
+            FoxWorker.OnTaskCompleted += (sender, args) => _ = queueSemaphore.Release();
+            FoxWorker.OnWorkerStart += (sender, args) => _ = queueSemaphore.Release();
+            FoxWorker.OnWorkerOnline += (sender, args) => _ = queueSemaphore.Release();
+        }
+
+        public static async Task Enqueue(FoxQueue item)
+        {
+            FoxLog.WriteLine($"Enqueueing task {item.ID}.");
+            lock (lockObj)
+            {
+                // Determine the priority based on the user's access level
+                int priorityLevel = priorityMap[item.User.GetAccessLevel()];
+                priorityQueue.Enqueue(item, (priorityLevel, item.ID));
+            }
+            queueSemaphore.Release();
+        }
+
+        public static void StartTaskLoop()
+        {
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    FoxQueue? itemToAssign = null;
+                    FoxWorker? suitableWorker = null;
+                    
+                    await queueSemaphore.WaitAsync(2000);
+
+
+                    lock (lockObj)
+                    {
+                        if (priorityQueue.TryPeek(out FoxQueue? item, out var itemPriority))
+                        {
+                            suitableWorker = FindSuitableWorkerForTask(item);
+                            if (suitableWorker != null)
+                            {
+                                priorityQueue.TryDequeue(out itemToAssign, out itemPriority);
+                            }
+                            //else
+                            //    semaphore.Release();
+                        }
+                    }
+
+                    if (itemToAssign is not null)
+                    {
+                        FoxLog.WriteLine($"Task popped from queue: {itemToAssign.ID}");
+
+                        if (suitableWorker is not null)
+                        {
+                            FoxLog.WriteLine($"Assigned task to {suitableWorker?.name ?? "unknown worker"}: {itemToAssign.ID}");
+
+                            suitableWorker.AssignTask(itemToAssign);
+                        }
+                    }
+                }
+            });
+        }
+
+        private static FoxWorker? FindSuitableWorkerForTask(FoxQueue item)
+        {
+            // First, filter out workers based on their online status, image size and steps capacity,
+            // and further check if they are not busy (qItem is null) and either have the model loaded or it's available to them.
+            var suitableWorkers = FoxWorker.GetWorkers().Values
+                .Where(worker => worker.Online
+                                 && (worker.qItem == null)  // Worker is not currently busy
+                                 && (!worker.MaxImageSize.HasValue || (item.Settings.width * item.Settings.height) <= worker.MaxImageSize.Value)
+                                 && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value))
+                .ToList();
+
+            // Prioritize workers who already have the model loaded.
+            var preferredWorkers = suitableWorkers
+                .Where(worker => worker.GetRecentModels().Contains(item.Settings.model))
+                .OrderByDescending(worker => priorityMap[item.User.GetAccessLevel()])
+                .ToList();
+
+            if (preferredWorkers.Any())
+            {
+                var w = preferredWorkers.First();
+                //FoxLog.WriteLine($"Preferred worker found: {w.name}");
+                return w;
+            }
+
+            // If no preferred worker is available, fall back to any suitable worker,
+            // still respecting the user's access level priority.
+            var suitableWorker = suitableWorkers
+                .Where(worker => worker.availableModels.ContainsKey(item.Settings.model)) // Ensure model is available
+                .OrderByDescending(worker => priorityMap[item.User.GetAccessLevel()])
+                .FirstOrDefault();
+            //FoxLog.WriteLine($"Suitable worker found: {suitableWorker?.name ?? "none"}");
+            return suitableWorker;
+        }
+
+        private static bool IsWorkerSuitableForTask(FoxWorker worker, FoxQueue item)
+        {
+            // Check for worker's suitability based on item requirements
+            // Placeholder for actual implementation
+            return true;
+        }
+
+        public static async Task EnqueueOldItems()
+        {
+            int count = 0;
+
+            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+
+            await SQL.OpenAsync();
+
+            using (var cmd = new MySqlCommand())
+            {
+                cmd.Connection = SQL;
+                cmd.CommandText = @"
+                        SELECT q.*,
+                                tu.access_hash AS user_access_hash, 
+                                tc.access_hash AS chat_access_hash
+                        FROM queue q
+                        LEFT JOIN telegram_users tu ON tu.id = q.tele_id
+                        LEFT JOIN telegram_chats tc ON tc.id = q.tele_chatid
+                        WHERE 
+                            q.status IN ('PENDING', 'ERROR')
+                        ORDER BY 
+                            q.date_added ASC
+                        LIMIT 1
+                        FOR UPDATE;
+                        ";
+
+                await using var r = await cmd.ExecuteReaderAsync();
+
+                while (await r.ReadAsync())
+                {
+                    var q = new FoxQueue();
+                    var settings = new FoxUserSettings();
+
+                    q.ID = Convert.ToUInt64(r["id"]);
+
+                    q.User = await FoxUser.GetByUID(Convert.ToInt64(r["uid"]));
+
+                    long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
+                    long? teleChatHash = r["chat_access_hash"] is DBNull ? null : (long)r["chat_access_hash"];
+
+                    q.Telegram = new FoxTelegram((long)r["tele_id"], (long)r["user_access_hash"], teleChatId, teleChatHash);
+
+                    q.Type = Enum.Parse<FoxQueue.QueueType>(Convert.ToString(r["type"]) ?? "UNKNOWN");
+
+                    if (!(r["steps"] is DBNull))
+                        settings.steps = Convert.ToInt16(r["steps"]);
+                    if (!(r["cfgscale"] is DBNull))
+                        settings.cfgscale = Convert.ToDecimal(r["cfgscale"]);
+                    if (!(r["prompt"] is DBNull))
+                        settings.prompt = Convert.ToString(r["prompt"]);
+                    if (!(r["negative_prompt"] is DBNull))
+                        settings.negative_prompt = Convert.ToString(r["negative_prompt"]);
+                    if (!(r["selected_image"] is DBNull))
+                        settings.selected_image = Convert.ToUInt64(r["selected_image"]);
+                    if (!(r["width"] is DBNull))
+                        settings.width = Convert.ToUInt32(r["width"]);
+                    if (!(r["height"] is DBNull))
+                        settings.height = Convert.ToUInt32(r["height"]);
+                    if (!(r["denoising_strength"] is DBNull))
+                        settings.denoising_strength = Convert.ToDecimal(r["denoising_strength"]);
+                    if (!(r["seed"] is DBNull))
+                        settings.seed = Convert.ToInt32(r["seed"]);
+                    if (!(r["model"] is DBNull))
+                        settings.model = Convert.ToString(r["model"]);
+                    if (!(r["reply_msg"] is DBNull))
+                        q.ReplyMessageID = Convert.ToInt32(r["reply_msg"]);
+                    if (!(r["msg_id"] is DBNull))
+                        q.MessageID = Convert.ToInt32(r["msg_id"]);
+                    if (!(r["date_added"] is DBNull))
+                        q.DateCreated = Convert.ToDateTime(r["date_added"]);
+                    if (!(r["link_token"] is DBNull))
+                        q.LinkToken = Convert.ToString(r["link_token"]);
+
+                    q.Settings = settings;
+                    count++;
+                    await Enqueue(q);
+                }
+            }
+
+            FoxLog.WriteLine($"Added {count} saved tasks to queue.");
+        }
+
         public async Task SetStatus(QueueStatus status, int? messageID = null)
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
@@ -112,7 +306,7 @@ namespace makefoxsrv
             await cmd.ExecuteNonQueryAsync();
         }
 
-        public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings settings, QueueType type, int? messageID = null, long? replyMessageID = null)
+        public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings settings, QueueType type, int messageID, int? replyMessageID = null)
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
@@ -127,7 +321,9 @@ namespace makefoxsrv
                 User = user,
                 DateCreated = DateTime.Now,
                 Type = type,
-                Settings = settings
+                Settings = settings,
+                MessageID = messageID,
+                ReplyMessageID = replyMessageID
             };
 
             if (type == QueueType.IMG2IMG && !(await FoxImage.IsImageValid(settings.selected_image)))
@@ -162,6 +358,8 @@ namespace makefoxsrv
             await cmd.ExecuteNonQueryAsync();
 
             q.ID = (ulong)cmd.LastInsertedId;
+
+            _= FoxQueue.Enqueue(q);
 
             return q;
         }

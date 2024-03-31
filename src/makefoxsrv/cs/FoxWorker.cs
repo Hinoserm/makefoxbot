@@ -31,8 +31,10 @@ namespace makefoxsrv
         private static SemaphoreSlim semaphore = new SemaphoreSlim(0, int.MaxValue);
         private bool semaphoreAcquired = false;
         private StableDiffusion? api;
-        public bool online = true;       //Worker online status
         public FoxQueue? qItem = null;   //If we're operating, this is the current queue item being processed.
+
+        public int? MaxImageSize { get; private set; } //width*height.  If null, no limit
+        public int? MaxImageSteps { get; private set; } //If null, no limit
 
         public DateTime StartDate { get; private set; } //Worker start date
         public DateTime? TaskStartDate { get; private set; } = null;
@@ -43,12 +45,38 @@ namespace makefoxsrv
 
         public static event EventHandler<WorkerEventArgs>? OnWorkerStart;
         public static event EventHandler<WorkerEventArgs>? OnWorkerStop;
+        public static event EventHandler<WorkerEventArgs>? OnWorkerOnline;
+        public static event EventHandler<WorkerEventArgs>? OnWorkerOffline;
         public static event EventHandler<ErrorEventArgs>? OnWorkerError;
         public static event EventHandler<TaskEventArgs>? OnTaskStart;
         public static event EventHandler<TaskErrorEventArgs>? OnTaskError;
         public static event EventHandler<TaskEventArgs>? OnTaskCompleted;
         public static event EventHandler<TaskEventArgs>? OnTaskCancelled;
         public static event EventHandler<ProgressUpdateEventArgs>? OnTaskProgress;
+
+        private bool _online = false;
+        public bool Online
+        {
+            get => _online;
+            set
+            {
+                // Check if the value is actually changing
+                if (_online != value)
+                {
+                    _online = value;
+
+                    // If the state is changing to online, raise OnWorkerOnline; otherwise, raise OnWorkerOffline
+                    if (_online)
+                    {
+                        OnWorkerOnline?.Invoke(this, new WorkerEventArgs());
+                    }
+                    else
+                    {
+                        OnWorkerOffline?.Invoke(this, new WorkerEventArgs());
+                    }
+                }
+            }
+        }
 
         public bool Enabled
         {
@@ -68,6 +96,89 @@ namespace makefoxsrv
         private static CancellationToken cancellationToken;
 
         public IProgress? Progress = null;
+
+        public Dictionary<string, int> availableModels { get; private set; } = new Dictionary<string, int>();
+
+        private LinkedList<string>? recentModels = new LinkedList<string>();
+        private Dictionary<string, LinkedListNode<string>>? modelNodes = new Dictionary<string, LinkedListNode<string>>();
+        private int _modelCapacity;
+
+        public int ModelCapacity
+        {
+            get => _modelCapacity;
+            set
+            {
+                _modelCapacity = value;
+
+                if (_modelCapacity == 0)
+                {
+                    // Clear tracking structures if capacity is set to 0.
+                    if (recentModels is not null)
+                        recentModels?.Clear();
+                    if (modelNodes is not null)
+                        modelNodes?.Clear();
+
+                    recentModels = null;
+                    modelNodes = null;
+                }
+                else
+                {
+                    // Ensure structures are initialized (they are by default, but this is for clarity and future-proofing).
+                    if (recentModels is null)
+                        recentModels = new LinkedList<string>();
+                    if (modelNodes is null)
+                        modelNodes = new Dictionary<string, LinkedListNode<string>>();
+
+                    // If increasing capacity from 0, no need to trim structures, as they were just cleared or are already initialized.
+                    // Only trim if the count exceeds the new, non-zero capacity.
+                    while (recentModels.Count > _modelCapacity)
+                    {
+                        var oldestModel = recentModels.First?.Value;
+                        if (oldestModel is not null)
+                        {
+                            recentModels.RemoveFirst();
+                            modelNodes.Remove(oldestModel);
+                        }
+                    }
+                }
+            }
+        }
+
+        public void UseModel(string model)
+        {
+            if (string.IsNullOrEmpty(model) || _modelCapacity == 0)
+                return; // Do not track if capacity is 0 or model is invalid.
+
+            if (modelNodes is null || recentModels is null)
+                return; // Do not track if structures are not initialized.
+
+            //FoxLog.WriteLine($"Worker {ID} - Using model: {model}");
+
+            if (modelNodes.TryGetValue(model, out var existingNode))
+            {
+                // Update the model's position to the end as the most recently used.
+                recentModels.Remove(existingNode);
+                recentModels.AddLast(existingNode);
+            }
+            else
+            {
+                // Add a new model, ensuring capacity constraints are respected.
+                if (recentModels.Count >= ModelCapacity)
+                {
+                    var oldestModel = recentModels.First?.Value;
+                    if (oldestModel is not null) {
+                        recentModels.RemoveFirst();
+                        modelNodes.Remove(oldestModel);
+                    }
+                }
+
+                var newNode = new LinkedListNode<string>(model);
+                recentModels.AddLast(newNode);
+                modelNodes[model] = newNode;
+            }
+        }
+
+        public IEnumerable<string> GetRecentModels() => (recentModels is not null) ? recentModels.AsEnumerable() : Enumerable.Empty<string>();
 
         private class Lora
         {
@@ -171,39 +282,10 @@ namespace makefoxsrv
             foreach (var worker in workers.Values)
             {
 
-                //_ = worker.Run();
+                _ = worker.Start();
                 //_ = Task.Run(async () => await worker.Start());
 
-                var workerThread = new Thread(() =>
-                {
-                    try
-                    {
-                        worker.Start().GetAwaiter().GetResult(); // This runs in a new thread
-                    } catch (Exception ex)
-                    {
-                        try
-                        {
-                            worker.HandleError(ex).Wait();
-                            worker.HandleShutdown();
-                        } catch (Exception ex2)
-                        {
-                            FoxLog.WriteLine($"Worker {worker.ID} - Error handling error: {ex2.Message}");
-                        }
-                    }
-                });
-                workerThread.IsBackground = true;
-                workerThread.Start();
-
                 FoxLog.WriteLine($"Worker {worker.ID} - Started.");
-            }
-
-            var qCount = await FoxQueue.GetCount();
-
-            if (qCount > 0)
-            {
-                FoxLog.WriteLine($"Begin processing of {qCount} old items in queue.");
-
-                FoxWorker.Ping(qCount);
             }
         }
 
@@ -214,7 +296,7 @@ namespace makefoxsrv
             return worker;
         }
 
-        public static ConcurrentDictionary<int, FoxWorker> GetAll()
+        public static ConcurrentDictionary<int, FoxWorker> GetWorkers()
         {
             return workers;
         }
@@ -289,6 +371,11 @@ namespace makefoxsrv
                 }
 
                 model_count++;
+
+                if (!availableModels.ContainsKey(model.ModelName))
+                {
+                    availableModels.Add(model.ModelName, ID);
+                }
             }
 
             FoxLog.WriteLine($"  Worker {ID} - Loaded {model_count} available models");
@@ -448,7 +535,7 @@ namespace makefoxsrv
             }
         }
 
-        public static async Task<Dictionary<string, List<int>>> GetModels()
+        public static async Task<Dictionary<string, List<int>>> GetAvailableModels()
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
@@ -497,7 +584,7 @@ namespace makefoxsrv
 
             return models;
         }
-        
+
         public static async Task<List<int>?> GetWorkersForModel(string modelName)
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
@@ -627,7 +714,7 @@ namespace makefoxsrv
 
         private async Task HandleError(Exception ex)
         {
-            online = false;
+            Online = false;
             FoxLog.WriteLine($"Worker {ID} is offline!\r\n  Error: " + ex.Message);
             //await SetOnlineStatus(false); //SetFailedDate() already marks us as offline.
             await SetFailedDate(ex);
@@ -642,6 +729,7 @@ namespace makefoxsrv
             {
                 await qItem.SetError(ex);
                 OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                await FoxQueue.Enqueue(qItem);
             }
 
             OnWorkerError?.Invoke(this, new ErrorEventArgs(ex));
@@ -649,6 +737,12 @@ namespace makefoxsrv
             TaskStartDate = null;
             Progress = null;
             qItem = null; //Clearly we're not working on an item anymore, better clear it to be safe.
+        }
+
+        public void AssignTask(FoxQueue q)
+        {
+            qItem = q;
+            Ping();
         }
 
         private CancellationTokenSource StartProgressMonitor(FoxQueue qItem, CancellationToken cancellationToken)
@@ -664,7 +758,7 @@ namespace makefoxsrv
 
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, progressCTS.Token);
 
-                while (!cts.IsCancellationRequested && online && qItem is not null)
+                while (!cts.IsCancellationRequested && Online && qItem is not null)
                 {
                     try
                     {
@@ -672,7 +766,7 @@ namespace makefoxsrv
 
                         if (p.Progress > lastProgress)
                         {
-                            if (!online)
+                            if (!Online)
                                 break;
 
                             if (qItem is null)
@@ -714,349 +808,296 @@ namespace makefoxsrv
             return progressCTS;
         }
 
-        private void HandleShutdown()
-        {
-            this.online = false;
-
-            OnWorkerStop?.Invoke(this, new WorkerEventArgs());
-
-            FoxLog.WriteLine($"Worker {ID} - Shutdown.");
-            workers.TryRemove(ID, out _);
-        }
-
         private async Task Start()
         {
-            var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             var waitHandles = new WaitHandle[] { enabledEvent, cts.Token.WaitHandle };
 
-            OnWorkerStart?.Invoke(this, new WorkerEventArgs());
+            this.ModelCapacity = 3;
 
-            while (!stopToken.IsCancellationRequested)
+            OnWorkerStart?.Invoke(this, new WorkerEventArgs());            
+
+            _ = Task.Run(async () =>
             {
-                CancellationTokenSource? progressCTS = null;
-                try
+                Online = await ConnectAPI(false) is not null;
+
+                while (!stopToken.IsCancellationRequested)
                 {
-                    FoxQueue? q;
-                    StableDiffusion? api;
+                    var waitMs = 2000; //Default wait time
 
-                    // Wait for either the enabledEvent to be set or cancellation
-                    WaitHandle.WaitAny(waitHandles);
-
-                    if (cts.Token.IsCancellationRequested)
-                        throw new OperationCanceledException(cts.Token);
-
-                    //Wake up every now and then to make sure we're still online.
-
-                    semaphoreAcquired = await semaphore.WaitAsync(2000, cts.Token);
-
-                    //if (semaphoreAcquired)
-                    //    FoxLog.WriteLine($"Worker {id} - I have the semaphore! Semaphore count: {semaphore.CurrentCount}");
-
-                    //FoxLog.WriteLine($"Worker {id} - woke up, semaphore: {semaphoreAcquired}");
-
-                    if (!online)
-                    {
-                        //Worker is in offline mode, just check for a working connection.
-                        api = await ConnectAPI(false);
-
-                        if (api is null)
-                        {
-                            //Still offline.  Wait a while and try again.
-
-                            if (semaphoreAcquired)
-                                semaphore.Release();
-
-                            await Task.Delay(15000, cts.Token);
-
-                            continue;
-                        }
-                        else
-                        {
-                            //Wait a little bit to let the worker stablize if it's just starting up
-                            await Task.Delay(8000, cts.Token);
-
-                            FoxLog.WriteLine($"Worker {ID} is back online!");
-                            await SetOnlineStatus(true);
-                            online = true;
-
-                            await LoadModelInfo(); //Reload in case it changed.
-                        }
-                    }
-
-                    api = await ConnectAPI();
-
-                    if (!online)
-                    {
-                        await SetOnlineStatus(true); //Appears to be working now.
-                        online = true;
-
-                        FoxLog.WriteLine($"Worker {ID} came back online unexpectedly");
-                    }
-
-                    var status = await api.QueueStatus();
-                    var progress = await api.Progress(true);
-
-                    //We only need to do this check if the semaphore was aquired (only if work is waiting for us)
-                    if (semaphoreAcquired && (status.QueueSize > 0 || progress.State.JobCount > 0))
-                    {
-
-                        int waitMs = (status.QueueSize + progress.State.JobCount) * 500;
-                        //FoxLog.WriteLine($"Worker {id} - URL has a busy queue, waiting {waitMs}ms...");
-
-                        if (semaphoreAcquired)
-                            semaphore.Release();
-
-                        await Task.Delay(waitMs, cts.Token);
-
-                        continue;
-                    }
-
-                    //while ((q = await FoxQueue.Pop(id)) is not null) //Work until the queue is empty
-                    //{
-                    (q, int processingCount) = await FoxQueue.Pop(ID);
-
-                    if (q is null)
-                    {
-                        //If we have the semaphore, but couldn't find anything to process.
-                        //Better give it to someone else.
-
-
-                        if (semaphoreAcquired)
-                        {
-                            if (processingCount > 0)
-                            {
-                                //FoxLog.WriteLine($"Worker {id} - Incompatible queue item, returning semaphore!");
-
-                                semaphore.Release();
-                            }
-                            else
-                                FoxLog.WriteLine($"Worker {ID} - That's odd... we have the semaphore, but can't find a queue item!");
-                        }
-
-                        continue;
-                    }
-
-                    //FoxLog.WriteLine($"{address} - {q.settings.model}");
-
-                    //FoxLog.WriteLine($"Starting image {q.id}...");
-
-                    qItem = q;
-                    this.TaskStartDate = DateTime.Now;
+                    var semaphoreAquired = await semaphore.WaitAsync(waitMs, cts.Token);
 
                     try
                     {
+                        //WaitHandle.WaitAny(waitHandles);
 
-                        api = await ConnectAPI(true); // It's been a while, we should ping the API again.
+                        StableDiffusion? api = await ConnectAPI(false);
 
-                        await q.SetWorker(this);
+                        var newOnlineStatus = api is not null;
 
-                        await SetUsedDate();
-
-                        using var ctsLoop = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, q.stopToken.Token);
-
-                        //var t = q.telegram;
-
-                        //if (t is null)
-                        //    throw new Exception("Telegram object not initialized");
-
-                        OnTaskStart?.Invoke(this, new TaskEventArgs(qItem));
-                        qItem.Start(this);
-
-                        var settings = q.Settings;
-
-                        //_ = this.MonitorProgressAsync(q, comboBreaker);
-
-                        progressCTS = StartProgressMonitor(q, ctsLoop.Token);
-
-                        Byte[] outputImage;
-
-                        if (q.Type == FoxQueue.QueueType.IMG2IMG)
+                        if (Online != newOnlineStatus)
                         {
-                            //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
-
-                            //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
-                            var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
-                            var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
-                            //var sampler = await api.Sampler("Restart", ctsLoop.Token);
-
-                            FoxImage? inputImage = await q.GetInputImage();
-
-                            if (inputImage is null || inputImage.Image is null)
-                                throw new Exception("Input image could not be loaded.");
-
-                            var img = new Base64EncodedImage(inputImage.Image);
-
-                            var img2img = await api.Image2Image(
-                                new()
-                                {
-                                    Images = { img },
-
-                                    Model = model,
-
-                                    Prompt = new()
-                                    {
-                                        Positive = settings.prompt,
-                                        Negative = settings.negative_prompt,
-                                    },
-
-                                    Width = settings.width,
-                                    Height = settings.height,
-
-                                    Seed = new()
-                                    {
-                                        Seed = settings.seed
-                                    },
-
-                                    DenoisingStrength = (double)settings.denoising_strength,
-
-                                    Sampler = new()
-                                    {
-                                        Sampler = sampler,
-                                        SamplingSteps = settings.steps,
-                                        CfgScale = (double)settings.cfgscale
-                                    },
-                                }
-                            , ctsLoop.Token);
-
-                            outputImage = img2img.Images.Last().Data.ToArray();
-                        }
-                        else if (q.Type == FoxQueue.QueueType.TXT2IMG)
-                        {
-                            //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
-
-                            //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
-                            var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
-                            var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
-                            //var sampler = await api.Sampler("Restart", ctsLoop.Token);
-
-                            var txt2img = await api.TextToImage(
-                                new()
-                                {
-                                    Model = model,
-
-                                    Prompt = new()
-                                    {
-                                        Positive = settings.prompt,
-                                        Negative = settings.negative_prompt,
-                                    },
-
-                                    Seed = new()
-                                    {
-                                        Seed = settings.seed,
-                                    },
-
-                                    Width = settings.width,
-                                    Height = settings.height,
-
-                                    Sampler = new()
-                                    {
-                                        Sampler = sampler,
-                                        SamplingSteps = settings.steps,
-                                        CfgScale = (double)settings.cfgscale
-                                    },
-                                }
-                            , ctsLoop.Token);
-
-                            outputImage = txt2img.Images.Last().Data.ToArray();
-                        } else
-                            throw new NotImplementedException("Request type not implemented.");
-
-                        if (progressCTS is not null)
-                            progressCTS.Cancel();
-
-                        await q.Send(outputImage);
-
-                        OnTaskCompleted?.Invoke(this, new TaskEventArgs(q));
-
-                        TaskStartDate = null;
-                    }
-                    catch (WTelegram.WTException ex)
-                    {
-                        //If we can't edit, we probably hit a rate limit with this user.
-
-                        if (ex is RpcException rex)
-                        {
-                            if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
+                            if (newOnlineStatus)
                             {
-                                // If the message matches, extract the number
-                                int retryAfterSeconds = rex.X;
-                                FoxLog.WriteLine($"Worker {ID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+                                //Coming back online
+                                await Task.Delay(8000, cts.Token);
 
-                                if (qItem is not null)
-                                {
-                                    await qItem.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
-                                    OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
-                                }
+                                FoxLog.WriteLine($"Worker {ID} is back online!");
+                                await SetOnlineStatus(true);
 
-                                qItem = null;
+                                await LoadModelInfo(); //Reload in case it changed.
+
+                                Online = true;
+                                waitMs = 2000;
+                            }
+                            else
+                            {
+                                //Going offline
+
+                                await HandleError(new Exception("Could not connect to server"));
+                                waitMs = 10000; //Wait longer if we're offline.
                             }
                         }
-                        else //We don't care about other telegram errors, but log them for debugging purposes.
-                            FoxLog.WriteLine($"Telegram error {ex.Message}\r\n{ex.StackTrace}");
+
+                        //if (Online)
+                        //{
+                        //    while ((api = await ConnectAPI(true)) is not null)
+                        //    {
+                        //        //If we're not the one currently processing...
+                        //        var status = await api.QueueStatus();
+                        //        var progress = await api.Progress(true);
+
+                        //        if ((status.QueueSize > 0 || progress.State.JobCount > 0))
+                        //        {
+                        //            Online = false;
+                        //            var busyWaitTime = (status.QueueSize + progress.State.JobCount) * 500;
+
+                        //            FoxLog.WriteLine($"Worker {ID} - Busy. Waiting {busyWaitTime}ms.");
+
+                        //            await Task.Delay(busyWaitTime, cts.Token);
+
+                        //            continue;
+                        //        }
+                        //        else
+                        //        {
+                        //            Online = true;
+                        //            break;
+                        //        }
+                        //    }
+                        //}
+
+                        if (qItem is not null)
+                            await ProcessTask(cts.Token);
                     }
                     catch (OperationCanceledException)
                     {
-                        // Handle the cancellation specifically
-                        if (qItem is not null && qItem.stopToken.IsCancellationRequested)
-                        {
-                            FoxLog.WriteLine($"Worker {ID} - User Cancelled");
-
-                            OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
-
-                            qItem = null;
-                            TaskStartDate = null;
-                            Progress = null;
-
-                            using var httpClient = new HttpClient();
-
-                            var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null, cts.Token);
-                            response.EnsureSuccessStatusCode();
-                        }
-                        else
-                            throw; //If it wasn't a user cancellation request, re-throw the error.
+                        break; //Break the loop for a graceful shutdown
                     }
                     catch (Exception ex)
                     {
                         await HandleError(ex);
                     }
-                    finally
+
+                }
+
+                this.Online = false;
+
+                OnWorkerStop?.Invoke(this, new WorkerEventArgs());
+
+                FoxLog.WriteLine($"Worker {ID} - Shutdown.");
+                workers.TryRemove(ID, out _);
+            });
+        }
+
+        public async Task ProcessTask(CancellationToken cancellationToken)
+        {
+            CancellationTokenSource? progressCTS = null;
+
+            StableDiffusion? api;
+
+            api = await ConnectAPI(true);
+
+            this.TaskStartDate = DateTime.Now;
+
+            await qItem.SetWorker(this);
+
+            await this.SetUsedDate();
+
+            var ctsLoop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, qItem.stopToken.Token);
+
+            OnTaskStart?.Invoke(this, new TaskEventArgs(qItem));
+            await qItem.Start(this);
+
+            var settings = qItem.Settings;
+
+            this.UseModel(settings.model);
+
+            progressCTS = StartProgressMonitor(qItem, ctsLoop.Token);
+
+            try
+            {
+                Byte[] outputImage;
+
+                if (qItem.Type == FoxQueue.QueueType.IMG2IMG)
+                {
+                    //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
+
+                    //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
+                    var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
+                    var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
+                    //var sampler = await api.Sampler("Restart", ctsLoop.Token);
+
+                    FoxImage? inputImage = await qItem.GetInputImage();
+
+                    if (inputImage is null || inputImage.Image is null)
+                        throw new Exception("Input image could not be loaded.");
+
+                    var img = new Base64EncodedImage(inputImage.Image);
+
+                    var img2img = await api.Image2Image(
+                        new()
+                        {
+                            Images = { img },
+
+                            Model = model,
+
+                            Prompt = new()
+                            {
+                                Positive = settings.prompt,
+                                Negative = settings.negative_prompt,
+                            },
+
+                            Width = settings.width,
+                            Height = settings.height,
+
+                            Seed = new()
+                            {
+                                Seed = settings.seed
+                            },
+
+                            DenoisingStrength = (double)settings.denoising_strength,
+
+                            Sampler = new()
+                            {
+                                Sampler = sampler,
+                                SamplingSteps = settings.steps,
+                                CfgScale = (double)settings.cfgscale
+                            },
+                        }
+                    , ctsLoop.Token);
+
+                    outputImage = img2img.Images.Last().Data.ToArray();
+                }
+                else if (qItem.Type == FoxQueue.QueueType.TXT2IMG)
+                {
+                    //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
+
+                    //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
+                    var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
+                    var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
+                    //var sampler = await api.Sampler("Restart", ctsLoop.Token);
+
+                    var txt2img = await api.TextToImage(
+                        new()
+                        {
+                            Model = model,
+
+                            Prompt = new()
+                            {
+                                Positive = settings.prompt,
+                                Negative = settings.negative_prompt,
+                            },
+
+                            Seed = new()
+                            {
+                                Seed = settings.seed,
+                            },
+
+                            Width = settings.width,
+                            Height = settings.height,
+
+                            Sampler = new()
+                            {
+                                Sampler = sampler,
+                                SamplingSteps = settings.steps,
+                                CfgScale = (double)settings.cfgscale
+                            },
+                        }
+                    , ctsLoop.Token);
+
+                    outputImage = txt2img.Images.Last().Data.ToArray();
+                }
+                else
+                    throw new NotImplementedException("Request type not implemented.");
+
+                if (progressCTS is not null)
+                    progressCTS.Cancel();
+
+                await qItem.Send(outputImage);
+
+                var completedTask = qItem;
+
+                qItem = null;
+
+                OnTaskCompleted?.Invoke(this, new TaskEventArgs(completedTask));
+
+                TaskStartDate = null;
+            }
+            catch (WTelegram.WTException ex)
+            {
+                //If we can't edit, we probably hit a rate limit with this user.
+
+                if (ex is RpcException rex)
+                {
+                    if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
                     {
-                        if (progressCTS is not null)
-                            progressCTS.Cancel();
+                        // If the message matches, extract the number
+                        int retryAfterSeconds = rex.X;
+                        FoxLog.WriteLine($"Worker {ID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+
+                        if (qItem is not null)
+                        {
+                            await qItem.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
+                            OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                        }
+
+                        _ = FoxQueue.Enqueue(qItem);
+                        qItem = null;
                     }
+                }
+                else //We don't care about other telegram errors, but log them for debugging purposes.
+                    FoxLog.WriteLine($"Telegram error {ex.Message}\r\n{ex.StackTrace}");
+            }
+            catch (OperationCanceledException ex)
+            {
+                // Handle the cancellation specifically
+                if (qItem is not null && qItem.stopToken.IsCancellationRequested)
+                {
+                    FoxLog.WriteLine($"Worker {ID} - User Cancelled");
+
+                    OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
 
                     qItem = null;
                     TaskStartDate = null;
                     Progress = null;
-                }
-                catch (OperationCanceledException ex)
-                {
-                    if (qItem is not null)
-                    {
-                        try
-                        {
-                            OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
-                            Ping(); //Signal another worker to grab it.
-                        }
-                        catch { }
-                    }
 
-                    break; //Leave the loop, we're shutting down
+                    using var httpClient = new HttpClient();
+
+                    var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null, cancellationToken);
+                    response.EnsureSuccessStatusCode();
                 }
-                catch (Exception ex)
-                {
-                    await HandleError(ex);
-                    //FoxLog.WriteLine("Error worker: " + ex.Message);
-                    //await Task.Delay(3000, ctsLoop.Token);
-                }
-                finally
-                {
-                    if (progressCTS is not null)
-                        progressCTS.Cancel();
-                }
+                else
+                    throw;
+            }
+            finally
+            {
+                if (progressCTS is not null)
+                    progressCTS.Cancel();
             }
 
-            HandleShutdown();
+            qItem = null;
+            TaskStartDate = null;
+            Progress = null;
         }
 
 

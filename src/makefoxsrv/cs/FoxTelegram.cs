@@ -725,7 +725,6 @@ We are committed to using your donation to further develop and maintain the serv
                         ChatFullBase? fullChat = null;
                         long? flags = null;
                         long? flags2 = null;
-                        
 
                         //FoxLog.WriteLine($"UpdateTelegramChat: {chat}, Forced={ForceUpdate}");
 

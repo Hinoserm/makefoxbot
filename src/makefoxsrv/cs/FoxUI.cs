@@ -286,6 +286,65 @@ namespace makefoxsrv
                 }
             });
 
+            FoxWorker.OnTaskProgress += (sender, args) =>
+            {
+                var w = (FoxWorker)sender!;
+
+                workerProgressBars.TryGetValue(w.ID, out ProgressBar? progressBar);
+
+                if (progressBar is not null)
+                    Application.MainLoop.Invoke(() => progressBar.Fraction = (float)args.Progress.Progress);
+            };
+
+            FoxWorker.OnTaskStart += (sender, args) =>
+            {
+                var w = (FoxWorker)sender!;
+
+                workerStatusLabels.TryGetValue(w.ID, out Label? statusLabel);
+
+                if (statusLabel is not null)
+                    Application.MainLoop.Invoke(() => statusLabel.Text = $"{args.qItem.Settings?.width}x{args.qItem.Settings?.height} {args.qItem.Settings?.steps} {args.qItem.Settings?.model}");
+            };
+
+            FoxWorker.OnWorkerOffline += (sender, args) =>
+            {
+                var w = (FoxWorker)sender!;
+
+                FoxLog.WriteLine($"Worker {w.ID} is offline.");
+
+                workerStatusLabels.TryGetValue(w.ID, out Label? statusLabel);
+
+                if (statusLabel is not null)
+                    Application.MainLoop.Invoke(() => statusLabel.Text = $"OFFLINE");
+            };
+
+            FoxWorker.OnWorkerOnline += (sender, args) =>
+            {
+                var w = (FoxWorker)sender!;
+
+                FoxLog.WriteLine($"Worker {w.ID} is online.");
+
+                workerStatusLabels.TryGetValue(w.ID, out Label? statusLabel);
+
+                if (statusLabel is not null)
+                    Application.MainLoop.Invoke(() => statusLabel.Text = $"IDLE");
+            };
+
+            FoxWorker.OnTaskCompleted += (sender, args) =>
+            {
+                var w = (FoxWorker)sender!;
+
+                workerStatusLabels.TryGetValue(w.ID, out Label? statusLabel);
+
+                if (statusLabel is not null)
+                    Application.MainLoop.Invoke(() => statusLabel.Text = "IDLE");
+
+                workerProgressBars.TryGetValue(w.ID, out ProgressBar? progressBar);
+
+                if (progressBar is not null)
+                    Application.MainLoop.Invoke(() => progressBar.Fraction = 0);
+            };
+
             /* Application.Resized += (args) =>
             {
                 _win?.SetNeedsDisplay();
@@ -395,7 +454,7 @@ namespace makefoxsrv
 
             if (_workerPane is not null && _workerPane.Visible == true)
             {
-                foreach (var w in FoxWorker.GetAll())
+                foreach (var w in FoxWorker.GetWorkers())
                 {
                     var worker = w.Value;
                     var workerId = w.Key;
@@ -456,7 +515,7 @@ namespace makefoxsrv
                     if (progressBar is not null && statusLabel is not null)
                     {
                         nameLabel.Text = $"Worker {workerId} - {workerName}";
-                        if (!worker.online)
+                        if (!worker.Online)
                         {
                             statusLabel.Text = "OFFLINE";
                             statusLabel.ColorScheme = redScheme;
@@ -466,19 +525,19 @@ namespace makefoxsrv
                         }
                         else if (worker.Progress is null)
                         {
-                            statusLabel.Text = "IDLE";
-                            statusLabel.ColorScheme = greyScheme;
-                            statusLabel.Visible = true;
+                            //statusLabel.Text = "IDLE";
+                            //statusLabel.ColorScheme = greyScheme;
+                            //statusLabel.Visible = true;
                             //progressBar.Visible = false;
-                            progressBar.Fraction = 0;
+                            //progressBar.Fraction = 0;
                         }
                         else if (worker.Progress is not null)
                         {
-                            progressBar.Fraction = (float)worker.Progress.Progress;
+                            //progressBar.Fraction = (float)worker.Progress.Progress;
                             progressBar.Visible = true;
                             if (worker.qItem is not null && worker.qItem.Settings is not null)
                             {
-                                statusLabel.Text = $"{worker.qItem.Settings.width}x{worker.qItem.Settings.height} {worker.qItem.Settings.steps} {worker.qItem.Settings.model}";
+                                //statusLabel.Text = $"{worker.qItem.Settings.width}x{worker.qItem.Settings.height} {worker.qItem.Settings.steps} {worker.qItem.Settings.model}";
                                 //statusLabel.Visible = false;
                             }
                             else
@@ -489,7 +548,7 @@ namespace makefoxsrv
                             //statusLabel.Visible = false;
                         }
 
-                        _workerPane.Height = Dim.Sized((FoxWorker.GetAll().Count * 3) + 2);
+                        _workerPane.Height = Dim.Sized((FoxWorker.GetWorkers().Count * 3) + 2);
                     }
                 }
             }

@@ -659,7 +659,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-            var models = await FoxWorker.GetModels(); // Use the GetModels function here
+            var models = await FoxWorker.GetAvailableModels(); // Use the GetModels function here
 
             if (models.Count == 0)
             {

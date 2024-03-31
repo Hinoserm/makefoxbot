@@ -248,6 +248,10 @@ namespace makefoxsrv
 
                     await FoxWorker.StartWorkers();
 
+                    await FoxQueue.EnqueueOldItems();
+
+                    FoxQueue.StartTaskLoop();
+
                     //_ = FoxQueue.NotifyUserPositions(botClient, cts);
 
                     //Console.ReadLine();
@@ -269,7 +273,7 @@ namespace makefoxsrv
             // Send cancellation request to stop bot
             cts.Cancel();
 
-            while (!FoxWorker.GetAll().IsEmpty)
+            while (!FoxWorker.GetWorkers().IsEmpty)
             {
                 //Wait for all workers to complete.
                 await Task.Delay(100);
