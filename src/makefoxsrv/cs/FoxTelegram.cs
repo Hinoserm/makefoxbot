@@ -78,7 +78,15 @@ namespace makefoxsrv
                 _Peer = new InputPeerUser(userId, userAccessHash);
             }
 
-            _User = new() { id = userId, access_hash = userAccessHash };
+            if (_User is null) //Make it up the best that we can.
+                _User = new() { id = userId, access_hash = userAccessHash };
+
+            if (_Chat is null && chatId is not null)
+            {
+                Chat chat = new() { id = chatId.Value };
+                _Chat = chat;
+            }
+
             //Chat chat = new() { id = chatId, access_hash = userAccessHash };
 
             if (this._Peer is null)
