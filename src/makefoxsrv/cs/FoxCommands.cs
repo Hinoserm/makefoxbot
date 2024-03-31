@@ -1020,18 +1020,23 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 while (await reader.ReadAsync())
                 {
                     ulong q_id = reader.GetUInt64("id");
-                    int msg_id = reader.GetInt32("msg_id");
 
-                    try
+                    if (reader["msg_id"] is not DBNull)
                     {
-                        _= t.EditMessageAsync(
-                            id: msg_id,
-                            text: "❌ Cancelled."
-                        );
-                    } catch (Exception ex)
-                    {
-                        //Don't care about this failure.
-                        FoxLog.WriteLine("Failed to edit message: " + msg_id.ToString());
+                        int msg_id = reader.GetInt32("msg_id");
+
+                        try
+                        {
+                            _ = t.EditMessageAsync(
+                                id: msg_id,
+                                text: "❌ Cancelled."
+                            );
+                        }
+                        catch (Exception ex)
+                        {
+                            //Don't care about this failure.
+                            FoxLog.WriteLine("Failed to edit message: " + msg_id.ToString());
+                        }
                     }
 
                     pendingIds.Add(q_id);
