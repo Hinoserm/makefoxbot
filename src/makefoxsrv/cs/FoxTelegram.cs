@@ -513,7 +513,7 @@ We are committed to using your donation to further develop and maintain the serv
             }
         }
 
-        private static async Task UpdateTelegramUser(User user, bool ForceUpdate = false)
+        private static async Task UpdateTelegramUser(User user, bool forceFullUpdate = false)
         {
             try
             {
@@ -532,10 +532,10 @@ We are committed to using your donation to further develop and maintain the serv
 
                     using (var transaction = await SQL.BeginTransactionAsync())
                     {
-                        DateTime? dateAdded = null;
                         Byte[]? photoBytes = null;
                         long? photoID = 0;
-                        var shouldUpdate = ForceUpdate;
+                        var fullUpdate = forceFullUpdate;
+                        var now = DateTime.Now;
 
                         if (FoxSettings.Get<bool>("GetFullUser") || FoxSettings.Get<bool>("GetUserPhoto"))
                         {
@@ -543,7 +543,7 @@ We are committed to using your donation to further develop and maintain the serv
                             {
                                 cmd.Connection = SQL;
                                 cmd.Transaction = transaction;
-                                cmd.CommandText = "SELECT date_updated,date_added,photo_id,access_hash,username FROM telegram_users WHERE id = @id";
+                                cmd.CommandText = "SELECT last_full_update,photo_id FROM telegram_users WHERE id = @id";
                                 cmd.Parameters.AddWithValue("id", user.ID);
 
                                 using var reader = await cmd.ExecuteReaderAsync();
@@ -552,124 +552,108 @@ We are committed to using your donation to further develop and maintain the serv
                                 {
                                     await reader.ReadAsync();
 
-                                    dateAdded = reader["date_added"] as DateTime?;
                                     photoID = reader["photo_id"] as long?;
 
-                                    DateTime dateUpdated = reader.GetDateTime("date_updated");
+                                    DateTime? dateFullUpdated = reader["last_full_update"] is DBNull ? null : reader.GetDateTime("last_full_update");
 
-                                    if (dateAdded is null || dateUpdated < DateTime.Now.AddHours(-1))
-                                        shouldUpdate = true; //If at least an hour has passed, force the update.
-
-                                    String? username = reader["username"] as string;
-                                    long? access_hash = reader["access_hash"] as long?;
-
-                                    if (username != user.MainUsername)
-                                        shouldUpdate = true; //Always update if username has changed.
-
-                                    if (access_hash != user.access_hash)
-                                        shouldUpdate = true; //Always update if access hash has changed.
+                                    if (dateFullUpdated is null || dateFullUpdated < now.AddHours(-1))
+                                        fullUpdate = true; //If at least an hour has passed, force the update.
                                 }
                                 else
-                                    shouldUpdate = true; //Always update if it's missing.
+                                    fullUpdate = true; //Always update if it's missing.
                             }
                         }
-                        else
-                            shouldUpdate = true; //Always update if we're not getting full user info.
 
-                        if (shouldUpdate)
+                        UserFull? fullUser = null;
+
+                        //FoxLog.WriteLine($"UpdateTelegramUser: {user}, Forced={ForceUpdate}");
+
+                        try
                         {
-                            UserFull? fullUser = null;
-
-                            //FoxLog.WriteLine($"UpdateTelegramUser: {user}, Forced={ForceUpdate}");
-
-                            try
+                            if (fullUpdate && (FoxSettings.Get<bool>("GetFullUser") || FoxSettings.Get<bool>("GetUserPhoto")))
                             {
-                                if (FoxSettings.Get<bool>("GetFullUser") || FoxSettings.Get<bool>("GetUserPhoto"))
+                                fullUser = (await Client.Users_GetFullUser(user)).full_user;
+
+                                if (FoxSettings.Get<bool>("GetUserPhoto"))
                                 {
-                                    fullUser = (await Client.Users_GetFullUser(user)).full_user;
+                                    MemoryStream memoryStream = new MemoryStream();
+                                    PhotoBase photo = fullUser.profile_photo;
 
-                                    if (FoxSettings.Get<bool>("GetUserPhoto"))
+                                    switch (photo)
                                     {
-                                        MemoryStream memoryStream = new MemoryStream();
-                                        PhotoBase photo = fullUser.profile_photo;
+                                        case Photo p:
+                                            if (photo.ID != photoID)
+                                            {
+                                                photoID = p.ID;
 
-                                        switch (photo)
-                                        {
-                                            case Photo p:
-                                                if (photo.ID != photoID)
-                                                {
-                                                    photoID = p.ID;
-
-                                                    await FoxTelegram.Client.DownloadFileAsync(p, memoryStream, p.LargestPhotoSize);
-                                                    photoBytes = memoryStream.ToArray();
-                                                }
-                                                break;
-                                        }
+                                                await FoxTelegram.Client.DownloadFileAsync(p, memoryStream, p.LargestPhotoSize);
+                                                photoBytes = memoryStream.ToArray();
+                                            }
+                                            break;
                                     }
                                 }
                             }
-                            catch (WTelegram.WTException ex)
+                        }
+                        catch (WTelegram.WTException ex)
+                        {
+                            //If we can't edit, we probably hit a rate limit with this user.
+
+                            if (ex is RpcException rex)
                             {
-                                //If we can't edit, we probably hit a rate limit with this user.
-
-                                if (ex is RpcException rex)
-                                {
-                                    FoxLog.WriteLine($"Error getting full user={user} x={rex.X} code={rex.Code} > {ex.Message}");
-                                }
-                                else
-                                    FoxLog.WriteLine($"Error getting full user={user} {ex.Message}");
+                                FoxLog.WriteLine($"Error getting full user={user} x={rex.X} code={rex.Code} > {ex.Message}");
                             }
-                            catch (Exception ex)
-                            {
-                                FoxLog.WriteLine("Error getting full user={user}: " + ex.Message);
-                            }
+                            else
+                                FoxLog.WriteLine($"Error getting full user={user} {ex.Message}");
+                        }
+                        catch (Exception ex)
+                        {
+                            FoxLog.WriteLine("Error getting full user={user}: " + ex.Message);
+                        }
 
-                            using (var cmd = new MySqlCommand())
-                            {
-                                cmd.Connection = SQL;
-                                cmd.Transaction = transaction;
-                                cmd.CommandText = @"
-                                    INSERT INTO telegram_users
-                                    (id, access_hash, active, type, language, username, firstname, lastname, bio, flags, flags2, date_added, date_updated, photo_id, photo)
-                                    VALUES 
-                                    (@id, @access_hash, @active, @type, @language, @username, @firstname, @lastname, @bio, @flags, @flags2, @date_added, @date_updated, @photo_id, @photo)
-                                    ON DUPLICATE KEY UPDATE 
-                                        access_hash = COALESCE(@access_hash, access_hash),
-                                        active = COALESCE(@active, active),
-                                        type = COALESCE(@type, type),
-                                        language = COALESCE(@language, language),
-                                        username = COALESCE(@username, username),
-                                        firstname = COALESCE(@firstname, firstname),
-                                        lastname = COALESCE(@lastname, lastname),
-                                        bio = COALESCE(@bio, bio),
-                                        flags = COALESCE(@flags, flags),
-                                        flags2 = COALESCE(@flags2, flags2),
-                                        date_added = COALESCE(@date_added, COALESCE(date_added, @date_updated)),
-                                        date_updated = COALESCE(@date_updated, date_updated),
-                                        photo_id = COALESCE(@photo_id, photo_id),
-                                        photo = COALESCE(@photo, photo);
-                                ";
+                        using (var cmd = new MySqlCommand())
+                        {
+                            cmd.Connection = SQL;
+                            cmd.Transaction = transaction;
+                            cmd.CommandText = @"
+                                INSERT INTO telegram_users
+                                (id, access_hash, active, type, language, username, firstname, lastname, bio, flags, flags2, date_added, date_updated, photo_id, photo, last_full_update)
+                                VALUES 
+                                (@id, @access_hash, @active, @type, @language, @username, @firstname, @lastname, @bio, @flags, @flags2, @date_updated, @date_updated, @photo_id, @photo, @last_full_update)
+                                ON DUPLICATE KEY UPDATE 
+                                    access_hash = COALESCE(@access_hash, access_hash),
+                                    active = COALESCE(@active, active),
+                                    type = COALESCE(@type, type),
+                                    language = COALESCE(@language, language),
+                                    username = COALESCE(@username, username),
+                                    firstname = COALESCE(@firstname, firstname),
+                                    lastname = COALESCE(@lastname, lastname),
+                                    bio = COALESCE(@bio, bio),
+                                    flags = COALESCE(@flags, flags),
+                                    flags2 = COALESCE(@flags2, flags2),
+                                    date_added = COALESCE(date_added, @date_updated),
+                                    date_updated = COALESCE(@date_updated, date_updated),
+                                    photo_id = COALESCE(@photo_id, photo_id),
+                                    photo = COALESCE(@photo, photo),
+                                    last_full_update = COALESCE(@last_full_update, last_full_update);
+                            ";
 
-                                cmd.Parameters.AddWithValue("id", user.ID);
-                                cmd.Parameters.AddWithValue("access_hash", user.access_hash != 0 ? user.access_hash : null);
-                                cmd.Parameters.AddWithValue("active", user.IsActive);
-                                cmd.Parameters.AddWithValue("type", user.IsBot ? "BOT" : "USER");
-                                cmd.Parameters.AddWithValue("language", user.lang_code);
-                                cmd.Parameters.AddWithValue("username", user.MainUsername);
-                                cmd.Parameters.AddWithValue("firstname", user.first_name);
-                                cmd.Parameters.AddWithValue("lastname", user.last_name);
-                                cmd.Parameters.AddWithValue("bio", fullUser?.about);
+                            cmd.Parameters.AddWithValue("id", user.ID);
+                            cmd.Parameters.AddWithValue("access_hash", user.access_hash != 0 ? user.access_hash : null);
+                            cmd.Parameters.AddWithValue("active", user.IsActive);
+                            cmd.Parameters.AddWithValue("type", user.IsBot ? "BOT" : "USER");
+                            cmd.Parameters.AddWithValue("language", user.lang_code);
+                            cmd.Parameters.AddWithValue("username", user.MainUsername);
+                            cmd.Parameters.AddWithValue("firstname", user.first_name);
+                            cmd.Parameters.AddWithValue("lastname", user.last_name);
+                            cmd.Parameters.AddWithValue("bio", fullUser?.about);
+                            cmd.Parameters.AddWithValue("flags", fullUser?.flags);
+                            cmd.Parameters.AddWithValue("flags2", fullUser?.flags2);
+                            cmd.Parameters.AddWithValue("date_updated", now);
+                            cmd.Parameters.AddWithValue("last_full_update", fullUser is not null ? now : null);
+                            cmd.Parameters.AddWithValue("photo_id", photoID);
+                            cmd.Parameters.AddWithValue("photo", photoBytes);
 
-                                cmd.Parameters.AddWithValue("flags", fullUser?.flags);
-                                cmd.Parameters.AddWithValue("flags2", fullUser?.flags2);
-                                cmd.Parameters.AddWithValue("date_added", dateAdded);
-                                cmd.Parameters.AddWithValue("date_updated", DateTime.Now);
-
-                                cmd.Parameters.AddWithValue("photo_id", photoID);
-                                cmd.Parameters.AddWithValue("photo", photoBytes);
-
-                                await cmd.ExecuteNonQueryAsync();
-                            }
+                            await cmd.ExecuteNonQueryAsync();
                         }
 
                         transaction.Commit();
@@ -682,7 +666,7 @@ We are committed to using your donation to further develop and maintain the serv
             }
         }
 
-        private static async Task UpdateTelegramChat(ChatBase chat, bool ForceUpdate = false)
+        private static async Task UpdateTelegramChat(ChatBase chat, bool forceFullUpdate = false)
         {
             try
             {
@@ -692,17 +676,19 @@ We are committed to using your donation to further develop and maintain the serv
                 if (Client is null)
                     throw new Exception("Client is null");
 
+                if (chat.Title == "Unsupported Chat")
+                    return; //I still don't really know what this chat is all about, but skip it for now.
+
                 using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                 {
                     await SQL.OpenAsync();
 
                     using (var transaction = await SQL.BeginTransactionAsync())
                     {
-                        DateTime? dateAdded = null;
                         Byte[]? chatPhoto = null;
                         long? photoID = 0;
-                        var shouldUpdate = ForceUpdate;
-
+                        var fullUpdate = forceFullUpdate;
+                        var now = DateTime.Now;
 
                         if (FoxSettings.Get<bool>("GetFullChat") || FoxSettings.Get<bool>("GetChatPhoto") || FoxSettings.Get<bool>("GetChatAdmins"))
                         {
@@ -711,7 +697,7 @@ We are committed to using your donation to further develop and maintain the serv
                             {
                                 cmd.Connection = SQL;
                                 cmd.Transaction = transaction;
-                                cmd.CommandText = "SELECT date_updated,date_added,photo_id,access_hash,title FROM telegram_chats WHERE id = @id";
+                                cmd.CommandText = "SELECT last_full_update,photo_id FROM telegram_chats WHERE id = @id";
                                 cmd.Parameters.AddWithValue("id", chat.ID);
 
                                 using var reader = await cmd.ExecuteReaderAsync();
@@ -720,239 +706,232 @@ We are committed to using your donation to further develop and maintain the serv
                                 {
                                     await reader.ReadAsync();
 
-                                    dateAdded = reader["date_added"] as DateTime?;
                                     photoID = reader["photo_id"] as long?;
 
-                                    DateTime dateUpdated = reader.GetDateTime("date_updated");
+                                    DateTime? dateFullUpdated = reader["last_full_update"] is DBNull ? null : reader.GetDateTime("last_full_update");
 
-                                    if (dateAdded is null || dateUpdated < DateTime.Now.AddHours(-1))
-                                        shouldUpdate = true; //If at least an hour has passed, force the update.
-
-                                    long access_hash = reader["access_hash"] as long? ?? 0;
-                                    String? title = reader["title"] as string;
-
-                                    if (title != chat.Title)
-                                        shouldUpdate = true; //Always update if title has changed.
-
-                                    if (chat is Channel c)
-                                    {
-                                        if (c.access_hash != access_hash)
-                                            shouldUpdate = true; //Always update if access hash has changed.
-                                    }
+                                    if (dateFullUpdated is null || dateFullUpdated < now.AddHours(-1))
+                                        fullUpdate = true; //If at least an hour has passed, force the update.
                                 }
                                 else
-                                    shouldUpdate = true; //Always update if it's missing.
+                                    fullUpdate = true; //Always update if it's missing.
                             }
                         }
-                        else
-                            shouldUpdate = true; //Always update if we're not getting full chat info.
 
-                        if (shouldUpdate)
+                        long? adminFlags = null;
+                        var groupType = "GROUP";
+                        TL.Channel? group = null;
+                        ChannelFull? fullChannel = null;
+                        ChatFullBase? fullChat = null;
+                        long? flags = null;
+                        long? flags2 = null;
+                        
+
+                        //FoxLog.WriteLine($"UpdateTelegramChat: {chat}, Forced={ForceUpdate}");
+
+                        try
                         {
-                            long? adminFlags = null;
-                            var groupType = "GROUP";
-                            TL.Channel? group = null;
-                            ChannelFull? fullChannel = null;
-                            ChatFullBase? fullChat = null;
-
-                            //FoxLog.WriteLine($"UpdateTelegramChat: {chat}, Forced={ForceUpdate}");
-
-                            try
+                            if (fullUpdate && (FoxSettings.Get<bool>("GetFullChat") || FoxSettings.Get<bool>("GetChatPhoto") || FoxSettings.Get<bool>("GetChatAdmins")))
                             {
-                                if (FoxSettings.Get<bool>("GetFullChat") || FoxSettings.Get<bool>("GetChatPhoto") || FoxSettings.Get<bool>("GetChatAdmins"))
+                                fullChat = (await Client.GetFullChat(chat)).full_chat;
+                                fullChannel = fullChat as ChannelFull;
+
+                                if (FoxSettings.Get<bool>("GetChatPhoto"))
                                 {
-                                    fullChat = (await Client.GetFullChat(chat)).full_chat;
-                                    fullChannel = fullChat as ChannelFull;
+                                    MemoryStream memoryStream = new MemoryStream();
 
-                                    if (FoxSettings.Get<bool>("GetChatPhoto"))
+                                    PhotoBase photo = fullChat.ChatPhoto;
+
+                                    switch (photo)
                                     {
-                                        MemoryStream memoryStream = new MemoryStream();
+                                        case Photo p:
+                                            if (photo.ID != photoID)
+                                            {
+                                                photoID = p.ID;
 
-                                        PhotoBase photo = fullChat.ChatPhoto;
+                                                await FoxTelegram.Client.DownloadFileAsync(p, memoryStream, p.LargestPhotoSize);
+                                                chatPhoto = memoryStream.ToArray();
+                                            }
 
-                                        switch (photo)
-                                        {
-                                            case Photo p:
-                                                if (photo.ID != photoID)
-                                                {
-                                                    photoID = p.ID;
-
-                                                    await FoxTelegram.Client.DownloadFileAsync(p, memoryStream, p.LargestPhotoSize);
-                                                    chatPhoto = memoryStream.ToArray();
-                                                }
-
-                                                break;
-                                        }
+                                            break;
                                     }
                                 }
                             }
-                            catch (Exception ex)
+                        }
+                        catch (Exception ex)
+                        {
+                            if (ex.Message != "CHANNEL_PRIVATE")
+                                FoxLog.WriteLine($"Error getting full chat: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
+                        }
+
+                        if (chat.IsChannel || chat.IsGroup)
+                        {
+                            switch (chat)
                             {
-                                if (ex.Message != "CHANNEL_PRIVATE")
-                                    FoxLog.WriteLine($"Error getting full chat: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
-                            }
+                                case Channel g:
+                                    group = g;
 
-                            if (chat.IsChannel || chat.IsGroup)
-                            {
-                                switch (chat)
-                                {
-                                    case Channel g:
-                                        group = g;
+                                    var admin = group.admin_rights;
+                                    if (admin is not null)
+                                        adminFlags = ((long)admin.flags);
 
-                                        var admin = group.admin_rights;
-                                        if (admin is not null)
-                                            adminFlags = ((long)admin.flags);
-
-                                        if (chat.IsChannel)
-                                        {
-                                            groupType = "CHANNEL";
-                                        }
-                                        else if (chat.IsGroup)
-                                        {
-                                            groupType = "GROUP";
-                                            if (group.flags.HasFlag(TL.Channel.Flags.megagroup))
-                                            {
-                                                groupType = "SUPERGROUP";
-                                            }
-                                            else if (group.flags.HasFlag(TL.Channel.Flags.gigagroup))
-                                            {
-                                                groupType = "GIGAGROUP";
-                                            }
-                                        }
-
-                                        break;
-                                    case Chat c:
+                                    if (chat.IsChannel)
+                                    {
+                                        groupType = "CHANNEL";
+                                    }
+                                    else if (chat.IsGroup)
+                                    {
                                         groupType = "GROUP";
-                                        break;
-                                    default:
-                                        groupType = "UNKNOWN";
+                                        if (group.flags.HasFlag(TL.Channel.Flags.megagroup))
+                                        {
+                                            groupType = "SUPERGROUP";
+                                        }
+                                        else if (group.flags.HasFlag(TL.Channel.Flags.gigagroup))
+                                        {
+                                            groupType = "GIGAGROUP";
+                                        }
+                                    }
 
-                                        FoxLog.WriteLine($"Unexpected chat type: chat={chat.ID} {chat.GetType().Name}");
-                                        break;
-                                }
+                                    flags = (long)g.flags;
+                                    flags2 = (long)g.flags2;
+
+                                    break;
+                                case Chat c:
+                                    groupType = "GROUP";
+                                    flags = (long)c.flags;
+
+                                    if (c.admin_rights is not null)
+                                        adminFlags = ((long)c.admin_rights.flags);
+
+                                    break;
+                                default:
+                                    groupType = "UNKNOWN";
+
+                                    FoxLog.WriteLine($"Unexpected chat type: chat={chat.ID} {chat.GetType().Name}");
+                                    break;
                             }
+                        }
 
-                            using (var cmd = new MySqlCommand())
+                        using (var cmd = new MySqlCommand())
+                        {
+                            cmd.Connection = SQL;
+                            cmd.Transaction = transaction;
+                            cmd.CommandText = @"
+                                INSERT INTO telegram_chats 
+                                (id, access_hash, active, username, title, type, level, flags, flags2, description, admin_flags, participants, photo_id, photo, date_added, date_updated, last_full_update)
+                                VALUES 
+                                (@id, @access_hash, @active, @username, @title, @type, @level, @flags, @flags2, @description, @admin_flags, @participants, @photo_id, @photo, @date_updated, @date_updated, @last_full_update)
+                                ON DUPLICATE KEY UPDATE 
+                                    access_hash = COALESCE(@access_hash, access_hash),
+                                    active = VALUE(active),
+                                    username = VALUE(username),
+                                    title = VALUE(title),
+                                    type = VALUE(type),
+                                    level = COALESCE(@level, level),
+                                    flags = COALESCE(@flags, flags),
+                                    flags2 = COALESCE(@flags2, flags2),
+                                    description = COALESCE(@description, description),
+                                    admin_flags = COALESCE(@admin_flags, admin_flags),
+                                    participants = COALESCE(@participants, participants),
+                                    photo_id = COALESCE(@photo_id, photo_id),
+                                    photo = COALESCE(@photo, photo),
+                                    date_added = COALESCE(date_added, @date_updated),
+                                    date_updated = COALESCE(@date_updated, date_updated),
+                                    last_full_update = COALESCE(@last_full_update, last_full_update);
+                            ";
+
+                            cmd.Parameters.AddWithValue("id", chat.ID);
+                            cmd.Parameters.AddWithValue("access_hash", group?.access_hash != 0 ? group?.access_hash : null);
+                            cmd.Parameters.AddWithValue("active", chat.IsActive);
+                            cmd.Parameters.AddWithValue("username", chat.MainUsername);
+                            cmd.Parameters.AddWithValue("title", chat.Title);
+                            cmd.Parameters.AddWithValue("level", group?.level);
+                            cmd.Parameters.AddWithValue("type", groupType);
+                            cmd.Parameters.AddWithValue("flags", flags);
+                            cmd.Parameters.AddWithValue("flags2", flags2);
+                            cmd.Parameters.AddWithValue("admin_flags", adminFlags);
+                            cmd.Parameters.AddWithValue("last_full_update", fullChat is not null ? now : null);
+                            cmd.Parameters.AddWithValue("date_updated", now);
+                            cmd.Parameters.AddWithValue("description", fullChat?.About);
+                            cmd.Parameters.AddWithValue("participants", fullChat?.ParticipantsCount ?? group?.participants_count);
+                            //cmd.Parameters.AddWithValue("slowmode_next_date", fullChannel?.slowmode_next_send_date);
+
+                            cmd.Parameters.AddWithValue("photo_id", photoID);
+                            cmd.Parameters.AddWithValue("photo", chatPhoto);
+
+                            await cmd.ExecuteNonQueryAsync();
+                        }
+
+                        if (FoxSettings.Get<bool>("GetChatAdmins") && group is not null && (!group.IsChannel || group.flags.HasFlag(Channel.Flags.has_admin_rights)))
+                        {
+                            try
                             {
-                                cmd.Connection = SQL;
-                                cmd.Transaction = transaction;
-                                cmd.CommandText = @"
-                                    INSERT INTO telegram_chats 
-                                    (id, access_hash, active, username, title, type, level, flags, flags2, description, admin_flags, participants, photo_id, photo, date_added, date_updated)
-                                    VALUES 
-                                    (@id, @access_hash, @active, @username, @title, @type, @level, @flags, @flags2, @description, @admin_flags, @participants, @photo_id, @photo, @date_updated, @date_updated)
-                                    ON DUPLICATE KEY UPDATE 
-                                        access_hash = COALESCE(@access_hash, access_hash),
-                                        active = VALUE(active),
-                                        username = VALUE(username),
-                                        title = VALUE(title),
-                                        type = VALUE(type),
-                                        level = COALESCE(@level, level),
-                                        flags = COALESCE(@flags, flags),
-                                        flags2 = COALESCE(@flags2, flags2),
-                                        description = COALESCE(@description, description),
-                                        admin_flags = COALESCE(@admin_flags, admin_flags),
-                                        participants = COALESCE(@participants, participants),
-                                        photo_id = COALESCE(@photo_id, photo_id),
-                                        photo = COALESCE(@photo, photo),
-                                        date_added = COALESCE(@date_added, COALESCE(date_added, @date_updated)),
-                                        date_updated = COALESCE(@date_updated, date_updated)
-                                ";
+                                var channelParticipants = new ChannelParticipantsAdmins();
+                                var groupAdmins = await Client.Channels_GetParticipants(group, channelParticipants);
 
-                                cmd.Parameters.AddWithValue("id", chat.ID);
-                                cmd.Parameters.AddWithValue("access_hash", group?.access_hash != 0 ? group?.access_hash : null);
-                                cmd.Parameters.AddWithValue("active", chat.IsActive);
-                                cmd.Parameters.AddWithValue("username", chat.MainUsername);
-                                cmd.Parameters.AddWithValue("title", chat.Title);
-                                cmd.Parameters.AddWithValue("level", group?.level);
-                                cmd.Parameters.AddWithValue("type", groupType);
-                                cmd.Parameters.AddWithValue("flags", group?.flags);
-                                cmd.Parameters.AddWithValue("flags2", group?.flags2);
-                                cmd.Parameters.AddWithValue("admin_flags", adminFlags);
-                                cmd.Parameters.AddWithValue("date_added", dateAdded);
-                                cmd.Parameters.AddWithValue("date_updated", DateTime.Now);
+                                groupAdmins.CollectUsersChats(FoxTelegram.Users, FoxTelegram.Chats);
 
-                                cmd.Parameters.AddWithValue("description", fullChat?.About);
-                                cmd.Parameters.AddWithValue("participants", fullChat?.ParticipantsCount ?? group?.participants_count);
-                                //cmd.Parameters.AddWithValue("slowmode_next_date", fullChannel?.slowmode_next_send_date);
+                                await UpdateTelegramUsers(groupAdmins.users);
 
-                                cmd.Parameters.AddWithValue("photo_id", photoID);
-                                cmd.Parameters.AddWithValue("photo", chatPhoto);
-
-                                await cmd.ExecuteNonQueryAsync();
-                            }
-
-                            if (FoxSettings.Get<bool>("GetChatAdmins") && group is not null && (!group.IsChannel || group.flags.HasFlag(Channel.Flags.has_admin_rights)))
-                            {
-                                try
+                                using (var cmd = new MySqlCommand())
                                 {
-                                    var channelParticipants = new ChannelParticipantsAdmins();
-                                    var groupAdmins = await Client.Channels_GetParticipants(group, channelParticipants);
+                                    cmd.Connection = SQL;
+                                    cmd.Transaction = transaction;
+                                    cmd.CommandText = @"DELETE FROM telegram_chat_admins WHERE chatid = @chatid";
+                                    cmd.Parameters.AddWithValue("chatid", chat.ID);
 
-                                    groupAdmins.CollectUsersChats(FoxTelegram.Users, FoxTelegram.Chats);
+                                    await cmd.ExecuteNonQueryAsync();
+                                }
 
-                                    await UpdateTelegramUsers(groupAdmins.users);
+                                foreach (var p in groupAdmins.participants)
+                                {
+                                    var adminType = "UNKNOWN";
+                                    string? admRank = null;
+                                    long? admFlags = null;
+
+                                    groupAdmins.users.TryGetValue(p.UserId, out User? user);
+
+                                    switch (p)
+                                    {
+                                        case ChannelParticipantAdmin admin:
+                                            adminType = "ADMIN";
+
+                                            admRank = admin.rank;
+                                            admFlags = (long)admin.admin_rights.flags;
+
+                                            break;
+                                        case ChannelParticipantCreator creator:
+                                            adminType = "CREATOR";
+
+                                            admRank = creator.rank;
+                                            admFlags = (long)creator.admin_rights.flags;
+
+                                            break;
+                                        default:
+                                            FoxLog.WriteLine($"Unexpected participant type: chat={chat.ID} {p.GetType().Name}");
+                                            break;
+                                    }
 
                                     using (var cmd = new MySqlCommand())
                                     {
                                         cmd.Connection = SQL;
                                         cmd.Transaction = transaction;
-                                        cmd.CommandText = @"DELETE FROM telegram_chat_admins WHERE chatid = @chatid";
+                                        cmd.CommandText = "REPLACE INTO telegram_chat_admins (chatid, userid, type, rank, flags, date_updated) VALUES (@chatid, @userid, @type, @rank, @flags, @now)";
                                         cmd.Parameters.AddWithValue("chatid", chat.ID);
+                                        cmd.Parameters.AddWithValue("userid", p.UserId);
+                                        cmd.Parameters.AddWithValue("type", adminType);
+                                        cmd.Parameters.AddWithValue("flags", admFlags);
+                                        cmd.Parameters.AddWithValue("rank", admRank);
+                                        cmd.Parameters.AddWithValue("now", DateTime.Now);
 
                                         await cmd.ExecuteNonQueryAsync();
                                     }
-
-                                    foreach (var p in groupAdmins.participants)
-                                    {
-                                        var adminType = "UNKNOWN";
-                                        string? admRank = null;
-                                        long? admFlags = null;
-
-                                        groupAdmins.users.TryGetValue(p.UserId, out User? user);
-
-                                        switch (p)
-                                        {
-                                            case ChannelParticipantAdmin admin:
-                                                adminType = "ADMIN";
-
-                                                admRank = admin.rank;
-                                                admFlags = (long)admin.admin_rights.flags;
-
-                                                break;
-                                            case ChannelParticipantCreator creator:
-                                                adminType = "CREATOR";
-
-                                                admRank = creator.rank;
-                                                admFlags = (long)creator.admin_rights.flags;
-
-                                                break;
-                                            default:
-                                                FoxLog.WriteLine($"Unexpected participant type: chat={chat.ID} {p.GetType().Name}");
-                                                break;
-                                        }
-
-                                        using (var cmd = new MySqlCommand())
-                                        {
-                                            cmd.Connection = SQL;
-                                            cmd.Transaction = transaction;
-                                            cmd.CommandText = "REPLACE INTO telegram_chat_admins (chatid, userid, type, rank, flags, date_updated) VALUES (@chatid, @userid, @type, @rank, @flags, @now)";
-                                            cmd.Parameters.AddWithValue("chatid", chat.ID);
-                                            cmd.Parameters.AddWithValue("userid", p.UserId);
-                                            cmd.Parameters.AddWithValue("type", adminType);
-                                            cmd.Parameters.AddWithValue("flags", admFlags);
-                                            cmd.Parameters.AddWithValue("rank", admRank);
-                                            cmd.Parameters.AddWithValue("now", DateTime.Now);
-
-                                            await cmd.ExecuteNonQueryAsync();
-                                        }
-                                    }
                                 }
-                                catch (Exception ex)
-                                {
-                                    if (ex.Message != "CHANNEL_PRIVATE" /*&& ex.Message != "CHAT_ADMIN_REQUIRED"*/)
-                                        FoxLog.WriteLine($"Error getting group admins: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
-                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                if (ex.Message != "CHANNEL_PRIVATE" /*&& ex.Message != "CHAT_ADMIN_REQUIRED"*/)
+                                    FoxLog.WriteLine($"Error getting group admins: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
                             }
                         }
 
