@@ -942,17 +942,18 @@ namespace makefoxsrv
 
             var ctsLoop = CancellationTokenSource.CreateLinkedTokenSource(ctToken, qItem.stopToken.Token);
 
-            OnTaskStart?.Invoke(this, new TaskEventArgs(qItem));
-            await qItem.Start(this);
-
-            var settings = qItem.Settings;
-
-            this.UseModel(settings.model);
-
-            progressCTS = StartProgressMonitor(qItem, ctsLoop.Token);
-
             try
             {
+
+                OnTaskStart?.Invoke(this, new TaskEventArgs(qItem));
+                await qItem.Start(this);
+
+                var settings = qItem.Settings;
+
+                this.UseModel(settings.model);
+
+                progressCTS = StartProgressMonitor(qItem, ctsLoop.Token);
+
                 Byte[] outputImage;
 
                 if (qItem.Type == FoxQueue.QueueType.IMG2IMG)
