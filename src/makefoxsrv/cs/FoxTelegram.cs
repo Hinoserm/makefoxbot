@@ -102,7 +102,7 @@ namespace makefoxsrv
 
             await _Client.LoginBotIfNeeded(botToken);
 
-            FoxLog.WriteLine($"We are logged-in as {_Client.User} (id {_Client.User.id})");
+            FoxLog.WriteLine($"We are logged-in as {_Client.User} (id {_Client.User.ID})");
         }
 
         private Peer? InputToPeer(InputPeer peer) => peer switch
@@ -522,6 +522,9 @@ We are committed to using your donation to further develop and maintain the serv
 
                 if (Client is null)
                     throw new Exception("Client is null");
+
+                if (user.ID == Client.User.ID)
+                    return; //We don't really need to store info on ourselves.
 
                 using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
                 {
