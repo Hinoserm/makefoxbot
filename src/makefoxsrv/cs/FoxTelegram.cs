@@ -299,7 +299,7 @@ We are committed to using your donation to further develop and maintain the serv
 
             if (msg.message is not null)
             {
-                _ = FoxCommandHandler.HandleCommand(t, msg);
+                await FoxCommandHandler.HandleCommand(t, msg);
 
                 try
                 {
@@ -384,9 +384,7 @@ We are committed to using your donation to further develop and maintain the serv
 
             await UpdateTelegramUsers(updates.Users);
 
-            _ = Task.Run(async () => {
-                await UpdateTelegramChats(updates.Chats);
-            });
+            await UpdateTelegramChats(updates.Chats);
 
             foreach (var update in updates.UpdateList)
             {
