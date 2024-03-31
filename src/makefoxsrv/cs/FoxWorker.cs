@@ -1088,7 +1088,10 @@ namespace makefoxsrv
                         qItem = null;
                     }
                     else
+                    {
+                        FoxLog.WriteLine($"Telegram Error");
                         throw;
+                    }
                 }
                 else //We don't care about other telegram errors, but log them for debugging purposes.
                     FoxLog.WriteLine($"Telegram error {ex.Message}\r\n{ex.StackTrace}");
