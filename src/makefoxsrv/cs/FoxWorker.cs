@@ -719,7 +719,7 @@ namespace makefoxsrv
         private async Task HandleError(Exception ex)
         {
             Online = false;
-            FoxLog.WriteLine($"Worker {ID} is offline!\r\n  Error: " + ex.Message);
+            FoxLog.WriteLine($"Worker {ID} is offline!\r\n  Error: {ex.Message}\r\n{ex.StackTrace}");
             //await SetOnlineStatus(false); //SetFailedDate() already marks us as offline.
             await SetFailedDate(ex);
 
