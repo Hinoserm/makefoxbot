@@ -530,7 +530,7 @@ We are committed to using your donation to further develop and maintain the serv
                 if (Client is null)
                     throw new Exception("Client is null");
 
-                if (user.ID == Client.User.ID)
+                if (Client.User is not null && user.ID == Client.User.ID)
                     return; //We don't really need to store info about ourself.
 
                 using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
