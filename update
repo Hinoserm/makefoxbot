@@ -2,8 +2,9 @@
 
 git pull origin master
 
-rm -f ./bin/makefoxsrv
+rm -f ./bin/makefoxsrv*
 cd ./src/makefoxsrv/
 dotnet publish -c Debug --self-contained true /p:PublishSingleFile=true
 #mv bin/Release/net8.0/linux-x64/publish/makefoxbot ~/bot/bin
+mv bin/Debug/net8.0/linux-x64/publish/makefoxsrv* ../../bin
 cd ../../bin
