@@ -448,8 +448,9 @@ namespace makefoxsrv
         {
             try
             {
-                if (this.UserNotifyTimer.ElapsedMilliseconds >= 2000 && progressPercent > 10.0 && this.Telegram is not null)
+                if (this.UserNotifyTimer.ElapsedMilliseconds >= 2000 && progressPercent > 10.0 && this.Telegram is not null && this.Telegram.Chat is null)
                 {
+                    //Due to the stricter rate limits on editing messages in groups, we only notify the user in private chats.
                     await this.Telegram.EditMessageAsync(
                         id: this.MessageID,
                         text: $"⏳ Generating now on {worker.name} ({(int)progressPercent}%)..."
