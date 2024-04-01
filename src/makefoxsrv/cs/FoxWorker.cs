@@ -904,7 +904,7 @@ namespace makefoxsrv
                         //    }
                         //}
 
-                        if (qItem is not null)
+                        if (Online && api is not null && qItem is not null)
                         {
                             await ProcessTask(cts.Token);
                             if (qItem is not null)

@@ -210,6 +210,11 @@ namespace makefoxsrv
                             }
                         }
                     }
+                    catch (OperationCanceledException)
+                    {
+                        FoxLog.WriteLine("Task loop cancelled.", LogLevel.DEBUG);
+                        break;
+                    }
                     catch (Exception ex)
                     {
                         FoxLog.WriteLine($"Error in task loop: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
