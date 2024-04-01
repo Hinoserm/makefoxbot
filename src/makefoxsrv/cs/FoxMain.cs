@@ -189,12 +189,10 @@ namespace makefoxsrv
             }
             FoxLog.WriteLine("done.");
 
-            MySqlConnection sql;
-
             FoxLog.Write("Connecting to database... ");
             try
             {
-                sql = new MySqlConnection(FoxMain.MySqlConnectionString);
+                MySqlConnection sql = new MySqlConnection(FoxMain.MySqlConnectionString);
                 await sql.OpenAsync(cts.Token);
                 await sql.PingAsync(cts.Token);
                 await sql.DisposeAsync();
@@ -206,12 +204,9 @@ namespace makefoxsrv
             }
             FoxLog.WriteLine("done.");
 
-
             try
             {
                 await FoxSettings.LoadSettingsAsync();
-
-
             } catch (Exception ex) {
                 FoxLog.WriteLine("Error: " + ex.Message);
                 return;
@@ -226,8 +221,8 @@ namespace makefoxsrv
 
             //_ = Task.Run(async () =>
             //{
-                try
-                {
+            try
+            {
                     //Load workers BEFORE processing input from telegram.
                     await FoxWorker.LoadWorkers(cts.Token);
 
@@ -235,51 +230,88 @@ namespace makefoxsrv
 
                     await FoxCommandHandler.SetBotCommands(FoxTelegram.Client);
 
-                    //await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
+                //await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
 
-                    sql = new MySqlConnection(FoxMain.MySqlConnectionString);
+                using (var sql = new MySqlConnection(FoxMain.MySqlConnectionString))
+                {
                     await sql.OpenAsync(cts.Token);
 
-                    using (var cmd = new MySqlCommand($"UPDATE queue SET status = 'PENDING' WHERE status = 'PROCESSING'", sql))
+                    using (var cmd = new MySqlCommand($"UPDATE queue SET status = 'PENDING' WHERE status in ('PROCESSING', 'SENDING')", sql))
                     {
                         long stuck_count = cmd.ExecuteNonQuery();
-                        FoxLog.WriteLine($"Unstuck {stuck_count} queue items.");
+
+                        if (stuck_count > 0)
+                            FoxLog.WriteLine($"Unstuck {stuck_count} queue items.");
                     }
-
-                    await FoxWorker.StartWorkers();
-
-                    await FoxQueue.EnqueueOldItems();
-
-                    FoxQueue.StartTaskLoop(cts.Token);
-
-                    //_ = FoxQueue.NotifyUserPositions(botClient, cts);
-
-                    //Console.ReadLine();
                 }
-                catch (Exception ex)
-                {
-                    Terminal.Gui.Application.RequestStop();
-                    cts.Cancel();
 
-                    FoxLog.WriteLine("Error: " + ex.Message);
-                    FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
-                }
+                await FoxWorker.StartWorkers();
+
+                await FoxQueue.EnqueueOldItems();
+
+                FoxQueue.StartTaskLoop(cts.Token);
+
+                //_ = FoxQueue.NotifyUserPositions(botClient, cts);
+
+                //Console.ReadLine();
+            }
+            catch (Exception ex)
+            {
+                cts.Cancel();
+
+                FoxLog.WriteLine("Error: " + ex.Message);
+                FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
+            }
             //});
 
             //FoxUI.Start(cts);
 
-            Console.ReadLine();
-
-            //await botClient.LogOutAsync();
-
-            // Send cancellation request to stop bot
-            cts.Cancel();
-
-            while (!FoxWorker.GetWorkers().IsEmpty)
+            Console.CancelKeyPress += (sender, e) =>
             {
-                //Wait for all workers to complete.
-                await Task.Delay(100);
+                FoxLog.WriteLine("CTRL+C detected. Initiating shutdown...");
+                // Signal the cancellation token
+                cts.Cancel();
+
+                // Prevent the application from terminating immediately,
+                // allowing cleanup code to run
+                e.Cancel = true;
+            };
+
+            AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+            {
+                if (!cts.IsCancellationRequested) {
+                    FoxLog.WriteLine("System termination detected. Initiating shutdown...");
+
+                    cts.Cancel();
+                }
+            };
+
+            try
+            {
+                //Wait forever, or until cancellation is requested.
+                await Task.Delay(Timeout.InfiniteTimeSpan, cts.Token);
+            } catch (TaskCanceledException)
+            {
+                //Don't need to do anything special here.
             }
+            catch (Exception ex)
+            {
+                //If, SOMEHOW, we get here, we need to cancel the cancellation token and shut down.
+                FoxLog.WriteLine($"Unexpected error in main function: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
+                cts.Cancel();
+            }
+
+            var shutdownStart = DateTime.Now;
+            var shutdownTimeout = TimeSpan.FromSeconds(3); // Adjust as needed
+
+            while (!FoxWorker.GetWorkers().IsEmpty && DateTime.Now - shutdownStart < shutdownTimeout)
+            {
+                // Wait for all workers to complete, with timeout
+                // This gives them a chance to finish storing their state if they were in the middle of a task.
+                await Task.Delay(100); 
+            }
+
+            await FoxTelegram.Disconnect();
         }
     }
 }

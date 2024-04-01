@@ -418,6 +418,9 @@ We are committed to using your donation to further develop and maintain the serv
                     {
                         switch (update)
                         {
+                            case UpdateNewAuthorization una:
+                                break;
+
                             case UpdateNewMessage unm:
                                 switch (unm.message)
                                 {
@@ -1027,6 +1030,12 @@ We are committed to using your donation to further develop and maintain the serv
                     FoxLog.WriteLine($"updateTelegramChats error: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
                 }
             }
+        }
+
+        internal static async Task Disconnect()
+        {
+            await Client.Auth_LogOut();
+            Client.Dispose();
         }
     }
 }
