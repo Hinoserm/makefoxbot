@@ -169,12 +169,12 @@ namespace makefoxsrv
                         FoxWorker? suitableWorker = null;
 
                         FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
-                        await queueSemaphore.WaitAsync(2000, cancellationToken);
+                        await queueSemaphore.WaitAsync(5000, cancellationToken);
 
-                        FoxLog.WriteLine("Locking...", LogLevel.DEBUG);
+                        //FoxLog.WriteLine("Locking...", LogLevel.DEBUG);
                         lock (lockObj)
                         {
-                            FoxLog.WriteLine("Lock successful...", LogLevel.DEBUG);
+                            //FoxLog.WriteLine("Lock successful...", LogLevel.DEBUG);
                             if (priorityQueue.TryPeek(out FoxQueue? item, out var itemPriority))
                             {
                                 suitableWorker = FindSuitableWorkerForTask(item);
