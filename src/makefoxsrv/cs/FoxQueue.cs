@@ -163,35 +163,53 @@ namespace makefoxsrv
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    FoxQueue? itemToAssign = null;
-                    FoxWorker? suitableWorker = null;
-                    
-                    await queueSemaphore.WaitAsync(2000, cancellationToken);
-
-                    lock (lockObj)
+                    try
                     {
-                        if (priorityQueue.TryPeek(out FoxQueue? item, out var itemPriority))
+                        FoxQueue? itemToAssign = null;
+                        FoxWorker? suitableWorker = null;
+
+                        FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
+                        await queueSemaphore.WaitAsync(2000, cancellationToken);
+
+                        FoxLog.WriteLine("Locking...", LogLevel.DEBUG);
+                        lock (lockObj)
                         {
-                            suitableWorker = FindSuitableWorkerForTask(item);
-                            if (suitableWorker != null)
+                            FoxLog.WriteLine("Lock successful...", LogLevel.DEBUG);
+                            if (priorityQueue.TryPeek(out FoxQueue? item, out var itemPriority))
                             {
-                                priorityQueue.TryDequeue(out itemToAssign, out itemPriority);
+                                suitableWorker = FindSuitableWorkerForTask(item);
+                                if (suitableWorker != null)
+                                {
+                                    priorityQueue.TryDequeue(out itemToAssign, out itemPriority);
+                                }
+                                //else
+                                //    semaphore.Release();
                             }
-                            //else
-                            //    semaphore.Release();
+                        }
+
+                        FoxLog.WriteLine($"Found {itemToAssign?.ID} for worker {suitableWorker?.name ?? "None"}", LogLevel.DEBUG);
+
+                        if (itemToAssign is not null)
+                        {
+                            FoxLog.WriteLine($"Task popped from queue: {itemToAssign.ID}", LogLevel.DEBUG);
+
+                            if (suitableWorker is not null)
+                            {
+                                if (!suitableWorker.AssignTask(itemToAssign))
+                                {
+                                    FoxLog.WriteLine($"Failed to assign task {itemToAssign.ID} to {suitableWorker.name}", LogLevel.DEBUG);
+                                    _ = Enqueue(itemToAssign); // Re-enqueue the task
+                                }
+                                else
+                                {
+                                    FoxLog.WriteLine($"Assigned task {itemToAssign.ID}  to {suitableWorker?.name}", LogLevel.DEBUG);
+                                }
+                            }
                         }
                     }
-
-                    if (itemToAssign is not null)
+                    catch (Exception ex)
                     {
-                        FoxLog.WriteLine($"Task popped from queue: {itemToAssign.ID}", LogLevel.DEBUG);
-
-                        if (suitableWorker is not null)
-                        {
-                            FoxLog.WriteLine($"Assigned task to {suitableWorker?.name ?? "unknown worker"}: {itemToAssign.ID}", LogLevel.DEBUG);
-
-                            suitableWorker.AssignTask(itemToAssign);
-                        }
+                        FoxLog.WriteLine($"Error in task loop: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
                     }
                 }
             });

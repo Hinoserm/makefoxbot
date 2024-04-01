@@ -752,10 +752,18 @@ namespace makefoxsrv
             qItem = null; //Clearly we're not working on an item anymore, better clear it to be safe.
         }
 
-        public void AssignTask(FoxQueue q)
+        public bool AssignTask(FoxQueue q)
         {
+            if (!Online)
+                return false; //Can't accept work if we're offline.
+
+            if (qItem is not null)
+                return false; //Already working on something.
+
             qItem = q;
             Ping();
+
+            return true;
         }
 
         private CancellationTokenSource StartProgressMonitor(FoxQueue qItem, CancellationToken cancellationToken)
@@ -845,7 +853,7 @@ namespace makefoxsrv
 
                         //WaitHandle.WaitAny(waitHandles);
 
-                        StableDiffusion? api = await ConnectAPI(false);
+                        api = await ConnectAPI(false);
 
                         var newOnlineStatus = api is not null;
 
@@ -901,20 +909,30 @@ namespace makefoxsrv
                         //}
 
                         if (qItem is not null)
+                        {
                             await ProcessTask(cts.Token);
+                            if (qItem is not null)
+                            {
+                                FoxLog.WriteLine($"Processing completed, but qItem is not null!");
+                                qItem = null;
+                            }
+                        }
                     }
-                    catch (OperationCanceledException)
+                    catch (OperationCanceledException ex)
                     {
+                        if (qItem is not null)
+                            await qItem.SetError(ex);
+
                         break; //Break the loop for a graceful shutdown
                     }
                     catch (Exception ex)
                     {
                         await HandleError(ex);
                     }
-
                 }
 
                 this.Online = false;
+
 
                 try
                 {
@@ -933,20 +951,21 @@ namespace makefoxsrv
         {
             CancellationTokenSource? progressCTS = null;
 
-            StableDiffusion? api;
-
-            api = await ConnectAPI(true);
-
-            this.TaskStartDate = DateTime.Now;
-
-            await qItem.SetWorker(this);
-
-            await this.SetUsedDate();
-
-            var ctsLoop = CancellationTokenSource.CreateLinkedTokenSource(ctToken, qItem.stopToken.Token);
-
             try
             {
+                if (api is null)
+                    throw new Exception("API not available (Should have been loaded before we got here)");
+
+                if (qItem is null)
+                    throw new Exception("Attempt to process task when no task was assigned");
+
+                this.TaskStartDate = DateTime.Now;
+
+                await qItem.SetWorker(this);
+
+                await this.SetUsedDate();
+
+                var ctsLoop = CancellationTokenSource.CreateLinkedTokenSource(ctToken, qItem.stopToken.Token);
 
                 OnTaskStart?.Invoke(this, new TaskEventArgs(qItem));
                 await qItem.Start(this);
@@ -1099,7 +1118,7 @@ namespace makefoxsrv
                     }
                     else
                     {
-                        FoxLog.WriteLine($"Telegram Error");
+                        FoxLog.WriteLine($"Telegram Error: {ex.Message}");
                         throw;
                     }
                 }
@@ -1131,11 +1150,11 @@ namespace makefoxsrv
             {
                 if (progressCTS is not null)
                     progressCTS.Cancel();
-            }
 
-            qItem = null;
-            TaskStartDate = null;
-            Progress = null;
+                qItem = null;
+                TaskStartDate = null;
+                Progress = null;
+            }
         }
 
 
