@@ -187,7 +187,10 @@ namespace makefoxsrv
                             }
                         }
 
-                        FoxLog.WriteLine($"Found {itemToAssign?.ID} for worker {suitableWorker?.name ?? "None"}", LogLevel.DEBUG);
+                        if (itemToAssign is not null)
+                            FoxLog.WriteLine($"Found {itemToAssign.ID} for worker {suitableWorker?.name ?? "None"}", LogLevel.DEBUG);
+                        else
+                            FoxLog.WriteLine("No task found", LogLevel.DEBUG);
 
                         if (itemToAssign is not null)
                         {
