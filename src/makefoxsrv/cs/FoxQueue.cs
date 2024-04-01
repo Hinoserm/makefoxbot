@@ -102,10 +102,12 @@ namespace makefoxsrv
                 // If the item has a RetryDate in the future, add it to the delayed tasks instead of the main queue
                 delayedTasks.Enqueue(item);
 
-                // Initialize or reset a timer to check delayed tasks periodically, say every minute
+                // Initialize or reset a timer to check delayed tasks periodically
                 if (delayedTaskTimer == null)
                 {
-                    delayedTaskTimer = new Timer(ProcessDelayedTasks, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+                    var delay = item.RetryDate.Value - DateTime.Now;
+
+                    delayedTaskTimer = new Timer(ProcessDelayedTasks, null, delay, TimeSpan.FromSeconds(10));
                 }
 
                 FoxLog.WriteLine($"Delaying task {item.ID} until {item.RetryDate}.", LogLevel.DEBUG);
@@ -135,7 +137,7 @@ namespace makefoxsrv
                     if (DateTime.UtcNow >= task.RetryDate.Value)
                     {
                         // Task's retry time has passed; re-enqueue it for processing
-                        FoxLog.WriteLine($"Re-enqueueing delayed task {task.ID}.", LogLevel.DEBUG);
+                        FoxLog.WriteLine($"Enqueueing delayed task {task.ID}.", LogLevel.DEBUG);
                         _ = Enqueue(task);
                     }
                     else
@@ -144,6 +146,14 @@ namespace makefoxsrv
                         delayedTasks.Enqueue(task);
                     }
                 }
+            }
+
+            // Check if there are no more delayed tasks and stop the timer
+            if (delayedTasks.IsEmpty)
+            {
+                delayedTaskTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+                delayedTaskTimer?.Dispose();
+                delayedTaskTimer = null;
             }
         }
 
