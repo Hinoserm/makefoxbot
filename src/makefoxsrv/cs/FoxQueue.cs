@@ -18,6 +18,7 @@ using makefoxsrv;
 using TL;
 using System.Security.Policy;
 using System.Diagnostics;
+using System.Collections.Concurrent;
 
 namespace makefoxsrv
 {
@@ -84,6 +85,9 @@ namespace makefoxsrv
             };
         private static SemaphoreSlim queueSemaphore = new SemaphoreSlim(0, int.MaxValue);
 
+        private static ConcurrentQueue<FoxQueue> delayedTasks = new ConcurrentQueue<FoxQueue>();
+        private static Timer? delayedTaskTimer = null;
+
         static FoxQueue()
         {
             FoxWorker.OnTaskCompleted += (sender, args) => _ = queueSemaphore.Release();
@@ -93,14 +97,54 @@ namespace makefoxsrv
 
         public static async Task Enqueue(FoxQueue item)
         {
-            FoxLog.WriteLine($"Enqueueing task {item.ID}.", LogLevel.DEBUG);
-            lock (lockObj)
+            if (item.RetryDate.HasValue && item.RetryDate.Value > DateTime.Now)
             {
-                // Determine the priority based on the user's access level
-                int priorityLevel = priorityMap[item.User.GetAccessLevel()];
-                priorityQueue.Enqueue(item, (priorityLevel, item.ID));
+                // If the item has a RetryDate in the future, add it to the delayed tasks instead of the main queue
+                delayedTasks.Enqueue(item);
+
+                // Initialize or reset a timer to check delayed tasks periodically, say every minute
+                if (delayedTaskTimer == null)
+                {
+                    delayedTaskTimer = new Timer(ProcessDelayedTasks, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+                }
+
+                FoxLog.WriteLine($"Delaying task {item.ID} until {item.RetryDate}.", LogLevel.DEBUG);
             }
-            queueSemaphore.Release();
+            else
+            {
+                
+                lock (lockObj)
+                {
+                    // Determine the priority based on the user's access level
+                    int priorityLevel = priorityMap[item.User.GetAccessLevel()];
+                    priorityQueue.Enqueue(item, (priorityLevel, item.ID));
+                }
+                queueSemaphore.Release();
+
+                FoxLog.WriteLine($"Enqueueing task {item.ID}.", LogLevel.DEBUG);
+            }
+        }
+
+        private static void ProcessDelayedTasks(object? state)
+        {
+            int count = delayedTasks.Count;
+            for (int i = 0; i < count; i++)
+            {
+                if (delayedTasks.TryDequeue(out FoxQueue? task) && task.RetryDate.HasValue)
+                {
+                    if (DateTime.UtcNow >= task.RetryDate.Value)
+                    {
+                        // Task's retry time has passed; re-enqueue it for processing
+                        FoxLog.WriteLine($"Re-enqueueing delayed task {task.ID}.", LogLevel.DEBUG);
+                        _ = Enqueue(task);
+                    }
+                    else
+                    {
+                        // Still waiting for retry time, put it back in the queue
+                        delayedTasks.Enqueue(task);
+                    }
+                }
+            }
         }
 
         public static void StartTaskLoop(CancellationToken cancellationToken)
@@ -175,13 +219,6 @@ namespace makefoxsrv
                 .FirstOrDefault();
             //FoxLog.WriteLine($"Suitable worker found: {suitableWorker?.name ?? "none"}");
             return suitableWorker;
-        }
-
-        private static bool IsWorkerSuitableForTask(FoxWorker worker, FoxQueue item)
-        {
-            // Check for worker's suitability based on item requirements
-            // Placeholder for actual implementation
-            return true;
         }
 
         public static async Task EnqueueOldItems()

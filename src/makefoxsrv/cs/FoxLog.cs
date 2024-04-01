@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -20,13 +21,13 @@ namespace makefoxsrv
     {
         public static LogLevel CurrentLogLevel { get; set; } = LogLevel.INFO;
 
-        public static void WriteLine(string message, LogLevel level = LogLevel.INFO)
+        public static void WriteLine(string message, LogLevel level = LogLevel.INFO, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
-            Write(message + "\r\n", level);
+            Write(message + "\r\n", level, callerName, callerFilePath, lineNumber);
         }
 
         // Logging function
-        public static void Write(string message, LogLevel level = LogLevel.INFO)
+        public static void Write(string message, LogLevel level = LogLevel.INFO, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
             string dateFormat = "dd MMM yyyy hh:mm:ss.ff tt";
 
