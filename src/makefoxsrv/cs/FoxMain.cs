@@ -223,14 +223,14 @@ namespace makefoxsrv
             //{
             try
             {
-                    //Load workers BEFORE processing input from telegram.
-                    await FoxWorker.LoadWorkers(cts.Token);
+                //Load workers BEFORE processing input from telegram.
+                //This is important in order to handle queued messages properly, otherwise users will be told the workers are offline.
+                await FoxWorker.LoadWorkers(cts.Token);
 
-                    await FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
+                await FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
 
-                    await FoxCommandHandler.SetBotCommands(FoxTelegram.Client);
+                await FoxCommandHandler.SetBotCommands(FoxTelegram.Client);
 
-                //await botClient.SetMyCommandsAsync(FoxCommandHandler.GenerateTelegramBotCommands());
 
                 using (var sql = new MySqlConnection(FoxMain.MySqlConnectionString))
                 {
@@ -250,17 +250,12 @@ namespace makefoxsrv
                 await FoxQueue.EnqueueOldItems();
 
                 FoxQueue.StartTaskLoop(cts.Token);
-
-                //_ = FoxQueue.NotifyUserPositions(botClient, cts);
-
-                //Console.ReadLine();
             }
             catch (Exception ex)
             {
                 cts.Cancel();
 
-                FoxLog.WriteLine("Error: " + ex.Message);
-                FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
+                FoxLog.WriteLine($"Error: {ex.Message}\r\n{ex.StackTrace}");
             }
             //});
 

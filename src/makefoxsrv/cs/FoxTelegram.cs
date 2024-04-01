@@ -1034,7 +1034,7 @@ We are committed to using your donation to further develop and maintain the serv
 
         internal static async Task Disconnect()
         {
-            await Client.Auth_LogOut();
+            //await Client.Auth_LogOut();
             Client.Dispose();
         }
     }
