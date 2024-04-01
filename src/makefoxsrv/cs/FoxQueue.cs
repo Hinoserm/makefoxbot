@@ -29,7 +29,8 @@ namespace makefoxsrv
             PROCESSING,
             SENDING,
             FINISHED,
-            ERROR
+            CANCELLED,
+            ERROR            
         }
         public enum QueueType
         {
@@ -92,7 +93,7 @@ namespace makefoxsrv
 
         public static async Task Enqueue(FoxQueue item)
         {
-            FoxLog.WriteLine($"Enqueueing task {item.ID}.", LogLevel.LOG_DEBUG);
+            FoxLog.WriteLine($"Enqueueing task {item.ID}.", LogLevel.DEBUG);
             lock (lockObj)
             {
                 // Determine the priority based on the user's access level
@@ -129,11 +130,11 @@ namespace makefoxsrv
 
                     if (itemToAssign is not null)
                     {
-                        FoxLog.WriteLine($"Task popped from queue: {itemToAssign.ID}", LogLevel.LOG_DEBUG);
+                        FoxLog.WriteLine($"Task popped from queue: {itemToAssign.ID}", LogLevel.DEBUG);
 
                         if (suitableWorker is not null)
                         {
-                            FoxLog.WriteLine($"Assigned task to {suitableWorker?.name ?? "unknown worker"}: {itemToAssign.ID}", LogLevel.LOG_DEBUG);
+                            FoxLog.WriteLine($"Assigned task to {suitableWorker?.name ?? "unknown worker"}: {itemToAssign.ID}", LogLevel.DEBUG);
 
                             suitableWorker.AssignTask(itemToAssign);
                         }
@@ -294,6 +295,11 @@ namespace makefoxsrv
                     cmd.Parameters.AddWithValue("now", DateSent);
                     cmd.Parameters.AddWithValue("msg_id", messageID);
                     break;
+                case QueueStatus.CANCELLED:
+                    DateLastFailed = DateTime.Now;
+                    cmd.CommandText = "UPDATE queue SET status = 'CANCELLED', date_failed = @now WHERE id = @id";
+                    cmd.Parameters.AddWithValue("now", DateLastFailed);
+                    break;
                 case QueueStatus.ERROR:
                     throw new Exception("Use SetError() to set error status");
                 default:
@@ -305,6 +311,8 @@ namespace makefoxsrv
             cmd.Parameters.AddWithValue("id", this.ID);
             
             await cmd.ExecuteNonQueryAsync();
+
+            FoxLog.WriteLine($"Task {this.ID} status set to {status}", LogLevel.DEBUG);
         }
 
         public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings settings, QueueType type, int messageID, int? replyMessageID = null)
@@ -368,6 +376,10 @@ namespace makefoxsrv
         public async Task Start(FoxWorker worker) {
             UserNotifyTimer.Start();
             this.Worker = worker;
+
+            FoxLog.WriteLine($"Task {this.ID} started on worker {worker.name}", LogLevel.DEBUG);
+
+            await this.SetStatus(QueueStatus.PROCESSING);
 
             try
             {
@@ -831,24 +843,9 @@ FOR UPDATE;
             }
             catch { }
 
-            await Enqueue(this);
-        }
+            FoxLog.WriteLine($"Task {this.ID} failed: {ex.Message}\r\n{ex.StackTrace}", LogLevel.DEBUG);
 
-        public async Task SetCancelled(string reason = "Cancelled by user request")
-        {
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
-            {
-                await SQL.OpenAsync();
-                using (var cmd = new MySqlCommand())
-                {
-                    cmd.Connection = SQL;
-                    cmd.CommandText = $"UPDATE queue SET status = 'CANCELLED', error_str = @reason, date_failed = @now WHERE id = @id";
-                    cmd.Parameters.AddWithValue("id", this.ID);
-                    cmd.Parameters.AddWithValue("reason", reason);
-                    cmd.Parameters.AddWithValue("now", DateTime.Now);
-                    await cmd.ExecuteNonQueryAsync();
-                }
-            }
+            await Enqueue(this);
         }
 
         private static int GetRandomInt32()
@@ -863,10 +860,11 @@ FOR UPDATE;
 
             return number;
         }
-        public async Task Cancel()
+
+        public async Task SetCancelled()
         {
-            this.stopToken.Cancel();
-            await this.SetCancelled();
+            await this.SetStatus(QueueStatus.CANCELLED);
+
             if (Telegram is not null)
             {
                 try
@@ -875,8 +873,16 @@ FOR UPDATE;
                         id: this.MessageID,
                         text: "❌ Cancelled."
                     );
-                } catch { }
+                }
+                catch { }
             }
+
+            FoxLog.WriteLine($"Task {this.ID} cancelled.", LogLevel.DEBUG);
+        }
+
+        public async Task Cancel()
+        {
+            this.stopToken.Cancel();
         }
 
         public async Task<FoxImage> GetInputImage()

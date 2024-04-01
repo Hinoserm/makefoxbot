@@ -7,26 +7,26 @@ using System.Threading.Tasks;
 
 public enum LogLevel
 {
-    LOG_DEBUG,
-    LOG_PEDANTIC,
-    LOG_INFO,
-    LOG_WARNING,
-    LOG_ERROR
+    DEBUG,
+    PEDANTIC,
+    INFO,
+    WARNING,
+    ERROR
 }
 
 namespace makefoxsrv
 {
     internal class FoxLog
     {
-        public static LogLevel CurrentLogLevel { get; set; } = LogLevel.LOG_INFO;
+        public static LogLevel CurrentLogLevel { get; set; } = LogLevel.INFO;
 
-        public static void WriteLine(string message, LogLevel level = LogLevel.LOG_INFO)
+        public static void WriteLine(string message, LogLevel level = LogLevel.INFO)
         {
             Write(message + "\r\n", level);
         }
 
         // Logging function
-        public static void Write(string message, LogLevel level = LogLevel.LOG_INFO)
+        public static void Write(string message, LogLevel level = LogLevel.INFO)
         {
             string dateFormat = "dd MMM yyyy hh:mm:ss.ff tt";
 
