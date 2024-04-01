@@ -406,8 +406,6 @@ namespace makefoxsrv
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 var loras = JsonSerializer.Deserialize<List<Lora>>(jsonString, options);
 
-
-
                 // Fetch existing LoRAs for the worker to identify deletions
                 var lorasToKeep = new HashSet<string>(loras.Select(l => l.Name));
                 var loraNames = string.Join(",", lorasToKeep.Select(n => $"'{n.Replace("'", "''")}'"));
@@ -735,14 +733,19 @@ namespace makefoxsrv
                 try
                 {
                     OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
-                } catch { }
-                await FoxQueue.Enqueue(qItem);
+                } catch (Exception ex2) {
+                    FoxLog.WriteLine($"Error running OnTaskError: {ex2.Message}\r\n{ex2.StackTrace}");
+                }
             }
 
             try
             {
                 OnWorkerError?.Invoke(this, new ErrorEventArgs(ex));
-            } catch { }
+            }
+            catch (Exception ex2)
+            {
+                FoxLog.WriteLine($"Error running OnWorkerError: {ex2.Message}\r\n{ex2.StackTrace}");
+            }
 
             TaskStartDate = null;
             Progress = null;

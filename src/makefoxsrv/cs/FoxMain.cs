@@ -224,8 +224,8 @@ namespace makefoxsrv
             //    FoxLog.WriteLine($"Worker {w.name} progress: {e.Percent}%");
             //};
 
-            _ = Task.Run(async () =>
-            {
+            //_ = Task.Run(async () =>
+            //{
                 try
                 {
                     //Load workers BEFORE processing input from telegram.
@@ -264,9 +264,11 @@ namespace makefoxsrv
                     FoxLog.WriteLine("Error: " + ex.Message);
                     FoxLog.WriteLine("Stack Trace: " + ex.StackTrace);
                 }
-            });
+            //});
 
-            FoxUI.Start(cts);
+            //FoxUI.Start(cts);
+
+            Console.ReadLine();
 
             //await botClient.LogOutAsync();
 

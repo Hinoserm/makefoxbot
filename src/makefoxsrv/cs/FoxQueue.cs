@@ -41,6 +41,10 @@ namespace makefoxsrv
 
         public QueueStatus status = QueueStatus.PENDING;
 
+        public DateTime? RetryDate { get; private set; } = null;
+        public DateTime? DateLastFailed { get; private set; } = null;
+        public Exception? LastException { get; private set; } = null;
+
         public FoxUserSettings? Settings = null;
         public FoxUser? User = null;
 
@@ -795,6 +799,11 @@ FOR UPDATE;
 
         public async Task SetError(Exception ex, DateTime? RetryWhen = null)
         {
+            this.status = QueueStatus.ERROR;
+            this.DateLastFailed = DateTime.Now;
+            this.RetryDate = RetryWhen;
+            this.LastException = ex;
+
             using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
             {
                 await SQL.OpenAsync();
@@ -805,7 +814,7 @@ FOR UPDATE;
                     cmd.Parameters.AddWithValue("id", this.ID);
                     cmd.Parameters.AddWithValue("retry_date", RetryWhen);
                     cmd.Parameters.AddWithValue("error", ex.Message);
-                    cmd.Parameters.AddWithValue("now", DateTime.Now);
+                    cmd.Parameters.AddWithValue("now", this.DateLastFailed);
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
@@ -821,6 +830,8 @@ FOR UPDATE;
                 }
             }
             catch { }
+
+            await Enqueue(this);
         }
 
         public async Task SetCancelled(string reason = "Cancelled by user request")

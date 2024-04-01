@@ -35,7 +35,7 @@ namespace makefoxsrv
 
         private static string _statsString = "LOADING";
         
-        public static bool hasStopped { get; private set; } = false;
+        public static bool hasStopped { get; private set; } = true;
 
         public static void Init()
         {
