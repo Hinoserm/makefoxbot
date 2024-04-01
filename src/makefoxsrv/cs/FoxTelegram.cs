@@ -272,6 +272,8 @@ We are committed to using your donation to further develop and maintain the serv
 
         private static string ReplaceNonPrintableCharacters(string input)
         {
+            return input; //Disable this for now.
+
             if (string.IsNullOrEmpty(input))
             {
                 return input;
