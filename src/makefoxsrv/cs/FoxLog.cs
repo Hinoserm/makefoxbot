@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 public enum LogLevel
@@ -27,6 +28,18 @@ namespace makefoxsrv
         // Logging function
         public static void Write(string message, LogLevel level = LogLevel.LOG_INFO)
         {
+            string dateFormat = "dd MMM yyyy hh:mm:ss.ff tt";
+
+            string[] lines = Regex.Split(message, @"\r\n|\r|\n");
+
+            // Check if the last item is an empty string and remove it if necessary
+            if (lines.Length > 1 && lines[^1] == "")
+            {
+                Array.Resize(ref lines, lines.Length - 1);
+            }
+
+            File.AppendAllLines("../logs/output.txt", lines.Select(line => $"{DateTime.Now.ToString(dateFormat)} {level}> {line}").ToArray());
+
             // Check if the current log message level is greater than or equal to the application's log level
             if (level >= CurrentLogLevel)
             {

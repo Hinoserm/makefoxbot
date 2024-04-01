@@ -97,7 +97,7 @@ namespace makefoxsrv
         {
             WTelegram.Helpers.Log = (i, s) =>
             {
-                FoxLog.WriteLine(s, LogLevel.LOG_DEBUG);
+                //FoxLog.WriteLine(s, LogLevel.LOG_DEBUG);
             };
 
             _Client = new WTelegram.Client(appID, apiHash, sessionFile);
