@@ -332,13 +332,16 @@ namespace makefoxsrv
             FoxLog.WriteLine($"Added {count} saved tasks to queue.");
         }
 
-        public async Task SetStatus(QueueStatus status, int? messageID = null)
+        public async Task SetStatus(QueueStatus status, int? newMessageID = null)
         {
             using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
 
             await SQL.OpenAsync();
 
             using var cmd = new MySqlCommand();
+
+            if (newMessageID is not null)
+                MessageID = newMessageID.Value;
 
             cmd.Connection = SQL;
 
@@ -361,7 +364,7 @@ namespace makefoxsrv
                     DateSent = DateTime.Now;
                     cmd.CommandText = "UPDATE queue SET status = 'SENDING', date_sent = @now, msg_id = @msg_id WHERE id = @id";
                     cmd.Parameters.AddWithValue("now", DateSent);
-                    cmd.Parameters.AddWithValue("msg_id", messageID);
+                    cmd.Parameters.AddWithValue("msg_id", newMessageID);
                     break;
                 case QueueStatus.CANCELLED:
                     DateLastFailed = DateTime.Now;

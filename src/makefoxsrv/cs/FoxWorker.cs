@@ -746,10 +746,6 @@ namespace makefoxsrv
             {
                 FoxLog.WriteLine($"Error running OnWorkerError: {ex2.Message}\r\n{ex2.StackTrace}");
             }
-
-            TaskStartDate = null;
-            Progress = null;
-            qItem = null; //Clearly we're not working on an item anymore, better clear it to be safe.
         }
 
         public bool AssignTask(FoxQueue q)
@@ -953,11 +949,13 @@ namespace makefoxsrv
 
             try
             {
-                if (api is null)
-                    throw new Exception("API not available (Should have been loaded before we got here)");
-
                 if (qItem is null)
                     throw new Exception("Attempt to process task when no task was assigned");
+
+                FoxLog.WriteLine($"Worker {this.name} is now processing task {qItem.ID}", LogLevel.DEBUG);
+
+                if (api is null)
+                    throw new Exception("API not available (Should have been loaded before we got here)");
 
                 this.TaskStartDate = DateTime.Now;
 
@@ -1073,15 +1071,22 @@ namespace makefoxsrv
                 if (progressCTS is not null)
                     progressCTS.Cancel();
 
-                await qItem.Send(outputImage);
+                try {
+                    await qItem.Send(outputImage);
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.WriteLine($"Error on worker {this.name} while sending task {qItem.ID}: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
+                }
 
-                var completedTask = qItem;
-
-                qItem = null;
-
-                OnTaskCompleted?.Invoke(this, new TaskEventArgs(completedTask));
-
-                TaskStartDate = null;
+                try
+                {
+                    OnTaskCompleted?.Invoke(this, new TaskEventArgs(qItem));
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.WriteLine($"Error on worker {this.name} while running OnTaskCompleted for task {qItem.ID}: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
+                }
             }
             catch (WTelegram.WTException ex)
             {
@@ -1093,16 +1098,14 @@ namespace makefoxsrv
                     {
                         // If the message matches, extract the number
                         int retryAfterSeconds = rex.X;
-                        FoxLog.WriteLine($"Worker {ID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+                        FoxLog.WriteLine($"Worker {ID} - Rate limit exceeded. Trying again after {retryAfterSeconds} seconds.");
 
                         if (qItem is not null)
                         {
                             await qItem.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
                             OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                            _ = FoxQueue.Enqueue(qItem);
                         }
-
-                        _ = FoxQueue.Enqueue(qItem);
-                        qItem = null;
                     }
                     else if (ex.Message == "INPUT_USER_DEACTIVATED")
                     {
@@ -1113,13 +1116,11 @@ namespace makefoxsrv
                             await qItem.SetCancelled();
                             OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
                         }
-
-                        qItem = null;
                     }
                     else
                     {
                         FoxLog.WriteLine($"Telegram Error: {ex.Message}");
-                        throw;
+                        await HandleError(ex);
                     }
                 }
                 else //We don't care about other telegram errors, but log them for debugging purposes.
@@ -1134,17 +1135,13 @@ namespace makefoxsrv
 
                     OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
 
-                    qItem = null;
-                    TaskStartDate = null;
-                    Progress = null;
-
                     using var httpClient = new HttpClient();
 
                     var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null, cancellationToken);
                     response.EnsureSuccessStatusCode();
                 }
                 else
-                    throw;
+                    await HandleError(ex);
             }
             finally
             {
@@ -1153,7 +1150,6 @@ namespace makefoxsrv
 
                 qItem = null;
                 TaskStartDate = null;
-                Progress = null;
             }
         }
 
