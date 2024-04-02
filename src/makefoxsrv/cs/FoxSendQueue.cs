@@ -92,25 +92,12 @@ namespace makefoxsrv
                             {
                                 buttons = new TL.KeyboardButtonCallback[]
                                 {
+                                    new TL.KeyboardButtonCallback { text = "✨ Enhance!", data = System.Text.Encoding.ASCII.GetBytes("/enhance " + q.ID)},
                                     new TL.KeyboardButtonCallback { text = "🔎 Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.ID)},
                                 }
                             }
                         }
                     };
-
-                    if (!q.Settings.Enhance)
-                    {
-                        inlineKeyboardButtons.rows = inlineKeyboardButtons.rows.Concat(new TL.KeyboardButtonRow[]
-                        {
-                            new TL.KeyboardButtonRow
-                            {
-                                buttons = new TL.KeyboardButtonCallback[]
-                                {
-                                    new TL.KeyboardButtonCallback { text = "✨ Enhance!", data = System.Text.Encoding.ASCII.GetBytes("/enhance " + q.ID)},
-                                }
-                            }
-                        }).ToArray();
-                    }
 
                     var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image)), "image.jpg");
 

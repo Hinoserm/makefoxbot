@@ -991,14 +991,23 @@ namespace makefoxsrv
 
                 Byte[] outputImage;
 
-                if (qItem.Type == FoxQueue.QueueType.IMG2IMG)
-                {
-                    if (settings.Enhance)   
-                    {
-                        settings.width = settings.UpscalerWidth.Value;
-                        settings.height = settings.UpscalerHeight.Value;
-                    }
+                FoxQueue.QueueType generationType = qItem.Type;
 
+                if (settings.Enhance)
+                {
+                    settings.width = settings.UpscalerWidth.Value;
+                    settings.height = settings.UpscalerHeight.Value;
+                    if (generationType == FoxQueue.QueueType.TXT2IMG)
+                    {
+                        generationType = FoxQueue.QueueType.IMG2IMG;
+                        settings.denoising_strength = 0.55M;
+                        settings.selected_image = qItem.OutputImageID.Value;
+
+                    }
+                }
+
+                if (generationType == FoxQueue.QueueType.IMG2IMG)
+                {
                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
                     //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
@@ -1047,7 +1056,7 @@ namespace makefoxsrv
 
                     outputImage = img2img.Images.Last().Data.ToArray();
                 }
-                else if (qItem.Type == FoxQueue.QueueType.TXT2IMG)
+                else if (generationType == FoxQueue.QueueType.TXT2IMG)
                 {
                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 

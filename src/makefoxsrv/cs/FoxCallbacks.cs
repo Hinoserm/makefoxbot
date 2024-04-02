@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
 using TL;
@@ -92,8 +93,8 @@ namespace makefoxsrv
                 return; // User must agree to the terms before they can use this command.
             }
 
-            //if (user.GetAccessLevel() < AccessLevel.PREMIUM)
-            //{
+            if (user.GetAccessLevel() < AccessLevel.ADMIN)
+            {
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
                     await SQL.OpenAsync();
@@ -117,7 +118,7 @@ namespace makefoxsrv
                         }
                     }
                 }
-            //}
+            }
 
             int q_limit = 1;
 
@@ -140,6 +141,16 @@ namespace makefoxsrv
             settings.UpscalerSteps = 20;
             settings.UpscalerDenoiseStrength = (decimal)0.55;
 
+            var generationType = q.Type;
+
+            if (generationType == FoxQueue.QueueType.TXT2IMG)
+            {
+                generationType = FoxQueue.QueueType.IMG2IMG;
+                settings.denoising_strength = 0.55M;
+            }
+
+            settings.selected_image = q.OutputImageID.Value;
+
             if (await FoxWorker.GetWorkersForModel(settings.model) is null)
             {
                 await t.SendMessageAsync(
@@ -155,7 +166,7 @@ namespace makefoxsrv
                 replyToMessageId: query.msg_id
             );
 
-            var newq = await FoxQueue.Add(t, user, settings, q.Type, waitMsg.ID, query.msg_id);
+            var newq = await FoxQueue.Add(t, user, settings, generationType, waitMsg.ID, query.msg_id);
             if (newq is null)
                 throw new Exception("Unable to add item to queue");
 
@@ -410,14 +421,7 @@ namespace makefoxsrv
                                 new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.ID)},
                                 new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.ID)},
                             }
-                        }
-                    }
-                };
-
-                if (!q.Settings.Enhance)
-                {
-                    inlineKeyboardButtons.rows = inlineKeyboardButtons.rows.Concat(new TL.KeyboardButtonRow[]
-                    {
+                        },
                         new TL.KeyboardButtonRow
                         {
                             buttons = new TL.KeyboardButtonCallback[]
@@ -425,8 +429,8 @@ namespace makefoxsrv
                                 new TL.KeyboardButtonCallback { text = "✨ Enhance!", data = System.Text.Encoding.ASCII.GetBytes("/enhance " + q.ID)},
                             }
                         }
-                    }).ToArray();
-                }
+                    }
+                };
 
                 System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
                 System.TimeSpan GPUTime = await q.GetGPUTime();
