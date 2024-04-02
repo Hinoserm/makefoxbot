@@ -261,7 +261,7 @@ namespace makefoxsrv
         {
             int count = 0;
 
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -339,7 +339,7 @@ namespace makefoxsrv
 
         public async Task SetStatus(QueueStatus status, int? newMessageID = null)
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -393,7 +393,7 @@ namespace makefoxsrv
 
         public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings settings, QueueType type, int messageID, int? replyMessageID = null)
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -525,7 +525,7 @@ namespace makefoxsrv
         {
             string token;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -595,7 +595,7 @@ namespace makefoxsrv
             var settings = new FoxUserSettings();
             var q = new FoxQueue();
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -675,7 +675,7 @@ namespace makefoxsrv
 
             var processingCount = 0;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -815,7 +815,7 @@ FOR UPDATE;
 
         public static async Task<int> GetCount(FoxUser? user = null)
         {
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -837,7 +837,7 @@ FOR UPDATE;
 
         public async Task<TimeSpan> GetGPUTime()
         {
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -870,7 +870,7 @@ FOR UPDATE;
             this.Worker = worker;
             this.WorkerID = worker.ID;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -893,7 +893,7 @@ FOR UPDATE;
             this.RetryDate = RetryWhen;
             this.LastException = ex;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
                 using (var cmd = new MySqlCommand())
@@ -1004,7 +1004,7 @@ FOR UPDATE;
 
             var outputImage = await FoxImage.Create(this.User.UID, img, FoxImage.ImageType.OUTPUT, finalFileName);
 
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SetOutputImage(outputImage);
 
@@ -1013,7 +1013,7 @@ FOR UPDATE;
 
         public async Task SetOutputImage(FoxImage value)
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 

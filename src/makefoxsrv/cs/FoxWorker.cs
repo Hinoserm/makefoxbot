@@ -217,7 +217,7 @@ namespace makefoxsrv
             if (worker_id is null)
                 return null;
 
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
             await SQL.OpenAsync();
 
 
@@ -237,7 +237,7 @@ namespace makefoxsrv
 
         public static async Task LoadWorkers(CancellationToken cancellationToken)
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             FoxWorker.cancellationToken = cancellationToken;
 
@@ -347,7 +347,7 @@ namespace makefoxsrv
 
             var models = await api.StableDiffusionModels(cts.Token);
 
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -393,7 +393,7 @@ namespace makefoxsrv
             using var httpClient = new HttpClient();
             var apiUrl = address + "/sdapi/v1/loras";
 
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
             await SQL.OpenAsync();
 
             using var transaction = SQL.BeginTransaction();
@@ -539,7 +539,7 @@ namespace makefoxsrv
 
         public static async Task<Dictionary<string, List<int>>> GetAvailableModels()
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -589,7 +589,7 @@ namespace makefoxsrv
 
         public static async Task<List<int>?> GetWorkersForModel(string modelName)
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -657,7 +657,7 @@ namespace makefoxsrv
 
         private async Task SetUsedDate()
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -672,7 +672,7 @@ namespace makefoxsrv
 
         private async Task SetStartDate()
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -686,7 +686,7 @@ namespace makefoxsrv
 
         private async Task SetFailedDate(Exception ex)
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -701,7 +701,7 @@ namespace makefoxsrv
 
         private async Task SetOnlineStatus(bool status = true)
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 

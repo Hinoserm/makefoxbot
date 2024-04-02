@@ -43,7 +43,26 @@ namespace makefoxsrv
                 case "/donate":
                     await CallbackCmdDonate(t, query, fUser, argument);
                     break;
+                case "/lang":
+                    await CallbackCmdLanguage(t, query, fUser, argument);
+                    break;
             }
+        }
+
+        private static async Task CallbackCmdLanguage(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
+        {
+
+            if (argument is null || argument.Length <= 0)
+            {
+                argument = "en";
+            }
+
+            user.Strings = new FoxLocalization(user, argument); //Set user language
+
+            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, user.Strings.Get("Lang.AnswerCallbackMsg"));
+
+            await FoxMessages.SendWelcome(t, user, 0, query.msg_id);
+
         }
 
         private static async Task CallbackCmdModel(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)

@@ -81,7 +81,7 @@ namespace makefoxsrv
 
             try
             {
-                using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
                 await SQL.OpenAsync();
 

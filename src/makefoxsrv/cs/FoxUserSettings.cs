@@ -80,7 +80,7 @@ namespace makefoxsrv
 
         public async Task Save()
         {
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -117,7 +117,7 @@ namespace makefoxsrv
             settings.TelegramUserID = tuser.ID;
             settings.User = user;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 

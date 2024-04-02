@@ -86,7 +86,7 @@ namespace makefoxsrv
 
         public static async Task<bool> IsImageValid(ulong imageID)
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -139,7 +139,7 @@ namespace makefoxsrv
 
             this.DateAdded = DateTime.Now;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
                 using (var cmd = new MySqlCommand())
@@ -170,7 +170,7 @@ namespace makefoxsrv
 
         public static async Task<FoxImage?> LoadFromTelegramUniqueId(ulong userId, string telegramUniqueID, long telegramChatID)
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -190,7 +190,7 @@ namespace makefoxsrv
 
         public static async Task<FoxImage?> LoadLastUploaded(FoxUser user, long tele_chatid)
         {
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -215,7 +215,7 @@ namespace makefoxsrv
             if (telegramUniqueId is not null)
                 this.TelegramUniqueID = telegramUniqueId;
 
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -239,7 +239,7 @@ namespace makefoxsrv
             if (telegramUniqueId is not null)
                 this.TelegramFullUniqueID = telegramUniqueId;
 
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
@@ -259,7 +259,7 @@ namespace makefoxsrv
         {
             var img = new FoxImage();
 
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 

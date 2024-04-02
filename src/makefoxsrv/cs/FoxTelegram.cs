@@ -194,7 +194,7 @@ namespace makefoxsrv
             return null;
         }
 
-        public async Task EditMessageAsync(int id, string? text = null, ReplyInlineMarkup ? replyInlineMarkup = null)
+        public async Task EditMessageAsync(int id, string? text = null, ReplyInlineMarkup ? replyInlineMarkup = null, MessageEntity[]? entities = null)
         {
             if (_Client is null)
                 throw new InvalidOperationException("Client is null");
@@ -203,7 +203,8 @@ namespace makefoxsrv
                 peer: _Peer,
                 message: text,
                 id: id,
-                reply_markup: replyInlineMarkup
+                reply_markup: replyInlineMarkup,
+                entities: entities
             );
         }
 
@@ -319,7 +320,7 @@ We are committed to using your donation to further develop and maintain the serv
 
                 try
                 {
-                    using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+                    using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                     {
                         await SQL.OpenAsync();
 
@@ -348,7 +349,7 @@ We are committed to using your donation to further develop and maintain the serv
         {
             try
             {
-                using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
                     await SQL.OpenAsync();
 
@@ -546,7 +547,7 @@ We are committed to using your donation to further develop and maintain the serv
                 if (Client.User is not null && user.ID == Client.User.ID)
                     return; //We don't really need to store info about ourself.
 
-                using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
                     await SQL.OpenAsync();
 
@@ -699,7 +700,7 @@ We are committed to using your donation to further develop and maintain the serv
                 if (chat.Title == "Unsupported Chat")
                     return; //I still don't really know what this chat is all about, but skip it for now.
 
-                using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
                     await SQL.OpenAsync();
 

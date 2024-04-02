@@ -404,7 +404,7 @@ namespace makefoxsrv
             if (userSize > 0)
             {
 
-                using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
                 await SQL.OpenAsync();
 

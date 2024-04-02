@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using WTelegram;
 using makefoxsrv;
 using TL;
+using System.Globalization;
 
 public enum AccessLevel
 {
@@ -29,13 +30,25 @@ namespace makefoxsrv
         private bool lifetimeSubscription = false;            //Do they have a lifetime sub?
         private AccessLevel accessLevel = AccessLevel.BANNED; //Default to BANNED, just in case.
 
+        public DateTime? TermsAgreedDate { get; set; } = null;
+
+        // Set the default preferred language to English (United States)
+        public string PreferredLanguage { get; set; }
+
+        public FoxLocalization Strings { get; set; }
+
+        public FoxUser()
+        {
+            this.Strings = new FoxLocalization(this, "en");
+        }
+
         public static async Task<FoxUser?> GetByUID(long uid)
         {
             FoxUser? user = null;
 
             try
             {
-                using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
                     await SQL.OpenAsync();
 
@@ -79,7 +92,7 @@ namespace makefoxsrv
         {
             FoxUser? user = null;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -137,7 +150,7 @@ namespace makefoxsrv
         {
             ulong user_id = 0;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -174,7 +187,7 @@ namespace makefoxsrv
         {
             ulong payment_id = 0;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -228,7 +241,7 @@ namespace makefoxsrv
 
         public async Task UpdateTimestamps()
         {
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
@@ -266,7 +279,7 @@ namespace makefoxsrv
             if (since is null)
                 since = DateTime.MinValue;
 
-            using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 SQL.Open();
 

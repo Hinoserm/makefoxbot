@@ -117,8 +117,17 @@ namespace makefoxsrv
         .UseIniFile("../conf/settings.ini")
         .Build();
 
-        public static string MySqlConnectionString = $"Server={settings.MySQLServer};User ID={settings.MySQLUsername};Password={settings.MySQLPassword};Database={settings.MySQLDatabase};charset=utf8mb4;keepalive=60;minpoolsize=5;default command timeout=180";
-        //public static MySqlConnection? SQL;
+        public static string sqlConnectionString =
+            $"Server={settings.MySQLServer};" +
+            $"User ID={settings.MySQLUsername};" +
+            $"Password={settings.MySQLPassword};" +
+            $"Database={settings.MySQLDatabase};" +
+            $"charset=utf8mb4;" +
+            $"keepalive=60;" +
+            $"pooling=true;" +
+            $"minpoolsize=3;" +
+            $"maxpoolsize=15;" +
+            $"default command timeout=180;";
 
         static string sha1hash(byte[] input)
         {
@@ -192,7 +201,7 @@ namespace makefoxsrv
             FoxLog.Write("Connecting to database... ");
             try
             {
-                MySqlConnection sql = new MySqlConnection(FoxMain.MySqlConnectionString);
+                MySqlConnection sql = new MySqlConnection(FoxMain.sqlConnectionString);
                 await sql.OpenAsync(cts.Token);
                 await sql.PingAsync(cts.Token);
                 await sql.DisposeAsync();
@@ -232,7 +241,7 @@ namespace makefoxsrv
                 await FoxCommandHandler.SetBotCommands(FoxTelegram.Client);
 
 
-                using (var sql = new MySqlConnection(FoxMain.MySqlConnectionString))
+                using (var sql = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
                     await sql.OpenAsync(cts.Token);
 

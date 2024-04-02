@@ -49,7 +49,7 @@ namespace makefoxsrv
             { "/current",     CmdCurrent },
             //{ "/select",      CmdSelect },
             //--------------- -----------------
-            { "/start",       CmdWelcome },
+            { "/start",       CmdStart },
             //--------------- -----------------
             { "/help",        CmdHelp },
             //--------------- -----------------
@@ -440,27 +440,9 @@ We sincerely appreciate your support and understanding. Your contribution direct
         }
 
 
-        private static async Task CmdWelcome(FoxTelegram t, Message message, FoxUser user, String? argument)
+        private static async Task CmdStart(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            var inlineKeyboardButtons = new ReplyInlineMarkup()
-            {
-                rows = new TL.KeyboardButtonRow[]
-                {
-                    new TL.KeyboardButtonRow {
-                        buttons = new TL.KeyboardButtonCallback[]
-                        {
-                            new TL.KeyboardButtonCallback { text = "More Help", data = System.Text.Encoding.ASCII.GetBytes("/help 2") },
-                        }
-                    }
-                }
-            };
-
-
-            await t.SendMessageAsync(
-                text: FoxStrings.text_help[0] + "\r\n" + FoxStrings.text_legal,
-                replyToMessageId: message.ID,
-                replyInlineMarkup: inlineKeyboardButtons
-            );
+            await FoxMessages.SendWelcome(t, user, message.ID);
         }
 
         [CommandDescription("Show helpful information")]
@@ -1003,7 +985,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
         private static async Task CmdCancel(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             int count = 0;
-            using var SQL = new MySqlConnection(FoxMain.MySqlConnectionString);
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
 
