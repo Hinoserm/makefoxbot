@@ -92,8 +92,8 @@ namespace makefoxsrv
                 return; // User must agree to the terms before they can use this command.
             }
 
-            if (user.GetAccessLevel() < AccessLevel.PREMIUM)
-            {
+            //if (user.GetAccessLevel() < AccessLevel.PREMIUM)
+            //{
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
                     await SQL.OpenAsync();
@@ -109,7 +109,7 @@ namespace makefoxsrv
                         if (reader.GetInt32(0) > 0)
                         {
                             await t.SendMessageAsync(
-                                text: $"❌ Non-members are only allowed 1 enhanced image per 10 minutes.  Please see /donate and consider a membership.\n\n⚠️ This limit will increase after the testing period has ended.",
+                                text: $"❌ You are only allowed 1 enhanced image per 10 minutes.\n\n⚠️ This limit will change after the testing period has ended.",
                                 replyToMessageId: query.msg_id
                             );
 
@@ -117,7 +117,7 @@ namespace makefoxsrv
                         }
                     }
                 }
-            }
+            //}
 
             int q_limit = 1;
 
