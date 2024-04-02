@@ -345,6 +345,13 @@ We sincerely appreciate your support and understanding. Your contribution direct
         private static async Task CmdTest(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
 
+            if (user.DateTermsAccepted is null)
+            {
+                await FoxMessages.SendTerms(t, user, message.ID, 0);
+
+                return; // User must agree to the terms before they can use this command.
+            }
+
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
             settings.prompt = "cute male fox wearing (jeans), holding a (slice of pizza), happy, smiling, (excited), energetic, sitting, solo, vibrant and surreal background, (80's theme), masterpiece, perfect anatomy, shoes";
@@ -482,6 +489,13 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 await settings.Save();
             }
 
+            if (user.DateTermsAccepted is null)
+            {
+                await FoxMessages.SendTerms(t, user, message.ID);
+
+                return; // User must agree to the terms before they can use this command.
+            }
+
             if (settings.selected_image <= 0 || await FoxImage.Load(settings.selected_image) is null)
             {
                 await t.SendMessageAsync(
@@ -568,6 +582,13 @@ We sincerely appreciate your support and understanding. Your contribution direct
             {
                 settings.prompt = argument; //.Replace("\n", ", ");
                 await settings.Save();
+            }
+
+            if (user.DateTermsAccepted is null)
+            {
+                await FoxMessages.SendTerms(t, user, message.ID);
+
+                return; // User must agree to the terms before they can use this command.
             }
 
             if (String.IsNullOrEmpty(settings.prompt))

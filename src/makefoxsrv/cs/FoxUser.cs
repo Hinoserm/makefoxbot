@@ -30,16 +30,77 @@ namespace makefoxsrv
         private bool lifetimeSubscription = false;            //Do they have a lifetime sub?
         private AccessLevel accessLevel = AccessLevel.BANNED; //Default to BANNED, just in case.
 
-        public DateTime? TermsAgreedDate { get; set; } = null;
+        public DateTime? DateTermsAccepted { get; set; } = null;
 
         // Set the default preferred language to English (United States)
-        public string PreferredLanguage { get; set; }
+        public string? PreferredLanguage { get; set; } = null;
 
         public FoxLocalization Strings { get; set; }
 
-        public FoxUser()
+        public FoxUser(ulong ID, string language)
         {
-            this.Strings = new FoxLocalization(this, "en");
+            this.UID = ID;
+            this.PreferredLanguage = language;
+            this.Strings = new FoxLocalization(this, PreferredLanguage ?? "en");
+        }
+
+        public async Task SetPreferredLanguage(string language)
+        {
+            this.PreferredLanguage = language;
+            this.Strings = new FoxLocalization(this, language);
+
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+
+            await SQL.OpenAsync();
+
+            using (var cmd = new MySqlCommand())
+            {
+                cmd.Connection = SQL;
+                cmd.CommandText = "UPDATE users SET language = @language WHERE id = @uid";
+                cmd.Parameters.AddWithValue("@language", language);
+                cmd.Parameters.AddWithValue("@uid", this.UID);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        public async Task SetTermsAccepted()
+        {
+            this.DateTermsAccepted = DateTime.Now;
+
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+
+            await SQL.OpenAsync();
+
+            using (var cmd = new MySqlCommand())
+            {
+                cmd.Connection = SQL;
+                cmd.CommandText = "UPDATE users SET date_terms_accepted = @date_terms_accepted WHERE id = @uid";
+                cmd.Parameters.AddWithValue("@date_terms_accepted", this.DateTermsAccepted);
+                cmd.Parameters.AddWithValue("@uid", this.UID);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        private static FoxUser CreateFromRow(MySqlDataReader r)
+        {
+            var user = new FoxUser(
+                ID: Convert.ToUInt64(r["id"]),
+                language: (r["language"] == DBNull.Value) ? "en" : (string)r["language"]
+            );
+
+            user.Username = r["username"] == DBNull.Value ? null : (string)r["username"];
+            user.DateTermsAccepted = r["date_terms_accepted"] == DBNull.Value ? null : (DateTime?)r["date_terms_accepted"];
+            user.TelegramID = r["telegram_id"] == DBNull.Value ? null : (long?)r["telegram_id"];
+            user.lifetimeSubscription = r["lifetime_subscription"] == DBNull.Value ? false : Convert.ToBoolean(r["lifetime_subscription"]);
+            user.datePremiumExpires = r["date_premium_expires"] == DBNull.Value ? null : (DateTime?)r["date_premium_expires"];
+
+            var accessLevelStr = r["access_level"].ToString();
+            if (Enum.TryParse<AccessLevel>(accessLevelStr, out var accessLevel))
+            {
+                user.accessLevel = accessLevel;
+            }
+
+            return user;
         }
 
         public static async Task<FoxUser?> GetByUID(long uid)
@@ -52,7 +113,7 @@ namespace makefoxsrv
                 {
                     await SQL.OpenAsync();
 
-                    using (var cmd = new MySqlCommand("SELECT id, username, access_level, telegram_id, lifetime_subscription, date_premium_expires FROM users WHERE id = @id", SQL))
+                    using (var cmd = new MySqlCommand("SELECT * FROM users WHERE id = @id", SQL))
                     {
                         cmd.Parameters.AddWithValue("@id", uid);
 
@@ -60,20 +121,7 @@ namespace makefoxsrv
                         {
                             if (await r.ReadAsync())
                             {
-                                user = new FoxUser
-                                {
-                                    UID = Convert.ToUInt64(r["id"]),
-                                    Username = r["username"] == DBNull.Value ? null : (string)r["username"],
-                                    TelegramID = r["telegram_id"] == DBNull.Value ? null : (long?)r["telegram_id"],
-                                    lifetimeSubscription = r["lifetime_subscription"] == DBNull.Value ? false : Convert.ToBoolean(r["lifetime_subscription"]),
-                                    datePremiumExpires = r["date_premium_expires"] == DBNull.Value ? null : (DateTime?)r["date_premium_expires"]
-                                };
-
-                                var accessLevelStr = (string)r["access_level"];
-                                if (Enum.TryParse<AccessLevel>(accessLevelStr, true, out var accessLevel))
-                                {
-                                    user.accessLevel = accessLevel;
-                                }
+                                user = CreateFromRow(r);
                             }
                         }
                     }
@@ -96,7 +144,7 @@ namespace makefoxsrv
             {
                 await SQL.OpenAsync();
 
-                using (var cmd = new MySqlCommand("SELECT id, username, access_level, lifetime_subscription, date_premium_expires FROM users WHERE telegram_id = @id", SQL))
+                using (var cmd = new MySqlCommand("SELECT * FROM users WHERE telegram_id = @id", SQL))
                 {
                     cmd.Parameters.AddWithValue("@id", tuser.ID);
 
@@ -104,20 +152,7 @@ namespace makefoxsrv
                     {
                         if (await r.ReadAsync())
                         {
-                            user = new FoxUser
-                            {
-                                UID = Convert.ToUInt64(r["id"]),
-                                Username = r["username"] == DBNull.Value ? null : (string)r["username"],
-                                TelegramID = tuser.ID,
-                                lifetimeSubscription = r["lifetime_subscription"] != DBNull.Value && Convert.ToBoolean(r["lifetime_subscription"]),
-                                datePremiumExpires = r["date_premium_expires"] != DBNull.Value ? Convert.ToDateTime(r["date_premium_expires"]) : null
-                            };
-
-                            var accessLevelStr = r["access_level"].ToString();
-                            if (Enum.TryParse<AccessLevel>(accessLevelStr, out var accessLevel))
-                            {
-                                user.accessLevel = accessLevel;
-                            }
+                            user = CreateFromRow(r);
                         }
                     }
                 }

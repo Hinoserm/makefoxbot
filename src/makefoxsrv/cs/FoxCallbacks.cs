@@ -46,6 +46,9 @@ namespace makefoxsrv
                 case "/lang":
                     await CallbackCmdLanguage(t, query, fUser, argument);
                     break;
+                case "/terms":
+                    await CallbackCmdTerms(t, query, fUser, argument);
+                    break;
             }
         }
 
@@ -57,11 +60,30 @@ namespace makefoxsrv
                 argument = "en";
             }
 
-            user.Strings = new FoxLocalization(user, argument); //Set user language
+            await user.SetPreferredLanguage(argument);
 
             await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, user.Strings.Get("Lang.AnswerCallbackMsg"));
 
             await FoxMessages.SendWelcome(t, user, 0, query.msg_id);
+
+        }
+
+        private static async Task CallbackCmdTerms(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
+        {
+
+            if (argument is null || argument.Length <= 0)
+            {
+                argument = "en";
+            }
+
+            await user.SetTermsAccepted();
+
+            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
+
+            await t.SendMessageAsync(
+                text: user.Strings.Get("Terms.AgreeClicked"),
+                replyToMessageId: query.msg_id
+            );
 
         }
 

@@ -79,6 +79,15 @@ namespace makefoxsrv.lang {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to You have acknolwedged your acceptance of the terms of service.  Thank you!.
+        /// </summary>
+        internal static string Terms_AgreeClicked {
+            get {
+                return ResourceManager.GetString("Terms.AgreeClicked", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to &lt;b&gt;Click the button below to acknowledge your understanding and agreement with these terms.&lt;/b&gt;.
         /// </summary>
         internal static string Terms_AgreePrompt {
@@ -88,14 +97,13 @@ namespace makefoxsrv.lang {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Please review and agree to the following requirements before proceeding:
+        ///   Looks up a localized string similar to Before you may continue, you must review and agree to the following terms of service:
         ///
         ///&lt;b&gt;Age Verification:&lt;/b&gt; You must be at least 18 years old and recognized as a legal adult in your jurisdiction.
         ///
         ///&lt;b&gt;Character Guidelines:&lt;/b&gt; We discourage the depiction of human characters in mature content. It is explicitly forbidden to create images of underage human characters in such contexts.
         ///
-        ///&lt;b&gt;Copyright Compliance:&lt;/b&gt; Creation of images using copyrighted characters or trademarks without authorization is prohibited.
-        ///        /// [rest of string was truncated]&quot;;.
+        ///&lt;b&gt;Copyright Compliance:&lt;/b&gt; Creation of images using copyrighted characters or trademarks without authorization is p [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string Terms_Message {
             get {
