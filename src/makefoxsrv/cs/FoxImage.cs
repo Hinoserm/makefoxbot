@@ -372,5 +372,44 @@ namespace makefoxsrv
                 FoxLog.WriteLine("Error with input image: " + ex.Message);
             }
         }
+        public static (uint newWidth, uint newHeight) CalculateLimitedDimensions(uint originalWidth, uint originalHeight, uint maxWidthHeight = 768)
+        {
+            // If both dimensions are within the limit, return them as is.
+            if (originalWidth <= maxWidthHeight && originalHeight <= maxWidthHeight)
+            {
+                return (originalWidth, originalHeight);
+            }
+
+            // Calculate aspect ratio
+            double aspectRatio = (double)originalWidth / originalHeight;
+
+            uint newWidth, newHeight;
+
+            // If width is the larger dimension
+            if (originalWidth >= originalHeight)
+            {
+                newWidth = maxWidthHeight;
+                newHeight = (uint)(newWidth / aspectRatio);
+            }
+            else // Height is the larger dimension
+            {
+                newHeight = maxWidthHeight;
+                newWidth = (uint)(newHeight * aspectRatio);
+            }
+
+            // Ensure new dimensions are not exceeding the limit (due to rounding issues)
+            if (newWidth > maxWidthHeight)
+            {
+                newWidth = maxWidthHeight;
+                newHeight = (uint)(newWidth / aspectRatio);
+            }
+            else if (newHeight > maxWidthHeight)
+            {
+                newHeight = maxWidthHeight;
+                newWidth = (uint)(newHeight * aspectRatio);
+            }
+
+            return (newWidth, newHeight);
+        }
     }
 }

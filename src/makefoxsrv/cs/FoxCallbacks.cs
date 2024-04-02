@@ -133,7 +133,7 @@ namespace makefoxsrv
 
             var settings = q.Settings;
 
-            (settings.UpscalerWidth, settings.UpscalerHeight) = CalculateNewDimensions(settings.width * 2, settings.height * 2, 1920);
+            (settings.UpscalerWidth, settings.UpscalerHeight) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1536);
 
             settings.Enhance = true;
             settings.UpscalerName = "R-ESRGAN 4x+";
@@ -604,46 +604,5 @@ namespace makefoxsrv
 
             }
         }
-
-        private static (uint newWidth, uint newHeight) CalculateNewDimensions(uint originalWidth, uint originalHeight, uint maxWidthHeight = 768)
-        {
-            // If both dimensions are within the limit, return them as is.
-            if (originalWidth <= maxWidthHeight && originalHeight <= maxWidthHeight)
-            {
-                return (originalWidth, originalHeight);
-            }
-
-            // Calculate aspect ratio
-            double aspectRatio = (double)originalWidth / originalHeight;
-
-            uint newWidth, newHeight;
-
-            // If width is the larger dimension
-            if (originalWidth >= originalHeight)
-            {
-                newWidth = maxWidthHeight;
-                newHeight = (uint)(newWidth / aspectRatio);
-            }
-            else // Height is the larger dimension
-            {
-                newHeight = maxWidthHeight;
-                newWidth = (uint)(newHeight * aspectRatio);
-            }
-
-            // Ensure new dimensions are not exceeding the limit (due to rounding issues)
-            if (newWidth > maxWidthHeight)
-            {
-                newWidth = maxWidthHeight;
-                newHeight = (uint)(newWidth / aspectRatio);
-            }
-            else if (newHeight > maxWidthHeight)
-            {
-                newHeight = maxWidthHeight;
-                newWidth = (uint)(newHeight * aspectRatio);
-            }
-
-            return (newWidth, newHeight);
-        }
-
     }
 }
