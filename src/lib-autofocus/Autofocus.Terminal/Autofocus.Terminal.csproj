@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.2" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Autofocus.Extensions.AfterDetailer\Autofocus.Extensions.AfterDetailer.csproj" />
+    <ProjectReference Include="..\Autofocus.ImageSharp\Autofocus.ImageSharp.csproj" />
+    <ProjectReference Include="..\Autofocus.Outpaint\Autofocus.Outpaint.csproj" />
+    <ProjectReference Include="..\Autofocus.Scripts.UltimateUpscaler\Autofocus.Scripts.UltimateUpscaler.csproj" />
+    <ProjectReference Include="..\Autofocus\Autofocus.csproj" />
+  </ItemGroup>
+
+</Project>

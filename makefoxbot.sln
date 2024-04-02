@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "gpustats", "src\gpu_stats\g
 EndProject
 Project("{13B669BE-BB05-4DDF-9536-439F39A36129}") = "website", "website.phpproj", "{6D9D569F-901C-4DAA-8507-71642311C268}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Autofocus", "src\lib-autofocus\Autofocus\Autofocus.csproj", "{86095DF0-7D84-450A-B007-3980BECB2D5F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{6D9D569F-901C-4DAA-8507-71642311C268}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6D9D569F-901C-4DAA-8507-71642311C268}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6D9D569F-901C-4DAA-8507-71642311C268}.Release|Any CPU.Build.0 = Release|Any CPU
+		{86095DF0-7D84-450A-B007-3980BECB2D5F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{86095DF0-7D84-450A-B007-3980BECB2D5F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{86095DF0-7D84-450A-B007-3980BECB2D5F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{86095DF0-7D84-450A-B007-3980BECB2D5F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

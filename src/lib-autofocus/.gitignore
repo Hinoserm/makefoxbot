@@ -1,0 +1,17 @@
+/.vs
+/Autofocus/bin
+/Autofocus/obj
+/Autofocus.Terminal/bin
+/Autofocus.Terminal/obj
+/Autofocus.Scripts.UltimateUpscaler/bin
+/Autofocus.Scripts.UltimateUpscaler/obj
+/Autofocus.Tests/bin
+/Autofocus.Tests/obj
+/frames_depth
+/frames_norm
+/Autofocus.ImageSharp/bin
+/Autofocus.ImageSharp/obj
+/Autofocus.Extensions.AfterDetailer/bin
+/Autofocus.Extensions.AfterDetailer/obj
+/Autofocus.Outpaint/bin
+/Autofocus.Outpaint/obj

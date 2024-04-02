@@ -19,6 +19,7 @@ using TL;
 using System.Security.Policy;
 using System.Diagnostics;
 using System.Collections.Concurrent;
+using Terminal.Gui;
 
 namespace makefoxsrv
 {
@@ -231,7 +232,8 @@ namespace makefoxsrv
                 .Where(worker => worker.Online
                                  && (worker.qItem == null)  // Worker is not currently busy
                                  && (!worker.MaxImageSize.HasValue || (item.Settings.width * item.Settings.height) <= worker.MaxImageSize.Value)
-                                 && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value))
+                                 && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
+                                 && (worker.MaxUpscaleSize.HasValue && (item.Settings.UpscalerWidth ?? 0 * item.Settings.UpscalerWidth ?? 0) <= worker.MaxUpscaleSize.Value))
                 .ToList();
 
             // Prioritize workers who already have the model loaded.
@@ -328,6 +330,20 @@ namespace makefoxsrv
                     if (!(r["link_token"] is DBNull))
                         q.LinkToken = Convert.ToString(r["link_token"]);
 
+                    if (!(r["enhanced"] is DBNull))
+                        settings.Enhance = Convert.ToBoolean(r["enhanced"]);
+                    if (!(r["upscaler_name"] is DBNull))
+                        settings.UpscalerName = Convert.ToString(r["upscaler_name"]);
+                    if (!(r["upscaler_denoise"] is DBNull))
+                        settings.UpscalerDenoiseStrength = Convert.ToDecimal(r["upscaler_denoise"]);
+                    if (!(r["upscaler_width"] is DBNull))
+                        settings.UpscalerWidth = Convert.ToUInt32(r["upscaler_width"]);
+                    if (!(r["upscaler_height"] is DBNull))
+                        settings.UpscalerHeight = Convert.ToUInt32(r["upscaler_height"]);
+                    if (!(r["upscaler_steps"] is DBNull))
+                        settings.UpscalerSteps = Convert.ToUInt32(r["upscaler_steps"]);
+
+
                     q.Settings = settings;
                     count++;
                     await Enqueue(q);
@@ -418,8 +434,8 @@ namespace makefoxsrv
 
             cmd.Connection = SQL;
             cmd.CommandText = @"
-                INSERT INTO queue (status, type, uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed, reply_msg, msg_id, date_added, model)
-                VALUES ('PENDING', @type, @uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @reply_msg, @msg_id, @now, @model)
+                INSERT INTO queue (status, type, uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed, enhanced, reply_msg, msg_id, date_added, model, upscaler_name, upscaler_denoise, upscaler_width, upscaler_height, upscaler_steps)
+                VALUES ('PENDING', @type, @uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @enhanced, @reply_msg, @msg_id, @now, @model, @upscaler_name, @upscaler_denoise, @upscaler_width, @upscaler_height, @upscaler_steps)
             ";
 
             cmd.Parameters.AddWithValue("uid", user.UID);
@@ -439,6 +455,12 @@ namespace makefoxsrv
             cmd.Parameters.AddWithValue("msg_id", messageID);
             cmd.Parameters.AddWithValue("now", q.DateCreated);
             cmd.Parameters.AddWithValue("model", settings.model);
+            cmd.Parameters.AddWithValue("enhanced", settings.Enhance);
+            cmd.Parameters.AddWithValue("upscaler_name", settings.UpscalerName);
+            cmd.Parameters.AddWithValue("upscaler_denoise", settings.UpscalerDenoiseStrength);
+            cmd.Parameters.AddWithValue("upscaler_width", settings.UpscalerWidth);
+            cmd.Parameters.AddWithValue("upscaler_height", settings.UpscalerHeight);
+            cmd.Parameters.AddWithValue("upscaler_steps", settings.UpscalerSteps);
 
             await cmd.ExecuteNonQueryAsync();
 
@@ -658,6 +680,19 @@ namespace makefoxsrv
                         if (!(r["worker"] is DBNull))
                             q.WorkerID = Convert.ToInt32(r["worker"]);
 
+                        if (!(r["enhanced"] is DBNull))
+                            settings.Enhance = Convert.ToBoolean(r["enhanced"]);
+                        if (!(r["upscaler_name"] is DBNull))
+                            settings.UpscalerName = Convert.ToString(r["upscaler_name"]);
+                        if (!(r["upscaler_denoise"] is DBNull))
+                            settings.UpscalerDenoiseStrength = Convert.ToDecimal(r["upscaler_denoise"]);
+                        if (!(r["upscaler_width"] is DBNull))
+                            settings.UpscalerWidth = Convert.ToUInt32(r["upscaler_width"]);
+                        if (!(r["upscaler_height"] is DBNull))
+                            settings.UpscalerHeight = Convert.ToUInt32(r["upscaler_height"]);
+                        if (!(r["upscaler_steps"] is DBNull))
+                            settings.UpscalerSteps = Convert.ToUInt32(r["upscaler_steps"]);
+
                         q.Settings = settings;
 
                         return q;
@@ -768,6 +803,19 @@ FOR UPDATE;
                                     q.DateCreated = Convert.ToDateTime(r["date_added"]);
                                 if (!(r["link_token"] is DBNull))
                                     q.LinkToken = Convert.ToString(r["link_token"]);
+
+                                if (!(r["enhanced"] is DBNull))
+                                    settings.Enhance = Convert.ToBoolean(r["enhanced"]);
+                                if (!(r["upscaler_name"] is DBNull))
+                                    settings.UpscalerName = Convert.ToString(r["upscaler_name"]);
+                                if (!(r["upscaler_denoise"] is DBNull))
+                                    settings.UpscalerDenoiseStrength = Convert.ToDecimal(r["upscaler_denoise"]);
+                                if (!(r["upscaler_width"] is DBNull))
+                                    settings.UpscalerWidth = Convert.ToUInt32(r["upscaler_width"]);
+                                if (!(r["upscaler_height"] is DBNull))
+                                    settings.UpscalerHeight = Convert.ToUInt32(r["upscaler_height"]);
+                                if (!(r["upscaler_steps"] is DBNull))
+                                    settings.UpscalerSteps = Convert.ToUInt32(r["upscaler_steps"]);
 
                                 q.Settings = settings;
                             }

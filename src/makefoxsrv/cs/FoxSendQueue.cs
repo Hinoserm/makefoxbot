@@ -92,11 +92,25 @@ namespace makefoxsrv
                             {
                                 buttons = new TL.KeyboardButtonCallback[]
                                 {
-                                    new TL.KeyboardButtonCallback { text = "Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.ID)},
+                                    new TL.KeyboardButtonCallback { text = "🔎 Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.ID)},
                                 }
                             }
                         }
                     };
+
+                    if (!q.Settings.Enhance)
+                    {
+                        inlineKeyboardButtons.rows = inlineKeyboardButtons.rows.Concat(new TL.KeyboardButtonRow[]
+                        {
+                            new TL.KeyboardButtonRow
+                            {
+                                buttons = new TL.KeyboardButtonCallback[]
+                                {
+                                    new TL.KeyboardButtonCallback { text = "✨ Enhance!", data = System.Text.Encoding.ASCII.GetBytes("/enhance " + q.ID)},
+                                }
+                            }
+                        }).ToArray();
+                    }
 
                     var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image)), "image.jpg");
 
@@ -105,6 +119,14 @@ namespace makefoxsrv
                     System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
                     System.TimeSpan GPUTime = await q.GetGPUTime();
                     string messageText = $"✅ Complete! (Took {diffResult.ToPrettyFormat()} - GPU: {GPUTime.ToPrettyFormat()}";
+
+                    var maxWidth = Math.Max(q.Settings.width, q.Settings.UpscalerWidth ?? 0);
+                    var maxHeight = Math.Max(q.Settings.height, q.Settings.UpscalerHeight ?? 0);
+
+                    if (maxWidth > 1280 || maxHeight > 1280)
+                    {
+                        messageText += $"\n\n⚠️ Image dimensions exceed Telegram's maximum image preview size.  For best quality, click below to download the full resoluton file.";
+                    }
 
                     var msg = await t.SendMessageAsync( 
                         media: new InputMediaUploadedPhoto() { file = inputImage },

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MySqlConnector;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -49,7 +50,130 @@ namespace makefoxsrv
                 case "/terms":
                     await CallbackCmdTerms(t, query, fUser, argument);
                     break;
+                case "/enhance":
+                    await CallbackCmdEnhance(t, query, fUser, argument);
+                    break;
             }
+        }
+
+        private static async Task CallbackCmdEnhance(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
+        {
+
+            long info_id = 0;
+
+            if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
+            {
+                /* await botClient.EditMessageTextAsync(
+                    chatId: update.CallbackQuery.Message.Chat.Id,
+                    text: "Invalid request",
+                    messageId: update.CallbackQuery.Message.MessageId,
+                    cancellationToken: cancellationToken
+                ); */
+
+                throw new Exception("Malformed request");
+            }
+
+            var q = await FoxQueue.Get(info_id);
+            if (q is null)
+                throw new Exception("Unable to locate queue item");
+
+            if (q.Telegram?.User.ID != t.User.ID)
+            {
+                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
+                return; // Just silently return.
+            }
+
+            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
+            
+            if (user.DateTermsAccepted is null)
+            {
+                await FoxMessages.SendTerms(t, user, query.msg_id);
+
+                return; // User must agree to the terms before they can use this command.
+            }
+
+            if (user.GetAccessLevel() < AccessLevel.PREMIUM)
+            {
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                {
+                    await SQL.OpenAsync();
+
+                    using (var cmd = new MySqlCommand())
+                    {
+                        cmd.Connection = SQL;
+                        cmd.CommandText = "SELECT COUNT(id) FROM queue WHERE enhanced = 1 AND date_finished > @now - INTERVAL 1 HOUR";
+                        cmd.Parameters.AddWithValue("now", DateTime.Now);
+                        await using var reader = await cmd.ExecuteReaderAsync();
+                        reader.Read();
+                        if (reader.GetInt32(0) > 0)
+                        {
+                            await t.SendMessageAsync(
+                                text: $"❌ Non-members are only allowed 1 enhanced image per hour.  Please see /donate and consider a membership.",
+                                replyToMessageId: query.msg_id
+                            );
+
+                            return;
+                        }
+                    }
+                }
+            }
+
+            int q_limit = 1;
+
+            if (await FoxQueue.GetCount(user) >= q_limit)
+            {
+                await t.SendMessageAsync(
+                    text: $"❌Maximum of {q_limit} queued enhancement request per user.",
+                    replyToMessageId: query.msg_id
+                );
+
+                return;
+            }
+
+            var settings = q.Settings;
+
+            (settings.UpscalerWidth, settings.UpscalerHeight) = CalculateNewDimensions(settings.width * 2, settings.height * 2, 1920);
+
+            settings.Enhance = true;
+            settings.UpscalerName = "R-ESRGAN 4x+";
+            settings.UpscalerSteps = 20;
+            settings.UpscalerDenoiseStrength = (decimal)0.55;
+
+            if (await FoxWorker.GetWorkersForModel(settings.model) is null)
+            {
+                await t.SendMessageAsync(
+                    text: $"❌ There are no workers available to handle your currently selected model ({settings.model}).\r\n\r\nPlease try again later or select a different /model.",
+                    replyToMessageId: query.msg_id
+                );
+
+                return;
+            }
+
+            Message waitMsg = await t.SendMessageAsync(
+                text: $"⏳ Adding to queue...",
+                replyToMessageId: query.msg_id
+            );
+
+            var newq = await FoxQueue.Add(t, user, settings, q.Type, waitMsg.ID, query.msg_id);
+            if (newq is null)
+                throw new Exception("Unable to add item to queue");
+
+            //await q.CheckPosition(); // Load the queue position and total.
+
+            //FoxWorker.Ping();
+
+            try
+            {
+                await t.EditMessageAsync(
+                    id: waitMsg.ID,
+                    //text: $"⏳ In queue ({q.position} of {q.total})..."
+                    text: $"⏳ Added to queue..."
+                );
+            }
+            catch { }
+
+
+
         }
 
         private static async Task CallbackCmdLanguage(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
@@ -182,9 +306,6 @@ namespace makefoxsrv
                 else if (!int.TryParse(parts[1], out days))
                     throw new Exception("Invalid days.");
 
-                // Use 'amount' and 'days' as needed
-
-
                 var prices = new TL.LabeledPrice[] {
                     new TL.LabeledPrice { label = days == -1 ? "Lifetime Access" : $"{days} Days Access", amount = (int)(amount * 100) },
                 };
@@ -193,7 +314,6 @@ namespace makefoxsrv
 
                 var inputInvoice = new TL.InputMediaInvoice
                 {
-
                     title = $"One-Time Payment for User ID {user.UID}",
                     description = days == -1 ? "Lifetime Access" : $"{days} Days Access",
                     payload = System.Text.Encoding.UTF8.GetBytes($"PAY_{user.UID}_{days}"),
@@ -293,13 +413,35 @@ namespace makefoxsrv
                     }
                 };
 
+                if (!q.Settings.Enhance)
+                {
+                    inlineKeyboardButtons.rows = inlineKeyboardButtons.rows.Concat(new TL.KeyboardButtonRow[]
+                    {
+                        new TL.KeyboardButtonRow
+                        {
+                            buttons = new TL.KeyboardButtonCallback[]
+                            {
+                                new TL.KeyboardButtonCallback { text = "✨ Enhance!", data = System.Text.Encoding.ASCII.GetBytes("/enhance " + q.ID)},
+                            }
+                        }
+                    }).ToArray();
+                }
+
                 System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
                 System.TimeSpan GPUTime = await q.GetGPUTime();
+
+                var maxWidth = Math.Max(q.Settings.width, q.Settings.UpscalerWidth ?? 0);
+                var maxHeight = Math.Max(q.Settings.height, q.Settings.UpscalerHeight ?? 0);
+
+                var sizeString = $"🖥️ Size: {maxWidth}x{maxHeight}";
+
+                if (q.Settings.UpscalerWidth is not null && q.Settings.UpscalerHeight is not null)
+                    sizeString += $" (upscaled from {q.Settings.width}x{q.Settings.height})";
 
                 await t.EditMessageAsync(
                     text: $"🖤Prompt: {q.Settings.prompt}\r\n" +
                           $"🐊Negative: {q.Settings.negative_prompt}\r\n" +
-                          $"🖥️ Size: {q.Settings.width}x{q.Settings.height}\r\n" +
+                          $"{sizeString}\r\n" +
                           $"🪜Sampler Steps: {q.Settings.steps}\r\n" +
                           $"🧑‍🎨CFG Scale: {q.Settings.cfgscale}\r\n" +
                           $"👂Denoising Strength: {q.Settings.denoising_strength}\r\n" +
@@ -461,5 +603,46 @@ namespace makefoxsrv
 
             }
         }
+
+        private static (uint newWidth, uint newHeight) CalculateNewDimensions(uint originalWidth, uint originalHeight, uint maxWidthHeight = 768)
+        {
+            // If both dimensions are within the limit, return them as is.
+            if (originalWidth <= maxWidthHeight && originalHeight <= maxWidthHeight)
+            {
+                return (originalWidth, originalHeight);
+            }
+
+            // Calculate aspect ratio
+            double aspectRatio = (double)originalWidth / originalHeight;
+
+            uint newWidth, newHeight;
+
+            // If width is the larger dimension
+            if (originalWidth >= originalHeight)
+            {
+                newWidth = maxWidthHeight;
+                newHeight = (uint)(newWidth / aspectRatio);
+            }
+            else // Height is the larger dimension
+            {
+                newHeight = maxWidthHeight;
+                newWidth = (uint)(newHeight * aspectRatio);
+            }
+
+            // Ensure new dimensions are not exceeding the limit (due to rounding issues)
+            if (newWidth > maxWidthHeight)
+            {
+                newWidth = maxWidthHeight;
+                newHeight = (uint)(newWidth / aspectRatio);
+            }
+            else if (newHeight > maxWidthHeight)
+            {
+                newHeight = maxWidthHeight;
+                newWidth = (uint)(newHeight * aspectRatio);
+            }
+
+            return (newWidth, newHeight);
+        }
+
     }
 }

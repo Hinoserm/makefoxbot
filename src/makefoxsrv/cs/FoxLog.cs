@@ -29,17 +29,25 @@ namespace makefoxsrv
         // Logging function
         public static void Write(string message, LogLevel level = LogLevel.INFO, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
-            string dateFormat = "dd MMM yyyy hh:mm:ss.ff tt";
 
-            string[] lines = Regex.Split(message, @"\r\n|\r|\n");
-
-            // Check if the last item is an empty string and remove it if necessary
-            if (lines.Length > 1 && lines[^1] == "")
+            try
             {
-                Array.Resize(ref lines, lines.Length - 1);
-            }
+                string dateFormat = "dd MMM yyyy hh:mm:ss.ff tt";
 
-            File.AppendAllLines("../logs/output.txt", lines.Select(line => $"{DateTime.Now.ToString(dateFormat)} {level}> {line}").ToArray());
+                string[] lines = Regex.Split(message, @"\r\n|\r|\n");
+
+                // Check if the last item is an empty string and remove it if necessary
+                if (lines.Length > 1 && lines[^1] == "")
+                {
+                    Array.Resize(ref lines, lines.Length - 1);
+                }
+
+                File.AppendAllLines("../logs/output.txt", lines.Select(line => $"{DateTime.Now.ToString(dateFormat)} {level}> {line}").ToArray());
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Error writing log: {e.Message}");
+            }
 
             // Check if the current log message level is greater than or equal to the application's log level
             if (level >= CurrentLogLevel)

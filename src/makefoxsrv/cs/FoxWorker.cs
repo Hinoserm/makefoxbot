@@ -18,6 +18,9 @@ using makefoxsrv;
 using TL;
 using System.Linq.Expressions;
 using Terminal.Gui;
+using static NStack.Unicode;
+using Autofocus.Scripts;
+using System.Configuration;
 
 namespace makefoxsrv
 {
@@ -35,6 +38,7 @@ namespace makefoxsrv
 
         public int? MaxImageSize { get; private set; } //width*height.  If null, no limit
         public int? MaxImageSteps { get; private set; } //If null, no limit
+        public int? MaxUpscaleSize { get; private set; } = 3686400; //If null, does not support upscaling
 
         public DateTime StartDate { get; private set; } //Worker start date
         public DateTime? TaskStartDate { get; private set; } = null;
@@ -978,6 +982,12 @@ namespace makefoxsrv
 
                 if (qItem.Type == FoxQueue.QueueType.IMG2IMG)
                 {
+                    if (settings.Enhance)   
+                    {
+                        settings.width = settings.UpscalerWidth.Value;
+                        settings.height = settings.UpscalerHeight.Value;
+                    }
+
                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
                     //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
@@ -1020,7 +1030,7 @@ namespace makefoxsrv
                                 Sampler = sampler,
                                 SamplingSteps = settings.steps,
                                 CfgScale = (double)settings.cfgscale
-                            },
+                            }
                         }
                     , ctsLoop.Token);
 
@@ -1034,6 +1044,22 @@ namespace makefoxsrv
                     var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
                     var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
                     //var sampler = await api.Sampler("Restart", ctsLoop.Token);
+
+                    HighResConfig? hiResConfig = null;
+
+                    if (settings.Enhance)
+                    {
+                        var upscaler = await api.Upscaler(settings.UpscalerName, ctsLoop.Token);
+
+                        hiResConfig = new HighResConfig()
+                        {
+                            Upscaler = upscaler,
+                            DenoisingStrength = (double)(settings.UpscalerDenoiseStrength ?? (decimal)0.55),
+                            Width = settings.UpscalerWidth.Value,
+                            Height = settings.UpscalerHeight.Value,
+                            Steps = settings.UpscalerSteps.Value
+                        };
+                    }
 
                     var txt2img = await api.TextToImage(
                         new()
@@ -1060,6 +1086,7 @@ namespace makefoxsrv
                                 SamplingSteps = settings.steps,
                                 CfgScale = (double)settings.cfgscale
                             },
+                            HighRes = hiResConfig
                         }
                     , ctsLoop.Token);
 

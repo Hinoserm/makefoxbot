@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>Autofocus.Extensions.AfterDetailer</Title>
+    <Description>Adds "After Detailer" support to Autofocus (Automatic1111 API wrapper).</Description>
+    <Version>2.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Autofocus\Autofocus.csproj" />
+  </ItemGroup>
+
+</Project>

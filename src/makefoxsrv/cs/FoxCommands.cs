@@ -643,7 +643,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             //await q.CheckPosition(); // Load the queue position and total.
 
-            FoxWorker.Ping();
+            //FoxWorker.Ping();
 
             try
             {

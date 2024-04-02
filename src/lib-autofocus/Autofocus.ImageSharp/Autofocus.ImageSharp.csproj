@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <WarningsAsErrors>Nullable</WarningsAsErrors>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Title>Autofocus.ImageSharp</Title>
+    <Version>2.0.0</Version>
+    <Authors>Martin Evans</Authors>
+    <PackageProjectUrl>https://github.com/martindevans/Autofocus</PackageProjectUrl>
+    <Description>Adds convenient extension methods to and from ImageSharp images for Autofocus (Automatic1111 API wrapper).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Autofocus\Autofocus.csproj" />
+  </ItemGroup>
+
+</Project>

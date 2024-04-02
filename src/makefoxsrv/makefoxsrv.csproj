@@ -34,7 +34,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Autofocus" Version="6.0.0" />
     <PackageReference Include="Castle.Core" Version="5.1.1" />
     <PackageReference Include="Config.Net" Version="5.1.5" />
     <PackageReference Include="MySqlConnector" Version="2.3.6" />
@@ -47,6 +46,10 @@
     <PackageReference Include="System.Windows.Extensions" Version="8.0.0" />
     <PackageReference Include="Terminal.Gui" Version="1.16.0" />
     <PackageReference Include="WTelegramClient" Version="3.7.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\lib-autofocus\Autofocus\Autofocus.csproj" />
   </ItemGroup>
 
   <ItemGroup>
