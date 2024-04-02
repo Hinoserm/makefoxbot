@@ -355,6 +355,8 @@ We are committed to using your donation to further develop and maintain the serv
 
             FoxLog.WriteLine($"Message: {t.User}" + (t.Chat is not null ? $" in {t.Chat}" : "") + $"> {ReplaceNonPrintableCharacters(msg.message)}");
 
+            var message = FoxTelegram.Client.EntitiesToHtml(msg.message, msg.entities);
+
             if (msg.message is not null)
             {
                 await FoxCommandHandler.HandleCommand(t, msg);
@@ -372,7 +374,7 @@ We are committed to using your donation to further develop and maintain the serv
                             cmd.Parameters.AddWithValue("tele_id", t.User.ID);
                             cmd.Parameters.AddWithValue("tele_chatid", t.Chat is not null ? t.Chat.ID : null);
                             cmd.Parameters.AddWithValue("message_id", msg.ID);
-                            cmd.Parameters.AddWithValue("message", msg.message);
+                            cmd.Parameters.AddWithValue("message", message);
                             cmd.Parameters.AddWithValue("now", DateTime.Now);
 
                             await cmd.ExecuteNonQueryAsync();
