@@ -79,7 +79,9 @@ namespace makefoxsrv.lang {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to You have acknolwedged your acceptance of the terms of service.  Thank you!.
+        ///   Looks up a localized string similar to You have acknolwedged your acceptance of the terms of service.
+        ///
+        ///Thank you!.
         /// </summary>
         internal static string Terms_AgreeClicked {
             get {

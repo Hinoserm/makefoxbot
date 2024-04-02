@@ -78,12 +78,9 @@ namespace makefoxsrv
 
             await user.SetTermsAccepted();
 
-            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
+            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, user.Strings.Get("Terms.AgreeClicked"));
 
-            await t.SendMessageAsync(
-                text: user.Strings.Get("Terms.AgreeClicked"),
-                replyToMessageId: query.msg_id
-            );
+            await FoxMessages.SendTerms(t, user, 0, query.msg_id);
 
         }
 

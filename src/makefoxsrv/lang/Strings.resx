@@ -125,7 +125,9 @@
     <comment>Button shown when the user needs to agree to the terms of service to continue.</comment>
   </data>
   <data name="Terms.AgreeClicked" xml:space="preserve">
-    <value>You have acknolwedged your acceptance of the terms of service.  Thank you!</value>
+    <value>You have acknolwedged your acceptance of the terms of service.
+
+Thank you!</value>
   </data>
   <data name="Terms.AgreePrompt" xml:space="preserve">
     <value>&lt;b&gt;Click the button below to acknowledge your understanding and agreement with these terms.&lt;/b&gt;</value>
