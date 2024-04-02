@@ -99,51 +99,47 @@
 		<value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.3500.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
 	</resheader>
   <data name="Lang.AnswerCallbackMsg" xml:space="preserve">
-  <value>¡Idioma establecido!</value>
-</data>
+    <value>Język ustawiony!</value>
+  </data>
   <data name="Terms.AgreeButton" xml:space="preserve">
-  <value>📝 Entiendo y Acepto</value>
-  <!-- The "&amp;" is HTML encoded to "&" for HTML content within XML. It's standard practice in HTML encoding and doesn't need to be translated or changed. -->
-</data>
+    <value>📝 Rozumiem i zgadzam się</value>
+  </data>
   <data name="Terms.AgreePrompt" xml:space="preserve">
-  <value>&lt;b&gt;Haz clic en el botón de abajo para reconocer tu comprensión y acuerdo con estos términos.&lt;/b&gt;</value>
-  <!-- The text within "&lt;b&gt;" and "&lt;/b&gt;" is HTML encoded for "<b>" and "</b>" to bold the text, which is preserved in translation. -->
-</data>
+    <value>&lt;b&gt;Kliknij przycisk poniżej, aby potwierdzić zrozumienie i akceptację tych warunków.&lt;/b&gt;</value>
+  </data>
   <data name="Terms.Message" xml:space="preserve">
-  <value>Por favor, revisa y acepta los siguientes requisitos antes de proceder:
+    <value>Przed kontynuacją prosimy o zapoznanie się i zaakceptowanie poniższych wymagań:
 
-&lt;b&gt;Verificación de Edad:&lt;/b&gt; Debes tener al menos 18 años de edad y ser reconocido como un adulto legal en tu jurisdicción.
+&lt;b&gt;Weryfikacja wieku:&lt;/b&gt; Musisz mieć co najmniej 18 lat i być uznany za pełnoletniego w swojej jurysdykcji.
 
-&lt;b&gt;Directrices de Personajes:&lt;/b&gt; Desalentamos la representación de personajes humanos en contenido maduro. Está explícitamente prohibido crear imágenes de personajes humanos menores de edad en dichos contextos.
+&lt;b&gt;Wytyczne dotyczące postaci:&lt;/b&gt; Odradzamy przedstawianie postaci ludzkich w treściach dla dorosłych. Jest to wyraźnie zabronione tworzyć obrazy postaci nieletnich w takich kontekstach.
 
-&lt;b&gt;Cumplimiento de Derechos de Autor:&lt;/b&gt; Está prohibido crear imágenes utilizando personajes o marcas registradas sin autorización.
+&lt;b&gt;Zgodność z prawami autorskimi:&lt;/b&gt; Tworzenie obrazów z użyciem zastrzeżonych postaci lub znaków towarowych bez autoryzacji jest zabronione.
 
-&lt;b&gt;Cumplimiento Legal:&lt;/b&gt; Asegúrate de que todo el contenido generado cumpla con las leyes y regulaciones de tu localidad.
+&lt;b&gt;Zgodność z prawem:&lt;/b&gt; Upewnij się, że cała generowana treść jest zgodna z prawami i regulacjami Twojej lokalizacji.
 
-El incumplimiento de estas normas puede resultar en advertencias o restricciones de cuenta.</value>
-  <!-- The HTML encoded characters like "&lt;b&gt;" and "&lt;/b&gt;" are translated directly, maintaining the structure for bold text. -->
-</data>
+Nieprzestrzeganie tych zasad może skutkować ostrzeżeniami lub ograniczeniami konta.</value>
+  </data>
   <data name="Terms.UserAgreed" xml:space="preserve">
-  <value>&lt;b&gt;Has reconocido tu aceptación de estos términos. ¡Gracias!&lt;/b&gt;</value>
-</data>
+    <value>&lt;b&gt;Potwierdziłeś swoją akceptację tych warunków. Dziękujemy!&lt;/b&gt;</value>
+  </data>
   <data name="Welcome" xml:space="preserve">
-  <value>¡Hola! Soy Makefoxbot, emocionado de ayudarte a desatar tu creatividad con imágenes fantásticas de furry, anime o dibujos animados a través de la IA.
+    <value>Witaj! Jestem Makefoxbot, cieszę się, że mogę pomóc Ci uwolnić swoją kreatywność dzięki fantastycznym obrazom furry, anime lub kreskówkowym za pomocą AI.
 
-&lt;b&gt;Para Empezar:&lt;/b&gt; Antes de sumergirnos, un rápido vistazo a la documentación de /help te preparará con lo básico. ¿Listo para explorar? Vamos a cubrir algunas reglas básicas:
+&lt;b&gt;Na start:&lt;/b&gt; Zanim zanurkujemy, szybkie przejrzenie dokumentacji /help przygotuje Cię z podstawami. Gotowy do eksploracji? Przejdźmy do kilku podstawowych zasad:
 
-&lt;b&gt;Aspectos Legales:&lt;/b&gt;
+&lt;b&gt;Kwestie prawne:&lt;/b&gt;
 
-&lt;b&gt;Verificación de Edad:&lt;/b&gt; Debes tener al menos 18 años y ser reconocido como un adulto legal en tu jurisdicción.
-&lt;b&gt;Directrices de Personajes:&lt;/b&gt; Desalentamos la representación de personajes humanos en contenido maduro, y está explícitamente prohibido crear imágenes de personajes humanos menores de edad en tales contextos.
-&lt;b&gt;Cumplimiento de Derechos de Autor:&lt;/b&gt; Utilizar personajes o marcas registradas sin autorización está prohibido.
-&lt;b&gt;Cumplimiento Legal:&lt;/b&gt; Todo el contenido debe cumplir con las leyes de EE.UU. y las regulaciones de tu localidad.
+&lt;b&gt;Weryfikacja wieku:&lt;/b&gt; Musisz mieć co najmniej 18 lat i być uznany za pełnoletniego w swojej jurysdykcji.
+&lt;b&gt;Wytyczne dotyczące postaci:&lt;/b&gt; Odradzamy przedstawianie postaci ludzkich w treściach dla dorosłych, a tworzenie obrazów postaci nieletnich w takich kontekstach jest wyraźnie zabronione.
+&lt;b&gt;Zgodność z prawami autorskimi:&lt;/b&gt; Używanie zastrzeżonych postaci lub znaków towarowych bez autoryzacji jest zabronione.
+&lt;b&gt;Zgodność z prawem:&lt;/b&gt; Wszystkie treści muszą być zgodne z prawem USA i regulacjami Twojej lokalizacji.
 
-&lt;b&gt;Propósito &amp;amp; Uso:&lt;/b&gt;
+&lt;b&gt;Cel i użytkowanie:&lt;/b&gt;
 
-&lt;b&gt;Para Aprender:&lt;/b&gt; Este bot está destinado a fines de investigación y educativos, ayudando al crecimiento personal y a la exploración creativa.
-&lt;b&gt;Descargo de Responsabilidad de Calidad:&lt;/b&gt; La naturaleza impredecible de la IA significa que las salidas a veces pueden ser dañinas, incorrectas o ofensivas. La responsabilidad del uso y distribución del contenido generado recae en ti.
-&lt;b&gt;Sin Uso Comercial:&lt;/b&gt; Las obras de arte creadas aquí no están a la venta. Mantengamos nuestras creaciones en el ámbito del uso personal y el disfrute.
-&lt;b&gt;Tu Responsabilidad:&lt;/b&gt; Cumplir con estas directrices asegura un entorno seguro y creativo para todos. Ignorarlas podría llevar a advertencias o restricciones en tu cuenta.</value>
-  <!-- I translated "&amp;amp;" as "&amp;", keeping the HTML encoding for "&" consistent. In Spanish, the structure and tone are adapted to be natural. -->
-</data>
+&lt;b&gt;Do nauki:&lt;/b&gt; Ten bot jest przeznaczony do celów badawczych i edukacyjnych, wspierając rozwój osobisty i eksplorację kreatywną.
+&lt;b&gt;Zastrzeżenie dotyczące jakości:&lt;/b&gt; Nieprzewidywalna natura AI oznacza, że wyniki mogą czasami być szkodliwe, nieprawidłowe lub obraźliwe. Odpowiedzialność za użytkowanie i dystrybucję wygenerowanych treści spoczywa na Tobie.
+&lt;b&gt;Bez użycia komercyjnego:&lt;/b&gt; Tutaj tworzone dzieła sztuki nie są na sprzedaż. Zachowajmy nasze kreacje dla osobistego użytku i rozrywki.
+&lt;b&gt;Twoja odpowiedzialność:&lt;/b&gt; Przestrzeganie tych wytycznych zapewnia bezpieczne i kreatywne środowisko dla wszystkich. Ich ignorowanie może prowadzić do ostrzeżeń lub ograniczeń na Twoim koncie.</value>
+  </data>
 </root>

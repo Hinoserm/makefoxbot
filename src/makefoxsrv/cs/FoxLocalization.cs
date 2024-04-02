@@ -106,7 +106,7 @@ namespace makefoxsrv
             // Temporary list to accumulate buttons for the current row
             var currentRowButtons = new List<TL.KeyboardButtonBase>();
 
-            int maxButtonsPerRow = 5; // Adjust as necessary
+            int maxButtonsPerRow = 4; // Adjust as necessary
 
             foreach (var language in languageLookup)
             {

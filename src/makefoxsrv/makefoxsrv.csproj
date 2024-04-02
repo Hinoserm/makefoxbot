@@ -50,11 +50,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="lang\Strings.es-ES.Designer.cs">
-      <DependentUpon>Strings.es-ES.resx</DependentUpon>
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-    </Compile>
     <Compile Update="lang\Strings.ru-RU.Designer.cs">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
@@ -68,11 +63,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Update="lang\Strings.es-ES.resx">
-      <SubType>Designer</SubType>
-      <LastGenOutput>Strings.es-ES.Designer.cs</LastGenOutput>
-      <Generator>ResXFileCodeGenerator</Generator>
-    </EmbeddedResource>
     <EmbeddedResource Update="lang\Strings.ru-RU.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Strings.ru-RU.Designer.cs</LastGenOutput>
