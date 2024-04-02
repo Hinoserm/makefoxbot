@@ -20,108 +20,143 @@ namespace makefoxsrv
 
         public static WTelegram.Client? Client
         {
-            get => _Client ?? throw new InvalidOperationException("Client is null");
+            get => _client ?? throw new InvalidOperationException("Client is null");
         }
 
         public TL.User User {
-            get => _User ?? throw new InvalidOperationException("User is null");
+            get => _user ?? throw new InvalidOperationException("User is null");
         }
 
-        public TL.ChatBase? Chat { get => _Chat; }
-        public TL.InputPeer? Peer { get => _Peer; }
+        public TL.ChatBase? Chat { get => _chat; }
+        public TL.InputPeer? Peer { get => _peer; }
 
-        private TL.User? _User;
-        private TL.ChatBase? _Chat;
-        private TL.InputPeer? _Peer;
+        private TL.User? _user;
+        private TL.ChatBase? _chat;
+        private TL.InputPeer? _peer;
 
-        private long _UserId;
-        private long? _ChatId;        
+        private long _userId;
+        private long? _chatId;
+
+        private static int appID;
+        private static string apiHash;
+        private static string botToken;
+        private static string? sessionFile = null;
 
         private static readonly Dictionary<long, User> Users = [];
         private static readonly Dictionary<long, ChatBase> Chats = [];
 
-        private static WTelegram.Client? _Client;
+        private static WTelegram.Client? _client;
 
         public FoxTelegram(User user, ChatBase? chat)
         {
-            _User = user;
-            _UserId = user.ID;
-            _Chat = chat;
+            _user = user;
+            _userId = user.ID;
+            _chat = chat;
             if (chat is not null)
             {
-                _Peer = chat;
-                _ChatId = chat.ID;
+                _peer = chat;
+                _chatId = chat.ID;
             }
             else
-                _Peer = user;
+                _peer = user;
         }
 
         public FoxTelegram(long userId, long userAccessHash, long? chatId = null, long? chatAccessHash = null)
         {
-            _UserId = userId;
-            _ChatId = chatId;
+            _userId = userId;
+            _chatId = chatId;
 
-            Users.TryGetValue(userId, out this._User);
+            Users.TryGetValue(userId, out this._user);
             if (chatId is not null)
-                Chats.TryGetValue((long)chatId, out this._Chat);
+                Chats.TryGetValue((long)chatId, out this._chat);
 
             if (chatId is not null && chatAccessHash is not null)
             {
-                _Peer = new InputPeerChannel(chatId.Value, chatAccessHash.Value);
+                _peer = new InputPeerChannel(chatId.Value, chatAccessHash.Value);
             }
             else if (chatId is not null)
             {
-                _Peer = new InputPeerChat(chatId.Value);
+                _peer = new InputPeerChat(chatId.Value);
             }
             else
             {
-                _Peer = new InputPeerUser(userId, userAccessHash);
+                _peer = new InputPeerUser(userId, userAccessHash);
             }
 
-            if (_User is null) //Make it up the best that we can.
-                _User = new() { id = userId, access_hash = userAccessHash };
+            if (_user is null) //Make it up the best that we can.
+                _user = new() { id = userId, access_hash = userAccessHash };
 
-            if (_Chat is null && chatId is not null)
+            if (_chat is null && chatId is not null)
             {
                 Chat chat = new() { id = chatId.Value };
-                _Chat = chat;
+                _chat = chat;
             }
 
             //Chat chat = new() { id = chatId, access_hash = userAccessHash };
 
-            if (this._Peer is null)
+            if (this._peer is null)
                 throw new InvalidOperationException("Peer is null");
+        }
+
+        private static async Task Client_OnOther(IObject arg)
+        {
+            if (arg is ReactorError err)
+            {
+                // typically: network connection was totally lost
+                FoxLog.WriteLine($"Fatal reactor error: {err.Exception.Message}", LogLevel.ERROR);
+                while (true)
+                {
+                    FoxLog.WriteLine("Trying to reconnect to Telegram in 5 seconds...", LogLevel.ERROR);
+
+                    await Task.Delay(5000);
+                    try
+                    {
+                        await Connect(appID, apiHash, botToken, sessionFile);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.WriteLine($"Connection still failing: {ex.Message}", LogLevel.ERROR);
+                    }
+                }
+            }
+            else
+                FoxLog.WriteLine("Other: " + arg.GetType().Name, LogLevel.ERROR);
         }
 
         public static async Task Connect(int appID, string apiHash, string botToken, string? sessionFile = null)
         {
+            FoxTelegram.appID = appID;
+            FoxTelegram.apiHash = apiHash;
+            FoxTelegram.botToken = botToken;
+            FoxTelegram.sessionFile = sessionFile;
+
             WTelegram.Helpers.Log = (i, s) =>
             {
                 //FoxLog.WriteLine(s, LogLevel.LOG_DEBUG);
+                //Console.WriteLine(s);
             };
 
-            _Client = new WTelegram.Client(appID, apiHash, sessionFile);
-
-            _Client.OnUpdate += (update) =>
+            if (_client is null)
             {
-                _ = Task.Run(async () =>
-                {
-                    await HandleUpdateAsync(update);
-                });
+                _client = new WTelegram.Client(appID, apiHash, sessionFile);
+                _client.OnOther += Client_OnOther;
+                _client.OnUpdate += HandleUpdateAsync;
+            }
+            else
+                _client.Reset(false, true);
 
-                return Task.CompletedTask;
-            };
+            _client.MaxAutoReconnects = 1;
+            _client.FloodRetryThreshold = 0;
 
-            _Client.FloodRetryThreshold = 0;
+            await _client.LoginBotIfNeeded(botToken);
 
-            await _Client.LoginBotIfNeeded(botToken);
-
-            FoxLog.WriteLine($"We are logged-in as {_Client.User} (id {_Client.User.ID})");
+            FoxLog.WriteLine($"We are logged-in as {_client.User} (id {_client.User.ID})");
         }
 
         private Peer? InputToPeer(InputPeer peer) => peer switch
         {
-            InputPeerSelf => new PeerUser { user_id = _UserId },
+            InputPeerSelf => new PeerUser { user_id = _userId },
             InputPeerUser ipu => new PeerUser { user_id = ipu.user_id },
             InputPeerChat ipc => new PeerChat { chat_id = ipc.chat_id },
             InputPeerChannel ipch => new PeerChannel { channel_id = ipch.channel_id },
@@ -133,7 +168,7 @@ namespace makefoxsrv
         public async Task<Message> SendMessageAsync(string? text = null, int replyToMessageId = 0, ReplyInlineMarkup? replyInlineMarkup = null, MessageEntity[]? entities = null,
             bool disableWebPagePreview = true, InputMedia? media = null)
         {
-            if (_Client is null)
+            if (_client is null)
                 throw new InvalidOperationException("Client is null");
 
             long random_id = Helpers.RandomLong();
@@ -143,8 +178,8 @@ namespace makefoxsrv
 
             if (media is not null)
             {
-                updates = await _Client.Messages_SendMedia(
-                    peer: _Peer,
+                updates = await _client.Messages_SendMedia(
+                    peer: _peer,
                     random_id: random_id,
                     message: text,
                     reply_to: replyToMessageId == 0 ? null : new InputReplyToMessage { reply_to_msg_id = replyToMessageId },
@@ -155,8 +190,8 @@ namespace makefoxsrv
             }
             else
             {
-                updates = await _Client.Messages_SendMessage(
-                            peer: _Peer,
+                updates = await _client.Messages_SendMessage(
+                            peer: _peer,
                             random_id: random_id,
                             message: text,
                             reply_to: replyToMessageId == 0 ? null : new InputReplyToMessage { reply_to_msg_id = replyToMessageId },
@@ -169,7 +204,7 @@ namespace makefoxsrv
             if (updates is UpdateShortSentMessage sent)
                 return new Message
                 {
-                    flags = (Message.Flags)sent.flags | (replyToMessageId == 0 ? 0 : Message.Flags.has_reply_to) | (_Peer is InputPeerSelf ? 0 : Message.Flags.has_from_id),
+                    flags = (Message.Flags)sent.flags | (replyToMessageId == 0 ? 0 : Message.Flags.has_reply_to) | (_peer is InputPeerSelf ? 0 : Message.Flags.has_from_id),
                     id = sent.id,
                     date = sent.date,
                     message = text,
@@ -178,8 +213,8 @@ namespace makefoxsrv
                     ttl_period = sent.ttl_period,
                     reply_markup = replyInlineMarkup,
                     reply_to = replyToMessageId == 0 ? null : new MessageReplyHeader { reply_to_msg_id = replyToMessageId, flags = MessageReplyHeader.Flags.has_reply_to_msg_id },
-                    from_id = _Peer is InputPeerSelf ? null : new PeerUser { user_id = _UserId },
-                    peer_id = InputToPeer(_Peer)
+                    from_id = _peer is InputPeerSelf ? null : new PeerUser { user_id = _userId },
+                    peer_id = InputToPeer(_peer)
                 };
             int msgId = -1;
             foreach (var update in updates.UpdateList)
@@ -196,11 +231,11 @@ namespace makefoxsrv
 
         public async Task EditMessageAsync(int id, string? text = null, ReplyInlineMarkup ? replyInlineMarkup = null, MessageEntity[]? entities = null)
         {
-            if (_Client is null)
+            if (_client is null)
                 throw new InvalidOperationException("Client is null");
 
-            await _Client.Messages_EditMessage(
-                peer: _Peer,
+            await _client.Messages_EditMessage(
+                peer: _peer,
                 message: text,
                 id: id,
                 reply_markup: replyInlineMarkup,
@@ -210,21 +245,21 @@ namespace makefoxsrv
 
         public async Task DeleteMessage(int id)
         {
-            if (_Client is null)
+            if (_client is null)
                 throw new InvalidOperationException("Client is null");
 
-            await _Client.DeleteMessages(
-                peer: _Peer,
+            await _client.DeleteMessages(
+                peer: _peer,
                 id: [ id ]
             );
         }
 
         public async Task SendCallbackAnswer(long queryID, int cacheTime, string? message = null)
         {
-            if (_Client is null)
+            if (_client is null)
                 throw new InvalidOperationException("Client is null");
 
-            await _Client.Messages_SetBotCallbackAnswer(queryID, cacheTime, message);
+            await _client.Messages_SetBotCallbackAnswer(queryID, cacheTime, message);
         }
             
         private static async Task HandlePayment(FoxTelegram t, MessageService ms, MessageActionPaymentSentMe payment)
@@ -258,7 +293,7 @@ Your contribution has granted you <b>{(days == -1 ? "lifetime" : $"{days} days o
 
 We are committed to using your donation to further develop and maintain the service, supporting our mission to provide a creative and expansive platform for our users. Thank you for being an integral part of our journey and for empowering us to continue offering a high-quality service.
 ";
-                var entities = _Client.HtmlToEntities(ref msg);
+                var entities = _client.HtmlToEntities(ref msg);
 
                 await t.SendMessageAsync(
                             text: msg,
@@ -500,7 +535,7 @@ We are committed to using your donation to further develop and maintain the serv
 
                                 break;
                             case UpdateBotPrecheckoutQuery upck:
-                                await _Client.Messages_SetBotPrecheckoutResults(upck.query_id, null, true);
+                                await _client.Messages_SetBotPrecheckoutResults(upck.query_id, null, true);
                                 break;
                             case UpdateReadChannelOutbox urco:
                                 //User has read our messages (and we're an admin in the channel)
@@ -1038,7 +1073,12 @@ We are committed to using your donation to further develop and maintain the serv
         internal static async Task Disconnect()
         {
             //await Client.Auth_LogOut();
-            Client.Dispose();
+            if (_client is not null)
+            {
+                _client.Reset(false, true);
+                _client.Dispose();
+            }
+            _client = null;
         }
     }
 }
