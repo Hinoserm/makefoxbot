@@ -38,7 +38,7 @@ namespace makefoxsrv
 
         public int? MaxImageSize { get; private set; } //width*height.  If null, no limit
         public int? MaxImageSteps { get; private set; } //If null, no limit
-        public int? MaxUpscaleSize { get; private set; } = 3686400; //If null, does not support upscaling
+        public int? MaxUpscaleSize { get; private set; } //If null, does not support upscaling
 
         public DateTime StartDate { get; private set; } //Worker start date
         public DateTime? TaskStartDate { get; private set; } = null;
