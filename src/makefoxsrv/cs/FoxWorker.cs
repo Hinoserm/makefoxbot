@@ -266,10 +266,10 @@ namespace makefoxsrv
 
 
                     if (!(reader["max_img_size"] is DBNull))
-                        worker.MaxImageSize = reader.GetInt32("max_image_size");
+                        worker.MaxImageSize = reader.GetInt32("max_img_size");
 
                     if (!(reader["max_img_steps"] is DBNull))
-                        worker.MaxImageSteps = reader.GetInt32("max_image_steps");
+                        worker.MaxImageSteps = reader.GetInt32("max_img_steps");
 
                     if (!(reader["max_upscale_size"] is DBNull))
                         worker.MaxUpscaleSize = reader.GetInt32("max_upscale_size");
