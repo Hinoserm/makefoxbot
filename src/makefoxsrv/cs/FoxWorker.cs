@@ -247,7 +247,7 @@ namespace makefoxsrv
 
             await SQL.OpenAsync(cancellationToken);
 
-            MySqlCommand cmd = new MySqlCommand("SELECT id, url, name FROM workers WHERE enabled > 0", SQL);
+            MySqlCommand cmd = new MySqlCommand("SELECT * FROM workers WHERE enabled > 0", SQL);
 
             using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
             {
@@ -263,6 +263,17 @@ namespace makefoxsrv
                     FoxLog.WriteLine($"Loading worker {id} - {url}");
 
                     var worker = CreateWorker(id, url, name, cancellationToken);
+
+
+                    if (!(reader["max_img_size"] is DBNull))
+                        worker.MaxImageSize = reader.GetInt32("max_image_size");
+
+                    if (!(reader["max_img_steps"] is DBNull))
+                        worker.MaxImageSteps = reader.GetInt32("max_image_steps");
+
+                    if (!(reader["max_upscale_size"] is DBNull))
+                        worker.MaxUpscaleSize = reader.GetInt32("max_upscale_size");
+
                     await worker.SetStartDate();
 
                     try

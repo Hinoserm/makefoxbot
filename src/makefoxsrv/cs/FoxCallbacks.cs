@@ -101,14 +101,15 @@ namespace makefoxsrv
                     using (var cmd = new MySqlCommand())
                     {
                         cmd.Connection = SQL;
-                        cmd.CommandText = "SELECT COUNT(id) FROM queue WHERE enhanced = 1 AND date_finished > @now - INTERVAL 10 MINUTE"; //INTERVAL 1 HOUR";
+                        cmd.CommandText = "SELECT COUNT(id) FROM queue WHERE uid = @uid AND status = 'FINISHED' AND enhanced = 1 AND date_finished > @now - INTERVAL 10 MINUTE"; //INTERVAL 1 HOUR";
+                        cmd.Parameters.AddWithValue("uid", user.UID);
                         cmd.Parameters.AddWithValue("now", DateTime.Now);
                         await using var reader = await cmd.ExecuteReaderAsync();
                         reader.Read();
                         if (reader.GetInt32(0) > 0)
                         {
                             await t.SendMessageAsync(
-                                text: $"❌ Non-members are only allowed 1 enhanced image per 10 minutes.  Please see /donate and consider a membership.",
+                                text: $"❌ Non-members are only allowed 1 enhanced image per 10 minutes.  Please see /donate and consider a membership.\n\n⚠️ This limit will increase after the testing period has ended.",
                                 replyToMessageId: query.msg_id
                             );
 
