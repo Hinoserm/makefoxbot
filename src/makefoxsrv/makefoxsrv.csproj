@@ -35,7 +35,7 @@
 
   <ItemGroup>
     <PackageReference Include="Castle.Core" Version="5.1.1" />
-    <PackageReference Include="Config.Net" Version="5.1.5" />
+    <PackageReference Include="Config.Net" Version="5.2.0" />
     <PackageReference Include="MySqlConnector" Version="2.3.6" />
     <PackageReference Include="SixLabors.Fonts" Version="2.0.3" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.3" />

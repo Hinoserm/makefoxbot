@@ -99,7 +99,7 @@ namespace makefoxsrv
                         }
                     };
 
-                    var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image)), "image.jpg");
+                    var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image), 80, 1280), "image.jpg");
 
                     //var msg = await FoxTelegram.Client.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
 
@@ -189,15 +189,25 @@ namespace makefoxsrv
             //FoxLog.WriteLine("Upload Complete");
         }
 
-        private static MemoryStream ConvertImageToJpeg(MemoryStream inputImageStream, int quality = 85)
+        private static MemoryStream ConvertImageToJpeg(MemoryStream inputImageStream, int quality = 85, uint? maxDimension = 1280)
         {
             var outputStream = new MemoryStream();
             using (var image = Image.Load(inputImageStream))
             {
+                if (maxDimension is not null)
+                {
+                    (uint newWidth, uint newHeight) = FoxImage.CalculateLimitedDimensions((uint)image.Width, (uint)image.Height, maxDimension.Value);
+
+                    image.Mutate(x => x.Resize(new ResizeOptions
+                    {
+                        Size = new Size((int)newWidth, (int)newHeight),
+                        Mode = ResizeMode.Max
+                    }));
+                }
+
                 image.SaveAsJpeg(outputStream, new JpegEncoder { Quality = quality });
                 outputStream.Position = 0;
 
-                //FoxLog.WriteLine($"ConvertImagetoJpeg({quality}%): " + Math.Round(inputImageStream.Length / 1024.0, 2) + "kb > " + Math.Round(outputStream.Length / 1024.0, 2) + "kb");
                 return outputStream;
             }
         }

@@ -332,7 +332,12 @@ namespace makefoxsrv
             try
             {
                 if (this.api is null)
-                    this.api = new StableDiffusion(address);
+                {
+                    this.api = new StableDiffusion(address)
+                    {
+                        TimeoutSlow = TimeSpan.FromMinutes(3)
+                    };
+                }
 
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
 

@@ -134,12 +134,9 @@ namespace makefoxsrv
 
             var settings = q.Settings;
 
-            (settings.UpscalerWidth, settings.UpscalerHeight) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1536);
+            (settings.UpscalerWidth, settings.UpscalerHeight) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
 
             settings.Enhance = true;
-            settings.UpscalerName = "R-ESRGAN 4x+";
-            settings.UpscalerSteps = 20;
-            settings.UpscalerDenoiseStrength = (decimal)0.55;
 
             var generationType = q.Type;
 
