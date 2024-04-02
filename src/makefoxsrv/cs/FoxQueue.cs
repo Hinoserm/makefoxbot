@@ -233,8 +233,8 @@ namespace makefoxsrv
                                  && (worker.qItem == null)  // Worker is not currently busy
                                  && (!worker.MaxImageSize.HasValue || (item.Settings.width * item.Settings.height) <= worker.MaxImageSize.Value)
                                  && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
-                                 && ((worker.MaxUpscaleSize.HasValue && (item.Settings.UpscalerWidth ?? 0 * item.Settings.UpscalerWidth ?? 0) <= worker.MaxUpscaleSize.Value)
-                                 || (!worker.MaxUpscaleSize.HasValue && !item.Settings.Enhance)))
+                                 && ((worker.MaxUpscaleSize.HasValue && ((item.Settings.UpscalerWidth ?? 0) * (item.Settings.UpscalerWidth ?? 0)) <= worker.MaxUpscaleSize.Value)
+                                     || (!worker.MaxUpscaleSize.HasValue && !item.Settings.Enhance)))
                 .ToList();
 
             // Prioritize workers who already have the model loaded.
