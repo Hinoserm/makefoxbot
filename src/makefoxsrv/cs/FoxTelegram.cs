@@ -100,28 +100,34 @@ namespace makefoxsrv
 
         private static async Task Client_OnOther(IObject arg)
         {
-            if (arg is ReactorError err)
+            switch (arg)
             {
-                // typically: network connection was totally lost
-                FoxLog.WriteLine($"Fatal reactor error: {err.Exception.Message}", LogLevel.ERROR);
-                while (true)
-                {
-                    FoxLog.WriteLine("Trying to reconnect to Telegram in 5 seconds...", LogLevel.ERROR);
 
-                    await Task.Delay(5000);
-                    try
+                case ReactorError err:
+                // typically: network connection was totally lost
+                    FoxLog.WriteLine($"Fatal reactor error: {err.Exception.Message}", LogLevel.ERROR);
+                    while (true)
                     {
-                        await Connect(appID, apiHash, botToken, sessionFile);
-                        break;
+                        FoxLog.WriteLine("Trying to reconnect to Telegram in 5 seconds...", LogLevel.ERROR);
+
+                        await Task.Delay(5000);
+                        try
+                        {
+                            await Connect(appID, apiHash, botToken, sessionFile);
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            FoxLog.WriteLine($"Connection still failing: {ex.Message}", LogLevel.ERROR);
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        FoxLog.WriteLine($"Connection still failing: {ex.Message}", LogLevel.ERROR);
-                    }
-                }
-            }
-            else
-                FoxLog.WriteLine("Other: " + arg.GetType().Name, LogLevel.ERROR);
+                    break;
+                case TL.Pong:
+                    break; //Don't care about these.
+                default:
+                    FoxLog.WriteLine("TelegramClient_OnOther: " + arg.GetType().Name, LogLevel.DEBUG);
+                    break;
+            }                
         }
 
         public static async Task Connect(int appID, string apiHash, string botToken, string? sessionFile = null)
