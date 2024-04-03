@@ -378,8 +378,6 @@ We sincerely appreciate your support and understanding. Your contribution direct
             {
                 FoxLog.WriteLine("Error: " + ex.Message);
             }
-
-            FoxWorker.Ping();
         }
 
         //[CommandDescription("Select your last uploaded image as the input for /img2img")]
@@ -558,14 +556,15 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             //await q.CheckPosition(); // Load the queue position and total.
 
-            FoxWorker.Ping();
+            (int position, int totalItems) = q.GetPosition();
+
+            await FoxQueue.Enqueue(q);
 
             try
             {
                 await t.EditMessageAsync(
-                    id: message.ID,
-                    //text: $"⏳ In queue ({q.position} of {q.total})..."
-                    text: $"⏳ Added to queue..."
+                    id: waitMsg.ID,
+                    text: $"⏳ In queue ({position} of {totalItems + 1})..."
                 );
             }
             catch { }
@@ -645,15 +644,20 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             //FoxWorker.Ping();
 
+            (int position, int totalItems) = q.GetPosition();
+
+            await FoxQueue.Enqueue(q);
+
             try
             {
                 await t.EditMessageAsync(
                     id: waitMsg.ID,
-                    //text: $"⏳ In queue ({q.position} of {q.total})..."
-                    text: $"⏳ Added to queue..."
+                    text: $"⏳ In queue ({position} of {totalItems+1})..."
                 );
             }
             catch { }
+
+            
         }
 
         [CommandDescription("Change current AI model.")]

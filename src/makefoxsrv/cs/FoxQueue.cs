@@ -408,6 +408,27 @@ namespace makefoxsrv
             FoxLog.WriteLine($"Task {this.ID} status set to {status}", LogLevel.DEBUG);
         }
 
+        public (int position, int totalItems) GetPosition()
+        {
+            int position = 1; // Start counting positions from 1
+            int totalItems = priorityQueue.Count;
+
+            lock (lockObj)
+            {
+                foreach (var queueItem in priorityQueue.UnorderedItems)
+                {
+                    if (queueItem.Element.ID == this.ID)
+                    {
+                        break; // Found the item, break the loop
+                    }
+                    position++;
+                }
+            }
+
+            return (position, totalItems);
+        }
+
+
         public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings settings, QueueType type, int messageID, int? replyMessageID = null)
         {
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
@@ -466,8 +487,6 @@ namespace makefoxsrv
             await cmd.ExecuteNonQueryAsync();
 
             q.ID = (ulong)cmd.LastInsertedId;
-
-            _= FoxQueue.Enqueue(q);
 
             return q;
         }
