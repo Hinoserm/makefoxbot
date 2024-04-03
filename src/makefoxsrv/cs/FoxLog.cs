@@ -19,7 +19,7 @@ namespace makefoxsrv
 {
     internal class FoxLog
     {
-        public static LogLevel CurrentLogLevel { get; set; } = LogLevel.DEBUG;
+        public static LogLevel CurrentLogLevel { get; set; } = LogLevel.INFO;
 
         public static void WriteLine(string message, LogLevel level = LogLevel.INFO, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {

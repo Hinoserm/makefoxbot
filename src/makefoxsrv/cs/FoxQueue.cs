@@ -187,8 +187,8 @@ namespace makefoxsrv
                         FoxQueue? itemToAssign = null;
                         FoxWorker? suitableWorker = null;
 
-                        FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
-                        await queueSemaphore.WaitAsync(cancellationToken);
+                        //FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
+                        await queueSemaphore.WaitAsync(5000, cancellationToken);
 
                         //FoxLog.WriteLine("Locking...", LogLevel.DEBUG);
                         lock (lockObj)
@@ -210,8 +210,6 @@ namespace makefoxsrv
 
                         if (itemToAssign is not null)
                             FoxLog.WriteLine($"Found {itemToAssign.ID} for worker {suitableWorker?.name ?? "None"}", LogLevel.DEBUG);
-                        else
-                            FoxLog.WriteLine("No task found", LogLevel.DEBUG);
 
                         if (itemToAssign is not null && suitableWorker is not null)
                         {
