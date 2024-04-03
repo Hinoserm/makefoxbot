@@ -170,7 +170,7 @@ namespace makefoxsrv
                         FoxWorker? suitableWorker = null;
 
                         FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
-                        await queueSemaphore.WaitAsync(5000, cancellationToken);
+                        await queueSemaphore.WaitAsync(50000, cancellationToken);
 
                         //FoxLog.WriteLine("Locking...", LogLevel.DEBUG);
                         lock (lockObj)
