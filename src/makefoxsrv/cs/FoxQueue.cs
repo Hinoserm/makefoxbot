@@ -76,7 +76,8 @@ namespace makefoxsrv
         public int? WorkerID { get; private set; } = null;
 
         private static readonly object lockObj = new object();
-        private static PriorityQueue<FoxQueue, (int Priority, ulong InverseId)> priorityQueue = new PriorityQueue<FoxQueue, (int, ulong)>();
+        private static List<(FoxQueue task, int priority, DateTime dateStarted)> taskList = new List<(FoxQueue task, int priority, DateTime dateStarted)>();
+
         private static Dictionary<AccessLevel, int> priorityMap = new Dictionary<AccessLevel, int>
             {
                 { AccessLevel.ADMIN, 4 },  // Highest priority
@@ -91,6 +92,7 @@ namespace makefoxsrv
 
         static FoxQueue()
         {
+            FoxWorker.OnTaskCompleted += (sender, args) => _ = queueSemaphore.Release();
             FoxWorker.OnTaskCompleted += (sender, args) => _ = queueSemaphore.Release();
             FoxWorker.OnWorkerStart += (sender, args) => _ = queueSemaphore.Release();
             FoxWorker.OnWorkerOnline += (sender, args) => _ = queueSemaphore.Release();
@@ -115,12 +117,13 @@ namespace makefoxsrv
             }
             else
             {
-                
                 lock (lockObj)
                 {
-                    // Determine the priority based on the user's access level
-                    int priorityLevel = priorityMap[item.User.GetAccessLevel()];
-                    priorityQueue.Enqueue(item, (priorityLevel, item.ID));
+                    int priorityLevel = item.Settings.Enhance ? 0 : priorityMap[item.User.GetAccessLevel()];
+                    taskList.Add((item, priorityLevel, item.DateCreated));
+
+                    // Sort by priority, then by DateStarted as a secondary criteria
+                    taskList.Sort((x, y) => x.priority != y.priority ? x.priority.CompareTo(y.priority) : x.dateStarted.CompareTo(y.dateStarted));
                 }
                 queueSemaphore.Release();
 
@@ -158,6 +161,21 @@ namespace makefoxsrv
             }
         }
 
+        public static FoxQueue? TryDequeue()
+        {
+            lock (lockObj)
+            {
+                if (taskList.Any())
+                {
+                    var task = taskList.First();
+                    taskList.RemoveAt(0); // Remove the task from the list
+                    return task.task;
+                }
+            }
+
+            return null;
+        }
+
         public static void StartTaskLoop(CancellationToken cancellationToken)
         {
             _ = Task.Run(async () =>
@@ -170,46 +188,46 @@ namespace makefoxsrv
                         FoxWorker? suitableWorker = null;
 
                         FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
-                        await queueSemaphore.WaitAsync(500, cancellationToken);
+                        await queueSemaphore.WaitAsync(cancellationToken);
 
                         //FoxLog.WriteLine("Locking...", LogLevel.DEBUG);
                         lock (lockObj)
                         {
-                            //FoxLog.WriteLine("Lock successful...", LogLevel.DEBUG);
-                            if (priorityQueue.TryPeek(out FoxQueue? item, out var itemPriority))
+                            for (int i = 0; i < taskList.Count; i++)
                             {
-                                suitableWorker = FindSuitableWorkerForTask(item);
+                                var potentialItem = taskList[i].task;
+                                suitableWorker = FindSuitableWorkerForTask(potentialItem);
                                 if (suitableWorker != null)
                                 {
-                                    priorityQueue.TryDequeue(out itemToAssign, out itemPriority);
+                                    // Found a suitable worker for the task
+                                    itemToAssign = potentialItem;
+                                    taskList.RemoveAt(i); // Remove the task from the list since it's being assigned
+                                    break; // Exit the loop as we've found a task to assign
                                 }
-                                //else
-                                //    semaphore.Release();
                             }
                         }
+
 
                         if (itemToAssign is not null)
                             FoxLog.WriteLine($"Found {itemToAssign.ID} for worker {suitableWorker?.name ?? "None"}", LogLevel.DEBUG);
                         else
                             FoxLog.WriteLine("No task found", LogLevel.DEBUG);
 
-                        if (itemToAssign is not null)
+                        if (itemToAssign is not null && suitableWorker is not null)
                         {
-                            FoxLog.WriteLine($"Task popped from queue: {itemToAssign.ID}", LogLevel.DEBUG);
-
-                            if (suitableWorker is not null)
+                            if (!suitableWorker.AssignTask(itemToAssign))
                             {
-                                if (!suitableWorker.AssignTask(itemToAssign))
-                                {
-                                    FoxLog.WriteLine($"Failed to assign task {itemToAssign.ID} to {suitableWorker.name}", LogLevel.DEBUG);
-                                    _ = Enqueue(itemToAssign); // Re-enqueue the task
-                                }
-                                else
-                                {
-                                    FoxLog.WriteLine($"Assigned task {itemToAssign.ID}  to {suitableWorker?.name}", LogLevel.DEBUG);
-                                }
+                                FoxLog.WriteLine($"Failed to assign task {itemToAssign.ID} to {suitableWorker.name}", LogLevel.DEBUG);
+                                _ = Enqueue(itemToAssign); // Re-enqueue the task
+                            }
+                            else
+                            {
+                                FoxLog.WriteLine($"Assigned task {itemToAssign.ID}  to {suitableWorker?.name}", LogLevel.DEBUG);
                             }
                         }
+                        else if (itemToAssign is not null)
+                            _ = Enqueue(itemToAssign); // No suitable worker found, re-enqueue the task
+
                     }
                     catch (OperationCanceledException)
                     {
@@ -408,26 +426,54 @@ namespace makefoxsrv
             FoxLog.WriteLine($"Task {this.ID} status set to {status}", LogLevel.DEBUG);
         }
 
-        public (int position, int totalItems) GetPosition()
+        public static (int hypotheticalPosition, int totalItems) GetNextPosition(FoxUser user, bool Enhanced)
         {
-            int position = 1; // Start counting positions from 1
-            int totalItems = priorityQueue.Count;
+            int priorityLevel = Enhanced ? 0 : priorityMap[user.GetAccessLevel()];
+            DateTime dateStarted = DateTime.Now;
+            int hypotheticalPosition = 1; // Start from 1 to match your existing indexing logic
 
             lock (lockObj)
             {
-                foreach (var queueItem in priorityQueue.UnorderedItems)
+                int totalItems = taskList.Count;
+
+                foreach (var (task, priority, started) in taskList)
                 {
-                    if (queueItem.Element.ID == this.ID)
+                    // If the hypothetical task would come after the current task in the list
+                    if (priority > priorityLevel || (priority == priorityLevel && started > dateStarted))
+                    {
+                        break; // Found where the hypothetical task would fit
+                    }
+                    hypotheticalPosition++;
+                }
+
+                return (hypotheticalPosition, totalItems + 1); // +1 because we're considering the task as if it were added
+            }
+        }
+
+        public (int position, int totalItems) GetPosition()
+        {
+            int position = 1; // Start counting positions from 1
+            int totalItems = 0; // Initialize total items count
+
+            lock (lockObj)
+            {
+                totalItems = taskList.Count; // Get the total number of items in the list
+
+                foreach (var (task, _, _) in taskList)
+                {
+                    if (task.ID == this.ID)
                     {
                         break; // Found the item, break the loop
                     }
                     position++;
                 }
+
+                // If the task is not found, reset position to indicate it's not in the list
+                if (position > totalItems) position = -1;
             }
 
             return (position, totalItems);
         }
-
 
         public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings settings, QueueType type, int messageID, int? replyMessageID = null)
         {

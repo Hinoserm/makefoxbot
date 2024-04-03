@@ -374,7 +374,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
                 await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
                 FoxLog.WriteLine("Error: " + ex.Message);
             }
@@ -545,29 +545,18 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
+            (int position, int totalItems) = FoxQueue.GetNextPosition(user, settings.Enhance);
+
             Message waitMsg = await t.SendMessageAsync(
-                text: $"⏳ Adding to queue...",
+                text: $"⏳ Adding to queue ({{position}} of {{totalItems}})...",
                 replyToMessageId: message.ID
             );
 
-            var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, message.ID);
+            var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
-            //await q.CheckPosition(); // Load the queue position and total.
-
-            (int position, int totalItems) = q.GetPosition();
-
             await FoxQueue.Enqueue(q);
-
-            try
-            {
-                await t.EditMessageAsync(
-                    id: waitMsg.ID,
-                    text: $"⏳ In queue ({position} of {totalItems + 1})..."
-                );
-            }
-            catch { }
 
         }
 
@@ -631,33 +620,18 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
+            (int position, int totalItems) = FoxQueue.GetNextPosition(user, settings.Enhance);
+
             Message waitMsg = await t.SendMessageAsync(
-                text: $"⏳ Adding to queue...",
+                text: $"⏳ Adding to queue ({{position}} of {{totalItems}})...",
                 replyToMessageId: message.ID
             );
 
             var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
             if (q is null)
-                throw new Exception("Unable to add item to queue");
+                throw new Exception("Unable to add item to queue");            
 
-            //await q.CheckPosition(); // Load the queue position and total.
-
-            //FoxWorker.Ping();
-
-            (int position, int totalItems) = q.GetPosition();
-
-            await FoxQueue.Enqueue(q);
-
-            try
-            {
-                await t.EditMessageAsync(
-                    id: waitMsg.ID,
-                    text: $"⏳ In queue ({position} of {totalItems+1})..."
-                );
-            }
-            catch { }
-
-            
+            await FoxQueue.Enqueue(q);           
         }
 
         [CommandDescription("Change current AI model.")]
