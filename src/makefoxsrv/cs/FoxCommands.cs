@@ -552,7 +552,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 replyToMessageId: message.ID
             );
 
-            var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
+            var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, message.ID);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
