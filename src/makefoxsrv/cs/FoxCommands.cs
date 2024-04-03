@@ -548,7 +548,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
             (int position, int totalItems) = FoxQueue.GetNextPosition(user, settings.Enhance);
 
             Message waitMsg = await t.SendMessageAsync(
-                text: $"⏳ Adding to queue ({{position}} of {{totalItems}})...",
+                text: $"⏳ Adding to queue ({position} of {totalItems})...",
                 replyToMessageId: message.ID
             );
 
@@ -623,7 +623,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
             (int position, int totalItems) = FoxQueue.GetNextPosition(user, settings.Enhance);
 
             Message waitMsg = await t.SendMessageAsync(
-                text: $"⏳ Adding to queue ({{position}} of {{totalItems}})...",
+                text: $"⏳ Adding to queue ({position} of {totalItems})...",
                 replyToMessageId: message.ID
             );
 
