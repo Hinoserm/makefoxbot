@@ -422,7 +422,7 @@ namespace makefoxsrv
                 foreach (var (task, priority, started) in taskList)
                 {
                     // If the hypothetical task would come after the current task in the list
-                    if (priority > priorityLevel || (priority == priorityLevel && started > dateStarted))
+                    if (priority < priorityLevel || (priority == priorityLevel && started > dateStarted))
                     {
                         break; // Found where the hypothetical task would fit
                     }
