@@ -158,8 +158,10 @@ namespace makefoxsrv
                 return;
             }
 
+            (int position, int totalItems) = FoxQueue.GetNextPosition(user, settings.Enhance);
+
             Message waitMsg = await t.SendMessageAsync(
-                text: $"⏳ Adding to queue...",
+                text: $"⏳ Adding to queue ({position} of {totalItems})...",
                 replyToMessageId: query.msg_id
             );
 
@@ -167,19 +169,7 @@ namespace makefoxsrv
             if (newq is null)
                 throw new Exception("Unable to add item to queue");
 
-            //await q.CheckPosition(); // Load the queue position and total.
-
-            //FoxWorker.Ping();
-
-            try
-            {
-                await t.EditMessageAsync(
-                    id: waitMsg.ID,
-                    //text: $"⏳ In queue ({q.position} of {q.total})..."
-                    text: $"⏳ Added to queue..."
-                );
-            }
-            catch { }
+            await FoxQueue.Enqueue(newq);
 
 
 
