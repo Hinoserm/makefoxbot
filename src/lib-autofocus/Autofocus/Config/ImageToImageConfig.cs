@@ -25,6 +25,8 @@ public record ImageToImageConfig
 
     public uint? ClipSkip { get; init; }
 
+    public int ResizeMode { get; set; }
+
     public Base64EncodedImage? Mask { get; set; }
     public int MaskBlur { get; set; }
     public MaskFillMode? InpaintingFill { get; set; }
@@ -177,6 +179,9 @@ internal class ImageToImageConfigRequest
     [JsonPropertyName("alwayson_scripts")]
     public Dictionary<string, object> AlwaysOnScripts { get; set; } = new();
 
+    [JsonPropertyName("resize_mode")]
+    public int ResizeMode { get; init; }
+
 
     public ImageToImageConfigRequest(ImageToImageConfig config)
     {
@@ -206,6 +211,7 @@ internal class ImageToImageConfigRequest
         InpaintingMaskInvert = config.InpaintingMaskInvert;
         IncludeInitImages = false;
         ForceTaskId = config.TaskId;
+        ResizeMode = config.ResizeMode;
 
         if (config.Script != null)
         {

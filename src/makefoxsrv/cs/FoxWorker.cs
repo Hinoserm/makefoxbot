@@ -1047,6 +1047,8 @@ namespace makefoxsrv
                             {
                                 Seed = settings.seed
                             },
+                            ResizeMode = settings.Enhance ? 0 : 2, //Testing this
+                            InpaintingFill = MaskFillMode.original,
 
                             DenoisingStrength = (double)settings.denoising_strength,
 

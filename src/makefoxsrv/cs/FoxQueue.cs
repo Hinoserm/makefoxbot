@@ -123,7 +123,7 @@ namespace makefoxsrv
                     taskList.Add((item, priorityLevel, item.DateCreated));
 
                     // Sort by priority, then by DateStarted as a secondary criteria
-                    taskList.Sort((x, y) => x.priority != y.priority ? x.priority.CompareTo(y.priority) : x.dateStarted.CompareTo(y.dateStarted));
+                    taskList.Sort((x, y) => x.priority != y.priority ? y.priority.CompareTo(x.priority) : x.dateStarted.CompareTo(y.dateStarted));
                 }
                 queueSemaphore.Release();
 
@@ -159,21 +159,6 @@ namespace makefoxsrv
                 delayedTaskTimer?.Dispose();
                 delayedTaskTimer = null;
             }
-        }
-
-        public static FoxQueue? TryDequeue()
-        {
-            lock (lockObj)
-            {
-                if (taskList.Any())
-                {
-                    var task = taskList.First();
-                    taskList.RemoveAt(0); // Remove the task from the list
-                    return task.task;
-                }
-            }
-
-            return null;
         }
 
         public static void StartTaskLoop(CancellationToken cancellationToken)
