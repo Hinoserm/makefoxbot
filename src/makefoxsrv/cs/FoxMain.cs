@@ -168,7 +168,9 @@ namespace makefoxsrv
         {
             using CancellationTokenSource cts = new();
 
-            FoxUI.Init(); //Must be the first thing we do, before printing to the console.
+            Console.BufferHeight = Int16.MaxValue - 1;
+
+            //FoxUI.Init(); //Must be the first thing we do, before printing to the console.
 
             FoxLog.WriteLine($"Hello, World!  Version {GetVersion()}");
 

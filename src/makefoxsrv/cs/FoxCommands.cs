@@ -372,7 +372,9 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 if (waitMsg is null)
                     throw new Exception("Unable to send start message.  Giving up.");
 
-                await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
+                var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
+
+                await FoxQueue.Enqueue(q);
             }
             catch (Exception ex)
             {

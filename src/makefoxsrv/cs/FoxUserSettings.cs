@@ -28,56 +28,67 @@ namespace makefoxsrv
         public uint? UpscalerHeight;
         public uint? UpscalerSteps;
 
+        [DbColumn("steps")]
         public int steps
         {
             get => _steps ?? FoxSettings.Get<int>("DefaultSteps");
             set => _steps = value;
         }
 
+        [DbColumn("cfgscale")]
         public decimal cfgscale
         {
             get => _cfgscale ?? FoxSettings.Get<decimal>("DefaultCFGScale");
             set => _cfgscale = value;
         }
 
+        [DbColumn("prompt")]
         public string? prompt
         {
             get => _prompt ?? FoxSettings.Get<string?>("DefaultPrompt");
             set => _prompt = value;
         }
 
+        [DbColumn("negative_prompt")]
         public string? negative_prompt
         {
             get => _negative_prompt ?? FoxSettings.Get<string?>("DefaultNegative");
             set => _negative_prompt = value;
         }
 
+        [DbColumn("width")]
         public uint width
         {
             get => _width ?? FoxSettings.Get<uint>("DefaultWidth");
             set => _width = value;
         }
 
+        [DbColumn("height")]
         public uint height
         {
             get => _height ?? FoxSettings.Get<uint>("DefaultHeight");
             set => _height = value;
         }
 
+        [DbColumn("denoising_strength")]
         public decimal denoising_strength
         {
             get => _denoising_strength ?? FoxSettings.Get<decimal>("DefaultDenoise");
             set => _denoising_strength = value;
         }
 
+
+        [DbColumn("model")]
         public string? model
         {
             get => _model ?? FoxSettings.Get<string>("DefaultModel");
             set => _model = value;
         }
 
+        [DbColumn("seed")]
         public int seed = -1;
-        
+
+        [DbColumn("selected_image")]
         public ulong selected_image = 0;
 
         public long TelegramUserID = 0;

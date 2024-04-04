@@ -137,7 +137,7 @@ namespace makefoxsrv
             (settings.UpscalerWidth, settings.UpscalerHeight) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
 
             settings.Enhance = true;
-            settings.seed = -1;
+            //settings.seed = -1;
             settings.steps = 10;
 
             var generationType = q.Type;
@@ -145,7 +145,7 @@ namespace makefoxsrv
             if (generationType == FoxQueue.QueueType.TXT2IMG)
             {
                 generationType = FoxQueue.QueueType.IMG2IMG;
-                settings.denoising_strength = 0.40M;
+                settings.denoising_strength = 0.50M;
             }
 
             settings.selected_image = q.OutputImageID.Value;

@@ -42,28 +42,56 @@ namespace makefoxsrv
         }
         private static readonly SemaphoreSlim semaphore = new SemaphoreSlim(0);
 
+        [DbColumn("status")]
         public QueueStatus status = QueueStatus.PENDING;
 
+        [DbColumn("retry_date")]
         public DateTime? RetryDate { get; private set; } = null;
+
+        [DbColumn("date_failed")]
         public DateTime? DateLastFailed { get; private set; } = null;
+
+        [DbColumnMapping("LastException.Message", "error_str", true)]
         public Exception? LastException { get; private set; } = null;
 
-        public FoxUserSettings? Settings = null;
+        [DbInclude()]
+        public FoxUserSettings Settings = new();
+
+        [DbColumnMapping("User.UID", "uid")]
         public FoxUser? User = null;
 
+        [DbColumn("id")]
         public ulong ID { get; private set; }
+        [DbColumn("reply_msg")]
         public int? ReplyMessageID { get; private set; }
 
+        [DbColumn("type")]
         public QueueType Type { get; private set; }
+
+        [DbColumn("msg_id")]
         public int MessageID { get; private set; }
+
+        [DbColumn("date_added")]
         public DateTime DateCreated { get; private set; }
+
+        [DbColumn("date_worker_start")]
         public DateTime? DateStarted { get; private set; } = null;
+
+        [DbColumn("date_sent")]
         public DateTime? DateSent { get; private set; } = null;
+
+        [DbColumn("date_finished")]
         public DateTime? DateFinished { get; private set; } = null;
+
+        [DbColumn("link_token")]
         public string? LinkToken { get; private set; } = null;
 
+
+        [DbColumnMapping("Telegram.User.ID", "tele_id", true)]
+        [DbColumnMapping("Telegram.Chat.ID", "tele_chatid", true)]
         public FoxTelegram? Telegram { get; private set; }
 
+        [DbColumn("image_id")]
         public ulong? OutputImageID { get; set; }
 
         private FoxImage? _outputImage;
@@ -73,6 +101,8 @@ namespace makefoxsrv
 
         private Stopwatch UserNotifyTimer = new Stopwatch();
         public FoxWorker? Worker { get; private set; } = null;
+
+        [DbColumn("worker")]
         public int? WorkerID { get; private set; } = null;
 
         private static readonly object lockObj = new object();
@@ -289,10 +319,7 @@ namespace makefoxsrv
 
                 while (await r.ReadAsync())
                 {
-                    var q = new FoxQueue();
-                    var settings = new FoxUserSettings();
-
-                    q.ID = Convert.ToUInt64(r["id"]);
+                    var q = await FoxDB.LoadObjectAsync<FoxQueue>(r);
 
                     q.User = await FoxUser.GetByUID(Convert.ToInt64(r["uid"]));
 
@@ -301,52 +328,66 @@ namespace makefoxsrv
 
                     q.Telegram = new FoxTelegram((long)r["tele_id"], (long)r["user_access_hash"], teleChatId, teleChatHash);
 
-                    q.Type = Enum.Parse<FoxQueue.QueueType>(Convert.ToString(r["type"]) ?? "UNKNOWN");
-
-                    if (!(r["steps"] is DBNull))
-                        settings.steps = Convert.ToInt16(r["steps"]);
-                    if (!(r["cfgscale"] is DBNull))
-                        settings.cfgscale = Convert.ToDecimal(r["cfgscale"]);
-                    if (!(r["prompt"] is DBNull))
-                        settings.prompt = Convert.ToString(r["prompt"]);
-                    if (!(r["negative_prompt"] is DBNull))
-                        settings.negative_prompt = Convert.ToString(r["negative_prompt"]);
-                    if (!(r["selected_image"] is DBNull))
-                        settings.selected_image = Convert.ToUInt64(r["selected_image"]);
-                    if (!(r["width"] is DBNull))
-                        settings.width = Convert.ToUInt32(r["width"]);
-                    if (!(r["height"] is DBNull))
-                        settings.height = Convert.ToUInt32(r["height"]);
-                    if (!(r["denoising_strength"] is DBNull))
-                        settings.denoising_strength = Convert.ToDecimal(r["denoising_strength"]);
-                    if (!(r["seed"] is DBNull))
-                        settings.seed = Convert.ToInt32(r["seed"]);
-                    if (!(r["model"] is DBNull))
-                        settings.model = Convert.ToString(r["model"]);
-                    if (!(r["reply_msg"] is DBNull))
-                        q.ReplyMessageID = Convert.ToInt32(r["reply_msg"]);
-                    if (!(r["msg_id"] is DBNull))
-                        q.MessageID = Convert.ToInt32(r["msg_id"]);
-                    if (!(r["date_added"] is DBNull))
-                        q.DateCreated = Convert.ToDateTime(r["date_added"]);
-                    if (!(r["link_token"] is DBNull))
-                        q.LinkToken = Convert.ToString(r["link_token"]);
-
-                    if (!(r["enhanced"] is DBNull))
-                        settings.Enhance = Convert.ToBoolean(r["enhanced"]);
-                    if (!(r["upscaler_name"] is DBNull))
-                        settings.UpscalerName = Convert.ToString(r["upscaler_name"]);
-                    if (!(r["upscaler_denoise"] is DBNull))
-                        settings.UpscalerDenoiseStrength = Convert.ToDecimal(r["upscaler_denoise"]);
-                    if (!(r["upscaler_width"] is DBNull))
-                        settings.UpscalerWidth = Convert.ToUInt32(r["upscaler_width"]);
-                    if (!(r["upscaler_height"] is DBNull))
-                        settings.UpscalerHeight = Convert.ToUInt32(r["upscaler_height"]);
-                    if (!(r["upscaler_steps"] is DBNull))
-                        settings.UpscalerSteps = Convert.ToUInt32(r["upscaler_steps"]);
 
 
-                    q.Settings = settings;
+                    //var q = new FoxQueue();
+                    //var settings = new FoxUserSettings();
+
+                    //q.ID = Convert.ToUInt64(r["id"]);
+
+                    //q.User = await FoxUser.GetByUID(Convert.ToInt64(r["uid"]));
+
+                    //long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
+                    //long? teleChatHash = r["chat_access_hash"] is DBNull ? null : (long)r["chat_access_hash"];
+
+                    //q.Telegram = new FoxTelegram((long)r["tele_id"], (long)r["user_access_hash"], teleChatId, teleChatHash);
+
+                    //q.Type = Enum.Parse<FoxQueue.QueueType>(Convert.ToString(r["type"]) ?? "UNKNOWN");
+
+                    //if (!(r["steps"] is DBNull))
+                    //    settings.steps = Convert.ToInt16(r["steps"]);
+                    //if (!(r["cfgscale"] is DBNull))
+                    //    settings.cfgscale = Convert.ToDecimal(r["cfgscale"]);
+                    //if (!(r["prompt"] is DBNull))
+                    //    settings.prompt = Convert.ToString(r["prompt"]);
+                    //if (!(r["negative_prompt"] is DBNull))
+                    //    settings.negative_prompt = Convert.ToString(r["negative_prompt"]);
+                    //if (!(r["selected_image"] is DBNull))
+                    //    settings.selected_image = Convert.ToUInt64(r["selected_image"]);
+                    //if (!(r["width"] is DBNull))
+                    //    settings.width = Convert.ToUInt32(r["width"]);
+                    //if (!(r["height"] is DBNull))
+                    //    settings.height = Convert.ToUInt32(r["height"]);
+                    //if (!(r["denoising_strength"] is DBNull))
+                    //    settings.denoising_strength = Convert.ToDecimal(r["denoising_strength"]);
+                    //if (!(r["seed"] is DBNull))
+                    //    settings.seed = Convert.ToInt32(r["seed"]);
+                    //if (!(r["model"] is DBNull))
+                    //    settings.model = Convert.ToString(r["model"]);
+                    //if (!(r["reply_msg"] is DBNull))
+                    //    q.ReplyMessageID = Convert.ToInt32(r["reply_msg"]);
+                    //if (!(r["msg_id"] is DBNull))
+                    //    q.MessageID = Convert.ToInt32(r["msg_id"]);
+                    //if (!(r["date_added"] is DBNull))
+                    //    q.DateCreated = Convert.ToDateTime(r["date_added"]);
+                    //if (!(r["link_token"] is DBNull))
+                    //    q.LinkToken = Convert.ToString(r["link_token"]);
+
+                    //if (!(r["enhanced"] is DBNull))
+                    //    settings.Enhance = Convert.ToBoolean(r["enhanced"]);
+                    //if (!(r["upscaler_name"] is DBNull))
+                    //    settings.UpscalerName = Convert.ToString(r["upscaler_name"]);
+                    //if (!(r["upscaler_denoise"] is DBNull))
+                    //    settings.UpscalerDenoiseStrength = Convert.ToDecimal(r["upscaler_denoise"]);
+                    //if (!(r["upscaler_width"] is DBNull))
+                    //    settings.UpscalerWidth = Convert.ToUInt32(r["upscaler_width"]);
+                    //if (!(r["upscaler_height"] is DBNull))
+                    //    settings.UpscalerHeight = Convert.ToUInt32(r["upscaler_height"]);
+                    //if (!(r["upscaler_steps"] is DBNull))
+                    //    settings.UpscalerSteps = Convert.ToUInt32(r["upscaler_steps"]);
+
+
+                    //q.Settings = settings;
                     count++;
                     await Enqueue(q);
                 }
@@ -481,41 +522,45 @@ namespace makefoxsrv
             if (type == QueueType.IMG2IMG && !(await FoxImage.IsImageValid(settings.selected_image)))
                 throw new Exception("Invalid input image");
 
-            using var cmd = new MySqlCommand();
+            await FoxDB.SaveObjectAsync(q, "queue");
 
-            cmd.Connection = SQL;
-            cmd.CommandText = @"
-                INSERT INTO queue (status, type, uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed, enhanced, reply_msg, msg_id, date_added, model, upscaler_name, upscaler_denoise, upscaler_width, upscaler_height, upscaler_steps)
-                VALUES ('PENDING', @type, @uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @enhanced, @reply_msg, @msg_id, @now, @model, @upscaler_name, @upscaler_denoise, @upscaler_width, @upscaler_height, @upscaler_steps)
-            ";
+            //using var cmd = new MySqlCommand();
 
-            cmd.Parameters.AddWithValue("uid", user.UID);
-            cmd.Parameters.AddWithValue("type", q.Type.ToString());
-            cmd.Parameters.AddWithValue("tele_id", telegram.User.ID);
-            cmd.Parameters.AddWithValue("tele_chatid", telegram.Chat?.ID);
-            cmd.Parameters.AddWithValue("steps", settings.steps);
-            cmd.Parameters.AddWithValue("cfgscale", settings.cfgscale);
-            cmd.Parameters.AddWithValue("prompt", settings.prompt);
-            cmd.Parameters.AddWithValue("negative_prompt", settings.negative_prompt);
-            cmd.Parameters.AddWithValue("selected_image", type == QueueType.IMG2IMG ? settings.selected_image : null);
-            cmd.Parameters.AddWithValue("width", settings.width);
-            cmd.Parameters.AddWithValue("height", settings.height);
-            cmd.Parameters.AddWithValue("denoising_strength", type == QueueType.IMG2IMG ? settings.denoising_strength : null);
-            cmd.Parameters.AddWithValue("seed", settings.seed);
-            cmd.Parameters.AddWithValue("reply_msg", replyMessageID);
-            cmd.Parameters.AddWithValue("msg_id", messageID);
-            cmd.Parameters.AddWithValue("now", q.DateCreated);
-            cmd.Parameters.AddWithValue("model", settings.model);
-            cmd.Parameters.AddWithValue("enhanced", settings.Enhance);
-            cmd.Parameters.AddWithValue("upscaler_name", settings.UpscalerName);
-            cmd.Parameters.AddWithValue("upscaler_denoise", settings.UpscalerDenoiseStrength);
-            cmd.Parameters.AddWithValue("upscaler_width", settings.UpscalerWidth);
-            cmd.Parameters.AddWithValue("upscaler_height", settings.UpscalerHeight);
-            cmd.Parameters.AddWithValue("upscaler_steps", settings.UpscalerSteps);
+            //cmd.Connection = SQL;
+            //cmd.CommandText = @"
+            //    INSERT INTO queue (status, type, uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed, enhanced, reply_msg, msg_id, date_added, model, upscaler_name, upscaler_denoise, upscaler_width, upscaler_height, upscaler_steps)
+            //    VALUES ('PENDING', @type, @uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @enhanced, @reply_msg, @msg_id, @now, @model, @upscaler_name, @upscaler_denoise, @upscaler_width, @upscaler_height, @upscaler_steps)
+            //";
 
-            await cmd.ExecuteNonQueryAsync();
+            //cmd.Parameters.AddWithValue("uid", user.UID);
+            //cmd.Parameters.AddWithValue("type", q.Type.ToString());
+            //cmd.Parameters.AddWithValue("tele_id", telegram.User.ID);
+            //cmd.Parameters.AddWithValue("tele_chatid", telegram.Chat?.ID);
+            //cmd.Parameters.AddWithValue("steps", settings.steps);
+            //cmd.Parameters.AddWithValue("cfgscale", settings.cfgscale);
+            //cmd.Parameters.AddWithValue("prompt", settings.prompt);
+            //cmd.Parameters.AddWithValue("negative_prompt", settings.negative_prompt);
+            //cmd.Parameters.AddWithValue("selected_image", type == QueueType.IMG2IMG ? settings.selected_image : null);
+            //cmd.Parameters.AddWithValue("width", settings.width);
+            //cmd.Parameters.AddWithValue("height", settings.height);
+            //cmd.Parameters.AddWithValue("denoising_strength", type == QueueType.IMG2IMG ? settings.denoising_strength : null);
+            //cmd.Parameters.AddWithValue("seed", settings.seed);
+            //cmd.Parameters.AddWithValue("reply_msg", replyMessageID);
+            //cmd.Parameters.AddWithValue("msg_id", messageID);
+            //cmd.Parameters.AddWithValue("now", q.DateCreated);
+            //cmd.Parameters.AddWithValue("model", settings.model);
+            //cmd.Parameters.AddWithValue("enhanced", settings.Enhance);
+            //cmd.Parameters.AddWithValue("upscaler_name", settings.UpscalerName);
+            //cmd.Parameters.AddWithValue("upscaler_denoise", settings.UpscalerDenoiseStrength);
+            //cmd.Parameters.AddWithValue("upscaler_width", settings.UpscalerWidth);
+            //cmd.Parameters.AddWithValue("upscaler_height", settings.UpscalerHeight);
+            //cmd.Parameters.AddWithValue("upscaler_steps", settings.UpscalerSteps);
 
-            q.ID = (ulong)cmd.LastInsertedId;
+            //await cmd.ExecuteNonQueryAsync();
+
+            
+
+            //q.ID = (ulong)cmd.LastInsertedId;
 
             return q;
         }
