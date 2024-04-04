@@ -512,7 +512,7 @@ namespace makefoxsrv
                 if (img is null)
                     throw new Exception("Unable to locate image");
 
-                var inputImage = await FoxTelegram.Client.UploadFileAsync(new MemoryStream(img.Image), "image.png");
+                var inputImage = await FoxTelegram.Client.UploadFileAsync(new MemoryStream(img.Image), $"{FoxTelegram.Client.User.username}_full_image_{q.ID}.png");
 
                 var msg = await FoxTelegram.Client.SendMessageAsync(t.Peer, "", new InputMediaUploadedDocument(inputImage, "image/png"));
 

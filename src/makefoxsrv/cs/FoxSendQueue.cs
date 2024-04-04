@@ -99,7 +99,7 @@ namespace makefoxsrv
                         }
                     };
 
-                    var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image), 80, 1280), "image.jpg");
+                    var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image), 80, 1280), $"{FoxTelegram.Client.User.username}_smimage_{q.ID}.jpg");
 
                     //var msg = await FoxTelegram.Client.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
 

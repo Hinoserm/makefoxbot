@@ -158,7 +158,7 @@ namespace makefoxsrv
             {
                 lock (lockObj)
                 {
-                    int priorityLevel = item.Enhanced ? 0 : priorityMap[item.User.GetAccessLevel()];
+                    int priorityLevel = item.Enhanced ? 1 : priorityMap[item.User.GetAccessLevel()];
                     taskList.Add((item, priorityLevel, item.DateCreated));
 
                     // Sort by priority, then by DateStarted as a secondary criteria
