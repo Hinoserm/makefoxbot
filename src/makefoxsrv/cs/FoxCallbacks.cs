@@ -570,6 +570,7 @@ namespace makefoxsrv
                         {
                             buttons = new TL.KeyboardButtonCallback[]
                             {
+                                new TL.KeyboardButtonCallback { text = "✨ Enhance!", data = System.Text.Encoding.ASCII.GetBytes("/enhance " + q.ID)},
                                 new TL.KeyboardButtonCallback { text = "Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.ID)},
                             }
                         }
