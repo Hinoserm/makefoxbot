@@ -134,19 +134,11 @@ namespace makefoxsrv
 
             var settings = q.Settings;
 
-            (settings.UpscalerWidth, settings.UpscalerHeight) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
+            (settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
 
-            settings.Enhance = true;
             //settings.seed = -1;
             settings.steps = 10;
-
-            var generationType = q.Type;
-
-            if (generationType == FoxQueue.QueueType.TXT2IMG)
-            {
-                generationType = FoxQueue.QueueType.IMG2IMG;
-                settings.denoising_strength = 0.50M;
-            }
+            settings.denoising_strength = 0.50M;
 
             settings.selected_image = q.OutputImageID.Value;
 
@@ -160,16 +152,19 @@ namespace makefoxsrv
                 return;
             }
 
-            (int position, int totalItems) = FoxQueue.GetNextPosition(user, settings.Enhance);
+            (int position, int totalItems) = FoxQueue.GetNextPosition(user, true);
 
             Message waitMsg = await t.SendMessageAsync(
                 text: $"⏳ Adding to queue ({position} of {totalItems})...",
                 replyToMessageId: query.msg_id
             );
 
-            var newq = await FoxQueue.Add(t, user, settings, generationType, waitMsg.ID, query.msg_id);
+            var newq = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, query.msg_id);
             if (newq is null)
                 throw new Exception("Unable to add item to queue");
+
+            newq.Enhanced = true;
+            newq.OriginalID = q.ID;
 
             await FoxQueue.Enqueue(newq);
 
@@ -424,13 +419,13 @@ namespace makefoxsrv
                 System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
                 System.TimeSpan GPUTime = await q.GetGPUTime();
 
-                var maxWidth = Math.Max(q.Settings.width, q.Settings.UpscalerWidth ?? 0);
-                var maxHeight = Math.Max(q.Settings.height, q.Settings.UpscalerHeight ?? 0);
+                //var maxWidth = Math.Max(q.Settings.width, q.Settings.UpscalerWidth ?? 0);
+                //var maxHeight = Math.Max(q.Settings.height, q.Settings.UpscalerHeight ?? 0);
 
-                var sizeString = $"🖥️ Size: {maxWidth}x{maxHeight}";
+                var sizeString = $"🖥️ Size: {q.Settings.width}x{q.Settings.height}";
 
-                if (q.Settings.UpscalerWidth is not null && q.Settings.UpscalerHeight is not null)
-                    sizeString += $" (upscaled from {q.Settings.width}x{q.Settings.height})";
+                //if (q.Settings.UpscalerWidth is not null && q.Settings.UpscalerHeight is not null)
+                //    sizeString += $" (upscaled from {q.Settings.width}x{q.Settings.height})";
 
                 await t.EditMessageAsync(
                     text: $"🖤Prompt: {q.Settings.prompt}\r\n" +

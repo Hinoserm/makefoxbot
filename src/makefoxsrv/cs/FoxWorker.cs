@@ -817,12 +817,14 @@ namespace makefoxsrv
 
                             if (qItem is not null)
                             {
+                                if (qItem.IsFinished()) // Cancelled or finished prematurely, shut down.
+                                    break;
+
                                 OnTaskProgress?.Invoke(this, new ProgressUpdateEventArgs(qItem, p));
                                 _= qItem.Progress(this, p, progressPercent);
                             }
                             else
                                 break;
-
 
                             if (p.Progress >= 1.0)
                                 break; //Stop when we hit 100%.
@@ -897,32 +899,32 @@ namespace makefoxsrv
                             }
                         }
 
-                        //if (Online)
-                        //{
-                        //    while ((api = await ConnectAPI(true)) is not null)
-                        //    {
-                        //        //If we're not the one currently processing...
-                        //        var status = await api.QueueStatus();
-                        //        var progress = await api.Progress(true);
+                        if (Online)
+                        {
+                            while ((api = await ConnectAPI(true)) is not null)
+                            {
+                                //If we're not the one currently processing...
+                                var status = await api.QueueStatus();
+                                var progress = await api.Progress(true);
 
-                        //        if ((status.QueueSize > 0 || progress.State.JobCount > 0))
-                        //        {
-                        //            Online = false;
-                        //            var busyWaitTime = (status.QueueSize + progress.State.JobCount) * 500;
+                                if ((status.QueueSize > 0 || progress.State.JobCount > 0))
+                                {
+                                    Online = false;
+                                    var busyWaitTime = (status.QueueSize + progress.State.JobCount) * 500;
 
-                        //            FoxLog.WriteLine($"Worker {ID} - Busy. Waiting {busyWaitTime}ms.");
+                                    //FoxLog.WriteLine($"Worker {ID} - Busy. Waiting {busyWaitTime}ms.");
 
-                        //            await Task.Delay(busyWaitTime, cts.Token);
+                                    await Task.Delay(busyWaitTime, cts.Token);
 
-                        //            continue;
-                        //        }
-                        //        else
-                        //        {
-                        //            Online = true;
-                        //            break;
-                        //        }
-                        //    }
-                        //}
+                                    continue;
+                                }
+                                else
+                                {
+                                    Online = true;
+                                    break;
+                                }
+                            }
+                        }
 
                         if (Online && api is not null && qItem is not null)
                         {
@@ -998,19 +1000,6 @@ namespace makefoxsrv
 
                 FoxQueue.QueueType generationType = qItem.Type;
 
-                if (settings.Enhance)
-                {
-                    settings.width = settings.UpscalerWidth.Value;
-                    settings.height = settings.UpscalerHeight.Value;
-                    if (generationType == FoxQueue.QueueType.TXT2IMG)
-                    {
-                        generationType = FoxQueue.QueueType.IMG2IMG;
-                        settings.denoising_strength = 0.55M;
-                        settings.selected_image = qItem.OutputImageID.Value;
-
-                    }
-                }
-
                 if (generationType == FoxQueue.QueueType.IMG2IMG)
                 {
                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
@@ -1047,7 +1036,7 @@ namespace makefoxsrv
                             {
                                 Seed = settings.seed
                             },
-                            ResizeMode = settings.Enhance ? 0 : 2, //Testing this
+                            ResizeMode = qItem.Enhanced ? 0 : 2, //Testing this
                             InpaintingFill = MaskFillMode.original,
 
                             DenoisingStrength = (double)settings.denoising_strength,
@@ -1073,20 +1062,6 @@ namespace makefoxsrv
                     //var sampler = await api.Sampler("Restart", ctsLoop.Token);
 
                     HighResConfig? hiResConfig = null;
-
-                    if (settings.Enhance)
-                    {
-                        var upscaler = await api.Upscaler(settings.UpscalerName, ctsLoop.Token);
-
-                        hiResConfig = new HighResConfig()
-                        {
-                            Upscaler = upscaler,
-                            DenoisingStrength = (double)(settings.UpscalerDenoiseStrength ?? (decimal)0.55),
-                            Width = settings.UpscalerWidth.Value,
-                            Height = settings.UpscalerHeight.Value,
-                            Steps = settings.UpscalerSteps.Value
-                        };
-                    }
 
                     var txt2img = await api.TextToImage(
                         new()
@@ -1156,8 +1131,14 @@ namespace makefoxsrv
 
                         if (qItem is not null)
                         {
-                            await qItem.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
-                            OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                            try
+                            {
+                                await qItem.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
+                                OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                            } catch (Exception ex2)
+                            {
+                                FoxLog.WriteLine($"Error running OnTaskError: {ex2.Message}\r\n{ex2.StackTrace}");
+                            }
                             _ = FoxQueue.Enqueue(qItem);
                         }
                     }
@@ -1167,8 +1148,14 @@ namespace makefoxsrv
 
                         if (qItem is not null)
                         {
-                            await qItem.SetCancelled();
-                            OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
+                            try
+                            {
+                                await qItem.SetCancelled();
+                                OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
+                            } catch (Exception ex2)
+                            {
+                                FoxLog.WriteLine($"Error running OnTaskCancelled: {ex2.Message}\r\n{ex2.StackTrace}");
+                            }
                         }
                     }
                     else
@@ -1187,12 +1174,20 @@ namespace makefoxsrv
                 {
                     FoxLog.WriteLine($"Worker {ID} - User Cancelled");
 
-                    OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
+                    try
+                    {
+                        OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
 
-                    using var httpClient = new HttpClient();
+                        await qItem.SetCancelled();
 
-                    var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null, cancellationToken);
-                    response.EnsureSuccessStatusCode();
+                        using var httpClient = new HttpClient();
+
+                        var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null, cancellationToken);
+                        response.EnsureSuccessStatusCode();
+                    } catch (Exception ex2)
+                    {
+                        FoxLog.WriteLine($"Error running OnTaskCancelled: {ex2.Message}\r\n{ex2.StackTrace}");
+                    }
                 }
                 else
                     await HandleError(ex);

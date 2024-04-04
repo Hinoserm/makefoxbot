@@ -107,10 +107,7 @@ namespace makefoxsrv
                     System.TimeSpan GPUTime = await q.GetGPUTime();
                     string messageText = $"✅ Complete! (Took {diffResult.ToPrettyFormat()} - GPU: {GPUTime.ToPrettyFormat()}";
 
-                    var maxWidth = Math.Max(q.Settings.width, q.Settings.UpscalerWidth ?? 0);
-                    var maxHeight = Math.Max(q.Settings.height, q.Settings.UpscalerHeight ?? 0);
-
-                    if (maxWidth > 1280 || maxHeight > 1280)
+                    if (q.Settings.width > 1280 || q.Settings.height > 1280)
                     {
                         messageText += $"\n\n⚠️ Image dimensions exceed Telegram's maximum image preview size.  For best quality, click below to download the full resoluton file.";
                     }

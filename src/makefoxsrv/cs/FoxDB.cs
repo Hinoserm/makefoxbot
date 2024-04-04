@@ -55,14 +55,14 @@ namespace makefoxsrv
 
                 if (!insertColumns.Any())
                 {
-                    Console.WriteLine("No columns to insert or update found.");
+                    //Console.WriteLine("No columns to insert or update found.");
                     return;
                 }
 
                 command.CommandText = $"INSERT INTO {tableName} ({string.Join(", ", insertColumns)}) VALUES ({string.Join(", ", insertValues)}) ON DUPLICATE KEY UPDATE {string.Join(", ", updateSets)};";
 
-                Console.WriteLine($"Executing SQL: {command.CommandText}");
-                Console.WriteLine($"With parameters: {debugParameters}");
+                //Console.WriteLine($"Executing SQL: {command.CommandText}");
+                //Console.WriteLine($"With parameters: {debugParameters}");
 
                 await command.ExecuteNonQueryAsync();
 

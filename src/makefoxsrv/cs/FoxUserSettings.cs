@@ -21,13 +21,6 @@ namespace makefoxsrv
         private decimal? _denoising_strength;
         private string? _model;
 
-        public bool Enhance = false;
-        public string? UpscalerName;
-        public decimal? UpscalerDenoiseStrength;
-        public uint? UpscalerWidth;
-        public uint? UpscalerHeight;
-        public uint? UpscalerSteps;
-
         [DbColumn("steps")]
         public int steps
         {

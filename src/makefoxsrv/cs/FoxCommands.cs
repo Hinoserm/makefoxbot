@@ -547,7 +547,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
-            (int position, int totalItems) = FoxQueue.GetNextPosition(user, settings.Enhance);
+            (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
 
             Message waitMsg = await t.SendMessageAsync(
                 text: $"⏳ Adding to queue ({position} of {totalItems})...",
@@ -622,7 +622,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
-            (int position, int totalItems) = FoxQueue.GetNextPosition(user, settings.Enhance);
+            (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
 
             Message waitMsg = await t.SendMessageAsync(
                 text: $"⏳ Adding to queue ({position} of {totalItems})...",
@@ -997,85 +997,28 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             List<ulong> pendingIds = new List<ulong>();
 
-            using (var cmd2 = new MySqlCommand("SELECT id,msg_id FROM queue WHERE uid = @id AND status = 'PENDING' OR status = 'ERROR'", SQL))
+            var matchingItems = FoxQueue.fullQueue.FindAll(item => !item.IsFinished() && item.User?.UID == user.UID);
+
+            foreach (var q in matchingItems)
             {
-                cmd2.Parameters.AddWithValue("id", user.UID);
-                using var reader = await cmd2.ExecuteReaderAsync();
+                int msg_id = q.MessageID;
 
-                while (await reader.ReadAsync())
+                await q.Cancel();
+
+                try
                 {
-                    ulong q_id = reader.GetUInt64("id");
-
-                    if (reader["msg_id"] is not DBNull)
-                    {
-                        int msg_id = reader.GetInt32("msg_id");
-
-                        try
-                        {
-                            _ = t.EditMessageAsync(
-                                id: msg_id,
-                                text: "❌ Cancelled."
-                            );
-                        }
-                        catch (Exception ex)
-                        {
-                            //Don't care about this failure.
-                            FoxLog.WriteLine("Failed to edit message: " + msg_id.ToString());
-                        }
-                    }
-
-                    pendingIds.Add(q_id);
-
-                    count++;
+                    _ = t.EditMessageAsync(
+                        id: msg_id,
+                        text: "❌ Cancelled."
+                    );
                 }
-            }
-
-            if (pendingIds.Count > 0)
-            {
-                // Create a comma-separated list of IDs for the SQL query
-                var idsString = string.Join(",", pendingIds);
-                using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
+                catch (Exception ex)
                 {
-                    await cmd3.ExecuteNonQueryAsync();
+                    //Don't care about this failure.
+                    FoxLog.WriteLine("Failed to edit message: " + msg_id.ToString());
                 }
-            }
 
-            List<ulong> processingIds = new List<ulong>();
-
-            using (var cmd2 = new MySqlCommand("SELECT id,worker,msg_id FROM queue WHERE uid = @id AND status = 'PROCESSING'", SQL))
-            {
-                cmd2.Parameters.AddWithValue("id", user.UID);
-                using var r = await cmd2.ExecuteReaderAsync();
-
-                while (await r.ReadAsync())
-                {
-                    int? worker_id = (r["worker"] is DBNull) ? null : r.GetInt32("worker");
-                    ulong q_id = r.GetUInt64("id");
-                    int msg_id = r.GetInt32("msg_id");
-
-                    //if (worker_id is not null && FoxWorker.CancelIfUserMatches(worker_id.Value, user.UID))
-
-                    if (worker_id is not null)
-                    {
-                        var w = FoxWorker.Get(worker_id.Value);
-                        if (w is not null && w.qItem is not null) {
-                            await w.qItem.Cancel();
-                        }
-                    }
-
-                    processingIds.Add(q_id);
-                    count++;
-                }
-            }
-
-            if (processingIds.Count > 0)
-            {
-                // Create a comma-separated list of IDs for the SQL query
-                var idsString = string.Join(",", processingIds);
-                using (var cmd3 = new MySqlCommand($"UPDATE queue SET status = 'CANCELLED' WHERE id IN ({idsString})", SQL))
-                {
-                    await cmd3.ExecuteNonQueryAsync();
-                }
+                count++;
             }
 
             await t.EditMessageAsync(
