@@ -242,23 +242,31 @@ namespace makefoxsrv
         //    {"@endDate", new DateTime(2023, 12, 31)}
         //};
 
-        //var obj = await LoadObjectAsync<MyObject>("MyTable", whereClause, parameters, loadedObject =>
+        //var obj = await LoadObjectAsync<MyObject>("MyTable", whereClause, parameters, (o, r) =>
         //{
         //    // Additional operations on loadedObject
         //});
 
-        public static async Task<T?> LoadObjectAsync<T>(string tableName, string whereClause, IDictionary<string, object> parameters, Action<T>? postLoadAction = null) where T : new()
+        public static async Task<T?> LoadObjectAsync<T>(
+           string tableName,
+           string whereClause,
+           IDictionary<string, object>? parameters = null,
+           Func<T, MySqlDataReader, Task>? postLoadAction = null)
+           where T : new()
         {
             using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await connection.OpenAsync();
-                var commandText = $"SELECT * FROM {tableName} WHERE {whereClause};";
+                var commandText = $"SELECT * FROM {tableName}" + (string.IsNullOrEmpty(whereClause) ? "" : $" WHERE {whereClause}");
                 var command = new MySqlCommand(commandText, connection);
 
-                // Add parameters to the command to prevent SQL injection
-                foreach (var param in parameters)
+                // Add parameters to the command if provided
+                if (parameters != null)
                 {
-                    command.Parameters.AddWithValue(param.Key, param.Value);
+                    foreach (var param in parameters)
+                    {
+                        command.Parameters.AddWithValue(param.Key, param.Value);
+                    }
                 }
 
                 using (var reader = await command.ExecuteReaderAsync())
@@ -266,10 +274,16 @@ namespace makefoxsrv
                     if (!reader.HasRows)
                         return default(T?);
 
+                    if (!await reader.ReadAsync())
+                        return default(T?);
+
                     T loadedObject = await LoadObjectAsync<T>(reader);
 
-                    // If an action is provided, invoke it
-                    postLoadAction?.Invoke(loadedObject);
+                    // If an action is provided, invoke it with both the loaded object and the reader
+                    if (postLoadAction != null)
+                    {
+                        await postLoadAction(loadedObject, reader);
+                    }
 
                     return loadedObject;
                 }

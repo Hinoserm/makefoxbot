@@ -343,66 +343,6 @@ namespace makefoxsrv
 
                     q.Telegram = new FoxTelegram((long)r["tele_id"], (long)r["user_access_hash"], teleChatId, teleChatHash);
 
-
-
-                    //var q = new FoxQueue();
-                    //var settings = new FoxUserSettings();
-
-                    //q.ID = Convert.ToUInt64(r["id"]);
-
-                    //q.User = await FoxUser.GetByUID(Convert.ToInt64(r["uid"]));
-
-                    //long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
-                    //long? teleChatHash = r["chat_access_hash"] is DBNull ? null : (long)r["chat_access_hash"];
-
-                    //q.Telegram = new FoxTelegram((long)r["tele_id"], (long)r["user_access_hash"], teleChatId, teleChatHash);
-
-                    //q.Type = Enum.Parse<FoxQueue.QueueType>(Convert.ToString(r["type"]) ?? "UNKNOWN");
-
-                    //if (!(r["steps"] is DBNull))
-                    //    settings.steps = Convert.ToInt16(r["steps"]);
-                    //if (!(r["cfgscale"] is DBNull))
-                    //    settings.cfgscale = Convert.ToDecimal(r["cfgscale"]);
-                    //if (!(r["prompt"] is DBNull))
-                    //    settings.prompt = Convert.ToString(r["prompt"]);
-                    //if (!(r["negative_prompt"] is DBNull))
-                    //    settings.negative_prompt = Convert.ToString(r["negative_prompt"]);
-                    //if (!(r["selected_image"] is DBNull))
-                    //    settings.selected_image = Convert.ToUInt64(r["selected_image"]);
-                    //if (!(r["width"] is DBNull))
-                    //    settings.width = Convert.ToUInt32(r["width"]);
-                    //if (!(r["height"] is DBNull))
-                    //    settings.height = Convert.ToUInt32(r["height"]);
-                    //if (!(r["denoising_strength"] is DBNull))
-                    //    settings.denoising_strength = Convert.ToDecimal(r["denoising_strength"]);
-                    //if (!(r["seed"] is DBNull))
-                    //    settings.seed = Convert.ToInt32(r["seed"]);
-                    //if (!(r["model"] is DBNull))
-                    //    settings.model = Convert.ToString(r["model"]);
-                    //if (!(r["reply_msg"] is DBNull))
-                    //    q.ReplyMessageID = Convert.ToInt32(r["reply_msg"]);
-                    //if (!(r["msg_id"] is DBNull))
-                    //    q.MessageID = Convert.ToInt32(r["msg_id"]);
-                    //if (!(r["date_added"] is DBNull))
-                    //    q.DateCreated = Convert.ToDateTime(r["date_added"]);
-                    //if (!(r["link_token"] is DBNull))
-                    //    q.LinkToken = Convert.ToString(r["link_token"]);
-
-                    //if (!(r["enhanced"] is DBNull))
-                    //    settings.Enhance = Convert.ToBoolean(r["enhanced"]);
-                    //if (!(r["upscaler_name"] is DBNull))
-                    //    settings.UpscalerName = Convert.ToString(r["upscaler_name"]);
-                    //if (!(r["upscaler_denoise"] is DBNull))
-                    //    settings.UpscalerDenoiseStrength = Convert.ToDecimal(r["upscaler_denoise"]);
-                    //if (!(r["upscaler_width"] is DBNull))
-                    //    settings.UpscalerWidth = Convert.ToUInt32(r["upscaler_width"]);
-                    //if (!(r["upscaler_height"] is DBNull))
-                    //    settings.UpscalerHeight = Convert.ToUInt32(r["upscaler_height"]);
-                    //if (!(r["upscaler_steps"] is DBNull))
-                    //    settings.UpscalerSteps = Convert.ToUInt32(r["upscaler_steps"]);
-
-
-                    //q.Settings = settings;
                     count++;
                     await Enqueue(q);
                 }
@@ -725,80 +665,23 @@ namespace makefoxsrv
         //}
         public static async Task<FoxQueue?> Get(long id)
         {
-            var settings = new FoxUserSettings();
-            var q = new FoxQueue();
-
-            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            var parameters = new Dictionary<string, object>
             {
-                await SQL.OpenAsync();
+                { "@id", id }
+            };
 
-                using (var cmd = new MySqlCommand())
-                {
-                    cmd.Connection = SQL;
-                    cmd.CommandText = @"
-                            SELECT queue.*, telegram_users.access_hash as user_access_hash, telegram_chats.access_hash as chat_access_hash
-                            FROM queue
-                            JOIN telegram_users ON telegram_users.id = queue.tele_id
-                            LEFT JOIN telegram_chats ON telegram_chats.id = queue.tele_chatid
-                            WHERE queue.id = @id;
-                        ";
-                    cmd.Parameters.AddWithValue("id", id);
+            var q = await FoxDB.LoadObjectAsync<FoxQueue>("queue", "id = @id", parameters, async (o, r) =>
+            {
+                long uid = Convert.ToInt64(r["uid"]);
+                o.User = await FoxUser.GetByUID(uid);
 
-                    await using var r = await cmd.ExecuteReaderAsync();
-                    if (r.HasRows && await r.ReadAsync())
-                    {
-                        q.ID = Convert.ToUInt64(r["id"]);
+                long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
+                long? teleChatHash = teleChatId is not null ? await FoxUser.GetChatAccessHash(teleChatId.Value) : null;
 
-                        q.User = await FoxUser.GetByUID(Convert.ToInt64(r["uid"]));
+                o.Telegram = new FoxTelegram((long)r["tele_id"], await FoxUser.GetUserAccessHash(uid) ?? 0, teleChatId, teleChatHash);
+            });
 
-                        long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
-                        long? teleChatHash = r["chat_access_hash"] is DBNull ? null : (long)r["chat_access_hash"];
-
-                        q.Telegram = new FoxTelegram((long)r["tele_id"], (long)r["user_access_hash"], teleChatId, teleChatHash);
-
-                        q.Type = Enum.Parse<FoxQueue.QueueType>(Convert.ToString(r["type"]) ?? "UNKNOWN");
-
-                        if (!(r["steps"] is DBNull))
-                            settings.steps = Convert.ToInt16(r["steps"]);
-                        if (!(r["cfgscale"] is DBNull))
-                            settings.cfgscale = Convert.ToDecimal(r["cfgscale"]);
-                        if (!(r["prompt"] is DBNull))
-                            settings.prompt = Convert.ToString(r["prompt"]);
-                        if (!(r["negative_prompt"] is DBNull))
-                            settings.negative_prompt = Convert.ToString(r["negative_prompt"]);
-                        if (!(r["width"] is DBNull))
-                            settings.width = Convert.ToUInt32(r["width"]);
-                        if (!(r["height"] is DBNull))
-                            settings.height = Convert.ToUInt32(r["height"]);
-                        if (!(r["denoising_strength"] is DBNull))
-                            settings.denoising_strength = Convert.ToDecimal(r["denoising_strength"]);
-                        if (!(r["seed"] is DBNull))
-                            settings.seed = Convert.ToInt32(r["seed"]);
-                        if (!(r["model"] is DBNull))
-                            settings.model = Convert.ToString(r["model"]);
-                        if (!(r["reply_msg"] is DBNull))
-                            q.ReplyMessageID = Convert.ToInt32(r["reply_msg"]);
-                        if (!(r["msg_id"] is DBNull))
-                            q.MessageID = Convert.ToInt32(r["msg_id"]);
-                        if (!(r["date_added"] is DBNull))
-                            q.DateCreated = Convert.ToDateTime(r["date_added"]);
-                        if (!(r["link_token"] is DBNull))
-                            q.LinkToken = Convert.ToString(r["link_token"]);
-                        if (!(r["selected_image"] is DBNull))
-                            settings.selected_image = Convert.ToUInt64(r["selected_image"]);
-                        if (!(r["image_id"] is DBNull))
-                            q.OutputImageID = Convert.ToUInt64(r["image_id"]);
-                        if (!(r["worker"] is DBNull))
-                            q.WorkerID = Convert.ToInt32(r["worker"]);
-
-                        q.Settings = settings;
-
-                        return q;
-                    }                       
-                }
-            }
-
-            return null;
+            return q;
         }
 
         public static async Task<int> GetCount(FoxUser? user = null)

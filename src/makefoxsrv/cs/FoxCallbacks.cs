@@ -490,39 +490,36 @@ namespace makefoxsrv
 
         private static async Task CallbackCmdDownload(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
         {
-
             long info_id = 0;
 
             if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
-            {
-                /* await botClient.EditMessageTextAsync(
-                    chatId: update.CallbackQuery.Message.Chat.Id,
-                    text: "Invalid request",
-                    messageId: update.CallbackQuery.Message.MessageId,
-                    cancellationToken: cancellationToken
-                ); */
+                throw new Exception("Malformed request");
 
+            var q = await FoxQueue.Get(info_id);
+            if (q is null)
+            {
+                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Error loading image.");
                 return;
             }
 
-            var q = await FoxQueue.Get(info_id);
+            if (q.Telegram?.User.ID != t.User.ID)
+            {
+                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
+                return;
+            }
 
             await t.SendCallbackAnswer(query.query_id, 0, "Transferring, please wait...");
 
-            if (q is not null && q.Telegram?.User.ID == t.User.ID)
-            {
-                var img = await q.GetOutputImage();
+            var img = await q.GetOutputImage();
 
-                if (img is null)
-                    throw new Exception("Unable to locate image");
+            if (img is null)
+                throw new Exception("Unable to locate image");
 
-                var inputImage = await FoxTelegram.Client.UploadFileAsync(new MemoryStream(img.Image), $"{FoxTelegram.Client.User.username}_full_image_{q.ID}.png");
+            var inputImage = await FoxTelegram.Client.UploadFileAsync(new MemoryStream(img.Image), $"{FoxTelegram.Client.User.username}_full_image_{q.ID}.png");
 
-                var msg = await FoxTelegram.Client.SendMessageAsync(t.Peer, "", new InputMediaUploadedDocument(inputImage, "image/png"));
+            var msg = await FoxTelegram.Client.SendMessageAsync(t.Peer, "", new InputMediaUploadedDocument(inputImage, "image/png"));
 
-                //await img.SaveFullTelegramFileIds(message.Document.FileId, message.Document.FileUniqueId);
-
-            }
+            //await img.SaveFullTelegramFileIds(message.Document.FileId, message.Document.FileUniqueId);
         }
 
         private static async Task CallbackCmdSelect(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
@@ -531,71 +528,65 @@ namespace makefoxsrv
             long info_id = 0;
 
             if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
-            {
-                /* await botClient.EditMessageTextAsync(
-                    chatId: update.CallbackQuery.Message.Chat.Id,
-                    text: "Invalid request",
-                    messageId: update.CallbackQuery.Message.MessageId,
-                    cancellationToken: cancellationToken
-                ); */
+                throw new Exception("Malformed request");
 
+            var q = await FoxQueue.Get(info_id);
+            if (q is null)
+            {
+                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Error loading image.");
                 return;
             }
 
-            var q = await FoxQueue.Get(info_id);
-
             await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Selected for img2img");
 
-            if (q is not null && q.Telegram?.User.ID == t.User.ID)
-            {
-                var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-                if (q.OutputImageID is null)
-                    return;
+            if (q.OutputImageID is null)
+                return;
 
-                settings.selected_image = (ulong)q.OutputImageID;
+            settings.selected_image = (ulong)q.OutputImageID;
 
-                await settings.Save();
+            await settings.Save();
 
-                var inlineKeyboardButtons = new ReplyInlineMarkup()
-                {
-                    rows = new TL.KeyboardButtonRow[]
-                    {
-                        new TL.KeyboardButtonRow {
-                            buttons = new TL.KeyboardButtonCallback[]
-                            {
-                                new TL.KeyboardButtonCallback { text = "👍", data = System.Text.Encoding.ASCII.GetBytes("/vote up " + q.ID) },
-                                new TL.KeyboardButtonCallback { text = "👎", data = System.Text.Encoding.ASCII.GetBytes("/vote down " + q.ID) },
-                                new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.ID)},
-                                new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.ID)},
-                            }
-                        },
-                        new TL.KeyboardButtonRow
-                        {
-                            buttons = new TL.KeyboardButtonCallback[]
-                            {
-                                new TL.KeyboardButtonCallback { text = "✨ Enhance!", data = System.Text.Encoding.ASCII.GetBytes("/enhance " + q.ID)},
-                                new TL.KeyboardButtonCallback { text = "Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.ID)},
-                            }
-                        }
-                     }
-                };
+            //var inlineKeyboardButtons = new ReplyInlineMarkup()
+            //{
+            //    rows = new TL.KeyboardButtonRow[]
+            //    {
+            //        new TL.KeyboardButtonRow {
+            //            buttons = new TL.KeyboardButtonCallback[]
+            //            {
+            //                new TL.KeyboardButtonCallback { text = "👍", data = System.Text.Encoding.ASCII.GetBytes("/vote up " + q.ID) },
+            //                new TL.KeyboardButtonCallback { text = "👎", data = System.Text.Encoding.ASCII.GetBytes("/vote down " + q.ID) },
+            //                new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.ID)},
+            //                new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.ID)},
+            //            }
+            //        },
+            //        new TL.KeyboardButtonRow
+            //        {
+            //            buttons = new TL.KeyboardButtonCallback[]
+            //            {
+            //                new TL.KeyboardButtonCallback { text = "✨ Enhance!", data = System.Text.Encoding.ASCII.GetBytes("/enhance " + q.ID)},
+            //                new TL.KeyboardButtonCallback { text = "Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.ID)},
+            //            }
+            //        }
+            //     }
+            //};
 
-                try
-                {
-
-                    await t.EditMessageAsync(
-                        text: "✅ Image selected as input for /img2img",
-                        id: query.msg_id,
-                        replyInlineMarkup: inlineKeyboardButtons
-                    );
-                }
-                catch (Exception ex)
-                {
-                    FoxLog.WriteLine(ex.Message);
-                }
-
-            }
+            //try
+            //{
+            //    if (t.Chat is null)
+            //    {
+            //        await t.EditMessageAsync(
+            //            text: "✅ Image selected as input for /img2img",
+            //            id: query.msg_id,
+            //            replyInlineMarkup: inlineKeyboardButtons
+            //        );
+            //    }
+            //}
+            //catch (Exception ex)
+            //{
+            //    FoxLog.WriteLine(ex.Message);
+            //}
         }
     }
 }
