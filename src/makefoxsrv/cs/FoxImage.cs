@@ -369,7 +369,7 @@ namespace makefoxsrv
                     {
                         // We need to check if the user replied to one of our messages or tagged us.
 
-                        if (message.ReplyTo is MessageReplyHeader mrh)
+                        if (message.ReplyTo is not null && message.ReplyTo is MessageReplyHeader mrh)
                         {
                             long userId = 0;
 
