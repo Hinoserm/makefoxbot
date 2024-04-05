@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
@@ -206,7 +207,7 @@ namespace makefoxsrv
             }
         }
 
-        public static async Task<T> LoadObjectAsync<T>(string tableName, string whereClause) where T : new()
+        public static async Task<T?> LoadObjectAsync<T>(string tableName, string whereClause, Action<T>? postLoadAction = null) where T : new()
         {
             using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -214,9 +215,63 @@ namespace makefoxsrv
                 var command = new MySqlCommand($"SELECT * FROM {tableName} WHERE {whereClause};", connection);
                 using (var reader = await command.ExecuteReaderAsync())
                 {
-                    // Directly use the existing overload that operates on a MySqlDataReader
-                    // Assuming we are handling one object per query execution here. Adjust as needed for your use case.
-                    return reader.HasRows ? await LoadObjectAsync<T>(reader) : default;
+                    if (!reader.HasRows)
+                        return default(T?);
+
+                    T loadedObject = await LoadObjectAsync<T>(reader);
+
+                    // Check if the action is provided and the loaded object is not null before invoking the action.
+                    postLoadAction?.Invoke(loadedObject);
+
+                    return loadedObject;
+                }
+            }
+        }
+
+        //Example Usage for Complex WHERE Clause
+        //--------------------------------------
+        //This approach allows for complex WHERE clauses, including use of OR, AND, conditional grouping, etc.
+        //Here's how you might use this method with a complex WHERE clause:
+
+        //var whereClause = "(Status = @status AND Priority = @priority) OR (DateCreated > @startDate AND DateCreated < @endDate)";
+        //var parameters = new Dictionary<string, object>
+        //{
+        //    {"@status", "Active"},
+        //    {"@priority", 1},
+        //    {"@startDate", new DateTime(2023, 1, 1)},
+        //    {"@endDate", new DateTime(2023, 12, 31)}
+        //};
+
+        //var obj = await LoadObjectAsync<MyObject>("MyTable", whereClause, parameters, loadedObject =>
+        //{
+        //    // Additional operations on loadedObject
+        //});
+
+        public static async Task<T?> LoadObjectAsync<T>(string tableName, string whereClause, IDictionary<string, object> parameters, Action<T>? postLoadAction = null) where T : new()
+        {
+            using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await connection.OpenAsync();
+                var commandText = $"SELECT * FROM {tableName} WHERE {whereClause};";
+                var command = new MySqlCommand(commandText, connection);
+
+                // Add parameters to the command to prevent SQL injection
+                foreach (var param in parameters)
+                {
+                    command.Parameters.AddWithValue(param.Key, param.Value);
+                }
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    if (!reader.HasRows)
+                        return default(T?);
+
+                    T loadedObject = await LoadObjectAsync<T>(reader);
+
+                    // If an action is provided, invoke it
+                    postLoadAction?.Invoke(loadedObject);
+
+                    return loadedObject;
                 }
             }
         }

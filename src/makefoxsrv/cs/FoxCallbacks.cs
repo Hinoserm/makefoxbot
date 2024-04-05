@@ -136,9 +136,9 @@ namespace makefoxsrv
 
             (settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
 
-            //settings.seed = -1;
-            settings.steps = 10;
-            settings.denoising_strength = 0.50M;
+            settings.seed = -1;
+            settings.steps = 15;
+            settings.denoising_strength = 0.45M;
 
             settings.selected_image = q.OutputImageID.Value;
 
@@ -388,10 +388,14 @@ namespace makefoxsrv
             if (q is null)
                 return;
 
-            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
+            
 
-            if (q is not null && q.Telegram?.User.ID == t.User.ID)
+            if (q is not null && q.Telegram?.User.ID != t.User.ID) {
+                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Only the original creator can click this button!");
+            }
+            else 
             {
+                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
                 // Construct the inline keyboard buttons and rows
                 var inlineKeyboardButtons = new ReplyInlineMarkup()
                 {
