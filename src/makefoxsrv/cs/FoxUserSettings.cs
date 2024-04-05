@@ -164,73 +164,39 @@ namespace makefoxsrv
                                 settings.seed = Convert.ToInt32(reader["seed"]);
                             if (!(reader["model"] is DBNull))
                                 settings._model = Convert.ToString(reader["model"]);
-
-                            return settings;
                         }
                     }
                 }
-
-                using (var cmd = new MySqlCommand())
+                else
                 {
-                    cmd.Connection = SQL;
-                    cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = {tuser.ID} AND tele_chatid = 0";
-                    using var reader = await cmd.ExecuteReaderAsync();
-                    if (reader.HasRows && await reader.ReadAsync())
+                    using (var cmd = new MySqlCommand())
                     {
-                        if (!(reader["steps"] is DBNull))
-                            settings._steps = Convert.ToInt16(reader["steps"]);
-                        if (!(reader["cfgscale"] is DBNull))
-                            settings._cfgscale = Convert.ToDecimal(reader["cfgscale"]);
-                        if (!(reader["prompt"] is DBNull))
-                            settings._prompt = Convert.ToString(reader["prompt"]);
-                        if (!(reader["negative_prompt"] is DBNull))
-                            settings._negative_prompt = Convert.ToString(reader["negative_prompt"]);
-                        if (!(reader["selected_image"] is DBNull))
-                            settings.selected_image = Convert.ToUInt64(reader["selected_image"]);
-                        if (!(reader["width"] is DBNull))
-                            settings._width = Convert.ToUInt32(reader["width"]);
-                        if (!(reader["height"] is DBNull))
-                            settings._height = Convert.ToUInt32(reader["height"]);
-                        if (!(reader["denoising_strength"] is DBNull))
-                            settings._denoising_strength = Convert.ToDecimal(reader["denoising_strength"]);
-                        if (!(reader["seed"] is DBNull))
-                            settings.seed = Convert.ToInt32(reader["seed"]);
-                        if (!(reader["model"] is DBNull))
-                            settings._model = Convert.ToString(reader["model"]);
-
-                        return settings;
-                    }
-                }
-
-                using (var cmd = new MySqlCommand())
-                {
-                    cmd.Connection = SQL;
-                    cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = 0";
-                    using var reader = await cmd.ExecuteReaderAsync();
-                    if (reader.HasRows && await reader.ReadAsync())
-                    {
-                        if (!(reader["steps"] is DBNull))
-                            settings._steps = Convert.ToInt16(reader["steps"]);
-                        if (!(reader["cfgscale"] is DBNull))
-                            settings._cfgscale = Convert.ToDecimal(reader["cfgscale"]);
-                        if (!(reader["prompt"] is DBNull))
-                            settings._prompt = Convert.ToString(reader["prompt"]);
-                        if (!(reader["negative_prompt"] is DBNull))
-                            settings._negative_prompt = Convert.ToString(reader["negative_prompt"]);
-                        if (!(reader["selected_image"] is DBNull))
-                            settings.selected_image = Convert.ToUInt64(reader["selected_image"]);
-                        if (!(reader["width"] is DBNull))
-                            settings._width = Convert.ToUInt32(reader["width"]);
-                        if (!(reader["height"] is DBNull))
-                            settings._height = Convert.ToUInt32(reader["height"]);
-                        if (!(reader["denoising_strength"] is DBNull))
-                            settings._denoising_strength = Convert.ToDecimal(reader["denoising_strength"]);
-                        if (!(reader["seed"] is DBNull))
-                            settings.seed = Convert.ToInt32(reader["seed"]);
-                        if (!(reader["model"] is DBNull))
-                            settings._model = Convert.ToString(reader["model"]); ;
-
-                        return settings;
+                        cmd.Connection = SQL;
+                        cmd.CommandText = $"SELECT * FROM telegram_user_settings WHERE uid = {user.UID} AND tele_id = {tuser.ID} AND (tele_chatid = 0 OR tele_chatid IS NULL)";
+                        using var reader = await cmd.ExecuteReaderAsync();
+                        if (reader.HasRows && await reader.ReadAsync())
+                        {
+                            if (!(reader["steps"] is DBNull))
+                                settings._steps = Convert.ToInt16(reader["steps"]);
+                            if (!(reader["cfgscale"] is DBNull))
+                                settings._cfgscale = Convert.ToDecimal(reader["cfgscale"]);
+                            if (!(reader["prompt"] is DBNull))
+                                settings._prompt = Convert.ToString(reader["prompt"]);
+                            if (!(reader["negative_prompt"] is DBNull))
+                                settings._negative_prompt = Convert.ToString(reader["negative_prompt"]);
+                            if (!(reader["selected_image"] is DBNull))
+                                settings.selected_image = Convert.ToUInt64(reader["selected_image"]);
+                            if (!(reader["width"] is DBNull))
+                                settings._width = Convert.ToUInt32(reader["width"]);
+                            if (!(reader["height"] is DBNull))
+                                settings._height = Convert.ToUInt32(reader["height"]);
+                            if (!(reader["denoising_strength"] is DBNull))
+                                settings._denoising_strength = Convert.ToDecimal(reader["denoising_strength"]);
+                            if (!(reader["seed"] is DBNull))
+                                settings.seed = Convert.ToInt32(reader["seed"]);
+                            if (!(reader["model"] is DBNull))
+                                settings._model = Convert.ToString(reader["model"]);
+                        }
                     }
                 }
             }

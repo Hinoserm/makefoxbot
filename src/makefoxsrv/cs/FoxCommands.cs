@@ -498,10 +498,20 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             if (settings.selected_image <= 0 || await FoxImage.Load(settings.selected_image) is null)
             {
-                await t.SendMessageAsync(
-                    text: "❌You must upload or /select an image first to use img2img functions.",
-                    replyToMessageId: message.ID
-                );
+                if (t.Chat is not null)
+                {
+                    await t.SendMessageAsync(
+                        text: $"❌ Reply to this message with an image, or send an image with @{FoxTelegram.Client.User.username} in the message, then run /img2img again.",
+                        replyToMessageId: message.ID
+                    );
+                }
+                else
+                {
+                    await t.SendMessageAsync(
+                        text: "❌You must upload or /select an image first to use img2img functions.",
+                        replyToMessageId: message.ID
+                    );
+                }
 
                 return;
             }
