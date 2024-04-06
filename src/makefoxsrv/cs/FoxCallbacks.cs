@@ -83,7 +83,7 @@ namespace makefoxsrv
                 return; // User must agree to the terms before they can use this command.
             }
 
-            if (user.GetAccessLevel() < AccessLevel.ADMIN)
+            if (user.GetAccessLevel() < AccessLevel.PREMIUM)
             {
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
@@ -92,7 +92,7 @@ namespace makefoxsrv
                     using (var cmd = new MySqlCommand())
                     {
                         cmd.Connection = SQL;
-                        cmd.CommandText = "SELECT COUNT(id) FROM queue WHERE uid = @uid AND status = 'FINISHED' AND enhanced = 1 AND date_finished > @now - INTERVAL 1 MINUTE"; //INTERVAL 1 HOUR";
+                        cmd.CommandText = "SELECT COUNT(id) FROM queue WHERE uid = @uid AND status = 'FINISHED' AND enhanced = 1 AND date_finished > @now - INTERVAL 20 MINUTE"; //INTERVAL 1 HOUR";
                         cmd.Parameters.AddWithValue("uid", user.UID);
                         cmd.Parameters.AddWithValue("now", DateTime.Now);
                         await using var reader = await cmd.ExecuteReaderAsync();
@@ -100,7 +100,7 @@ namespace makefoxsrv
                         if (reader.GetInt32(0) > 0)
                         {
                             await t.SendMessageAsync(
-                                text: $"❌ You are only allowed 1 enhanced image per minute.\n\n⚠️ This limit will change after the testing period has ended.",
+                                text: $"❌ Basic users are limited to 1 enhanced image per 20 minutes.\n\nConsider becoming a premium member: /donate",
                                 replyToMessageId: query.msg_id
                             );
 
