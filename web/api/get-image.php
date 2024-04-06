@@ -27,7 +27,7 @@ if ($imageId > 0) {
     $imageFile = $stmt->fetchColumn();
 
 	if ($imageFile !== false) {
-        $imageData = file_get_contents("../../data" . $imageFile);
+        $imageData = file_get_contents("../../data/" . $imageFile);
     }
 
     if ($imageData !== false) {
