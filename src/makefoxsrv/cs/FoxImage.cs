@@ -39,7 +39,7 @@ namespace makefoxsrv
         public string? TelegramFullUniqueID = null;
         public long? TelegramChatID = null;
         public long? TelegramMessageID = null;
-        public DateTime DateAdded;
+        public DateTime DateAdded = DateTime.MinValue;
 
         public byte[]? Image = null;
 
@@ -243,15 +243,19 @@ namespace makefoxsrv
                 this.TelegramMessageID = tele_msgid;
 
             if (image is not null)
-            {
-                this.SHA1Hash = sha1hash(image);
                 this.Image = image;
+
+            if (image is not null || SHA1Hash is null)
+            {
+                //If the image changed, or, if the hash is missing, regenerate it.
+                this.SHA1Hash = sha1hash(image);
             }
 
             if (this.Image is null)
                 throw new Exception("Image must not be null");
 
-            this.DateAdded = DateTime.Now;
+            if (this.DateAdded == DateTime.MinValue)
+                this.DateAdded = DateTime.Now;
 
             var imagePath = GenerateImagePath(this.Type, this.SHA1Hash, this.DateAdded, GetImageExtension(this.Image));
 
