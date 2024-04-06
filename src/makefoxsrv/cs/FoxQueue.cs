@@ -462,7 +462,7 @@ namespace makefoxsrv
             return (position, totalItems);
         }
 
-        public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings settings, QueueType type, int messageID, int? replyMessageID = null)
+        public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings settings, QueueType type, int messageID, int? replyMessageID = null, bool enhanced = false, FoxQueue? originalTask = null)
         {
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
@@ -479,7 +479,9 @@ namespace makefoxsrv
                 Type = type,
                 Settings = settings,
                 MessageID = messageID,
-                ReplyMessageID = replyMessageID
+                ReplyMessageID = replyMessageID,
+                Enhanced = enhanced,
+                OriginalID = originalTask?.ID
             };
 
             if (type == QueueType.IMG2IMG && !(await FoxImage.IsImageValid(settings.selected_image)))

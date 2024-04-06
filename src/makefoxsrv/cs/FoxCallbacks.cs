@@ -92,15 +92,20 @@ namespace makefoxsrv
                     using (var cmd = new MySqlCommand())
                     {
                         cmd.Connection = SQL;
-                        cmd.CommandText = "SELECT COUNT(id) FROM queue WHERE uid = @uid AND status = 'FINISHED' AND enhanced = 1 AND date_finished > @now - INTERVAL 20 MINUTE"; //INTERVAL 1 HOUR";
+                        cmd.CommandText = "SELECT date_finished FROM queue WHERE uid = @uid AND status = 'FINISHED' AND enhanced = 1 AND date_finished > @now - INTERVAL 20 MINUTE ORDER BY date_finished DESC LIMIT 1"; //INTERVAL 1 HOUR";
                         cmd.Parameters.AddWithValue("uid", user.UID);
                         cmd.Parameters.AddWithValue("now", DateTime.Now);
                         await using var reader = await cmd.ExecuteReaderAsync();
-                        reader.Read();
-                        if (reader.GetInt32(0) > 0)
+                        
+
+                        if (reader.HasRows && await reader.ReadAsync())
                         {
+                            var date = reader.GetDateTime(0);
+
+                            var span = TimeSpan.FromMinutes(20) - (DateTime.Now - date);
+
                             await t.SendMessageAsync(
-                                text: $"❌ Basic users are limited to 1 enhanced image per 20 minutes.\n\nPlease consider becoming a premium member: /donate",
+                                text: $"❌ Basic users are limited to 1 enhanced image per 20 minutes.\nTry again after {span.ToPrettyFormat()}.\n\nPlease consider becoming a premium member: /donate",
                                 replyToMessageId: query.msg_id
                             );
 
@@ -149,7 +154,7 @@ namespace makefoxsrv
                 replyToMessageId: query.msg_id
             );
 
-            var newq = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, query.msg_id);
+            var newq = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, query.msg_id, true, q);
             if (newq is null)
                 throw new Exception("Unable to add item to queue");
 
