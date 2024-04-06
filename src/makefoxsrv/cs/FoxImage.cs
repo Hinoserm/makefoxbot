@@ -14,6 +14,7 @@ using System.IO;
 using System.Globalization;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
+using System.Linq.Expressions;
 
 namespace makefoxsrv
 {
@@ -47,40 +48,46 @@ namespace makefoxsrv
         {
             int count = 0;
 
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
-            await SQL.OpenAsync();
-
-            using (var cmd = new MySqlCommand())
+            try
             {
-                cmd.Connection = SQL;
-                cmd.CommandText = "SELECT id FROM images WHERE image_file IS NULL ORDER BY date_added DESC";
+                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
-                using var r = await cmd.ExecuteReaderAsync();
+                await SQL.OpenAsync();
 
-                while (await r.ReadAsync())
+                using (var cmd = new MySqlCommand())
                 {
-                    try
+                    cmd.Connection = SQL;
+                    cmd.CommandText = "SELECT id FROM images WHERE image_file IS NULL ORDER BY date_added DESC";
+
+                    using var r = await cmd.ExecuteReaderAsync();
+
+                    while (await r.ReadAsync())
                     {
-                        long id = System.Convert.ToInt64(r["id"]);
-
-                        var img = await FoxImage.Load((ulong)id);
-
-                        await img.Save();
-
-                        count++;
-
-                        if (count % 100 == 0)
+                        try
                         {
-                            FoxLog.WriteLine($"Converted {count} images.");
+                            long id = System.Convert.ToInt64(r["id"]);
+
+                            var img = await FoxImage.Load((ulong)id);
+
+                            await img.Save();
+
+                            count++;
+
+                            if (count % 100 == 0)
+                            {
+                                FoxLog.WriteLine($"Converted {count} images.");
+                            }
                         }
-                    } catch (Exception ex)
-                    {
-                           FoxLog.WriteLine($"Error converting image: {ex.Message}\r\n{ex.StackTrace}");
+                        catch (Exception ex)
+                        {
+                            FoxLog.WriteLine($"Error converting image: {ex.Message}\r\n{ex.StackTrace}");
+                        }
                     }
                 }
+            } catch (Exception ex)
+            {
+                FoxLog.WriteLine($"Error converting images: {ex.Message}\r\n{ex.StackTrace}");
             }
-
             FoxLog.WriteLine($"Converted {count} images.");
         }
 
