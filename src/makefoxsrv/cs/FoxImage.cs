@@ -583,7 +583,7 @@ namespace makefoxsrv
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine("Error with input image: " + ex.Message);
+                FoxLog.WriteLine($"Error with input image: {ex.Message}\r\n{ex.StackTrace}");
             }
         }
         public static (uint newWidth, uint newHeight) CalculateLimitedDimensions(uint originalWidth, uint originalHeight, uint maxWidthHeight = 768)
