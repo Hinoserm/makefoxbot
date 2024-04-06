@@ -17,14 +17,18 @@ $imageId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if ($imageId > 0) {
 	if ($user['access_level'] == 'ADMIN') {
-		$stmt = $pdo->prepare("SELECT image FROM images WHERE id = :imageId");
+		$stmt = $pdo->prepare("SELECT image_file FROM images WHERE id = :imageId");
 		$stmt->execute(['imageId' => $imageId]);
 	} else {
-		$stmt = $pdo->prepare("SELECT image FROM images WHERE id = :imageId AND user_id = :uid");
+		$stmt = $pdo->prepare("SELECT image_file FROM images WHERE id = :imageId AND user_id = :uid");
 		$stmt->execute(['imageId' => $imageId, 'uid' => $user['id']]);
 	}
 
-    $imageData = $stmt->fetchColumn();
+    $imageFile = $stmt->fetchColumn();
+
+	if ($imageFile !== false) {
+        $imageData = file_get_contents("../../data/" . $imageFile);
+    }
 
     if ($imageData !== false) {
 		if (!isset($_GET['full']) || !$_GET['full']) {
