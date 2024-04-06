@@ -1004,10 +1004,9 @@ namespace makefoxsrv
                 {
                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
-                    //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid"); //
                     var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
                     var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
-                    //var sampler = await api.Sampler("Restart", ctsLoop.Token);
+
 
                     FoxImage? inputImage = await qItem.GetInputImage();
 
@@ -1061,7 +1060,25 @@ namespace makefoxsrv
                     var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
                     //var sampler = await api.Sampler("Restart", ctsLoop.Token);
 
+                    var width = settings.width;
+                    var height = settings.height;
+
                     HighResConfig? hiResConfig = null;
+
+                    if (settings.width > 1024 || settings.height > 1024)
+                    {
+                        var upscaler = await api.Upscaler("R-ESRGAN 4x+", ctsLoop.Token);
+                        hiResConfig = new HighResConfig()
+                        {
+                            Width = settings.width,
+                            Height = settings.height,
+                            DenoisingStrength = 0.45,
+                            Upscaler = upscaler,
+                            Steps = 15
+                        };
+
+                        (width, height) = FoxImage.CalculateLimitedDimensions(settings.width, settings.height, 768);
+                    }
 
                     var txt2img = await api.TextToImage(
                         new()
@@ -1079,8 +1096,8 @@ namespace makefoxsrv
                                 Seed = settings.seed,
                             },
 
-                            Width = settings.width,
-                            Height = settings.height,
+                            Width = width,
+                            Height = height,
 
                             Sampler = new()
                             {

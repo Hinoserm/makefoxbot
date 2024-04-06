@@ -1079,14 +1079,14 @@ We sincerely appreciate your support and understanding. Your contribution direct
             if ((width > 1024 || height > 1024) && !user.CheckAccessLevel(AccessLevel.PREMIUM))
             {
                 await t.SendMessageAsync(
-                    text: "❌ Only premium users can exceed 1024 pixels in any direction.",
+                    text: "❌ Only premium users can exceed 1024 pixels in any dimension.",
                     replyToMessageId: message.ID
                 );
                 return;
-            } else if ((width > 1280 || height > 1280) && !user.CheckAccessLevel(AccessLevel.ADMIN))
+            } else if ((width > 1920 || height > 1920) && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendMessageAsync(
-                    text: "❌ Dimension cannot be greater than 1280.",
+                    text: "❌ Dimension cannot be greater than 1920.",
                     replyToMessageId: message.ID
                 );
                 return;
