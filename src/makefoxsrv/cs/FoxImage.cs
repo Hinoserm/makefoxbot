@@ -54,7 +54,7 @@ namespace makefoxsrv
             using (var cmd = new MySqlCommand())
             {
                 cmd.Connection = SQL;
-                cmd.CommandText = "SELECT id FROM images ORDER BY date_added DESC";
+                cmd.CommandText = "SELECT id FROM images WHERE image_file IS NULL ORDER BY date_added DESC";
 
                 using var r = await cmd.ExecuteReaderAsync();
 
@@ -70,7 +70,7 @@ namespace makefoxsrv
 
                         count++;
 
-                        if (count % 100 == 1)
+                        if (count % 100 == 0)
                         {
                             FoxLog.WriteLine($"Converted {count} images.");
                         }
