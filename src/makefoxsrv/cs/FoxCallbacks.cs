@@ -100,7 +100,7 @@ namespace makefoxsrv
                         if (reader.GetInt32(0) > 0)
                         {
                             await t.SendMessageAsync(
-                                text: $"❌ Basic users are limited to 1 enhanced image per 20 minutes.\n\nConsider becoming a premium member: /donate",
+                                text: $"❌ Basic users are limited to 1 enhanced image per 20 minutes.\n\nPlease consider becoming a premium member: /donate",
                                 replyToMessageId: query.msg_id
                             );
 
