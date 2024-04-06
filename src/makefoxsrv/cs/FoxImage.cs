@@ -43,6 +43,47 @@ namespace makefoxsrv
 
         public byte[]? Image = null;
 
+        public static async Task ConvertOldImages()
+        {
+            int count = 0;
+
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+
+            await SQL.OpenAsync();
+
+            using (var cmd = new MySqlCommand())
+            {
+                cmd.Connection = SQL;
+                cmd.CommandText = "SELECT id FROM images ORDER BY date_added DESC";
+
+                using var r = await cmd.ExecuteReaderAsync();
+
+                while (await r.ReadAsync())
+                {
+                    try
+                    {
+                        long id = System.Convert.ToInt64(r["id"]);
+
+                        var img = await FoxImage.Load((ulong)id);
+
+                        await img.Save();
+
+                        count++;
+
+                        if (count % 100 == 1)
+                        {
+                            FoxLog.WriteLine($"Converted {count} images.");
+                        }
+                    } catch (Exception ex)
+                    {
+                           FoxLog.WriteLine($"Error converting image: {ex.Message}\r\n{ex.StackTrace}");
+                    }
+                }
+            }
+
+            FoxLog.WriteLine($"Converted {count} images.");
+        }
+
         public static (int, int) NormalizeImageSize(int width, int height)
         {
             const int MaxWidthHeight = 1280;
@@ -223,13 +264,41 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "INSERT INTO images (type, user_id, filename, filesize, image, image_file, sha1hash, date_added, telegram_fileid, telegram_uniqueid, telegram_chatid, telegram_msgid) VALUES (@type, @user_id, @filename, @filesize, @image, @image_file, @hash, @now, @tele_fileid, @tele_uniqueid, @tele_chatid, @tele_msgid)";
+                    cmd.CommandText = @"
+                        INSERT INTO images 
+                            (id, type, user_id, filename, filesize, image, image_file, sha1hash, date_added, 
+                             telegram_fileid, telegram_uniqueid, telegram_chatid, telegram_msgid) 
+                        VALUES 
+                            (@id, @type, @user_id, @filename, @filesize, @image, @image_file, @hash, @now, 
+                             @tele_fileid, @tele_uniqueid, @tele_chatid, @tele_msgid)
+                        ON DUPLICATE KEY UPDATE 
+                            type = VALUES(type), 
+                            user_id = VALUES(user_id), 
+                            filename = VALUES(filename), 
+                            filesize = VALUES(filesize),
+                            image = VALUES(image),
+                            image_file = VALUES(image_file), 
+                            sha1hash = VALUES(sha1hash), 
+                            date_added = VALUES(date_added), 
+                            telegram_fileid = VALUES(telegram_fileid), 
+                            telegram_uniqueid = VALUES(telegram_uniqueid), 
+                            telegram_chatid = VALUES(telegram_chatid), 
+                            telegram_msgid = VALUES(telegram_msgid);
+                    ";
 
+                    if (this.ID > 0)
+                    {
+                        cmd.Parameters.AddWithValue("id", this.ID);
+                    }
+                    else
+                    {
+                        cmd.Parameters.AddWithValue("id", DBNull.Value);
+                    }
                     cmd.Parameters.AddWithValue("type", this.Type.ToString());
                     cmd.Parameters.AddWithValue("user_id", this.UserID);
                     cmd.Parameters.AddWithValue("filename", this.Filename);
                     cmd.Parameters.AddWithValue("filesize", this.Image.LongLength);
-                    cmd.Parameters.AddWithValue("image", null);
+                    cmd.Parameters.AddWithValue("image", "");
                     cmd.Parameters.AddWithValue("image_file", imagePath);
                     cmd.Parameters.AddWithValue("hash", this.SHA1Hash);
                     cmd.Parameters.AddWithValue("tele_fileid", this.TelegramFileID);
@@ -240,7 +309,10 @@ namespace makefoxsrv
 
                     await cmd.ExecuteNonQueryAsync();
 
-                    this.ID = (ulong)cmd.LastInsertedId;
+                    if (this.ID == 0)
+                    {
+                        this.ID = (ulong)cmd.LastInsertedId;
+                    }
 
                     return this.ID;
                 }
@@ -371,7 +443,7 @@ namespace makefoxsrv
                     else
                         img.Type = (ImageType)Enum.Parse(typeof(ImageType), Convert.ToString(type) ?? "", true);
 
-                    if (image is null || image is DBNull)
+                    if (image is null || image is DBNull || ((byte[])image).Length < 1)
                         if (image_file is null || image_file is DBNull)
                             throw new Exception("DB: Both 'image' and 'image_file' are null");
                         else

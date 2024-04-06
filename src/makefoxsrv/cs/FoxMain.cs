@@ -292,6 +292,8 @@ namespace makefoxsrv
                 }
             };
 
+            _ = FoxImage.ConvertOldImages();
+
             try
             {
                 //Wait forever, or until cancellation is requested.
