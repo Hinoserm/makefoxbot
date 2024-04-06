@@ -1079,7 +1079,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
             if ((width > 1024 || height > 1024) && !user.CheckAccessLevel(AccessLevel.PREMIUM))
             {
                 await t.SendMessageAsync(
-                    text: "❌ Only premium users can exceed 1024 pixels in any dimension.",
+                    text: "❌ Only premium users can exceed 1024 pixels in any dimension.\n\nPlease consider becoming a premium member: /donate",
                     replyToMessageId: message.ID
                 );
                 return;
