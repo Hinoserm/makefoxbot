@@ -1083,10 +1083,10 @@ We sincerely appreciate your support and understanding. Your contribution direct
                     replyToMessageId: message.ID
                 );
                 return;
-            } else if ((width > 1920 || height > 1920) && !user.CheckAccessLevel(AccessLevel.ADMIN))
+            } else if ((width * height) > 3686400 && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendMessageAsync(
-                    text: "❌ Dimension cannot be greater than 1920.",
+                    text: "❌ Total image pixel count cannot be greater than 1920x1920.",
                     replyToMessageId: message.ID
                 );
                 return;
