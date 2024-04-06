@@ -83,6 +83,16 @@ namespace makefoxsrv
                 return; // User must agree to the terms before they can use this command.
             }
 
+            if (q.Settings.width >= 1920 || q.Settings.height >= 1920)
+            {
+                await t.SendMessageAsync(
+                    text: $"❌ This image is already at the maximum allowed resolution!  Enhancing again won't accomplish anything.  Please go back and enhance the original image if you'd like a different result.",
+                    replyToMessageId: query.msg_id
+                    );
+
+                return;
+            }
+
             if (user.GetAccessLevel() < AccessLevel.PREMIUM)
             {
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
@@ -96,7 +106,6 @@ namespace makefoxsrv
                         cmd.Parameters.AddWithValue("uid", user.UID);
                         cmd.Parameters.AddWithValue("now", DateTime.Now);
                         await using var reader = await cmd.ExecuteReaderAsync();
-                        
 
                         if (reader.HasRows && await reader.ReadAsync())
                         {
@@ -157,9 +166,6 @@ namespace makefoxsrv
             var newq = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, query.msg_id, true, q);
             if (newq is null)
                 throw new Exception("Unable to add item to queue");
-
-            newq.Enhanced = true;
-            newq.OriginalID = q.ID;
 
             await FoxQueue.Enqueue(newq);
 
