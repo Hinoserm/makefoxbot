@@ -61,42 +61,42 @@ namespace makefoxsrv
                 _peer = user;
         }
 
-        public FoxTelegram(long userId, long userAccessHash, long? chatId = null, long? chatAccessHash = null)
-        {
-            _userId = userId;
-            _chatId = chatId;
+        //public FoxTelegram(long userId, long userAccessHash, long? chatId = null, long? chatAccessHash = null)
+        //{
+        //    _userId = userId;
+        //    _chatId = chatId;
 
-            Users.TryGetValue(userId, out this._user);
-            if (chatId is not null)
-                Chats.TryGetValue((long)chatId, out this._chat);
+        //    Users.TryGetValue(userId, out this._user);
+        //    if (chatId is not null)
+        //        Chats.TryGetValue((long)chatId, out this._chat);
 
-            if (chatId is not null && chatAccessHash is not null)
-            {
-                _peer = new InputPeerChannel(chatId.Value, chatAccessHash.Value);
-            }
-            else if (chatId is not null)
-            {
-                _peer = new InputPeerChat(chatId.Value);
-            }
-            else
-            {
-                _peer = new InputPeerUser(userId, userAccessHash);
-            }
+        //    if (chatId is not null && chatAccessHash is not null)
+        //    {
+        //        _peer = new InputPeerChannel(chatId.Value, chatAccessHash.Value);
+        //    }
+        //    else if (chatId is not null)
+        //    {
+        //        _peer = new InputPeerChat(chatId.Value);
+        //    }
+        //    else
+        //    {
+        //        _peer = new InputPeerUser(userId, userAccessHash);
+        //    }
 
-            if (_user is null) //Make it up the best that we can.
-                _user = new() { id = userId, access_hash = userAccessHash };
+        //    if (_user is null) //Make it up the best that we can.
+        //        _user = new() { id = userId, access_hash = userAccessHash };
 
-            if (_chat is null && chatId is not null)
-            {
-                Chat chat = new() { id = chatId.Value };
-                _chat = chat;
-            }
+        //    if (_chat is null && chatId is not null)
+        //    {
+        //        Chat chat = new() { id = chatId.Value };
+        //        _chat = chat;
+        //    }
 
-            //Chat chat = new() { id = chatId, access_hash = userAccessHash };
+        //    //Chat chat = new() { id = chatId, access_hash = userAccessHash };
 
-            if (this._peer is null)
-                throw new InvalidOperationException("Peer is null");
-        }
+        //    if (this._peer is null)
+        //        throw new InvalidOperationException("Peer is null");
+        //}
 
         private static async Task Client_OnOther(IObject arg)
         {
@@ -258,6 +258,76 @@ namespace makefoxsrv
                 peer: _peer,
                 id: [ id ]
             );
+        }
+
+        public static async Task<TL.User?> GetUserFromID(long id)
+        {
+            long? accessHash = null;
+
+            Users.TryGetValue(id, out User? user);
+
+            if (user is not null)
+                return user;
+
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand("SELECT access_hash FROM telegram_users WHERE id = @id", SQL))
+                {
+                    cmd.Parameters.AddWithValue("@id", id);
+
+                    using (var r = await cmd.ExecuteReaderAsync())
+                    {
+                        if (await r.ReadAsync())
+                        {
+                            accessHash =  r["access_hash"] != DBNull.Value ? Convert.ToInt64(r["access_hash"]) : null;
+                        }
+                    }
+                }
+            }
+
+            if (accessHash is null)
+                return null;
+
+            return new() { id = id, access_hash = accessHash.Value };
+        }
+
+        public static async Task<TL.ChatBase?> GetChatFromID(long id)
+        {
+            long? accessHash = null;
+
+            Chats.TryGetValue(id, out ChatBase? chat);
+
+            if (chat is not null)
+                return chat;
+
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand("SELECT access_hash FROM telegram_chats WHERE id = @id", SQL))
+                {
+                    cmd.Parameters.AddWithValue("@id", id);
+
+                    using (var r = await cmd.ExecuteReaderAsync())
+                    {
+                        if (await r.ReadAsync())
+                        {
+                            accessHash = r["access_hash"] != DBNull.Value ? Convert.ToInt64(r["access_hash"]) : null;
+                        }
+                        else
+                            return null; //Didn't find anything in the database.
+                    }
+                }
+            }
+
+            if (accessHash is not null)
+            {
+                return new Channel() { id = id, access_hash = accessHash.Value };
+            }
+            else
+                return new Chat() { id = id };
         }
 
         public async Task SendCallbackAnswer(long queryID, int cacheTime, string? message = null)

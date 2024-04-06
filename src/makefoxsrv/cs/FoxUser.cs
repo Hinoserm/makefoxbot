@@ -103,66 +103,6 @@ namespace makefoxsrv
             return user;
         }
 
-        public static async Task<long?> GetUserAccessHash(long id)
-        {
-            try
-            {
-                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
-                {
-                    await SQL.OpenAsync();
-
-                    using (var cmd = new MySqlCommand("SELECT access_hash FROM telegram_users WHERE id = @id", SQL))
-                    {
-                        cmd.Parameters.AddWithValue("@id", id);
-
-                        using (var r = await cmd.ExecuteReaderAsync())
-                        {
-                            if (await r.ReadAsync())
-                            {
-                                return r["access_hash"] != DBNull.Value ? Convert.ToInt64(r["access_hash"]) : null;
-                            }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // In case of any error, return null.
-            }
-
-            return null;
-        }
-
-        public static async Task<long?> GetChatAccessHash(long id)
-        {
-            try
-            {
-                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
-                {
-                    await SQL.OpenAsync();
-
-                    using (var cmd = new MySqlCommand("SELECT access_hash FROM telegram_chats WHERE id = @id", SQL))
-                    {
-                        cmd.Parameters.AddWithValue("@id", id);
-
-                        using (var r = await cmd.ExecuteReaderAsync())
-                        {
-                            if (await r.ReadAsync())
-                            {
-                                return r["access_hash"] != DBNull.Value ? Convert.ToInt64(r["access_hash"]) : null;
-                            }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // In case of any error, return null.
-            }
-
-            return null;
-        }
-
         public static async Task<FoxUser?> GetByUID(long uid)
         {
             FoxUser? user = null;

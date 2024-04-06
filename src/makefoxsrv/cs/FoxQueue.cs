@@ -339,9 +339,15 @@ namespace makefoxsrv
                     q.User = await FoxUser.GetByUID(Convert.ToInt64(r["uid"]));
 
                     long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
-                    long? teleChatHash = r["chat_access_hash"] is DBNull ? null : (long)r["chat_access_hash"];
 
-                    q.Telegram = new FoxTelegram((long)r["tele_id"], (long)r["user_access_hash"], teleChatId, teleChatHash);
+                    var teleChat = teleChatId is not null ? await FoxTelegram.GetChatFromID(teleChatId.Value) : null;
+
+                    var teleUser = await FoxTelegram.GetUserFromID(Convert.ToInt64(r["tele_id"]));
+
+                    if (teleUser is null)
+                        continue; //Something went wrong, skip this one.
+
+                    q.Telegram = new FoxTelegram(teleUser, teleChat);
 
                     count++;
                     await Enqueue(q);
@@ -663,8 +669,17 @@ namespace makefoxsrv
 
         //    return (long)this.ID;
         //}
-        public static async Task<FoxQueue?> Get(long id)
+        public static async Task<FoxQueue?> Get(ulong id)
         {
+            // Attempt to find the FoxQueue item in the fullQueue cache
+            var cachedItem = fullQueue.FindAll(fq => fq.ID == id).FirstOrDefault();
+
+            if (cachedItem is not null)
+            {
+                // If found in cache, return the cached item
+                return cachedItem;
+            }
+
             var parameters = new Dictionary<string, object>
             {
                 { "@id", id }
@@ -676,10 +691,18 @@ namespace makefoxsrv
                 o.User = await FoxUser.GetByUID(uid);
 
                 long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
-                long? teleChatHash = teleChatId is not null ? await FoxUser.GetChatAccessHash(teleChatId.Value) : null;
 
-                o.Telegram = new FoxTelegram((long)r["tele_id"], await FoxUser.GetUserAccessHash(uid) ?? 0, teleChatId, teleChatHash);
+                var teleChat = teleChatId is not null ? await FoxTelegram.GetChatFromID(teleChatId.Value) : null;
+
+                var teleUser = await FoxTelegram.GetUserFromID(Convert.ToInt64(r["tele_id"]));
+
+                if (teleUser is not null)
+                    o.Telegram = new FoxTelegram(teleUser, teleChat);
             });
+
+            // After loading, add the object to the fullQueue cache if it's not null
+            //if (q is not null)
+            //    fullQueue.Enqueue(q);
 
             return q;
         }

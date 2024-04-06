@@ -59,18 +59,8 @@ namespace makefoxsrv
 
         private static async Task CallbackCmdEnhance(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
         {
-
-            long info_id = 0;
-
-            if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
+            if (argument is null || argument.Length <= 0 || !ulong.TryParse(argument, out ulong info_id))
             {
-                /* await botClient.EditMessageTextAsync(
-                    chatId: update.CallbackQuery.Message.Chat.Id,
-                    text: "Invalid request",
-                    messageId: update.CallbackQuery.Message.MessageId,
-                    cancellationToken: cancellationToken
-                ); */
-
                 throw new Exception("Malformed request");
             }
 
@@ -370,9 +360,9 @@ namespace makefoxsrv
         private static async Task CallbackCmdInfo(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
         {
 
-            long info_id = 0;
+            ulong info_id = 0;
 
-            if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
+            if (argument is null || argument.Length <= 0 || !ulong.TryParse(argument, out info_id))
             {
                 /* await botClient.EditMessageTextAsync(
                     chatId: update.CallbackQuery.Message.Chat.Id,
@@ -490,9 +480,9 @@ namespace makefoxsrv
 
         private static async Task CallbackCmdDownload(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
         {
-            long info_id = 0;
+            ulong info_id = 0;
 
-            if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
+            if (argument is null || argument.Length <= 0 || !ulong.TryParse(argument, out info_id))
                 throw new Exception("Malformed request");
 
             var q = await FoxQueue.Get(info_id);
@@ -525,9 +515,9 @@ namespace makefoxsrv
         private static async Task CallbackCmdSelect(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
         {
 
-            long info_id = 0;
+           ulong info_id = 0;
 
-            if (argument is null || argument.Length <= 0 || !long.TryParse(argument, out info_id))
+            if (argument is null || argument.Length <= 0 || !ulong.TryParse(argument, out info_id))
                 throw new Exception("Malformed request");
 
             var q = await FoxQueue.Get(info_id);

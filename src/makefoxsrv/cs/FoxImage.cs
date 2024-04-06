@@ -11,6 +11,9 @@ using WTelegram;
 using makefoxsrv;
 using TL;
 using System.IO;
+using System.Globalization;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats;
 
 namespace makefoxsrv
 {
@@ -100,6 +103,58 @@ namespace makefoxsrv
             }
         }
 
+        // Reads an image file and returns its content as a byte array
+        public static byte[] ReadImageFromFile(string relativeImagePath)
+        {
+            // Compute the absolute path from the executable location and the relative path provided
+            string fullPath = Path.GetFullPath(Path.Combine("../data", relativeImagePath));
+
+            // Read all bytes from the image file
+            byte[] imageData = File.ReadAllBytes(fullPath);
+            return imageData;
+        }
+
+        // Writes a byte array to an image file
+        public static void WriteImageToFile(byte[] imageData, string relativeImagePath)
+        {
+            // Compute the absolute path from the executable location and the relative path provided
+            string fullPath = Path.GetFullPath(Path.Combine("../data", relativeImagePath));
+
+            // Ensure the directory exists before writing the file
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            if (!Directory.Exists(directoryPath))
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
+
+            // Write all bytes to the image file
+            File.WriteAllBytes(fullPath, imageData);
+        }
+
+        public static string GenerateImagePath(ImageType type, string sha1Checksum, DateTime creationTime, string fileExtension = "png")
+        {
+            // Convert the ImageType enum to lowercase string, handling specific cases as needed
+            string typePath = type.ToString().ToLower();
+
+            // Handle specific directory names for input and output, others can be added as needed
+            if (type == ImageType.INPUT)
+            {
+                typePath = "input";
+            }
+            else if (type == ImageType.OUTPUT)
+            {
+                typePath = "output";
+            }
+
+            // Format the month name in lowercase
+            string monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(creationTime.Month).ToLower();
+
+            // Construct the file path
+            string filePath = $"images/{typePath}/{creationTime.Year}/{monthName}/{creationTime.ToString("dd")}/{creationTime.ToString("HH")}/{sha1Checksum.ToUpper()}.{fileExtension}";
+
+            return filePath;
+        }
+
         private static int RoundUpToNearestMultipleWithinLimit(int value, int multiple, int limit)
         {
             int roundedValue = ((value + multiple - 1) / multiple) * multiple;
@@ -117,14 +172,26 @@ namespace makefoxsrv
             return img;
         }
 
+        public static string GetImageExtension(byte[] imageData)
+        {
+            // Attempt to detect the format of the image
+            var format = SixLabors.ImageSharp.Image.DetectFormat(imageData);
+
+            if (format is null)
+            {
+                throw new ArgumentException("Unable to determine image format", nameof(imageData));
+            }
+
+            // Return the appropriate file extension based on the detected format
+            return format.FileExtensions.FirstOrDefault() ?? throw new InvalidOperationException("Format detected, but no extension found");
+        }
+
         public async Task<ulong> Save(ImageType? type = null, byte[]? image = null, string? filename = null, string? tele_fileid = null, string? tele_uniqueid = null, long? tele_chatid = null, long? tele_msgid = null)
         {
             if (type is not null)
-                this.Type = (ImageType)type;
+                this.Type = type.Value;
             if (filename is not null)
                 this.Filename = filename;
-            if (image is not null)
-                this.Image = image;
             if (tele_fileid is not null)
                 this.TelegramFileID = tele_fileid;
             if (tele_uniqueid is not null)
@@ -135,9 +202,20 @@ namespace makefoxsrv
                 this.TelegramMessageID = tele_msgid;
 
             if (image is not null)
+            {
                 this.SHA1Hash = sha1hash(image);
+                this.Image = image;
+            }
+
+            if (this.Image is null)
+                throw new Exception("Image must not be null");
 
             this.DateAdded = DateTime.Now;
+
+            var imagePath = GenerateImagePath(this.Type, this.SHA1Hash, this.DateAdded, GetImageExtension(this.Image));
+
+            WriteImageToFile(this.Image, imagePath);
+
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -145,13 +223,14 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "INSERT INTO images (type, user_id, filename, filesize, image, sha1hash, date_added, telegram_fileid, telegram_uniqueid, telegram_chatid, telegram_msgid) VALUES (@type, @user_id, @filename, @filesize, @image, @hash, @now, @tele_fileid, @tele_uniqueid, @tele_chatid, @tele_msgid)";
+                    cmd.CommandText = "INSERT INTO images (type, user_id, filename, filesize, image, image_file, sha1hash, date_added, telegram_fileid, telegram_uniqueid, telegram_chatid, telegram_msgid) VALUES (@type, @user_id, @filename, @filesize, @image, @image_file, @hash, @now, @tele_fileid, @tele_uniqueid, @tele_chatid, @tele_msgid)";
 
                     cmd.Parameters.AddWithValue("type", this.Type.ToString());
                     cmd.Parameters.AddWithValue("user_id", this.UserID);
                     cmd.Parameters.AddWithValue("filename", this.Filename);
                     cmd.Parameters.AddWithValue("filesize", this.Image.LongLength);
-                    cmd.Parameters.AddWithValue("image", this.Image);
+                    cmd.Parameters.AddWithValue("image", null);
+                    cmd.Parameters.AddWithValue("image_file", imagePath);
                     cmd.Parameters.AddWithValue("hash", this.SHA1Hash);
                     cmd.Parameters.AddWithValue("tele_fileid", this.TelegramFileID);
                     cmd.Parameters.AddWithValue("tele_uniqueid", this.TelegramUniqueID);
@@ -273,6 +352,7 @@ namespace makefoxsrv
                     var userId = r["user_id"];
                     var type = r["type"];
                     var image = r["image"];
+                    var image_file = r["image_file"];
                     var sha1hash = r["sha1hash"];
                     var dateAdded = r["date_added"];
 
@@ -292,7 +372,10 @@ namespace makefoxsrv
                         img.Type = (ImageType)Enum.Parse(typeof(ImageType), Convert.ToString(type) ?? "", true);
 
                     if (image is null || image is DBNull)
-                        throw new Exception("DB: image.image must never be null");
+                        if (image_file is null || image_file is DBNull)
+                            throw new Exception("DB: Both 'image' and 'image_file' are null");
+                        else
+                            img.Image = ReadImageFromFile(Convert.ToString(image_file));
                     else
                         img.Image = (byte[])image;
 
