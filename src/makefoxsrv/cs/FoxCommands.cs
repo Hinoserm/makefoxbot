@@ -47,7 +47,7 @@ namespace makefoxsrv
             { "/size",        CmdSetSize },
             //--------------- -----------------
             { "/current",     CmdCurrent },
-            //{ "/select",      CmdSelect },
+            { "/select",      CmdSelect },
             //--------------- -----------------
             { "/start",       CmdStart },
             //--------------- -----------------
@@ -382,43 +382,42 @@ We sincerely appreciate your support and understanding. Your contribution direct
             }
         }
 
-        //[CommandDescription("Select your last uploaded image as the input for /img2img")]
-        //private static async Task CmdSelect(FoxTelegram t, Message message, FoxUser user, String? argument)
-        //{
-        //    var img = await FoxImage.LoadLastUploaded(user, t.Chat.ID);
+        [CommandDescription("Send this in a reply to any message containing an image to select it for /img2img")]
+        private static async Task CmdSelect(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            var img = await FoxImage.SaveImageFromReply(t, message);
 
-        //    if (img is null)
-        //    {
-        //        await botClient.SendMessageAsync(
-        //                peer: tPeer,
-        //                text: "❌ Error: You must upload an image first.",
-        //                reply_to_msg_id: message.ID
-        //                );
+            if (img is null)
+            {
+                await t.SendMessageAsync(
+                        text: "❌ Error: That message doesn't contain an image.  You must send this command as a reply to a message containing an image.",
+                        replyToMessageId: message.ID
+                        );
 
-        //        return;
-        //    }
+                return;
+            }
 
-        //    var settings = await FoxUserSettings.GetTelegramSettings(user, tUser, tChat);
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-        //    settings.selected_image = img.ID;
+            settings.selected_image = img.ID;
 
-        //    await settings.Save();
+            await settings.Save();
 
-        //    try {
-        //        Message waitMsg = await botClient.SendMessageAsync(
-        //            peer: tChat,
-        //            text: "✅ Image saved and selected as input for /img2img",
-        //            reply_to_msg_id: (int)(img.TelegramMessageID ?? message.ID)
-        //        );
-        //    } catch {
-        //        Message waitMsg = await botClient.SendMessageAsync(
-        //            peer: tChat,
-        //            text: "✅ Image saved and selected as input for /img2img",
-        //            reply_to_msg_id: message.ID
-        //        );
-        //    }
+            try
+            {
+                Message waitMsg = await t.SendMessageAsync(
+                    text: "✅ Image saved and selected as input for /img2img",
+                    replyToMessageId: (int)(img.TelegramMessageID ?? message.ID)
+                );
+            }
+            catch
+            {
+                Message waitMsg = await t.SendMessageAsync(
+                    text: "✅ Image saved and selected as input for /img2img"
+                );
+            }
 
-        //}
+        }
 
         [CommandDescription("Show list of available commands")]
         private static async Task CmdCmdList(FoxTelegram t, Message message, FoxUser user, String? argument)
@@ -482,7 +481,6 @@ We sincerely appreciate your support and understanding. Your contribution direct
         private static async Task CmdImg2Img(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
 
             var replyImg = await FoxImage.SaveImageFromReply(t, message);
 
