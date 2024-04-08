@@ -483,6 +483,15 @@ We sincerely appreciate your support and understanding. Your contribution direct
         {
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
+
+            var replyImg = await FoxImage.SaveImageFromReply(t, message);
+
+            if (replyImg is not null)
+            {
+                settings.selected_image = replyImg.ID;
+                await settings.Save();
+            }
+
             if (!string.IsNullOrEmpty(argument))
             {
                 settings.prompt = argument; //.Replace("\n", ", ");

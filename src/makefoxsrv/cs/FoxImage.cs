@@ -503,8 +503,55 @@ namespace makefoxsrv
             using var sha1 = SHA1.Create();
             return Convert.ToHexString(sha1.ComputeHash(input));
         }
+
+        public static async Task<FoxImage?> SaveImageFromReply(FoxTelegram t, Message message)
+        {
+
+            if (message is null)
+                return null; //Nothing we can do.
+
+            Message? newMessage = null;
+
+            try
+            {
+                if (message.ReplyTo is not null && message.ReplyTo is MessageReplyHeader mrh)
+                {
+                    long userId = 0;
+
+                    switch (t.Peer)
+                    {
+                        case InputPeerChannel channel:
+                            var rmsg = await FoxTelegram.Client.Channels_GetMessages(channel, new InputMessage[] { mrh.reply_to_msg_id });
+
+                            if (rmsg is not null && rmsg.Messages is not null && rmsg.Messages.First() is not null && rmsg.Messages.First().From is not null)
+                                newMessage = (Message)rmsg.Messages.First();
+                            break;
+                        case InputPeerChat chat:
+                            var crmsg = await FoxTelegram.Client.Messages_GetMessages(new InputMessage[] { mrh.reply_to_msg_id });
+
+                            if (crmsg is not null && crmsg.Messages is not null && crmsg.Messages.First() is not null && crmsg.Messages.First().From is not null)
+                                newMessage = (Message)crmsg.Messages.First();
+                            break;
+                        case InputPeerUser user:
+                            var umsg = await FoxTelegram.Client.Messages_GetMessages(new InputMessage[] { mrh.reply_to_msg_id });
+
+                            if (umsg is not null && umsg.Messages is not null)
+                                newMessage = (Message)umsg.Messages.First();
+                            break;
+                    }
+                }
+            } catch (Exception ex)
+            {
+                FoxLog.WriteLine($"SaveImageFromReply() error: {ex.Message}\r\n{ex.StackTrace}");
+            }
+
+            if (newMessage is not null && newMessage.media is MessageMediaPhoto { photo: Photo photo })
+                return await SaveImageFromTelegram(t, message, photo, true);
+
+            return null;
+        }
         
-        public static async Task SaveImageFromTelegram(FoxTelegram t, Message message, Photo photo)
+        public static async Task<FoxImage?> SaveImageFromTelegram(FoxTelegram t, Message message, Photo photo, bool Silent = false)
         {
             try
             {
@@ -526,88 +573,95 @@ namespace makefoxsrv
 
                     var newImg = await FoxImage.Create(user.UID, memoryStream.ToArray(), FoxImage.ImageType.INPUT, fileName, null, null, t.Chat is null ? null : t.Chat.ID, message.ID);
 
-                    if (t.Chat is null) //Only save & notify outside of groups.
+                    if (!Silent)
                     {
-                        var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-                        settings.selected_image = newImg.ID;
-
-                        await settings.Save();
-
-                        await t.SendMessageAsync(
-                            text: "✅ Image saved and selected as input for /img2img",
-                            replyToMessageId: message.ID
-                        );
-                    }
-                    else if (t.Chat is not null)
-                    {
-                        // We need to check if the user replied to one of our messages or tagged us.
-
-                        if (message.ReplyTo is not null && message.ReplyTo is MessageReplyHeader mrh)
+                        if (t.Chat is null) //Only save & notify outside of groups.
                         {
-                            long userId = 0;
+                            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-                            switch (t.Chat)
-                            {
-                                case Channel channel:
-                                    var rmsg = await FoxTelegram.Client.Channels_GetMessages(channel, new InputMessage[] { mrh.reply_to_msg_id });
+                            settings.selected_image = newImg.ID;
 
-                                    if (rmsg is not null && rmsg.Messages is not null)
-                                        userId = rmsg.Messages.First().From;
-                                    break;
-                                case Chat chat:
-                                    var crmsg = await FoxTelegram.Client.Messages_GetMessages(new InputMessage[] { mrh.reply_to_msg_id });
+                            await settings.Save();
 
-                                    if (crmsg is not null && crmsg.Messages is not null)
-                                        userId = crmsg.Messages.First().From;
-                                    break;
-                            }
-
-                            if (userId == FoxTelegram.Client.UserId)
-                            {
-                                var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-                                settings.selected_image = newImg.ID;
-
-                                await settings.Save();
-
-                                await t.SendMessageAsync(
-                                    text: "✅ Image saved as input for /img2img",
-                                    replyToMessageId: message.ID
-                                );
-                              }
+                            await t.SendMessageAsync(
+                                text: "✅ Image saved and selected as input for /img2img",
+                                replyToMessageId: message.ID
+                            );
                         }
-                        else if (message.entities is not null)
+                        else if (t.Chat is not null)
                         {
-                            foreach (var entity in message.entities)
+                            // We need to check if the user replied to one of our messages or tagged us.
+
+                            if (message.ReplyTo is not null && message.ReplyTo is MessageReplyHeader mrh)
                             {
-                                if (entity is MessageEntityMention)
+                                long userId = 0;
+
+                                switch (t.Chat)
                                 {
-                                    var username = message.message.Substring(entity.offset, entity.length);
+                                    case Channel channel:
+                                        var rmsg = await FoxTelegram.Client.Channels_GetMessages(channel, new InputMessage[] { mrh.reply_to_msg_id });
 
-                                    if (username == $"@{FoxTelegram.Client.User.username}")
+                                        if (rmsg is not null && rmsg.Messages is not null && rmsg.Messages.First() is not null && rmsg.Messages.First().From is not null)
+                                            userId = rmsg.Messages.First().From;
+                                        break;
+                                    case Chat chat:
+                                        var crmsg = await FoxTelegram.Client.Messages_GetMessages(new InputMessage[] { mrh.reply_to_msg_id });
+
+                                        if (crmsg is not null && crmsg.Messages is not null && crmsg.Messages.First() is not null && crmsg.Messages.First().From is not null)
+                                            userId = crmsg.Messages.First().From;
+                                        break;
+                                }
+
+                                if (userId == FoxTelegram.Client.UserId)
+                                {
+                                    var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+
+                                    settings.selected_image = newImg.ID;
+
+                                    await settings.Save();
+
+                                    await t.SendMessageAsync(
+                                        text: "✅ Image saved as input for /img2img",
+                                        replyToMessageId: message.ID
+                                    );
+                                }
+                            }
+                            else if (message.entities is not null)
+                            {
+                                foreach (var entity in message.entities)
+                                {
+                                    if (entity is MessageEntityMention)
                                     {
-                                        var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+                                        var username = message.message.Substring(entity.offset, entity.length);
 
-                                        settings.selected_image = newImg.ID;
+                                        if (username == $"@{FoxTelegram.Client.User.username}")
+                                        {
+                                            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-                                        await settings.Save();
+                                            settings.selected_image = newImg.ID;
 
-                                        await t.SendMessageAsync(
-                                            text: "✅ Image saved and selected as input for /img2img",
-                                            replyToMessageId: message.ID
-                                            );
+                                            await settings.Save();
+
+                                            await t.SendMessageAsync(
+                                                text: "✅ Image saved and selected as input for /img2img",
+                                                replyToMessageId: message.ID
+                                                );
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+
+                    return newImg;
                 }
             }
             catch (Exception ex)
             {
                 FoxLog.WriteLine($"Error with input image: {ex.Message}\r\n{ex.StackTrace}");
             }
+
+            return null;
         }
         public static (uint newWidth, uint newHeight) CalculateLimitedDimensions(uint originalWidth, uint originalHeight, uint maxWidthHeight = 768)
         {
