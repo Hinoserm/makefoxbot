@@ -1036,8 +1036,7 @@ namespace makefoxsrv
                                 Seed = settings.seed
                             },
                             ResizeMode = qItem.Enhanced ? 0 : 2, //Testing this
-                            InpaintingFill = MaskFillMode.original,
-
+                            InpaintingFill = MaskFillMode.LatentNoise,
                             DenoisingStrength = (double)settings.denoising_strength,
 
                             Sampler = new()
