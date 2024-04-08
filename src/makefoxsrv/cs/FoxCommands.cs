@@ -575,7 +575,19 @@ We sincerely appreciate your support and understanding. Your contribution direct
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
-            await FoxQueue.Enqueue(q);
+            if (FoxQueue.FindSuitableWorkerForTask(q) is null)
+            {
+                await q.SetCancelled(true);
+
+                await t.EditMessageAsync(
+                    text: "❌ No workers available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
+                    id: waitMsg.ID
+                    );
+
+                return;
+            }
+            else
+                await FoxQueue.Enqueue(q);
 
         }
 
@@ -648,9 +660,21 @@ We sincerely appreciate your support and understanding. Your contribution direct
 
             var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
             if (q is null)
-                throw new Exception("Unable to add item to queue");            
+                throw new Exception("Unable to add item to queue");
 
-            await FoxQueue.Enqueue(q);           
+            if (FoxQueue.FindSuitableWorkerForTask(q) is null)
+            {
+                await q.SetCancelled(true);
+
+                await t.EditMessageAsync(
+                    text: "❌ No workers available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
+                    id: waitMsg.ID
+                    );
+
+                return;
+            }
+            else
+                await FoxQueue.Enqueue(q);
         }
 
         [CommandDescription("Change current AI model.")]

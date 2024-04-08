@@ -270,11 +270,13 @@ namespace makefoxsrv
             });
         }
 
-        private static FoxWorker? FindSuitableWorkerForTask(FoxQueue item)
+        public static FoxWorker? FindSuitableWorkerForTask(FoxQueue item)
         {
             // First, filter out workers based on their online status, image size and steps capacity,
             // and further check if they are not busy (qItem is null) and either have the model loaded or it's available to them.
-            var suitableWorkers = FoxWorker.GetWorkers().Values
+            var workers = FoxWorker.GetWorkers().Values;
+
+            var suitableWorkers = workers
                 .Where(worker => worker.Online
                                  && (worker.qItem == null)  // Worker is not currently busy
                                  && (!worker.MaxImageSize.HasValue || (item.Settings.width * item.Settings.height) <= worker.MaxImageSize.Value)
@@ -834,11 +836,11 @@ namespace makefoxsrv
             return number;
         }
 
-        public async Task SetCancelled()
+        public async Task SetCancelled(bool silent = false)
         {
             await this.SetStatus(QueueStatus.CANCELLED);
 
-            if (Telegram is not null)
+            if (Telegram is not null && !silent)
             {
                 try
                 {

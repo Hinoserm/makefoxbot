@@ -167,7 +167,18 @@ namespace makefoxsrv
             if (newq is null)
                 throw new Exception("Unable to add item to queue");
 
-            await FoxQueue.Enqueue(newq);
+            if (FoxQueue.FindSuitableWorkerForTask(newq) is null)
+            {
+
+                await newq.SetCancelled(true);
+                await t.EditMessageAsync(
+                    text: "❌ No workers available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
+                    id: waitMsg.ID
+                    );
+
+                return;
+            } else
+                await FoxQueue.Enqueue(newq);
 
 
 
