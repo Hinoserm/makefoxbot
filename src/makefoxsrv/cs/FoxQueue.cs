@@ -270,6 +270,22 @@ namespace makefoxsrv
             });
         }
 
+        public static FoxWorker? CheckWorkerAvailability(FoxUserSettings settings)
+        {
+            var workers = FoxWorker.GetWorkers().Values;
+
+            // Filter out workers based on their online status, max image size, steps capacity,
+            // and the availability of the model.
+            var capableWorkers = workers
+                .Where(worker => worker.Online
+                                 && (!worker.MaxImageSize.HasValue || (settings.width * settings.height) <= worker.MaxImageSize.Value)
+                                 && (!worker.MaxImageSteps.HasValue || settings.steps <= worker.MaxImageSteps.Value)
+                                 && worker.availableModels.ContainsKey(settings.model)) // Check if the model is available to the worker
+                .FirstOrDefault(); // Immediately return the first capable worker found
+
+            return capableWorkers; // Could be null if no capable workers are found
+        }
+
         public static FoxWorker? FindSuitableWorkerForTask(FoxQueue item)
         {
             // First, filter out workers based on their online status, image size and steps capacity,

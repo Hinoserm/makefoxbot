@@ -12,6 +12,7 @@ using System.Drawing;
 using MySqlConnector;
 using WTelegram;
 using TL;
+using System.Collections;
 
 namespace makefoxsrv
 {
@@ -564,6 +565,16 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
+            if (FoxQueue.CheckWorkerAvailability(settings) is null)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ No workers are available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
             (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
 
             Message waitMsg = await t.SendMessageAsync(
@@ -575,19 +586,8 @@ We sincerely appreciate your support and understanding. Your contribution direct
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
-            if (FoxQueue.FindSuitableWorkerForTask(q) is null)
-            {
-                await q.SetCancelled(true);
 
-                await t.EditMessageAsync(
-                    text: "❌ No workers available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
-                    id: waitMsg.ID
-                    );
-
-                return;
-            }
-            else
-                await FoxQueue.Enqueue(q);
+            await FoxQueue.Enqueue(q);
 
         }
 
@@ -651,6 +651,16 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
+            if (FoxQueue.CheckWorkerAvailability(settings) is null)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ No workers are available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
             (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
 
             Message waitMsg = await t.SendMessageAsync(
@@ -662,19 +672,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
-            if (FoxQueue.FindSuitableWorkerForTask(q) is null)
-            {
-                await q.SetCancelled(true);
-
-                await t.EditMessageAsync(
-                    text: "❌ No workers available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
-                    id: waitMsg.ID
-                    );
-
-                return;
-            }
-            else
-                await FoxQueue.Enqueue(q);
+            await FoxQueue.Enqueue(q);
         }
 
         [CommandDescription("Change current AI model.")]

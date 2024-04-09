@@ -146,10 +146,10 @@ namespace makefoxsrv
 
             settings.selected_image = q.OutputImageID.Value;
 
-            if (await FoxWorker.GetWorkersForModel(settings.model) is null)
+            if (FoxQueue.CheckWorkerAvailability(settings) is null)
             {
                 await t.SendMessageAsync(
-                    text: $"❌ There are no workers available to handle your currently selected model ({settings.model}).\r\n\r\nPlease try again later or select a different /model.",
+                    text: "❌ No workers available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
                     replyToMessageId: query.msg_id
                 );
 
@@ -167,21 +167,7 @@ namespace makefoxsrv
             if (newq is null)
                 throw new Exception("Unable to add item to queue");
 
-            if (FoxQueue.FindSuitableWorkerForTask(newq) is null)
-            {
-
-                await newq.SetCancelled(true);
-                await t.EditMessageAsync(
-                    text: "❌ No workers available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
-                    id: waitMsg.ID
-                    );
-
-                return;
-            } else
-                await FoxQueue.Enqueue(newq);
-
-
-
+            await FoxQueue.Enqueue(newq);
         }
 
         private static async Task CallbackCmdLanguage(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
