@@ -878,6 +878,22 @@ namespace makefoxsrv
 
         public async Task Cancel()
         {
+            lock (lockObj)
+            {
+                // Find the task index using its ID. Assuming 'task.ID' can uniquely identify each task.
+                var taskIndex = taskList.FindIndex(t => t.task.ID == this.ID);
+
+                if (taskIndex != -1) // Check if the task was found
+                {
+                    taskList.RemoveAt(taskIndex); // Remove the found task from the list
+                    FoxLog.WriteLine($"Cancelled and removed task {this.ID}.", LogLevel.DEBUG);
+                }
+                else
+                {
+                    FoxLog.WriteLine($"Task {this.ID} not found for cancellation.", LogLevel.WARNING);
+                }
+            }
+
             await this.SetCancelled();
             this.stopToken.Cancel();
         }

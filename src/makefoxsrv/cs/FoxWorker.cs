@@ -1076,7 +1076,7 @@ namespace makefoxsrv
                             Steps = 15
                         };
 
-                        (width, height) = FoxImage.CalculateLimitedDimensions(settings.width, settings.height, 512);
+                        (width, height) = FoxImage.CalculateLimitedDimensions(settings.width, settings.height, 768);
                     }
 
                     var txt2img = await api.TextToImage(
