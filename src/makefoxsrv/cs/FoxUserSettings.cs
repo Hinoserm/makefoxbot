@@ -70,9 +70,8 @@ namespace makefoxsrv
             set => _denoising_strength = value;
         }
 
-
         [DbColumn("model")]
-        public string? model
+        public string model
         {
             get => _model ?? FoxSettings.Get<string>("DefaultModel");
             set => _model = value;

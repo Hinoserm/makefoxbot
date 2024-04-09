@@ -981,10 +981,10 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 }
                 return;
             }
-            else if (steps < 1 || (steps > 30 && !user.CheckAccessLevel(AccessLevel.ADMIN)))
+            else if (steps < 1 || (steps > 40 && !user.CheckAccessLevel(AccessLevel.ADMIN)))
             {
                 await t.SendMessageAsync(
-                    text: "❌ Value must be above 1 and below 30.",
+                    text: "❌ Value must be above 1 and below 40.",
                     replyToMessageId: message.ID
                 );
 
