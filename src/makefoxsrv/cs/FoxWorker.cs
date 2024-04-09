@@ -1071,7 +1071,7 @@ namespace makefoxsrv
                         {
                             Width = settings.width,
                             Height = settings.height,
-                            DenoisingStrength = 0.45,
+                            DenoisingStrength = 0.55,
                             Upscaler = upscaler,
                             Steps = 15
                         };
