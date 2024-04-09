@@ -480,11 +480,13 @@ namespace makefoxsrv
             return (position, totalItems);
         }
 
-        public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings settings, QueueType type, int messageID, int? replyMessageID = null, bool enhanced = false, FoxQueue? originalTask = null)
+        public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings, QueueType type, int messageID, int? replyMessageID = null, bool enhanced = false, FoxQueue? originalTask = null)
         {
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
+
+            FoxUserSettings settings = taskSettings.Copy();
 
             if (settings.seed == -1)
                 settings.seed = GetRandomInt32();

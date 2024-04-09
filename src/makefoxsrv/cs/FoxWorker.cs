@@ -990,7 +990,7 @@ namespace makefoxsrv
                 OnTaskStart?.Invoke(this, new TaskEventArgs(qItem));
                 await qItem.Start(this);
 
-                var settings = qItem.Settings;
+                var settings = qItem.Settings.Copy();
 
                 this.UseModel(settings.model);
 

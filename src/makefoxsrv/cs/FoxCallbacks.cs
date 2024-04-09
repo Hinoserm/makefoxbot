@@ -136,7 +136,7 @@ namespace makefoxsrv
                 return;
             }
 
-            var settings = q.Settings;
+            FoxUserSettings settings = q.Settings.Copy();
 
             (settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
 

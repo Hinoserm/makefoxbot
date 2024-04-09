@@ -88,6 +88,26 @@ namespace makefoxsrv
 
         private FoxUser? User;
 
+        public FoxUserSettings Copy()
+        {
+            return new FoxUserSettings
+            {
+                _steps = this._steps,
+                _cfgscale = this._cfgscale,
+                _prompt = this._prompt,
+                _negative_prompt = this._negative_prompt,
+                _width = this._width,
+                _height = this._height,
+                _denoising_strength = this._denoising_strength,
+                _model = this._model,
+                seed = this.seed,
+                selected_image = this.selected_image,
+                TelegramUserID = this.TelegramUserID,
+                TelegramChatID = this.TelegramChatID,
+                User = this.User
+            };
+        }
+
         public async Task Save()
         {
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
