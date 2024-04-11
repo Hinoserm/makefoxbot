@@ -19,6 +19,12 @@ namespace makefoxsrv
 
         public new void Enqueue(T item)
         {
+            // Check for null if T is a reference type
+            if (item == null && !typeof(T).IsValueType)
+            {
+                throw new ArgumentNullException(nameof(item), "Cannot insert null into the queue");
+            }
+
             while (Count >= maxItemCount)
             {
                 Dequeue(); // Remove oldest items to make space

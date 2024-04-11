@@ -1025,9 +1025,6 @@ We sincerely appreciate your support and understanding. Your contribution direct
         private static async Task CmdCancel(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             int count = 0;
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
-            await SQL.OpenAsync();
 
             var cancelMsg = await t.SendMessageAsync(
                 text: $"⏳ Cancelling...",
@@ -1058,6 +1055,19 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 }
 
                 count++;
+            }
+
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = $"UPDATE queue SET status = 'CANCELLED' WHERE uid = @uid AND (status = 'PENDING' OR status = 'ERROR' OR status = 'PROCESSING')";
+                    cmd.Parameters.AddWithValue("uid", user.UID);
+                    count += await cmd.ExecuteNonQueryAsync();
+                }
             }
 
             await t.EditMessageAsync(

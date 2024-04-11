@@ -892,7 +892,7 @@ namespace makefoxsrv
                 }
                 else
                 {
-                    FoxLog.WriteLine($"Task {this.ID} not found for cancellation.", LogLevel.WARNING);
+                    FoxLog.WriteLine($"Task {this.ID} not found for cancellation.", LogLevel.DEBUG);
                 }
             }
 
