@@ -853,7 +853,7 @@ namespace makefoxsrv
 
             //var waitHandles = new WaitHandle[] { enabledEvent, cts.Token.WaitHandle };
 
-            this.ModelCapacity = 3;
+            this.ModelCapacity = 1;
 
             OnWorkerStart?.Invoke(this, new WorkerEventArgs());            
 
