@@ -31,7 +31,7 @@ namespace makefoxsrv
         private CancellationTokenSource stopToken = new(); //Token to stop this worker specifically
 
         private readonly string address;
-        private static SemaphoreSlim semaphore = new SemaphoreSlim(0, int.MaxValue);
+        private SemaphoreSlim semaphore = new SemaphoreSlim(0, int.MaxValue);
         private bool semaphoreAcquired = false;
         private StableDiffusion? api;
         public FoxQueue? qItem = null;   //If we're operating, this is the current queue item being processed.
@@ -659,7 +659,7 @@ namespace makefoxsrv
             return workers.Keys;
         }
 
-        public static void Ping(int count = 1)
+        public void Ping(int count = 1)
         {
             semaphore.Release(count);
         }
