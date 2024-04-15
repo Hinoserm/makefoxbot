@@ -855,113 +855,128 @@ namespace makefoxsrv
 
             this.ModelCapacity = 1;
 
-            OnWorkerStart?.Invoke(this, new WorkerEventArgs());            
+            try
+            {
+                OnWorkerStart?.Invoke(this, new WorkerEventArgs());
+            }
+            catch (Exception ex)
+            {
+                FoxLog.WriteLine($"Error running OnWorkerStart: {ex.Message}\r\n{ex.StackTrace}");
+            }
 
             _ = Task.Run(async () =>
             {
-                Online = await ConnectAPI(false) is not null;
-
-                while (!cts.IsCancellationRequested)
+                try
                 {
-                    var waitMs = 6000; //Default wait time
+                    Online = await ConnectAPI(false) is not null;
 
-                    try
+                    while (!cts.IsCancellationRequested)
                     {
-                        var semaphoreAquired = await semaphore.WaitAsync(waitMs, cts.Token);
+                        var waitMs = 6000; //Default wait time
 
-                        //WaitHandle.WaitAny(waitHandles);
-
-                        api = await ConnectAPI(false);
-
-                        var newOnlineStatus = api is not null;
-
-                        if (Online != newOnlineStatus)
+                        try
                         {
-                            if (newOnlineStatus)
+                            var semaphoreAquired = await semaphore.WaitAsync(waitMs, cts.Token);
+
+                            //WaitHandle.WaitAny(waitHandles);
+
+                            api = await ConnectAPI(false);
+
+                            var newOnlineStatus = api is not null;
+
+                            if (Online != newOnlineStatus)
                             {
-                                //Coming back online
-                                await Task.Delay(8000, cts.Token);
-
-                                FoxLog.WriteLine($"Worker {ID} is back online!");
-                                await SetOnlineStatus(true);
-
-                                await LoadModelInfo(); //Reload in case it changed.
-
-                                Online = true;
-                                waitMs = 2000;
-                            }
-                            else
-                            {
-                                //Going offline
-
-                                await HandleError(new Exception("Could not connect to server"));
-                                waitMs = 10000; //Wait longer if we're offline.
-                            }
-                        }
-
-                        if (Online)
-                        {
-                            while ((api = await ConnectAPI(true)) is not null)
-                            {
-                                //If we're not the one currently processing...
-                                var status = await api.QueueStatus();
-                                var progress = await api.Progress(true);
-
-                                if ((status.QueueSize > 0 || progress.State.JobCount > 0))
+                                if (newOnlineStatus)
                                 {
-                                    Online = false;
-                                    var busyWaitTime = (status.QueueSize + progress.State.JobCount) * 500;
+                                    //Coming back online
+                                    await Task.Delay(8000, cts.Token);
 
-                                    //FoxLog.WriteLine($"Worker {ID} - Busy. Waiting {busyWaitTime}ms.");
+                                    FoxLog.WriteLine($"Worker {ID} is back online!");
+                                    await SetOnlineStatus(true);
 
-                                    await Task.Delay(busyWaitTime, cts.Token);
+                                    await LoadModelInfo(); //Reload in case it changed.
 
-                                    continue;
+                                    Online = true;
+                                    waitMs = 2000;
                                 }
                                 else
                                 {
-                                    Online = true;
-                                    break;
+                                    //Going offline
+
+                                    await HandleError(new Exception("Could not connect to server"));
+                                    waitMs = 10000; //Wait longer if we're offline.
+                                }
+                            }
+
+                            if (Online)
+                            {
+                                while ((api = await ConnectAPI(true)) is not null)
+                                {
+                                    //If we're not the one currently processing...
+                                    var status = await api.QueueStatus();
+                                    var progress = await api.Progress(true);
+
+                                    if ((status.QueueSize > 0 || progress.State.JobCount > 0))
+                                    {
+                                        Online = false;
+                                        var busyWaitTime = (status.QueueSize + progress.State.JobCount) * 500;
+
+                                        //FoxLog.WriteLine($"Worker {ID} - Busy. Waiting {busyWaitTime}ms.");
+
+                                        await Task.Delay(busyWaitTime, cts.Token);
+
+                                        continue;
+                                    }
+                                    else
+                                    {
+                                        Online = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (Online && api is not null && qItem is not null)
+                            {
+                                await ProcessTask(cts.Token);
+                                if (qItem is not null)
+                                {
+                                    FoxLog.WriteLine($"Processing completed, but qItem is not null!");
+                                    qItem = null;
                                 }
                             }
                         }
-
-                        if (Online && api is not null && qItem is not null)
+                        catch (OperationCanceledException ex)
                         {
-                            await ProcessTask(cts.Token);
                             if (qItem is not null)
-                            {
-                                FoxLog.WriteLine($"Processing completed, but qItem is not null!");
-                                qItem = null;
-                            }
+                                await qItem.SetError(ex);
+
+                            break; //Break the loop for a graceful shutdown
+                        }
+                        catch (Exception ex)
+                        {
+                            await HandleError(ex);
                         }
                     }
-                    catch (OperationCanceledException ex)
-                    {
-                        if (qItem is not null)
-                            await qItem.SetError(ex);
 
-                        break; //Break the loop for a graceful shutdown
-                    }
-                    catch (Exception ex)
+                    this.Online = false;
+
+
+                    try
                     {
-                        await HandleError(ex);
+                        OnWorkerStop?.Invoke(this, new WorkerEventArgs());
                     }
+                    catch
+                    {
+                        //Error?
+                    }
+
+                    FoxLog.WriteLine($"Worker {ID} - Shutdown.");
+                    workers.TryRemove(ID, out _);
                 }
-
-                this.Online = false;
-
-
-                try
+                catch (Exception ex)
                 {
-                    OnWorkerStop?.Invoke(this, new WorkerEventArgs());
+                    FoxLog.WriteLine($"Worker {ID} - Fatal error: {ex.Message}\r\n{ex.StackTrace}");
                 }
-                catch {
-                    //Error?
-                }
-
-                FoxLog.WriteLine($"Worker {ID} - Shutdown.");
-                workers.TryRemove(ID, out _);
             });
         }
 
@@ -1006,7 +1021,6 @@ namespace makefoxsrv
 
                     var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
                     var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
-
 
                     FoxImage? inputImage = await qItem.GetInputImage();
 

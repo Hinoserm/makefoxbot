@@ -21,6 +21,8 @@ namespace makefoxsrv
     {
         public static LogLevel CurrentLogLevel { get; set; } = LogLevel.INFO;
 
+        private static readonly object fileLock = new object();
+
         public static void WriteLine(string message, LogLevel level = LogLevel.INFO, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
             Write(message + "\r\n", level, callerName, callerFilePath, lineNumber);
@@ -42,7 +44,10 @@ namespace makefoxsrv
                     Array.Resize(ref lines, lines.Length - 1);
                 }
 
-                File.AppendAllLines("../logs/output.txt", lines.Select(line => $"{DateTime.Now.ToString(dateFormat)} {level}> {line}").ToArray());
+                lock (fileLock) // Ensures one thread writes to the file at a time.
+                {
+                    File.AppendAllLines("../logs/output.txt", lines.Select(line => $"{DateTime.Now.ToString(dateFormat)} {level}> {line}").ToArray());
+                }
             }
             catch (Exception e)
             {
