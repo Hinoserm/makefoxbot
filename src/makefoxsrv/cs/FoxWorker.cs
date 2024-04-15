@@ -918,10 +918,10 @@ namespace makefoxsrv
 
                                     if ((status.QueueSize > 0 || progress.State.JobCount > 0))
                                     {
-                                        Online = false;
-                                        var busyWaitTime = (status.QueueSize + progress.State.JobCount) * 500;
+                                        //Online = false;
+                                        var busyWaitTime = (status.QueueSize + progress.State.JobCount) * 1500;
 
-                                        //FoxLog.WriteLine($"Worker {ID} - Busy. Waiting {busyWaitTime}ms.");
+                                        FoxLog.WriteLine($"Worker {ID} - Busy. Waiting {busyWaitTime}ms.");
 
                                         await Task.Delay(busyWaitTime, cts.Token);
 
@@ -929,7 +929,7 @@ namespace makefoxsrv
                                     }
                                     else
                                     {
-                                        Online = true;
+                                        //Online = true;
                                         break;
                                     }
                                 }
