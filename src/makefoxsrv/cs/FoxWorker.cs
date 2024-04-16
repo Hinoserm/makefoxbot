@@ -939,7 +939,10 @@ namespace makefoxsrv
 
                             if (Online && api is not null && qItem is not null)
                             {
+                                FoxLog.WriteLine($"Worker {ID} - Start processing task {qItem.ID}...", LogLevel.DEBUG);
                                 await ProcessTask(cts.Token);
+                                FoxLog.WriteLine($"Worker {ID} - Task {qItem.ID} completed.", LogLevel.DEBUG);
+
                                 if (qItem is not null)
                                 {
                                     FoxLog.WriteLine($"Processing completed, but qItem is not null!");
@@ -961,7 +964,6 @@ namespace makefoxsrv
                     }
 
                     this.Online = false;
-
 
                     try
                     {
