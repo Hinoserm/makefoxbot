@@ -941,7 +941,7 @@ namespace makefoxsrv
                             {
                                 FoxLog.WriteLine($"Worker {ID} - Start processing task {qItem.ID}...", LogLevel.DEBUG);
                                 await ProcessTask(cts.Token);
-                                FoxLog.WriteLine($"Worker {ID} - Task {qItem.ID} completed.", LogLevel.DEBUG);
+                                FoxLog.WriteLine($"Worker {ID} - Task completed.", LogLevel.DEBUG);
 
                                 if (qItem is not null)
                                 {
