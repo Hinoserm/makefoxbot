@@ -878,6 +878,8 @@ namespace makefoxsrv
                         {
                             var semaphoreAquired = await semaphore.WaitAsync(waitMs, cts.Token);
 
+                            FoxLog.WriteLine($"Worker {ID} - Aquired semaphore: {semaphoreAquired}, Online: {Online}, Task: {qItem?.ID.ToString() ?? "None"}", LogLevel.DEBUG);
+
                             //WaitHandle.WaitAny(waitHandles);
 
                             api = await ConnectAPI(false);
@@ -921,7 +923,7 @@ namespace makefoxsrv
                                         //Online = false;
                                         var busyWaitTime = (status.QueueSize + progress.State.JobCount) * 1500;
 
-                                        FoxLog.WriteLine($"Worker {ID} - Busy. Waiting {busyWaitTime}ms.");
+                                        FoxLog.WriteLine($"Worker {ID} - Busy. Waiting {busyWaitTime}ms.", LogLevel.DEBUG);
 
                                         await Task.Delay(busyWaitTime, cts.Token);
 
