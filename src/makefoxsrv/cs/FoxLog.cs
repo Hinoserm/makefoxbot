@@ -31,7 +31,6 @@ namespace makefoxsrv
         // Logging function
         public static void Write(string message, LogLevel level = LogLevel.INFO, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
-
             try
             {
                 string dateFormat = "dd MMM yyyy hh:mm:ss.ff tt";

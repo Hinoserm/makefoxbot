@@ -766,6 +766,12 @@ namespace makefoxsrv
             {
                 FoxLog.WriteLine($"Error running OnWorkerError: {ex2.Message}\r\n{ex2.StackTrace}");
             }
+
+            if (qItem is not null)
+            {
+                qItem = null;
+                TaskStartDate = null;
+            }
         }
 
         public bool AssignTask(FoxQueue q)
@@ -945,7 +951,7 @@ namespace makefoxsrv
 
                                 if (qItem is not null)
                                 {
-                                    FoxLog.WriteLine($"Processing completed, but qItem is not null!");
+                                    //FoxLog.WriteLine($"Processing completed, but qItem is not null!");
                                     qItem = null;
                                 }
                             }
@@ -1218,9 +1224,15 @@ namespace makefoxsrv
 
                         var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null, cancellationToken);
                         response.EnsureSuccessStatusCode();
-                    } catch (Exception ex2)
+                    }
+                    catch (Exception ex2)
                     {
                         FoxLog.WriteLine($"Error running OnTaskCancelled: {ex2.Message}\r\n{ex2.StackTrace}");
+                    }
+                    finally
+                    {
+                        qItem = null;
+                        TaskStartDate = null;
                     }
                 }
                 else
@@ -1230,9 +1242,6 @@ namespace makefoxsrv
             {
                 if (progressCTS is not null)
                     progressCTS.Cancel();
-
-                qItem = null;
-                TaskStartDate = null;
             }
         }
 
