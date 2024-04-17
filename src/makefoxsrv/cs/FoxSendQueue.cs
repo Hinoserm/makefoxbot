@@ -35,7 +35,14 @@ namespace makefoxsrv
                 var t = q.Telegram;
 
                 if (t is null)
-                    throw new Exception("Telegram object not initalized!");
+                {
+                    var ex = new Exception("Telegram object not initalized!");
+                    await q.SetError(ex);
+
+                    FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
+
+                    throw ex;
+                }
 
                 try
                 {
