@@ -83,57 +83,61 @@ namespace makefoxsrv
                 return; // User must agree to the terms before they can use this command.
             }
 
-            if (q.Settings.width >= 1920 || q.Settings.height >= 1920)
+            if (user.GetAccessLevel() < AccessLevel.ADMIN)
             {
-                await t.SendMessageAsync(
-                    text: $"❌ This image is already at the maximum allowed resolution!  Enhancing again won't accomplish anything.  Please go back and enhance the original image if you'd like a different result.",
-                    replyToMessageId: query.msg_id
-                    );
 
-                return;
-            }
-
-            if (user.GetAccessLevel() < AccessLevel.PREMIUM)
-            {
-                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                if (q.Settings.width >= 1920 || q.Settings.height >= 1920)
                 {
-                    await SQL.OpenAsync();
+                    await t.SendMessageAsync(
+                        text: $"❌ This image is already at the maximum allowed resolution!  Enhancing again won't accomplish anything.  Please go back and enhance the original image if you'd like a different result.",
+                        replyToMessageId: query.msg_id
+                        );
 
-                    using (var cmd = new MySqlCommand())
+                    return;
+                }
+
+                if (user.GetAccessLevel() < AccessLevel.PREMIUM)
+                {
+                    using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                     {
-                        cmd.Connection = SQL;
-                        cmd.CommandText = "SELECT date_finished FROM queue WHERE uid = @uid AND status = 'FINISHED' AND enhanced = 1 AND date_finished > @now - INTERVAL 20 MINUTE ORDER BY date_finished DESC LIMIT 1"; //INTERVAL 1 HOUR";
-                        cmd.Parameters.AddWithValue("uid", user.UID);
-                        cmd.Parameters.AddWithValue("now", DateTime.Now);
-                        await using var reader = await cmd.ExecuteReaderAsync();
+                        await SQL.OpenAsync();
 
-                        if (reader.HasRows && await reader.ReadAsync())
+                        using (var cmd = new MySqlCommand())
                         {
-                            var date = reader.GetDateTime(0);
+                            cmd.Connection = SQL;
+                            cmd.CommandText = "SELECT date_finished FROM queue WHERE uid = @uid AND status = 'FINISHED' AND enhanced = 1 AND date_finished > @now - INTERVAL 30 MINUTE ORDER BY date_finished DESC LIMIT 1"; //INTERVAL 1 HOUR";
+                            cmd.Parameters.AddWithValue("uid", user.UID);
+                            cmd.Parameters.AddWithValue("now", DateTime.Now);
+                            await using var reader = await cmd.ExecuteReaderAsync();
 
-                            var span = TimeSpan.FromMinutes(20) - (DateTime.Now - date);
+                            if (reader.HasRows && await reader.ReadAsync())
+                            {
+                                var date = reader.GetDateTime(0);
 
-                            await t.SendMessageAsync(
-                                text: $"❌ Basic users are limited to 1 enhanced image per 20 minutes.\nTry again after {span.ToPrettyFormat()}.\n\nPlease consider becoming a premium member: /donate",
-                                replyToMessageId: query.msg_id
-                            );
+                                var span = TimeSpan.FromMinutes(30) - (DateTime.Now - date);
 
-                            return;
+                                await t.SendMessageAsync(
+                                    text: $"❌ Basic users are limited to 1 enhanced image per 30 minutes.\nTry again after {span.ToPrettyFormat()}.\n\nPlease consider becoming a premium member: /donate",
+                                    replyToMessageId: query.msg_id
+                                );
+
+                                return;
+                            }
                         }
                     }
                 }
-            }
 
-            int q_limit = 1;
+                int q_limit = 1;
 
-            if (await FoxQueue.GetCount(user) >= q_limit)
-            {
-                await t.SendMessageAsync(
-                    text: $"❌Maximum of {q_limit} queued enhancement request per user.",
-                    replyToMessageId: query.msg_id
-                );
+                if (await FoxQueue.GetCount(user) >= q_limit)
+                {
+                    await t.SendMessageAsync(
+                        text: $"❌Maximum of {q_limit} queued enhancement request per user.",
+                        replyToMessageId: query.msg_id
+                    );
 
-                return;
+                    return;
+                }
             }
 
             FoxUserSettings settings = q.Settings.Copy();
