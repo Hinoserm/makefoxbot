@@ -157,6 +157,13 @@ namespace makefoxsrv
 
                                 return;
                             }
+                            else
+                            {
+                                FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
+                                await q.SetError(ex);
+
+                                return;
+                            }
                         }
                         else
                         {
