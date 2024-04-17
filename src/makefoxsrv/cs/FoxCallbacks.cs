@@ -117,7 +117,7 @@ namespace makefoxsrv
                                 var span = TimeSpan.FromMinutes(30) - (DateTime.Now - date);
 
                                 await t.SendMessageAsync(
-                                    text: $"❌ Basic users are limited to 1 enhanced image per 30 minutes.\nTry again after {span.ToPrettyFormat()}.\n\nPlease consider becoming a premium member: /donate",
+                                    text: $"❌ Basic users are limited to 1 enhanced image per 30 minutes.\nTry again after {span.ToPrettyFormat()}.\n\nPlease consider becoming a premium member to remove this limit: /donate",
                                     replyToMessageId: query.msg_id
                                 );
 
