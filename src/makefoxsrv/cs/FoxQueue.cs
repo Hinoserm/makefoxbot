@@ -775,6 +775,7 @@ namespace makefoxsrv
         {
             try
             {
+                FoxLog.WriteLine($"Sending task {this.ID} to sendqueue...", LogLevel.DEBUG);
                 await this.SaveOutputImage(image);
                 await this.SetStatus(QueueStatus.SENDING);
 

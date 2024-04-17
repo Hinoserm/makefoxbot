@@ -28,169 +28,183 @@ namespace makefoxsrv
 
         public static async Task Send(FoxQueue q)
         {
+            FoxLog.WriteLine($"Sending task {q.ID} to Telegram...");
 
-            var OutputImage = await q.GetOutputImage();
-            if (OutputImage is not null)
+            try
             {
-                var t = q.Telegram;
+                var OutputImage = await q.GetOutputImage();
 
-                if (t is null)
+                if (OutputImage is not null)
                 {
-                    var ex = new Exception("Telegram object not initalized!");
-                    await q.SetError(ex);
+                    var t = q.Telegram;
 
-                    FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
-
-                    throw ex;
-                }
-
-                try
-                {
-                    await t.EditMessageAsync(
-                        id: q.MessageID,
-                        text: $"⏳ Uploading..."
-                    );
-                }
-                catch (WTelegram.WTException ex)
-                {
-                    //If we can't edit, we probably hit a rate limit with this user.
-
-                    if (ex is RpcException rex)
+                    if (t is null)
                     {
-                        if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
+                        var ex = new Exception("Telegram object not initalized!");
+                        await q.SetError(ex);
+
+                        FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
+
+                        throw ex;
+                    }
+
+                    try
+                    {
+                        await t.EditMessageAsync(
+                            id: q.MessageID,
+                            text: $"⏳ Uploading..."
+                        );
+                    }
+                    catch (WTelegram.WTException ex)
+                    {
+                        //If we can't edit, we probably hit a rate limit with this user.
+
+                        if (ex is RpcException rex)
                         {
-                            // If the message matches, extract the number
-                            int retryAfterSeconds = rex.X;
-                            FoxLog.WriteLine($"Failed to send image - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+                            if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
+                            {
+                                // If the message matches, extract the number
+                                int retryAfterSeconds = rex.X;
+                                FoxLog.WriteLine($"Failed to send image - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
 
-                            await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
+                                await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
 
-                            return;
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            //We don't usually care if editing fails.
                         }
                     }
-                    else
+                    catch (Exception ex)
                     {
                         //We don't usually care if editing fails.
                     }
-                }
-                catch (Exception ex) {
-                    //We don't usually care if editing fails.
-                }
 
-                var oldMessageID = q.MessageID;
+                    var oldMessageID = q.MessageID;
 
-                try
-                {
-                    // Construct the inline keyboard buttons and rows
-                    var inlineKeyboardButtons = new ReplyInlineMarkup()
+                    try
                     {
-                        rows = new TL.KeyboardButtonRow[]
+                        // Construct the inline keyboard buttons and rows
+                        var inlineKeyboardButtons = new ReplyInlineMarkup()
                         {
-                            new TL.KeyboardButtonRow {
-                                buttons = new TL.KeyboardButtonCallback[]
-                                {
-                                    new TL.KeyboardButtonCallback { text = "👍", data = System.Text.Encoding.ASCII.GetBytes("/vote up " + q.ID) },
-                                    new TL.KeyboardButtonCallback { text = "👎", data = System.Text.Encoding.ASCII.GetBytes("/vote down " + q.ID) },
-                                    new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.ID)},
-                                    new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.ID)},
-                                }
-                            },
-                            new TL.KeyboardButtonRow
+                            rows = new TL.KeyboardButtonRow[]
                             {
-                                buttons = new TL.KeyboardButtonCallback[]
+                                new TL.KeyboardButtonRow {
+                                    buttons = new TL.KeyboardButtonCallback[]
+                                    {
+                                        new TL.KeyboardButtonCallback { text = "👍", data = System.Text.Encoding.ASCII.GetBytes("/vote up " + q.ID) },
+                                        new TL.KeyboardButtonCallback { text = "👎", data = System.Text.Encoding.ASCII.GetBytes("/vote down " + q.ID) },
+                                        new TL.KeyboardButtonCallback { text = "💾", data = System.Text.Encoding.ASCII.GetBytes("/download " + q.ID)},
+                                        new TL.KeyboardButtonCallback { text = "🎨", data = System.Text.Encoding.ASCII.GetBytes("/select " + q.ID)},
+                                    }
+                                },
+                                new TL.KeyboardButtonRow
                                 {
-                                    new TL.KeyboardButtonCallback { text = "✨ Enhance!", data = System.Text.Encoding.ASCII.GetBytes("/enhance " + q.ID)},
-                                    new TL.KeyboardButtonCallback { text = "🔎 Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.ID)},
+                                    buttons = new TL.KeyboardButtonCallback[]
+                                    {
+                                        new TL.KeyboardButtonCallback { text = "✨ Enhance!", data = System.Text.Encoding.ASCII.GetBytes("/enhance " + q.ID)},
+                                        new TL.KeyboardButtonCallback { text = "🔎 Show Details", data = System.Text.Encoding.ASCII.GetBytes("/info " + q.ID)},
+                                    }
                                 }
                             }
-                        }
-                    };
+                        };
 
-                    var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image), 80, 1280), $"{FoxTelegram.Client.User.username}_smimage_{q.ID}.jpg");
+                        var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image), 80, 1280), $"{FoxTelegram.Client.User.username}_smimage_{q.ID}.jpg");
 
-                    //var msg = await FoxTelegram.Client.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
+                        //var msg = await FoxTelegram.Client.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
 
-                    System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
-                    System.TimeSpan GPUTime = await q.GetGPUTime();
-                    string messageText = $"✅ Complete! (Took {diffResult.ToPrettyFormat()} - GPU: {GPUTime.ToPrettyFormat()}";
+                        System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
+                        System.TimeSpan GPUTime = await q.GetGPUTime();
+                        string messageText = $"✅ Complete! (Took {diffResult.ToPrettyFormat()} - GPU: {GPUTime.ToPrettyFormat()}";
 
-                    if (q.Settings.width > 1280 || q.Settings.height > 1280)
-                    {
-                        messageText += $"\n\n⚠️ Image dimensions exceed Telegram's maximum image preview size.  For best quality, click below to download the full resoluton file.";
-                    }
-
-                    var msg = await t.SendMessageAsync( 
-                        media: new InputMediaUploadedPhoto() { file = inputImage },
-                        text: (t.Chat is not null ? messageText : null),
-                        replyInlineMarkup: (t.Chat is not null ? inlineKeyboardButtons : null),
-                        replyToMessageId: q.ReplyMessageID ?? 0
-                        );
-
-                    await q.SetStatus(FoxQueue.QueueStatus.FINISHED, msg.ID);
-
-                    if (t.Chat is null) // Only offer the buttons in private chats, not groups.
-                    {
-                        await t.SendMessageAsync(
-                            text: messageText,
-                            replyInlineMarkup: inlineKeyboardButtons
-                        );
-                    }
-                }
-                catch (WTelegram.WTException ex)
-                {
-                    //If we can't edit, we probably hit a rate limit with this user.
-
-                    if (ex is RpcException rex)
-                    {
-                        if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
+                        if (q.Settings.width > 1280 || q.Settings.height > 1280)
                         {
-                            // If the message matches, extract the number
-                            int retryAfterSeconds = rex.X;
-                            FoxLog.WriteLine($"Failed to send image - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+                            messageText += $"\n\n⚠️ Image dimensions exceed Telegram's maximum image preview size.  For best quality, click below to download the full resoluton file.";
+                        }
 
-                            await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
+                        var msg = await t.SendMessageAsync(
+                            media: new InputMediaUploadedPhoto() { file = inputImage },
+                            text: (t.Chat is not null ? messageText : null),
+                            replyInlineMarkup: (t.Chat is not null ? inlineKeyboardButtons : null),
+                            replyToMessageId: q.ReplyMessageID ?? 0
+                            );
+
+                        await q.SetStatus(FoxQueue.QueueStatus.FINISHED, msg.ID);
+
+                        if (t.Chat is null) // Only offer the buttons in private chats, not groups.
+                        {
+                            await t.SendMessageAsync(
+                                text: messageText,
+                                replyInlineMarkup: inlineKeyboardButtons
+                            );
+                        }
+                    }
+                    catch (WTelegram.WTException ex)
+                    {
+                        //If we can't edit, we probably hit a rate limit with this user.
+
+                        if (ex is RpcException rex)
+                        {
+                            if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
+                            {
+                                // If the message matches, extract the number
+                                int retryAfterSeconds = rex.X;
+                                FoxLog.WriteLine($"Failed to send image - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+
+                                await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
+
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
+                            await q.SetError(ex);
 
                             return;
                         }
                     }
-                    else
+                    catch (Exception ex)
                     {
                         FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
                         await q.SetError(ex);
 
                         return;
                     }
-                }
-                catch (Exception ex)
-                {
-                    FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
-                    await q.SetError(ex);
 
-                    return;
-                }
-
-                try
-                {
-                    await t.DeleteMessage(oldMessageID);
-                }
-                catch { } // We don't care if editing fails
-            } else {
-                try
-                {
-                    if (q.ReplyMessageID is not null && q.Telegram is not null)
+                    try
                     {
-                        await q.Telegram.EditMessageAsync(
-                            id: q.ReplyMessageID.Value,
-                            text: $"❌ An unexpected error occured.  Please try again."
-                        );
+                        await t.DeleteMessage(oldMessageID);
                     }
-
-                    FoxLog.WriteLine("SendQueue: Unexpected error; output image was null.");
+                    catch { } // We don't care if editing fails
                 }
-                catch { } //We don't care if editing fails.
-            }
+                else
+                {
+                    try
+                    {
+                        if (q.ReplyMessageID is not null && q.Telegram is not null)
+                        {
+                            await q.Telegram.EditMessageAsync(
+                                id: q.ReplyMessageID.Value,
+                                text: $"❌ An unexpected error occured.  Please try again."
+                            );
+                        }
 
-            //FoxLog.WriteLine("Upload Complete");
+                        FoxLog.WriteLine("SendQueue: Unexpected error; output image was null.");
+                    }
+                    catch { } //We don't care if editing fails.
+                }
+
+                //FoxLog.WriteLine("Upload Complete");
+                FoxLog.WriteLine($"Done sending task {q.ID} to Telegram.");
+            }
+            catch (Exception ex)
+            {
+                FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
+                await q.SetError(ex);
+            }
         }
 
         private static MemoryStream ConvertImageToJpeg(MemoryStream inputImageStream, int quality = 85, uint? maxDimension = 1280)
