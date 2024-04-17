@@ -855,6 +855,8 @@ namespace makefoxsrv
             if (RetryCount < 3)
             {
                 await Enqueue(this);
+            } else {
+                await this.SetCancelled(true);
             }
         }
 
