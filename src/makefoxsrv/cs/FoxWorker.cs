@@ -1157,6 +1157,22 @@ namespace makefoxsrv
                     FoxLog.WriteLine($"Error on worker {this.name} while running OnTaskCompleted for task {qItem.ID}: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
                 }
             }
+            catch (SDHttpException ex)
+            {
+                //We probably don't need to crash the whole worker for these.
+
+                FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Stable Diffusion error: {ex.Message}");
+
+                try
+                {
+                    await qItem.SetError(ex, DateTime.Now.AddSeconds(10));
+                    OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                }
+                catch (Exception ex2)
+                {
+                    FoxLog.WriteLine($"Error running OnTaskError: {ex2.Message}\r\n{ex2.StackTrace}");
+                }
+            }
             catch (WTelegram.WTException ex)
             {
                 //If we can't edit, we probably hit a rate limit with this user.
@@ -1179,7 +1195,7 @@ namespace makefoxsrv
                             {
                                 FoxLog.WriteLine($"Error running OnTaskError: {ex2.Message}\r\n{ex2.StackTrace}");
                             }
-                            _ = FoxQueue.Enqueue(qItem);
+                            //_ = FoxQueue.Enqueue(qItem);
                         }
                     }
                     else if (ex.Message == "INPUT_USER_DEACTIVATED")

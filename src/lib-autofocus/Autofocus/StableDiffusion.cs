@@ -3,12 +3,67 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Autofocus.Config;
 using Autofocus.CtrlNet;
 using Autofocus.Models;
 using Autofocus.Scripts;
 
 namespace Autofocus;
+
+public class SDHttpException : HttpRequestException
+{
+    public string RawResponseContent { get; private set; }
+    public string? Error { get; private set; }
+    public string? Detail { get; private set; }
+    public string? Body { get; private set; }
+    public string? Errors { get; private set; }
+
+    public SDHttpException(HttpStatusCode statusCode, string responseContent)
+        : base(CreateMessageFromResponseContent(statusCode, responseContent))
+    {
+        RawResponseContent = responseContent;
+        // ParseErrorResponse is called again but this time its results are used to initialize properties.
+        var errorResponse = ParseErrorResponse(responseContent);
+        Error = errorResponse.Error;
+        Detail = errorResponse.Detail;
+        Body = errorResponse.Body;
+        Errors = errorResponse.Errors;
+    }
+
+    private static ErrorResponse ParseErrorResponse(string responseContent)
+    {
+        var errorResponse = System.Text.Json.JsonSerializer.Deserialize<ErrorResponse>(responseContent) ?? new ErrorResponse();
+        return errorResponse;
+    }
+
+    private static string CreateMessageFromResponseContent(HttpStatusCode statusCode, string responseContent)
+    {
+        var errorResponse = ParseErrorResponse(responseContent);
+        // Using Errors if available, else a generic message.
+        string message = string.IsNullOrWhiteSpace(errorResponse.Errors)
+            ? $"HTTP Error: {statusCode}"
+            : $"Error: {errorResponse.Errors}";
+        return message;
+    }
+
+    private class ErrorResponse
+    {
+        [JsonPropertyName("error")]
+        public string? Error { get; set; }
+
+        [JsonPropertyName("detail")]
+        public string? Detail { get; set; }
+
+        [JsonPropertyName("body")]
+        public string? Body { get; set; }
+
+        [JsonPropertyName("errors")]
+        public string? Errors { get; set; }
+    }
+}
+
+
 
 public class StableDiffusion
     : IStableDiffusion
@@ -257,20 +312,22 @@ public class StableDiffusion
         var response = await SlowHttpClient.PostAsJsonAsync("/sdapi/v1/txt2img", request, SerializerOptions, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var result = await response
-                          .EnsureSuccessStatusCode()
-                          .Content
-                          .ReadFromJsonAsync<TextToImageResultResponse>(SerializerOptions, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new SDHttpException(response.StatusCode, errorContent);
+        }
 
+        var result = await response.Content.ReadFromJsonAsync<TextToImageResultResponse>(SerializerOptions, cancellationToken);
         return result!;
     }
-	#endregion
+    #endregion
 
-	#region Image2Image
-	/// <exception cref="HttpRequestException"/>
-	/// <exception cref="OperationCanceledException"/>
-	/// <exception cref="ScriptNotFoundException"/>
-	private async Task CheckImg2ImgScript(string? name, CancellationToken cancellationToken)
+    #region Image2Image
+    /// <exception cref="HttpRequestException"/>
+    /// <exception cref="OperationCanceledException"/>
+    /// <exception cref="ScriptNotFoundException"/>
+    private async Task CheckImg2ImgScript(string? name, CancellationToken cancellationToken)
     {
         if (name == null)
             return;
@@ -293,13 +350,17 @@ public class StableDiffusion
         var response = await SlowHttpClient.PostAsJsonAsync("/sdapi/v1/img2img", request, SerializerOptions, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var result = await response
-                          .EnsureSuccessStatusCode()
-                          .Content
-                          .ReadFromJsonAsync<ImageToImageResultResponse>(SerializerOptions, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
 
+            throw new SDHttpException(response.StatusCode, errorContent);
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<ImageToImageResultResponse>(SerializerOptions, cancellationToken);
         return result!;
     }
+
     #endregion
 
     #region interrogate

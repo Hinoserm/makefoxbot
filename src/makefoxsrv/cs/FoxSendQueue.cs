@@ -28,7 +28,7 @@ namespace makefoxsrv
 
         public static async Task Send(FoxQueue q)
         {
-            FoxLog.WriteLine($"Sending task {q.ID} to Telegram...");
+            FoxLog.WriteLine($"Sending task {q.ID} to Telegram...", LogLevel.DEBUG);
 
             try
             {
@@ -213,7 +213,7 @@ namespace makefoxsrv
                 }
 
                 //FoxLog.WriteLine("Upload Complete");
-                FoxLog.WriteLine($"Done sending task {q.ID} to Telegram.");
+                FoxLog.WriteLine($"Done sending task {q.ID} to Telegram.", LogLevel.DEBUG);
             }
             catch (Exception ex)
             {

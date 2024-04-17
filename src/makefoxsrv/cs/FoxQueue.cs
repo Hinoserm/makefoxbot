@@ -51,6 +51,9 @@ namespace makefoxsrv
         [DbColumn("date_failed")]
         public DateTime? DateLastFailed { get; private set; } = null;
 
+        [DbColumn("retry_count")]
+        public int RetryCount { get; private set; } = 0;
+
         [DbColumnMapping("LastException.Message", "error_str", true)]
         public Exception? LastException { get; private set; } = null;
 
@@ -817,6 +820,7 @@ namespace makefoxsrv
             this.DateLastFailed = DateTime.Now;
             this.RetryDate = RetryWhen;
             this.LastException = ex;
+            this.RetryCount++;
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -824,9 +828,10 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = $"UPDATE queue SET status = 'ERROR', error_str = @error, retry_date = @retry_date, date_failed = @now WHERE id = @id";
+                    cmd.CommandText = $"UPDATE queue SET status = 'ERROR', error_str = @error, retry_date = @retry_date, retry_count = @retry_count, date_failed = @now WHERE id = @id";
                     cmd.Parameters.AddWithValue("id", this.ID);
                     cmd.Parameters.AddWithValue("retry_date", RetryWhen);
+                    cmd.Parameters.AddWithValue("retry_count", RetryCount);
                     cmd.Parameters.AddWithValue("error", ex.Message);
                     cmd.Parameters.AddWithValue("now", this.DateLastFailed);
                     await cmd.ExecuteNonQueryAsync();
@@ -839,7 +844,7 @@ namespace makefoxsrv
                 {
                     _= Telegram.EditMessageAsync(
                         id: MessageID,
-                        text: $"⏳ Error (will re-attempt soon)"
+                        text: $"⏳ Failed to generate image. " + (RetryCount >= 3 ? $"Giving up after {RetryCount} attempts." : $"Retrying soon.") + $"\n\n{ex.Message}"
                     );
                 }
             }
@@ -847,7 +852,10 @@ namespace makefoxsrv
 
             FoxLog.WriteLine($"Task {this.ID} failed: {ex.Message}\r\n{ex.StackTrace}", LogLevel.DEBUG);
 
-            await Enqueue(this);
+            if (RetryCount < 3)
+            {
+                await Enqueue(this);
+            }
         }
 
         private static int GetRandomInt32()
