@@ -157,6 +157,14 @@ namespace makefoxsrv
 
                                 return;
                             }
+                            else if (ex.Message == "USER_IS_BLOCKED")
+                            {
+                                //User is blocked, so we can't send them messages.
+                                FoxLog.WriteLine($"Failed to send image - User is blocked.  Cancelling.");
+                                await q.SetCancelled(true);
+
+                                return;
+                            }
                             else
                             {
                                 FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
