@@ -773,12 +773,20 @@ namespace makefoxsrv
 
         public async Task Send(byte[] image)
         {
-            await this.SaveOutputImage(image);
-            await this.SetStatus(QueueStatus.SENDING);
+            try
+            {
+                await this.SaveOutputImage(image);
+                await this.SetStatus(QueueStatus.SENDING);
 
-            this.Worker = null;
+                this.Worker = null;
 
-            _= FoxSendQueue.Send(this);
+                _ = FoxSendQueue.Send(this);
+            }
+            catch (Exception ex)
+            {
+                await this.SetError(ex);
+                FoxLog.WriteLine($"Error sending task {this.ID}: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
+            }
         }
 
         public async Task SetWorker(FoxWorker worker)
