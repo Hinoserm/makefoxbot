@@ -890,7 +890,7 @@ namespace makefoxsrv
 
                             api = await ConnectAPI(false);
 
-                            var newOnlineStatus = api is not null;
+                            var newOnlineStatus = api is not null && FoxTelegram.IsConnected;
 
                             if (Online != newOnlineStatus)
                             {
@@ -943,7 +943,7 @@ namespace makefoxsrv
                                 }
                             }
 
-                            if (Online && api is not null && qItem is not null)
+                            if (Online && api is not null && qItem is not null && FoxTelegram.IsConnected)
                             {
                                 FoxLog.WriteLine($"Worker {ID} - Start processing task {qItem.ID}...", LogLevel.DEBUG);
                                 await ProcessTask(cts.Token);
@@ -998,6 +998,9 @@ namespace makefoxsrv
             {
                 if (qItem is null)
                     throw new Exception("Attempt to process task when no task was assigned");
+
+                if (!FoxTelegram.IsConnected)
+                    throw new Exception("Telegram client is disconnected.");
 
                 FoxLog.WriteLine($"Worker {this.name} is now processing task {qItem.ID}", LogLevel.DEBUG);
 

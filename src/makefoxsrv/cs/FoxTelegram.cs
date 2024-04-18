@@ -27,6 +27,8 @@ namespace makefoxsrv
             get => _user ?? throw new InvalidOperationException("User is null");
         }
 
+        
+
         public TL.ChatBase? Chat { get => _chat; }
         public TL.InputPeer? Peer { get => _peer; }
 
@@ -36,6 +38,8 @@ namespace makefoxsrv
 
         private long _userId;
         private long? _chatId;
+
+        public static bool IsConnected => _client is not null && !_client.Disconnected;
 
         private static int appID;
         private static string apiHash;
