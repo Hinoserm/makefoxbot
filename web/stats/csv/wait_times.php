@@ -24,6 +24,7 @@ header('Content-Disposition: attachment; filename=wait_times.csv');
 $days = isset($_GET['days']) && is_numeric($_GET['days']) && $_GET['days'] > 0 ? $_GET['days'] : 30;
 
 $sql = "SELECT
+    q.id,
     DATE_FORMAT(q.date_added, '%Y-%m-%d %H:%i:%s.%f') as date_added,
     q.type,
     q.uid,
