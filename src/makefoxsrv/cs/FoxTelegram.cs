@@ -178,8 +178,8 @@ namespace makefoxsrv
         public async Task<Message> SendMessageAsync(string? text = null, int replyToMessageId = 0, ReplyInlineMarkup? replyInlineMarkup = null, MessageEntity[]? entities = null,
             bool disableWebPagePreview = true, InputMedia? media = null)
         {
-            if (_client is null)
-                throw new InvalidOperationException("Client is null");
+            if (!IsConnected)
+                throw new InvalidOperationException("Telegram is disconnected");
 
             long random_id = Helpers.RandomLong();
 
@@ -241,8 +241,8 @@ namespace makefoxsrv
 
         public async Task EditMessageAsync(int id, string? text = null, ReplyInlineMarkup ? replyInlineMarkup = null, MessageEntity[]? entities = null)
         {
-            if (_client is null)
-                throw new InvalidOperationException("Client is null");
+            if (!IsConnected)
+                throw new InvalidOperationException("Telegram is disconnected");
 
             await _client.Messages_EditMessage(
                 peer: _peer,
@@ -255,8 +255,8 @@ namespace makefoxsrv
 
         public async Task DeleteMessage(int id)
         {
-            if (_client is null)
-                throw new InvalidOperationException("Client is null");
+            if (!IsConnected)
+                throw new InvalidOperationException("Telegram is disconnected");
 
             await _client.DeleteMessages(
                 peer: _peer,
@@ -336,8 +336,8 @@ namespace makefoxsrv
 
         public async Task SendCallbackAnswer(long queryID, int cacheTime, string? message = null)
         {
-            if (_client is null)
-                throw new InvalidOperationException("Client is null");
+            if (!IsConnected)
+                throw new InvalidOperationException("Telegram is disconnected");
 
             await _client.Messages_SetBotCallbackAnswer(queryID, cacheTime, message);
         }
