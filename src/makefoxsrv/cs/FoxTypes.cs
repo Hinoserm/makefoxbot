@@ -11,6 +11,7 @@ namespace makefoxsrv
     public class LimitedMemoryQueue<T> : Queue<T>
     {
         private readonly int maxItemCount;
+        private readonly object syncRoot = new object(); // Object to lock on
 
         public LimitedMemoryQueue(int itemLimit)
         {
@@ -19,24 +20,30 @@ namespace makefoxsrv
 
         public new void Enqueue(T item)
         {
-            // Check for null if T is a reference type
-            if (item == null && !typeof(T).IsValueType)
+            lock (syncRoot)
             {
-                throw new ArgumentNullException(nameof(item), "Cannot insert null into the queue");
-            }
+                // Check for null if T is a reference type
+                if (item == null && !typeof(T).IsValueType)
+                {
+                    throw new ArgumentNullException(nameof(item), "Cannot insert null into the queue");
+                }
 
-            while (Count >= maxItemCount)
-            {
-                Dequeue(); // Remove oldest items to make space
+                while (Count >= maxItemCount)
+                {
+                    Dequeue(); // Remove oldest items to make space
+                }
+                base.Enqueue(item);
             }
-            base.Enqueue(item);
         }
 
-        // New method to retrieve items matching a specific condition
         public IEnumerable<T> FindAll(Func<T, bool> match)
         {
-            return this.Where(match).ToList();
+            lock (syncRoot)
+            {
+                return this.Where(match).ToList();
+            }
         }
-    }
 
+        // Ensure other methods that modify or read the queue are also synchronized
+    }
 }

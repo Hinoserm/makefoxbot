@@ -113,7 +113,6 @@ namespace makefoxsrv
                             if (reader.HasRows && await reader.ReadAsync())
                             {
                                 var date = reader.GetDateTime(0);
-
                                 var span = TimeSpan.FromMinutes(30) - (DateTime.Now - date);
 
                                 await t.SendMessageAsync(
