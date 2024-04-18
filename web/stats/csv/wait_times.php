@@ -36,6 +36,8 @@ $sql = "SELECT
     q.denoising_strength,
     q.cfgscale,
     q.error_str,
+    q.enhanced,
+    q.original_id,
     IFNULL(q.model, 'indigoFurryMix_v105Hybrid') AS model,
     IFNULL(w.name, 'Unknown') AS worker_name,
     (UNIX_TIMESTAMP(q.date_worker_start) - UNIX_TIMESTAMP(q.date_added)) AS QueueSec,
