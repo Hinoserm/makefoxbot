@@ -25,9 +25,7 @@ namespace makefoxsrv
 
         public TL.User User {
             get => _user ?? throw new InvalidOperationException("User is null");
-        }
-
-        
+        }        
 
         public TL.ChatBase? Chat { get => _chat; }
         public TL.InputPeer? Peer { get => _peer; }
@@ -112,11 +110,13 @@ namespace makefoxsrv
                     FoxLog.WriteLine($"Fatal reactor error: {err.Exception.Message}", LogLevel.ERROR);
                     while (true)
                     {
-                        FoxLog.WriteLine("Trying to reconnect to Telegram in 5 seconds...", LogLevel.ERROR);
+                        FoxLog.WriteLine("Trying to reconnect to Telegram in 2 seconds...", LogLevel.ERROR);
 
-                        await Task.Delay(5000);
+                        await Task.Delay(2000);
                         try
                         {
+                            _client?.Dispose();
+                            _client = null;
                             await Connect(appID, apiHash, botToken, sessionFile);
                             break;
                         }
@@ -156,7 +156,7 @@ namespace makefoxsrv
             else
                 _client.Reset(false, true);
 
-            _client.MaxAutoReconnects = 1;
+            _client.MaxAutoReconnects = 1000;
             _client.FloodRetryThreshold = 0;
 
             await _client.LoginBotIfNeeded(botToken);
