@@ -63,43 +63,6 @@ namespace makefoxsrv
                 _peer = user;
         }
 
-        //public FoxTelegram(long userId, long userAccessHash, long? chatId = null, long? chatAccessHash = null)
-        //{
-        //    _userId = userId;
-        //    _chatId = chatId;
-
-        //    Users.TryGetValue(userId, out this._user);
-        //    if (chatId is not null)
-        //        Chats.TryGetValue((long)chatId, out this._chat);
-
-        //    if (chatId is not null && chatAccessHash is not null)
-        //    {
-        //        _peer = new InputPeerChannel(chatId.Value, chatAccessHash.Value);
-        //    }
-        //    else if (chatId is not null)
-        //    {
-        //        _peer = new InputPeerChat(chatId.Value);
-        //    }
-        //    else
-        //    {
-        //        _peer = new InputPeerUser(userId, userAccessHash);
-        //    }
-
-        //    if (_user is null) //Make it up the best that we can.
-        //        _user = new() { id = userId, access_hash = userAccessHash };
-
-        //    if (_chat is null && chatId is not null)
-        //    {
-        //        Chat chat = new() { id = chatId.Value };
-        //        _chat = chat;
-        //    }
-
-        //    //Chat chat = new() { id = chatId, access_hash = userAccessHash };
-
-        //    if (this._peer is null)
-        //        throw new InvalidOperationException("Peer is null");
-        //}
-
         private static async Task Client_OnOther(IObject arg)
         {
             switch (arg)
