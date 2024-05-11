@@ -8,6 +8,7 @@ using WTelegram;
 using makefoxsrv;
 using TL;
 using System.Globalization;
+using System.Linq.Expressions;
 
 public enum AccessLevel
 {
@@ -436,10 +437,18 @@ namespace makefoxsrv
                 }
             }
 
-            if (!silent && t is not null) {
-                await t.SendMessageAsync(
-                    text: $"🚫 You have been banned from using this service due to a content policy violation.  I will no longer respond to your commands."
-                );
+            try
+            {
+                if (!silent && t is not null) {
+
+                    await t.SendMessageAsync(
+                        text: $"🚫 You have been banned from using this service due to a content policy violation.  I will no longer respond to your commands."
+                    );
+                }
+            }
+            catch
+            {
+                // Ignore any errors
             }
         }
 

@@ -794,6 +794,16 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
+            if (banUser.GetAccessLevel() == AccessLevel.BANNED)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ User is already banned.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
             await banUser.Ban();
 
             await t.SendMessageAsync(
