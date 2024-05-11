@@ -180,6 +180,54 @@ namespace makefoxsrv
             return user;
         }
 
+        public static async Task<FoxUser?> GetByTelegramUserID(long tuserid)
+        {
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand("SELECT * FROM users WHERE telegram_id = @id", SQL))
+                {
+                    cmd.Parameters.AddWithValue("@id", tuserid);
+
+                    using (var r = await cmd.ExecuteReaderAsync())
+                    {
+                        if (await r.ReadAsync())
+                        {
+                            return CreateFromRow(r);
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        public static async Task<FoxUser?> GetByUsername(string username)
+        {
+            if (string.IsNullOrEmpty(username))
+                return null;
+
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand("SELECT * FROM users WHERE username = @username", SQL))
+                {
+                    cmd.Parameters.AddWithValue("@username", username);
+
+                    using (var r = await cmd.ExecuteReaderAsync())
+                    {
+                        if (await r.ReadAsync())
+                        {
+                            return CreateFromRow(r);
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
 
         public static async Task<FoxUser?> CreateFromTelegramUser(User tuser)
         {
@@ -216,6 +264,36 @@ namespace makefoxsrv
             else
                 // If the user creation was unsuccessful for reasons other than a duplicate entry, this line might not be reached due to the exception handling above.
                 throw new Exception("Unable to create new user");
+        }
+
+        static public async Task<FoxUser?> ParseUser(string input)
+        {
+            if (long.TryParse(input.Trim(), out long uid))
+            {
+                // Handle input that is a valid long number
+                return await GetByUID(uid);
+            }
+            else if (input.Trim().StartsWith("@"))
+            {
+                // Remove '@' from the beginning
+                string data = input.Substring(1).Trim();
+
+                if (String.IsNullOrEmpty(data))
+                    throw new Exception("Empty username");
+
+                // Check if the rest is a long number
+                if (long.TryParse(data, out long telegramUserId))
+                {
+                    return await GetByTelegramUserID(telegramUserId);
+                }
+                else
+                {
+                    // Assume it's a username
+                    return await GetByUsername(data);
+                }
+            }
+
+            return null; // Return null if no valid user is found
         }
 
         public async Task<ulong> RecordPayment(int amount, string currency, int days, string? invoice_payload = null, string? telegram_charge_id = null, string? provider_charge_id = null)
@@ -289,6 +367,25 @@ namespace makefoxsrv
             }
         }
 
+        public async Task SetAccessLevel(AccessLevel level)
+        {
+            accessLevel = level;
+
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = "UPDATE users SET access_level = @level WHERE id = @uid";
+                    cmd.Parameters.AddWithValue("uid", this.UID);
+                    cmd.Parameters.AddWithValue("level", level.ToString());
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+        }
+
         public bool CheckAccessLevel(AccessLevel requiredLevel)
         {
             // Check if the current user's access level is greater than or equal to the required level
@@ -305,6 +402,45 @@ namespace makefoxsrv
                 return AccessLevel.PREMIUM;
             } else
                 return this.accessLevel;
+        }
+
+        public async Task Ban(bool silent = false)
+        {
+            await SetAccessLevel(AccessLevel.BANNED);
+
+            var teleUser = TelegramID is not null ? await FoxTelegram.GetUserFromID(TelegramID.Value) : null;
+            var t = teleUser is not null ? new FoxTelegram(teleUser, null) : null;
+
+            var matchingItems = FoxQueue.fullQueue.FindAll(item => !item.IsFinished() && item.User?.UID == this.UID);
+
+            foreach (var q in matchingItems)
+            {
+                int msg_id = q.MessageID;
+
+                await q.Cancel();
+
+                try
+                {
+                    if (t is not null)
+                    {
+                        _ = t.EditMessageAsync(
+                            id: msg_id,
+                            text: "❌ Cancelled."
+                        );
+                    }
+                }
+                catch (Exception ex)
+                {
+                    //Don't care about this failure.
+                    FoxLog.WriteLine($"Failed to edit message {msg_id}: {ex.Message}\n{ex.StackTrace}");
+                }
+            }
+
+            if (!silent && t is not null) {
+                await t.SendMessageAsync(
+                    text: $"🚫 You have been banned from using this service due to a content policy violation.  I will no longer respond to your commands."
+                );
+            }
         }
 
         public static int UserCount(DateTime? since = null)

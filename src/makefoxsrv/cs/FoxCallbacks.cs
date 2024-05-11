@@ -25,6 +25,15 @@ namespace makefoxsrv
             if (fUser is null)
                 throw new Exception("Callback from unknown user!");
 
+            if (fUser.GetAccessLevel() == AccessLevel.BANNED)
+            {
+                // Banned users can't do anything.
+
+                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "❌ You are banned from using this bot.");
+
+                return;
+            }
+
             switch (command)
             {
                 case "/info":

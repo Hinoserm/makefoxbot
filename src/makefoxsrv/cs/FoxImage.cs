@@ -573,6 +573,9 @@ namespace makefoxsrv
 
                     var newImg = await FoxImage.Create(user.UID, memoryStream.ToArray(), FoxImage.ImageType.INPUT, fileName, null, null, t.Chat is null ? null : t.Chat.ID, message.ID);
 
+                    if (user.GetAccessLevel() == AccessLevel.BANNED)
+                        return null; // Silently ignore banned users.
+
                     if (!Silent)
                     {
                         if (t.Chat is null) //Only save & notify outside of groups.

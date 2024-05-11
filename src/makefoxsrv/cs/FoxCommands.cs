@@ -66,6 +66,8 @@ namespace makefoxsrv
             //--------------- -----------------
             { "/donate",      CmdDonate },
             //--------------- -----------------
+            { "/ban",         CmdBan },
+            //--------------- -----------------
             { "/info",        CmdInfo },
         };
 
@@ -112,6 +114,16 @@ namespace makefoxsrv
                 }
                 else
                     await fUser.UpdateTimestamps();
+
+                if (fUser.GetAccessLevel() == AccessLevel.BANNED)
+                {
+                    await t.SendMessageAsync(
+                        text: "❌ You are banned from using this bot.",
+                            replyToMessageId: message.ID
+                        );
+
+                    return;
+                }
 
                 await commandHandler(t, message, fUser, argument);
             }
@@ -739,6 +751,56 @@ We sincerely appreciate your support and understanding. Your contribution direct
             );
         }
 
+        private static async Task CmdBan(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            if (!user.CheckAccessLevel(AccessLevel.ADMIN))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must be an admin to use this command.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            if (String.IsNullOrEmpty(argument)) {
+                await t.SendMessageAsync(
+                    text: "❌ You must provide a user ID to ban.\r\n\r\nFormat:\r\n  /ban <uid>\r\n  /ban @username",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var banUser = await FoxUser.ParseUser(argument);
+
+            if (banUser is null)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Unable to parse user ID.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            if (banUser.CheckAccessLevel(AccessLevel.PREMIUM) || banUser.CheckAccessLevel(AccessLevel.ADMIN))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You can't ban an admin or premium user!",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            await banUser.Ban();
+
+            await t.SendMessageAsync(
+                text: $"✅ User {banUser.UID} banned.",
+                replyToMessageId: message.ID
+            );
+        }
 
         [CommandDescription("Set your negative prompt for this chat or group.  Leave blank to clear.")]
         [CommandArguments("[<negative prompt>]")]
