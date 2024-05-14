@@ -54,6 +54,10 @@ WHERE
     q.status = 'FINISHED'
     AND q.date_added >= NOW() - INTERVAL $days DAY";
 
+if (isset($_GET['uid']) && is_numeric($_GET['uid']) && $_GET['uid'] > 0) {
+    $sql .= " AND q.uid = " . (int)$_GET['uid'];
+}
+
 $stmt = $pdo->prepare($sql);
 $stmt->execute();
 
