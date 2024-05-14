@@ -1091,7 +1091,7 @@ namespace makefoxsrv
 
                     HighResConfig? hiResConfig = null;
 
-                    if (settings.width > 1024 || settings.height > 1024)
+                    if (settings.width > 1088 || settings.height > 1088)
                     {
                         var upscaler = await api.Upscaler("R-ESRGAN 4x+", ctsLoop.Token);
                         hiResConfig = new HighResConfig()
