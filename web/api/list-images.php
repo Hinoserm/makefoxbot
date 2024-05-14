@@ -42,15 +42,17 @@ if ($user['access_level'] != 'ADMIN') {
 	$sql .= " AND q.uid = " . (int)$_GET['uid'];
 }
 
-if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
-    $imageId = (int)$_GET['id'];
+if (!isset($_GET['all'])) {
+    if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+        $imageId = (int) $_GET['id'];
 
-    $sql .= " AND q.id = $imageId";
-    $limit = 1;
-} elseif ($action === 'new' && $lastImageId > 0) {
-    $sql .= " AND q.id > :lastImageId";
-} elseif ($lastImageId > 0) {
-    $sql .= " AND q.id < :lastImageId";
+        $sql .= " AND q.id = $imageId";
+        $limit = 1;
+    } elseif ($action === 'new' && $lastImageId > 0) {
+        $sql .= " AND q.id > :lastImageId";
+    } elseif ($lastImageId > 0) {
+        $sql .= " AND q.id < :lastImageId";
+    }
 }
 
 if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
