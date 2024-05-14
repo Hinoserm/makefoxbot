@@ -59,7 +59,10 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
     $sql .= " AND q.model = :imgModel";
 }
 
-$sql .= " ORDER BY q.id DESC LIMIT $limit";
+$sql .= " ORDER BY q.id";
+
+if (!isset($_GET['all']))
+    $sql .= "LIMIT $limit";
 
 $stmt = $pdo->prepare($sql);
 
