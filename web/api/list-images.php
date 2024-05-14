@@ -42,7 +42,7 @@ if ($user['access_level'] != 'ADMIN') {
     $sql .= " AND q.uid = " . (int) $_GET['uid'];
 }
 
-if (!isset($_GET['all'])) {
+if (!isset($_GET['all']) || $_GET['all'] != 1) {
     if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
         $imageId = (int) $_GET['id'];
 
@@ -63,9 +63,12 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
 
 $sql .= " ORDER BY q.id";
 
-if (!isset($_GET['all'])) {
+if (!isset($_GET['all']) || $_GET['all'] != 1) {
     $sql .= " LIMIT $limit";
 }
+
+// Debugging output to check the final query
+error_log("SQL Query: " . $sql);
 
 $stmt = $pdo->prepare($sql);
 
