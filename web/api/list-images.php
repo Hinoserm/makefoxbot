@@ -5,7 +5,7 @@ require_once("../../lib/web/lib_default.php");
 require_once("../../lib/web/lib_login.php");
 
 if (!checkUserLogin())
-    exit;
+	exit;
 
 $pdo = new PDO("mysql:host=" . MYSQL_HOST . ";dbname=" . MYSQL_DBNAME . ";charset=utf8mb4", MYSQL_USERNAME, MYSQL_PASSWORD);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -13,7 +13,7 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 ob_start();
 
-$lastImageId = isset($_GET['lastImageId']) ? (int) $_GET['lastImageId'] : 0;
+$lastImageId = isset($_GET['lastImageId']) ? (int)$_GET['lastImageId'] : 0;
 $action = isset($_GET['action']) ? $_GET['action'] : 'old';
 
 // Define the limit based on the action
@@ -37,43 +37,44 @@ WHERE
 ";
 
 if ($user['access_level'] != 'ADMIN') {
-    $sql .= " AND q.uid = " . $user['id'];
+	$sql .= " AND q.uid = " . $user['id'];
 } else if ($user['access_level'] == 'ADMIN' && isset($_GET['uid']) && is_numeric($_GET['uid']) && $_GET['uid'] > 0) {
-    $sql .= " AND q.uid = " . (int) $_GET['uid'];
+	$sql .= " AND q.uid = " . (int)$_GET['uid'];
 }
 
-if (!isset($_GET['all']) || $_GET['all'] != 1) {
-    if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
-        $imageId = (int) $_GET['id'];
+if (isset($_GET['id']) && is_numeric($_GET['id']) && $_GET['id'] > 0) {
+    $imageId = (int)$_GET['id'];
 
-        $sql .= " AND q.id = $imageId";
-        $limit = 1;
-    } elseif ($action === 'new' && $lastImageId > 0) {
-        $sql .= " AND q.id > $lastImageId";
-    } elseif ($lastImageId > 0) {
-        $sql .= " AND q.id < $lastImageId";
-    }
+    $sql .= " AND q.id = $imageId";
+    $limit = 1;
+} elseif ($action === 'new' && $lastImageId > 0) {
+    $sql .= " AND q.id > :lastImageId";
+} elseif ($lastImageId > 0) {
+    $sql .= " AND q.id < :lastImageId";
 }
 
 if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
     $imageModel = $_GET['model'];
 
-    $sql .= " AND q.model = '$imageModel'";
+    $sql .= " AND q.model = :imgModel";
 }
 
-$sql .= " ORDER BY q.id";
-
-if (!isset($_GET['all']) || $_GET['all'] != 1) {
-    $sql .= " LIMIT $limit";
-}
-
-// Debugging output to check the final query
-error_log("SQL Query: " . $sql);
+$sql .= " ORDER BY q.id DESC LIMIT $limit";
 
 $stmt = $pdo->prepare($sql);
 
+// Conditionally bind the :lastImageId parameter
+if ($lastImageId > 0) {
+    $stmt->bindParam(':lastImageId', $lastImageId, PDO::PARAM_INT);
+}
+
+if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
+    $stmt->bindParam(':imgModel', $imageModel, PDO::PARAM_STR);
+}
+
 // Now execute the statement
 $stmt->execute();
+
 
 $images = [];
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
