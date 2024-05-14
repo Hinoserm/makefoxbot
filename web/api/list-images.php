@@ -64,7 +64,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
 $sql .= " ORDER BY q.id";
 
 if (!isset($_GET['all']))
-    $sql .= "LIMIT $limit";
+    $sql .= " LIMIT $limit";
 
 $stmt = $pdo->prepare($sql);
 
