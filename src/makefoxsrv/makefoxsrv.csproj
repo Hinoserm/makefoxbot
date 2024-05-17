@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -38,14 +38,7 @@
     <PackageReference Include="Castle.Core" Version="5.1.1" />
     <PackageReference Include="CoenM.ImageSharp.ImageHash" Version="1.3.6" />
     <PackageReference Include="Config.Net" Version="5.2.0" />
-    <PackageReference Include="MatBlazor" Version="2.10.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="8.0.5" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.5" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="8.0.5" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="8.0.5" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.5" />
-    <PackageReference Include="Microsoft.JSInterop" Version="8.0.5" />
-    <PackageReference Include="MySqlConnector" Version="2.3.6" />
+    <PackageReference Include="MySqlConnector" Version="2.3.7" />
     <PackageReference Include="SixLabors.Fonts" Version="2.0.3" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.4" />
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.3" />
@@ -53,9 +46,8 @@
     <PackageReference Include="System.Security.Permissions" Version="8.0.0" />
     <PackageReference Include="System.Text.Json" Version="8.0.3" />
     <PackageReference Include="System.Windows.Extensions" Version="8.0.0" />
-    <PackageReference Include="Telegram.Bot.Extensions.LoginWidget" Version="1.2.0" />
     <PackageReference Include="Terminal.Gui" Version="1.16.0" />
-    <PackageReference Include="WTelegramClient" Version="4.0.0" />
+    <PackageReference Include="WTelegramClient" Version="4.1.1" />
   </ItemGroup>
 
   <ItemGroup>
