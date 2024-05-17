@@ -36,6 +36,8 @@ public class FoxWeb
             options.Cookie.HttpOnly = true;
             options.Cookie.IsEssential = true;
             options.Cookie.Domain = "admin.makefox.bot";
+            //options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // Ensure the cookie is marked as secure
+            options.Cookie.SameSite = SameSiteMode.None;  // Ensure the cookie is available cross-site
         });
         Console.WriteLine("Services configured.");
     }
