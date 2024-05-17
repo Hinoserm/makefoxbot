@@ -132,6 +132,16 @@ namespace makefoxsrv
         // Method to save a message to the database
         public static async Task SaveMessageAsync(FoxUser user, FoxUser csrUser, long telegramPeerId, string message)
         {
+            if (user == null)
+            {
+                throw new ArgumentNullException(nameof(user), "User cannot be null");
+            }
+
+            if (csrUser == null)
+            {
+                throw new ArgumentNullException(nameof(csrUser), "CSR User cannot be null");
+            }
+
             using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await connection.OpenAsync();
