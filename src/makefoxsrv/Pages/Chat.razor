@@ -251,9 +251,16 @@
                 }
             });
 
-            Console.WriteLine("Starting Hub connection...");
-            await HubConnection.StartAsync();
-            Console.WriteLine("Hub connection started.");
+            if (HubConnection.State != HubConnectionState.Connected)
+            {
+                Console.WriteLine("Starting Hub connection...");
+                await HubConnection.StartAsync();
+                Console.WriteLine("Hub connection started.");
+            }
+            else
+            {
+				Console.WriteLine("Hub connection already started.");
+			}
 
             if (Chats.Count > 0)
             {
