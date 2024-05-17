@@ -23,7 +23,7 @@ public class FoxWeb
         services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders =
-                ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
         });
 
         services.AddServerSideBlazor();
