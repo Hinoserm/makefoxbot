@@ -200,6 +200,12 @@ namespace makefoxsrv
             }
             FoxLog.WriteLine("done.");
 
+            var assembly = Assembly.GetExecutingAssembly();
+            foreach (var resourceName in assembly.GetManifestResourceNames())
+            {
+                Console.WriteLine(resourceName);
+            }
+
             FoxLog.Write("Connecting to database... ");
             try
             {
@@ -293,6 +299,8 @@ namespace makefoxsrv
             };
 
             _ = FoxImage.ConvertOldImages();
+
+            FoxWeb.StartWebServer(5555);
 
             try
             {

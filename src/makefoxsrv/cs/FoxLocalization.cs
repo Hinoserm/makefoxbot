@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace makefoxsrv
 {
-    internal class FoxLocalization
+    public class FoxLocalization
     {
         private readonly FoxUser user;
         private static ResourceManager resourceManager = new ResourceManager("makefoxsrv.lang.Strings", Assembly.GetExecutingAssembly());

@@ -13,7 +13,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Autofocus", "src\lib-autofo
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Autofocus.ImageSharp", "src\lib-autofocus\Autofocus.ImageSharp\Autofocus.ImageSharp.csproj", "{0E815BD5-A92B-419B-BFD2-641C07C24CA3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "trainer", "src\trainer\ConsoleApp1\trainer.csproj", "{4A94C1F9-94E0-440E-9104-5ABD94AEBF4F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "trainer", "src\trainer\ConsoleApp1\trainer.csproj", "{4A94C1F9-94E0-440E-9104-5ABD94AEBF4F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

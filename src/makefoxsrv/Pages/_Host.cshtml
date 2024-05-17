@@ -1,0 +1,33 @@
+﻿@page "/"
+@namespace makefoxsrv.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BlazorApp</title>
+    <base href="~/" />
+
+    <!--<link href="css/bootstrap/bootstrap.min.css" rel="stylesheet" />-->
+    <!--<link href="css/site.css" rel="stylesheet" />-->
+</head>
+<body>
+    <app>
+        <component type="typeof(App)" render-mode="ServerPrerendered" />
+    </app>
+
+    <div id="blazor-error-ui">
+        <environment include="Staging,Production">
+            <!--<a href="" class="reload">Reload</a>
+            <a class="dismiss"></a>-->
+        </environment>
+    </div>
+
+    <script src="_framework/blazor.server.js"></script>
+</body>
+</html>

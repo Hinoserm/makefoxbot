@@ -417,6 +417,8 @@ We are committed to using your donation to further develop and maintain the serv
                             await cmd.ExecuteNonQueryAsync();
                         }
                     }
+
+                    await DatabaseHandler.DisplayReceivedTelegramMessage(t.User.ID, message);
                 }
                 catch (Exception ex)
                 {

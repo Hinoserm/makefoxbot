@@ -21,7 +21,7 @@ public enum AccessLevel
 
 namespace makefoxsrv
 {
-    internal class FoxUser
+    public class FoxUser
     {
         public ulong UID;
         public string? Username;
