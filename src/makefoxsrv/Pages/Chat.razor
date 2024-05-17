@@ -197,7 +197,8 @@
                 return;
             }
 
-            var userSession = httpContext.Session.GetString("UserSession");
+            var userSession = HttpContextService.GetCurrentHttpContext()?.Session?.GetString("UserSession");
+
             Console.WriteLine($"User session: {userSession}");
 
             if (string.IsNullOrEmpty(userSession))

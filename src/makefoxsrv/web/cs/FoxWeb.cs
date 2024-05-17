@@ -1,13 +1,11 @@
 ﻿using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 public class FoxWeb
 {
@@ -35,11 +33,11 @@ public class FoxWeb
         services.AddDistributedMemoryCache();
         services.AddSession(options =>
         {
-            options.IdleTimeout = TimeSpan.FromDays(30);
+            options.IdleTimeout = TimeSpan.FromDays(365 * 100); // 100 years
             options.Cookie.HttpOnly = true;
             options.Cookie.IsEssential = true;
             options.Cookie.Domain = "admin.makefox.bot";
-            options.Cookie.SameSite = SameSiteMode.None;  // Ensure the cookie is available cross-site
+            options.Cookie.SameSite = SameSiteMode.None; // Ensure the cookie is available cross-site
         });
         services.AddSingleton<IHttpContextService, HttpContextService>(); // Register the HttpContextService
         Console.WriteLine("Services configured.");
