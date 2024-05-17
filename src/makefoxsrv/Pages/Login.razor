@@ -2,6 +2,8 @@
 @inject NavigationManager Navigation
 @inject IHttpContextAccessor HttpContextAccessor
 @inject ILogger<Login> Logger
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
 
 <h3>Login</h3>
 
@@ -15,27 +17,60 @@
 }
 
 @code {
-
     private string LoginError;
 
     protected override async Task OnInitializedAsync()
     {
-        var userSession = HttpContextAccessor.HttpContext.Session.GetString("UserSession");
+        Logger.LogInformation("OnInitializedAsync started.");
 
-        if (string.IsNullOrEmpty(userSession))
+        try
         {
-            Logger.LogInformation("No user session found.");
+            var httpContext = HttpContextAccessor.HttpContext;
+            if (httpContext == null)
+            {
+                Logger.LogError("HttpContext is null in OnInitializedAsync.");
+                await Task.Yield(); // Ensure async context is maintained
+                return;
+            }
+
+            var userSession = httpContext.Session.GetString("UserSession");
+            Logger.LogInformation($"User session: {userSession}");
+
+            if (string.IsNullOrEmpty(userSession))
+            {
+                Logger.LogInformation("No user session found.");
+            }
+            else
+            {
+                Logger.LogInformation($"User session found: {userSession}");
+                await InvokeAsync(() => Navigation.NavigateTo("/chat"));
+            }
+
+            var cookies = httpContext.Request.Cookies;
+            foreach (var cookie in cookies)
+            {
+                Logger.LogInformation($"Cookie: {cookie.Key} = {cookie.Value}");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Logger.LogInformation($"User session found: {userSession}");
-            await InvokeAsync(() => Navigation.NavigateTo("/chat"));
+            Logger.LogError($"Error in OnInitializedAsync: {ex.Message}");
         }
 
-        var cookies = HttpContextAccessor.HttpContext.Request.Cookies;
-        foreach (var cookie in cookies)
+        Logger.LogInformation("OnInitializedAsync completed.");
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
         {
-            Logger.LogInformation($"Cookie: {cookie.Key} = {cookie.Value}");
+            // Add any necessary cleanup code here
         }
+    }
+
+    public void Dispose()
+    {
+        // Remove the widget when the component is disposed
+        JSRuntime.InvokeVoidAsync("removeTelegramWidget");
     }
 }

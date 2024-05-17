@@ -40,7 +40,7 @@ namespace makefoxsrv.Controllers
 
             HttpContext.Session.SetString("UserSession", user.UID.ToString());
 
-            return Redirect("/chat");
+            return Redirect("/bu1ms");
         }
 
         private void ValidateTelegramLoginData(TelegramLoginModel model, string token)

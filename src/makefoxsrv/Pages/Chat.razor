@@ -3,7 +3,7 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @inject IJSRuntime JSRuntime
 @inject NavigationManager NavigationManager
-@inject IHttpContextAccessor HttpContextAccessor
+@inject IHttpContextService HttpContextService
 
 <style>
     .tab-container {
@@ -189,7 +189,15 @@
 
         try
         {
-            var userSession = HttpContextAccessor.HttpContext?.Session.GetString("UserSession");
+            var httpContext = HttpContextService.GetCurrentHttpContext();
+            if (httpContext == null)
+            {
+                Console.WriteLine("HttpContext is null. Redirecting to login.");
+                NavigationManager.NavigateTo("/login");
+                return;
+            }
+
+            var userSession = httpContext.Session.GetString("UserSession");
             Console.WriteLine($"User session: {userSession}");
 
             if (string.IsNullOrEmpty(userSession))
@@ -213,10 +221,10 @@
             Chats = await DatabaseHandler.GetOpenChatsAsync();
             Console.WriteLine($"Number of open chats: {Chats.Count}");
 
-            var hubUrl = NavigationManager.ToAbsoluteUri("/chathub");
-            Console.WriteLine($"Hub URL: {hubUrl}");
+            var hubUrl = NavigationManager.ToAbsoluteUri("http://localhost:5555/chathub");
 
-            hubUrl = NavigationManager.ToAbsoluteUri("http://localhost:5555/chathub");
+
+            Console.WriteLine($"Hub URL: {hubUrl}");
 
             HubConnection = new HubConnectionBuilder()
                 .WithUrl(hubUrl)
@@ -253,8 +261,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error during initialization: {ex.Message}");
-            NavigationManager.NavigateTo("/login");
+            Console.WriteLine($"Error during initialization: {ex.Message}\r\n{ex.StackTrace}");
         }
 
         Console.WriteLine("OnInitializedAsync completed.");

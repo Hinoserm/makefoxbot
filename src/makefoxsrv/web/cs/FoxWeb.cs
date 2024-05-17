@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.AspNetCore.HttpOverrides;
 
 public class FoxWeb
 {
@@ -36,9 +39,9 @@ public class FoxWeb
             options.Cookie.HttpOnly = true;
             options.Cookie.IsEssential = true;
             options.Cookie.Domain = "admin.makefox.bot";
-            //options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // Ensure the cookie is marked as secure
             options.Cookie.SameSite = SameSiteMode.None;  // Ensure the cookie is available cross-site
         });
+        services.AddSingleton<IHttpContextService, HttpContextService>(); // Register the HttpContextService
         Console.WriteLine("Services configured.");
     }
 
@@ -58,7 +61,8 @@ public class FoxWeb
             app.UseHsts();
         }
 
-        //app.UseHttpsRedirection();
+        app.UseForwardedHeaders(); // Ensure this is early in the pipeline
+        app.UseSession(); // Ensure this is before routing
 
         app.Use(async (context, next) =>
         {
@@ -70,9 +74,7 @@ public class FoxWeb
 
         app.UseRouting();
 
-        app.UseSession();
-
-        app.UseForwardedHeaders();
+        app.UseMiddleware<HttpContextMiddleware>(); // Use the HttpContextMiddleware
 
         makefoxsrv.DatabaseHandler.Initialize(hubContext);
 
@@ -97,5 +99,46 @@ public class FoxWeb
         Console.WriteLine($"Starting web server on port {port}...");
         CreateHostBuilder(new string[0], port).Build().Run();
         Console.WriteLine("Web server started.");
+    }
+}
+
+// HttpContextService to store HttpContext
+public interface IHttpContextService
+{
+    HttpContext GetCurrentHttpContext();
+    void SetCurrentHttpContext(HttpContext httpContext);
+}
+
+public class HttpContextService : IHttpContextService
+{
+    private static AsyncLocal<HttpContext> _currentHttpContext = new AsyncLocal<HttpContext>();
+
+    public HttpContext GetCurrentHttpContext()
+    {
+        return _currentHttpContext.Value;
+    }
+
+    public void SetCurrentHttpContext(HttpContext httpContext)
+    {
+        _currentHttpContext.Value = httpContext;
+    }
+}
+
+// Middleware to set HttpContext
+public class HttpContextMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly IHttpContextService _httpContextService;
+
+    public HttpContextMiddleware(RequestDelegate next, IHttpContextService httpContextService)
+    {
+        _next = next;
+        _httpContextService = httpContextService;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        _httpContextService.SetCurrentHttpContext(context);
+        await _next(context);
     }
 }
