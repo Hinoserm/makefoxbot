@@ -35,6 +35,7 @@ public class FoxWeb
             options.IdleTimeout = TimeSpan.FromDays(30);
             options.Cookie.HttpOnly = true;
             options.Cookie.IsEssential = true;
+            options.Cookie.Domain = "admin.makefox.bot";
         });
         Console.WriteLine("Services configured.");
     }
