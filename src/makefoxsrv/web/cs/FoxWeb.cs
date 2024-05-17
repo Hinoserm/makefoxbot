@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.HttpOverrides;
 
 public class FoxWeb
 {
@@ -19,6 +20,12 @@ public class FoxWeb
     {
         Console.WriteLine("Configuring services...");
         services.AddRazorPages();
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders =
+                ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        });
+
         services.AddServerSideBlazor();
         services.AddSignalR();
         services.AddHttpContextAccessor();
