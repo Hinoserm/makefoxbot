@@ -62,6 +62,8 @@ public class FoxWeb
 
         app.UseSession();
 
+        app.UseForwardedHeaders();
+
         makefoxsrv.DatabaseHandler.Initialize(hubContext);
 
         app.UseEndpoints(endpoints =>

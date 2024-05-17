@@ -30,6 +30,9 @@ public interface IMySettings
     [Option(Alias = "Telegram.BOT_TOKEN")]
     string TelegramBotToken { get; }
 
+    [Option(Alias = "Telegram.BOT_USERNAME")]
+    string TelegramBotUsername{ get; }
+
     [Option(Alias = "Telegram.PAYMENT_TOKEN")]
     string TelegramPaymentToken { get; }
 
@@ -142,6 +145,9 @@ namespace makefoxsrv
 
             if (string.IsNullOrEmpty(settings.TelegramBotToken))
                 throw new Exception("Missing setting Telegram.bot_token is not optional.");
+
+            if (string.IsNullOrEmpty(settings.TelegramBotUsername))
+                throw new Exception("Missing setting Telegram.bot_username is not optional.");
 
             if (string.IsNullOrEmpty(settings.MySQLUsername))
                 throw new Exception("Missing setting MySQL.username is not optional.");
