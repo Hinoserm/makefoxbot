@@ -221,7 +221,7 @@
             Chats = await DatabaseHandler.GetOpenChatsAsync();
             Console.WriteLine($"Number of open chats: {Chats.Count}");
 
-            var hubUrl = NavigationManager.ToAbsoluteUri("http://localhost:5555/chathub");
+            var hubUrl = NavigationManager.ToAbsoluteUri("/chathub");
 
 
             Console.WriteLine($"Hub URL: {hubUrl}");
