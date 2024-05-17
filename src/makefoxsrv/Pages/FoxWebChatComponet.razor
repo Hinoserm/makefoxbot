@@ -189,7 +189,7 @@
 
         try
         {
-            var userSession = HttpContextAccessor.HttpContext.Session.GetString("UserSession");
+            var userSession = HttpContextAccessor.HttpContext?.Session.GetString("UserSession");
             Console.WriteLine($"User session: {userSession}");
 
             if (string.IsNullOrEmpty(userSession))

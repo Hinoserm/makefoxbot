@@ -24,7 +24,7 @@
         var userSession = HttpContextAccessor.HttpContext?.Session.GetString("UserSession");
         if (!string.IsNullOrEmpty(userSession))
         {
-            await InvokeAsync(() => Navigation.NavigateTo("/"));
+            await InvokeAsync(() => Navigation.NavigateTo("/chat"));
         }
     }
 }
