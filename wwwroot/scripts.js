@@ -109,7 +109,7 @@ function createTab(chat) {
     tab.appendChild(tabText);
     tab.appendChild(closeButton);
     tabList.insertBefore(tab, document.getElementById('add-tab'));
-    activeChats[chat.TabID] = { tab, messages: [] };
+    activeChats[chat.TabID] = { tab, toUser: chat.toUser, messages: [] };
 }
 
 function selectChat(tabId) {
@@ -143,9 +143,10 @@ function displayChatMessages(chatId, messages) {
 
 function appendChatMessage(message) {
     const chatId = message.ChatID || activeTabId; // Handle cases where ChatID may not be explicitly provided
-    console.log('Appending message to chat:', chatId, message);
-    if (activeChats[chatId]) {
-        activeChats[chatId].messages.push(message);
+    const selectedChat = activeChats[activeTabId];
+    if (selectedChat && (selectedChat.toUser === message.ToUID || selectedChat.toUser === message.FromUID)) {
+        console.log('Appending message to chat:', chatId, message);
+        selectedChat.messages.push(message);
         const chatContent = document.getElementById('chat-content');
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('chat-message');
