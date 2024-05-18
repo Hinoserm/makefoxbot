@@ -22,12 +22,11 @@ using EmbedIO.Net;
 class FoxWeb
 {
 
-    private static readonly ConcurrentDictionary<ulong, IWebSocketContext> ActiveConnections = new ConcurrentDictionary<ulong, IWebSocketContext>();
-
+    private static readonly ConcurrentDictionary<IWebSocketContext, FoxUser?> ActiveConnections = new ConcurrentDictionary<IWebSocketContext, FoxUser?>();
 
     public static WebServer StartWebServer(string url = "http://*:5555/", CancellationToken cancellationToken = default)
     {
-        EndPointManager.UseIpv6 = false; //Otherwise this crashes on systems with ipv6 disabled.
+        EndPointManager.UseIpv6 = false; //Otherwise this crashes on systems with ipv
 
         var server = new WebServer(o => o
                 .WithUrlPrefix(url)
@@ -54,6 +53,8 @@ class FoxWeb
 
         protected override async Task OnMessageReceivedAsync(IWebSocketContext context, byte[] buffer, IWebSocketReceiveResult result)
         {
+            var user = await GetUserFromRequest(context);
+
             var message = System.Text.Encoding.UTF8.GetString(buffer);
             Console.WriteLine("Received: " + message);
 
@@ -65,6 +66,12 @@ class FoxWeb
 
                 if (command == "Autocomplete")
                 {
+                    if (String.IsNullOrEmpty(query))
+                        return; //No point wasting our time if the query is empty
+
+                    if (user is null || !user.CheckAccessLevel(AccessLevel.ADMIN))
+                        return; //Only admins can use this feature
+
                     var suggestions = await FoxUser.GetSuggestions(query);
                     var response = new AutocompleteResponse
                     {
@@ -94,25 +101,27 @@ class FoxWeb
         protected override async Task OnClientConnectedAsync(IWebSocketContext context)
         {
             var user = await GetUserFromRequest(context);
-
-            if (user is not null)
-            {
-                ActiveConnections.TryAdd(user.UID, context);
-                Console.WriteLine($"User {user.Username} connected!");
-            }
+            ActiveConnections.TryAdd(context, user);
+            Console.WriteLine($"WebSocket Connected. User: {(user?.Username ?? "(none)")}");
         }
 
         protected override Task OnClientDisconnectedAsync(IWebSocketContext context)
         {
-            //var userId = GetUserFromContext(context);
-            //ActiveConnections.TryRemove(userId, out _);
-            //Console.WriteLine($"User {userId} disconnected!");
+            ActiveConnections.TryRemove(context, out _);
+            Console.WriteLine("WebSocket disconnected!");
             return Task.CompletedTask;
         }
 
         public static async Task<FoxUser?> GetUserFromRequest(IWebSocketContext context)
         {
-            string? cookieHeader = context.Headers.GetValues("Cookie")?.First();
+            // Check if the user is already in the active connections
+            if (ActiveConnections.TryGetValue(context, out var cachedUser))
+            {
+                return cachedUser;
+            }
+
+            // Proceed to check the cookie and get user from the session if not found in active connections
+            string? cookieHeader = context.Headers.GetValues("Cookie")?.FirstOrDefault();
 
             if (cookieHeader is not null)
             {
@@ -123,7 +132,15 @@ class FoxWeb
 
                 if (cookies.TryGetValue("PHPSESSID", out var sessionId))
                 {
-                    return await FoxWebSessions.GetUserFromSession(sessionId);
+                    var user = await FoxWebSessions.GetUserFromSession(sessionId);
+
+                    // Cache the user in ActiveConnections if not already cached
+                    if (user != null)
+                    {
+                        ActiveConnections[context] = user;
+                    }
+
+                    return user;
                 }
             }
 
@@ -180,9 +197,16 @@ class FoxWeb
 
         string jsonMessage = JsonSerializer.Serialize(msg);
 
-        foreach (var context in ActiveConnections.Values)
+        foreach (var kvp in ActiveConnections)
         {
-            await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
+            var context = kvp.Key;
+            var connectedUser = kvp.Value; // Get the user associated with the context (can be null)
+
+            // You can add your logic here using the connectedUser
+            if (connectedUser != null && (connectedUser.UID == user?.UID || connectedUser.GetAccessLevel() >= AccessLevel.ADMIN))
+            {
+                await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
+            }
         }
     }
 }
