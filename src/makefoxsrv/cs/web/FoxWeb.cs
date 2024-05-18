@@ -73,6 +73,79 @@ class FoxWeb
             await HttpContext.Response.OutputStream.WriteAsync(System.Text.Encoding.UTF8.GetBytes("Pong!"));
         }
 
+        [Route(HttpVerbs.Any, "/chat/getchatlist")]
+        public async Task GetChatList()
+        {
+            var user = await GetUserFromRequest(HttpContext);
+
+            if (user is null)
+            {
+                await SendErrorResponse(HttpContext, "You must be logged in to use this function.");
+                return;
+            }
+
+            var output = await FoxWebChat.GetChatList(user);
+
+            await SendResponse(HttpContext, output);
+        }
+
+        [Route(HttpVerbs.Any, "/chat/getchatmessages")]
+        public async Task GetChatMessages()
+        {
+            var user = await GetUserFromRequest(HttpContext);
+
+            if (user is null)
+            {
+                await SendErrorResponse(HttpContext, "You must be logged in to use this function.");
+                return;
+            }
+
+            var toUserStr = HttpContext.Request.QueryString["toUID"];
+
+            long? toUID = toUserStr is null ? null : long.Parse(toUserStr);
+
+            if (toUID is null)
+            {
+                await SendErrorResponse(HttpContext, "toUID parameter is required.");
+                return;
+            }
+
+            var toUser = await FoxUser.GetByUID(toUID.Value);
+
+            if (toUser is null)
+            {
+                await SendErrorResponse(HttpContext, "User not found.");
+                return;
+            }
+
+            var output = await FoxWebChat.GetChatMessages(user, toUser, null);
+
+            await SendResponse(HttpContext, output);
+        }
+
+        public static async Task SendResponse(IHttpContext context, object response)
+        {
+            string jsonMessage = JsonSerializer.Serialize(response);
+
+            await context.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(jsonMessage));
+        }
+
+        public static async Task SendErrorResponse(IHttpContext context, string errorMessage)
+        {
+            var msg = new
+            {
+                Error = new
+                {
+                    Command = "Error",
+                    Message = errorMessage
+                }
+            };
+
+            string jsonMessage = JsonSerializer.Serialize(msg);
+
+            await context.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(jsonMessage));
+        }
+
         public static async Task<FoxUser?> GetUserFromRequest(IHttpContext context)
         {
             string? cookieHeader = context.Request.Headers.GetValues("Cookie")?.First();
