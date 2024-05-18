@@ -17,6 +17,7 @@ using System.Text.Json;
 using System.Text;
 using TL;
 using EmbedIO.Files;
+using EmbedIO.Net;
 
 class FoxWeb
 {
@@ -26,6 +27,8 @@ class FoxWeb
 
     public static WebServer StartWebServer(string url = "http://*:5555/", CancellationToken cancellationToken = default)
     {
+        EndPointManager.UseIpv6 = false; //Otherwise this crashes on systems with ipv6 disabled.
+
         var server = new WebServer(o => o
                 .WithUrlPrefix(url)
                 .WithMode(HttpListenerMode.EmbedIO))
