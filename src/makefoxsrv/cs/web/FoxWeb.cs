@@ -203,7 +203,7 @@ class FoxWeb
             var connectedUser = kvp.Value; // Get the user associated with the context (can be null)
 
             // You can add your logic here using the connectedUser
-            if (connectedUser != null && (connectedUser.UID == user?.UID || connectedUser.GetAccessLevel() >= AccessLevel.ADMIN))
+            if (connectedUser != null && (connectedUser.TelegramID == tgUser?.UserId || connectedUser.CheckAccessLevel(AccessLevel.ADMIN)))
             {
                 await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
             }
