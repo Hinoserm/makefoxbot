@@ -9,6 +9,7 @@ using makefoxsrv;
 using TL;
 using System.Globalization;
 using System.Linq.Expressions;
+using System.Data;
 
 public enum AccessLevel
 {
@@ -475,5 +476,95 @@ namespace makefoxsrv
 
             return count;
         }
+
+        static public async Task<List<(string Display, string Paste)>> GetSuggestions(string query)
+        {
+            var suggestions = new List<(string Display, string Paste)>();
+
+            using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await connection.OpenAsync();
+                MySqlCommand command;
+
+                if (query.StartsWith("@"))
+                {
+                    query = query.Substring(1);
+                    command = new MySqlCommand("SELECT username, id FROM users WHERE username LIKE @query LIMIT 30", connection);
+                    command.Parameters.AddWithValue("@query", query + "%");
+
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            var username = reader.GetString("username");
+                            var display = $"@{username}";
+                            suggestions.Add((display, display));
+                        }
+                    }
+                }
+                else if (query.StartsWith("#"))
+                {
+                    query = query.Substring(1);
+                    command = new MySqlCommand("SELECT username, firstname, lastname, id FROM telegram_users WHERE id LIKE @query LIMIT 30", connection);
+                    command.Parameters.AddWithValue("@query", query + "%");
+
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            var id = reader.GetInt64("id");
+                            var username = reader.IsDBNull(reader.GetOrdinal("username")) ? null : reader.GetString("username");
+                            var firstname = reader.IsDBNull(reader.GetOrdinal("firstname")) ? string.Empty : reader.GetString("firstname");
+                            var lastname = reader.IsDBNull(reader.GetOrdinal("lastname")) ? string.Empty : reader.GetString("lastname");
+                            var fullname = $"{firstname} {lastname}".Trim();
+                            var display = username != null ? $"@{username}" : (!string.IsNullOrEmpty(fullname) ? fullname : $"#{id}");
+                            var paste = username != null ? $"@{username}" : $"#{id}";
+                            suggestions.Add((display, paste));
+                        }
+                    }
+                }
+                else if (long.TryParse(query, out _))
+                {
+                    command = new MySqlCommand("SELECT username, id FROM users WHERE id LIKE @query OR username LIKE @query LIMIT 30", connection);
+                    command.Parameters.AddWithValue("@query", query + "%");
+
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            var id = reader.GetInt64("id");
+                            var username = reader.IsDBNull(reader.GetOrdinal("username")) ? null : reader.GetString("username");
+
+                            var display = username != null ? $"@{username}" : id.ToString();
+                            var paste = username != null ? $"@{username}" : id.ToString();
+                            suggestions.Add((display, paste));
+                        }
+                    }
+                }
+                else
+                {
+                    command = new MySqlCommand("SELECT firstname, lastname, username, id FROM telegram_users WHERE firstname LIKE @query OR lastname LIKE @query LIMIT 30", connection);
+                    command.Parameters.AddWithValue("@query", query + "%");
+
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            var firstname = reader.IsDBNull(reader.GetOrdinal("firstname")) ? string.Empty : reader.GetString("firstname");
+                            var lastname = reader.IsDBNull(reader.GetOrdinal("lastname")) ? string.Empty : reader.GetString("lastname");
+                            var fullname = $"{firstname} {lastname}".Trim();
+                            var id = reader.GetInt64("id");
+                            var username = reader.IsDBNull(reader.GetOrdinal("username")) ? null : reader.GetString("username");
+                            var display = fullname;
+                            var paste = username != null ? $"@{username}" : $"#{id}";
+                            suggestions.Add((display, paste));
+                        }
+                    }
+                }
+            }
+
+            return suggestions;
+        }
+
     }
 }

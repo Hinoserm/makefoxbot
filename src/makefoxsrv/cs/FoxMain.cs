@@ -23,8 +23,6 @@ using System.Threading.Channels;
 using static System.Net.Mime.MediaTypeNames;
 using System.Runtime.Intrinsics.Arm;
 using Castle.Core.Smtp;
-
-
 public interface IMySettings
 {
     [Option(Alias = "Telegram.BOT_TOKEN")]
@@ -306,7 +304,7 @@ namespace makefoxsrv
 
             _ = FoxImage.ConvertOldImages();
 
-            //FoxWeb.StartWebServer(5555);
+            FoxWeb.StartWebServer(cancellationToken: cts.Token);
 
             try
             {

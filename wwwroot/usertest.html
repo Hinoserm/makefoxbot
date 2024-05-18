@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Username Autocomplete</title>
+    <style>
+        #autocomplete-list {
+            border: 1px solid #ccc;
+            max-height: 150px;
+            overflow-y: auto;
+            position: absolute;
+            background: white;
+            z-index: 1000;
+        }
+
+        .autocomplete-item {
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        .autocomplete-item:hover {
+            background-color: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Username Autocomplete</h1>
+    <form autocomplete="off">
+        <input type="text" id="search-input" name="search-input" placeholder="Type @ to search for usernames or just type to search for names..." autocomplete="off">
+        <!-- hidden input to trick the browser -->
+        <input type="text" style="display:none">
+    </form>
+    <div id="autocomplete-list"></div>
+
+    <script>
+        const input = document.getElementById('search-input');
+        const autocompleteList = document.getElementById('autocomplete-list');
+
+        // Construct WebSocket URL based on the current location
+        const currentUrl = new URL(window.location.href);
+        const wsProtocol = currentUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsHost = currentUrl.host;
+        const wsPath = '/ws';
+        const wsUrl = `${wsProtocol}//${wsHost}${wsPath}`;
+
+        console.log('URL: ' + wsUrl);
+
+        let socket = new WebSocket(wsUrl);
+
+        socket.onopen = function(event) {
+            console.log('WebSocket is connected.');
+        };
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.Command === 'AutocompleteResponse') {
+                autocompleteList.innerHTML = '';
+                data.Suggestions.forEach(suggestion => {
+                    if (suggestion.Display && suggestion.Paste) {
+                        const item = document.createElement('div');
+                        item.className = 'autocomplete-item';
+                        item.textContent = suggestion.Display;
+                        item.onclick = () => {
+                            input.value = suggestion.Paste;
+                            autocompleteList.innerHTML = '';
+                        };
+                        autocompleteList.appendChild(item);
+                    }
+                });
+            }
+        };
+
+        socket.onclose = function(event) {
+            console.log('WebSocket is closed.');
+        };
+
+        socket.onerror = function(error) {
+            console.error('WebSocket error:', error);
+        };
+
+        input.addEventListener('input', () => {
+            const value = input.value;
+            if (value.length > 0) {
+                const message = {
+                    Command: 'Autocomplete',
+                    Query: value
+                };
+                socket.send(JSON.stringify(message));
+            } else {
+                autocompleteList.innerHTML = '';
+            }
+        });
+    </script>
+</body>
+</html>
