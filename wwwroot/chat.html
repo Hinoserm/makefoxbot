@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Interface</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-tabs">
+            <ul id="tab-list">
+                <!-- Tabs will be dynamically added here -->
+                <li id="add-tab"><button onclick="showAddChatModal()">+</button></li>
+            </ul>
+        </div>
+        <div class="chat-content" id="chat-content">
+            <!-- Chat content will be dynamically added here -->
+        </div>
+        <div class="chat-input">
+            <input type="text" id="messageInput" placeholder="Type a message">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <!-- Modal for adding a new chat -->
+    <div id="addChatModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="hideAddChatModal()">&times;</span>
+            <h2>Add New Chat</h2>
+            <input type="text" id="usernameInput" placeholder="Enter username" oninput="fetchAutocomplete()">
+            <ul id="autocomplete-list"></ul>
+            <button onclick="addChat()">Add</button>
+        </div>
+    </div>
+
+    <script src="scripts.js"></script>
+</body>
+</html>

@@ -419,7 +419,7 @@ We are committed to using your donation to further develop and maintain the serv
                     }
 
                     //await DatabaseHandler.DisplayReceivedTelegramMessage(t.User.ID, message);
-                    await FoxWeb.BroadcastMessageAsync(null, t.User, t.Peer, message);
+                    await FoxWebSockets.BroadcastMessageAsync(null, t.User, t.Peer, message);
                 }
                 catch (Exception ex)
                 {

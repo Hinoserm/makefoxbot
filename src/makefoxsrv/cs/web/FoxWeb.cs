@@ -21,9 +21,6 @@ using EmbedIO.Net;
 
 class FoxWeb
 {
-
-    private static readonly ConcurrentDictionary<IWebSocketContext, FoxUser?> ActiveConnections = new ConcurrentDictionary<IWebSocketContext, FoxUser?>();
-
     public static WebServer StartWebServer(string url = "http://*:5555/", CancellationToken cancellationToken = default)
     {
         EndPointManager.UseIpv6 = false; //Otherwise this crashes on systems with ipv
@@ -34,8 +31,9 @@ class FoxWeb
             .WithCors()
             .WithLocalSessionManager()
             .WithWebApi("/api", module => module.WithController<ApiController>())
-            .WithModule(new WebSocketHandler("/ws"))
-            .WithStaticFolder("/", "../wwwroot", true); // Serve static files from wwwroot directory
+            .WithModule(new FoxWebSockets.Handler("/ws"))
+            .WithStaticFolder("/", "../wwwroot", false) // Serve static files from wwwroot directory
+            .WithModule(new FileCacheInvalidationModule("/")); // Custom middleware to set no-cache headers
 
         server.StateChanged += (s, e) => Console.WriteLine($"WebServer New State - {e.NewState}");
 
@@ -44,107 +42,22 @@ class FoxWeb
         return server;
     }
 
-    private class WebSocketHandler : WebSocketModule
+    private class FileCacheInvalidationModule : WebModuleBase
     {
-        public WebSocketHandler(string urlPath)
-            : base(urlPath, true)
+        public FileCacheInvalidationModule(string baseRoute) : base(baseRoute)
         {
         }
 
-        protected override async Task OnMessageReceivedAsync(IWebSocketContext context, byte[] buffer, IWebSocketReceiveResult result)
+        public override bool IsFinalHandler => false;
+
+        protected override async Task OnRequestAsync(IHttpContext context)
         {
-            var user = await GetUserFromRequest(context);
+            // Set headers to prevent caching
+            context.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+            context.Response.Headers["Pragma"] = "no-cache";
+            context.Response.Headers["Expires"] = "0";
 
-            var message = System.Text.Encoding.UTF8.GetString(buffer);
-            Console.WriteLine("Received: " + message);
-
-            var jsonMessage = JsonSerializer.Deserialize<Dictionary<string, object>>(message);
-            if (jsonMessage != null && jsonMessage.ContainsKey("Command"))
-            {
-                var command = jsonMessage["Command"].ToString();
-                var query = jsonMessage["Query"].ToString();
-
-                if (command == "Autocomplete")
-                {
-                    if (String.IsNullOrEmpty(query))
-                        return; //No point wasting our time if the query is empty
-
-                    if (user is null || !user.CheckAccessLevel(AccessLevel.ADMIN))
-                        return; //Only admins can use this feature
-
-                    var suggestions = await FoxUser.GetSuggestions(query);
-                    var response = new AutocompleteResponse
-                    {
-                        Command = "AutocompleteResponse",
-                        Suggestions = suggestions.Select(s => new Suggestion { Display = s.Display, Paste = s.Paste }).ToList()
-                    };
-
-                    var responseMessage = JsonSerializer.Serialize(response);
-                    await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(responseMessage), true);
-                }
-            }
-        }
-
-        public class AutocompleteResponse
-        {
-            public string Command { get; set; }
-            public List<Suggestion> Suggestions { get; set; }
-        }
-
-        public class Suggestion
-        {
-            public string Display { get; set; }
-            public string Paste { get; set; }
-        }
-
-
-        protected override async Task OnClientConnectedAsync(IWebSocketContext context)
-        {
-            var user = await GetUserFromRequest(context);
-            ActiveConnections.TryAdd(context, user);
-            Console.WriteLine($"WebSocket Connected. User: {(user?.Username ?? "(none)")}");
-        }
-
-        protected override Task OnClientDisconnectedAsync(IWebSocketContext context)
-        {
-            ActiveConnections.TryRemove(context, out _);
-            Console.WriteLine("WebSocket disconnected!");
-            return Task.CompletedTask;
-        }
-
-        public static async Task<FoxUser?> GetUserFromRequest(IWebSocketContext context)
-        {
-            // Check if the user is already in the active connections
-            if (ActiveConnections.TryGetValue(context, out var cachedUser))
-            {
-                return cachedUser;
-            }
-
-            // Proceed to check the cookie and get user from the session if not found in active connections
-            string? cookieHeader = context.Headers.GetValues("Cookie")?.FirstOrDefault();
-
-            if (cookieHeader is not null)
-            {
-                var cookies = cookieHeader.Split(';')
-                    .Select(cookie => cookie.Split('='))
-                    .Where(parts => parts.Length == 2)
-                    .ToDictionary(parts => parts[0].Trim(), parts => parts[1].Trim());
-
-                if (cookies.TryGetValue("PHPSESSID", out var sessionId))
-                {
-                    var user = await FoxWebSessions.GetUserFromSession(sessionId);
-
-                    // Cache the user in ActiveConnections if not already cached
-                    if (user != null)
-                    {
-                        ActiveConnections[context] = user;
-                    }
-
-                    return user;
-                }
-            }
-
-            return null;
+            //await SendNextAsync(context); // Ensure the next handler in the pipeline is executed
         }
     }
 
@@ -178,35 +91,6 @@ class FoxWeb
             }
 
             return null;
-        }
-    }
-
-    // Function to broadcast message to all WebSocket clients
-    public static async Task BroadcastMessageAsync(FoxUser? user, TL.InputUser? tgUser, TL.InputPeer? tgPeer, string message)
-    {
-        var msg = new
-        {
-            ChatMsgRecv = new
-            {
-                UID = user?.UID,
-                tgUser = tgUser?.UserId,
-                tgPeer = tgPeer?.ID,
-                Message = message
-            }
-        };
-
-        string jsonMessage = JsonSerializer.Serialize(msg);
-
-        foreach (var kvp in ActiveConnections)
-        {
-            var context = kvp.Key;
-            var connectedUser = kvp.Value; // Get the user associated with the context (can be null)
-
-            // You can add your logic here using the connectedUser
-            if (connectedUser != null && (connectedUser.TelegramID == tgUser?.UserId || connectedUser.CheckAccessLevel(AccessLevel.ADMIN)))
-            {
-                await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
-            }
         }
     }
 }
