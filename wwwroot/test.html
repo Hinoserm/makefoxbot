@@ -9,7 +9,16 @@
     <h1>WebSocket Test</h1>
     <div id="messages"></div>
     <script>
-        const socket = new WebSocket('ws://localhost:5555/ws');
+        // Construct WebSocket URL based on the current location
+        const currentUrl = new URL(window.location.href);
+        const wsProtocol = currentUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsHost = currentUrl.host;
+        const wsPath = '/ws';
+        const wsUrl = `${wsProtocol}//${wsHost}${wsPath}`;
+
+        console.log('URL: ' + wsUrl);
+
+        let socket = new WebSocket(wsUrl);
 
         socket.onopen = function(event) {
             console.log('WebSocket is connected.');
