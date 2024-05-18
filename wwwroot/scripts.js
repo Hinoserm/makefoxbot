@@ -59,6 +59,7 @@ function handleMessage(message) {
     switch (message.Command) {
         case 'ListChatTabs':
             console.log('Processing ListChatTabs:', message.Chats);
+            clearTabs();
             message.Chats.forEach(chat => createTab(chat));
             break;
         case 'GetChatMessages':
@@ -88,12 +89,25 @@ function createTab(chat) {
     const tabList = document.getElementById('tab-list');
     const tab = document.createElement('li');
     tab.id = `tab-${chat.TabID}`;
-    tab.textContent = `Chat with ${chat.toUser}`;
-    tab.onclick = () => {
+
+    const tabText = document.createElement('span');
+    tabText.textContent = `Chat with ${chat.toUser}`;
+    tabText.onclick = () => {
         console.log('Tab clicked:', chat.TabID);
         selectChat(chat.TabID);
         sendGetChatMessagesCommand(chat.TabID);
     };
+
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'X';
+    closeButton.onclick = (e) => {
+        e.stopPropagation();
+        console.log('Closing tab:', chat.TabID);
+        deleteChat(chat.TabID);
+    };
+
+    tab.appendChild(tabText);
+    tab.appendChild(closeButton);
     tabList.insertBefore(tab, document.getElementById('add-tab'));
     activeChats[chat.TabID] = { tab, messages: [] };
 }
@@ -140,6 +154,36 @@ function appendChatMessage(message) {
         chatContent.appendChild(messageDiv);
         chatContent.scrollTop = chatContent.scrollHeight; // Scroll to bottom
     }
+}
+
+function deleteChat(chatId) {
+    if (isSocketOpen && socket.readyState === WebSocket.OPEN) {
+        const command = { Command: 'DeleteChat', ChatID: chatId };
+        console.log('Sending DeleteChat command:', JSON.stringify(command));
+        socket.send(JSON.stringify(command));
+        console.log('DeleteChat command sent for ChatID:', chatId);
+        removeTab(chatId);
+    } else {
+        console.error('WebSocket is not open. Cannot send DeleteChat command');
+    }
+}
+
+function removeTab(chatId) {
+    console.log('Removing tab:', chatId);
+    const tab = document.getElementById(`tab-${chatId}`);
+    if (tab) {
+        tab.remove();
+        delete activeChats[chatId];
+    }
+}
+
+function clearTabs() {
+    console.log('Clearing all tabs');
+    const tabList = document.getElementById('tab-list');
+    while (tabList.firstChild && tabList.firstChild.id !== 'add-tab') {
+        tabList.removeChild(tabList.firstChild);
+    }
+    activeChats = {};
 }
 
 function showAddChatModal() {
@@ -201,6 +245,14 @@ function sendMessage() {
         console.error('Cannot send message. Either message is empty or no active chat selected.');
     }
 }
+
+// Event listener to send a message when Enter key is pressed
+document.getElementById('messageInput').addEventListener('keypress', function (event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        sendMessage();
+    }
+});
 
 // Close modal when clicking outside of it
 window.onclick = function (event) {

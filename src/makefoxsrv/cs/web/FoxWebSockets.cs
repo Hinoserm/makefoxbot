@@ -451,7 +451,7 @@ class FoxWebSockets {
             using (var cmd = new MySqlCommand())
             {
                 cmd.Connection = SQL;
-                cmd.CommandText = "DELETE FROM admin_open_chats WHERE uid = @uid AND id = @chatId";
+                cmd.CommandText = "DELETE FROM admin_open_chats WHERE from_uid = @uid AND id = @chatId";
                 cmd.Parameters.AddWithValue("uid", user.UID);
                 cmd.Parameters.AddWithValue("chatId", chatId);
                 await cmd.ExecuteNonQueryAsync();
