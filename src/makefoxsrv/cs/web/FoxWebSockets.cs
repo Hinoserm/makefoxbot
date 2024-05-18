@@ -334,7 +334,7 @@ class FoxWebSockets {
             using (var cmd = new MySqlCommand())
             {
                 cmd.Connection = SQL;
-                cmd.CommandText = "SELECT * FROM admin_chats WHERE from_uid = @fromUID AND to_uid = @toUID AND tg_peer_id IS NULL";
+                cmd.CommandText = "SELECT * FROM admin_chats WHERE to_uid = @toUID AND tg_peer_id IS NULL";
                 cmd.Parameters.AddWithValue("fromUID", fromUser.UID);
                 cmd.Parameters.AddWithValue("toUID", toUser.UID);
                 cmd.Parameters.AddWithValue("peerid", tgPeerId);
