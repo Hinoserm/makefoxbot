@@ -686,6 +686,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
             //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking next position...");
             //(int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
 
+            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Sending message...");
             Message waitMsg = await t.SendMessageAsync(
                 //text: $"⏳ Adding to queue ({position} of {totalItems})...",
                 text: $"⏳ Adding to queue...",
