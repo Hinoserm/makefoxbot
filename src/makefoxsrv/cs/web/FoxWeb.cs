@@ -40,8 +40,8 @@ class FoxWeb
                 .WithLocalSessionManager()
                 .WithModule(new FoxWebSockets.Handler("/ws"))
                 .WithWebApi("/api", module => module.WithController<DynamicController>())
-                .WithStaticFolder("/", "../react/dist", false)
-                //.WithStaticFolder("/", "../wwwroot", false)
+                //.WithStaticFolder("/", "../react/dist", false)
+                .WithStaticFolder("/", "../wwwroot", false)
                 .WithModule(new FileCacheInvalidationModule("/"));
                 
 
