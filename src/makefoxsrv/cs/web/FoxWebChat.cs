@@ -20,11 +20,10 @@ namespace makefoxsrv
     public class FoxWebChat {
         private class Message
         {
-            public ulong TabID { get; set; }
             public ulong? FromUID { get; set; }
             public ulong? ToUID { get; set; }
             public long? TgPeer { get; set; }
-            public string MessageText { get; set; } = "";
+            public string Text { get; set; } = "";
             public DateTime Date { get; set; }
             public string? Username { get; set; } = null;
             public bool isOutgoing { get; set; } = false;
@@ -69,7 +68,7 @@ namespace makefoxsrv
                                 FromUID = reader.GetUInt64("from_uid"),
                                 ToUID = reader.GetUInt64("to_uid"),
                                 TgPeer = reader.IsDBNull("tg_peer_id") ? (long?)null : reader.GetInt64("tg_peer_id"),
-                                MessageText = reader.GetString("message"),
+                                Text = reader.GetString("message"),
                                 Username = username,
                                 Date = reader.GetDateTime("message_date"),
                                 isOutgoing = true
@@ -95,7 +94,7 @@ namespace makefoxsrv
                                 FromUID = toUser.UID,
                                 ToUID = null,
                                 TgPeer = reader.IsDBNull("chat_id") ? (long?)null : reader.GetInt64("chat_id"),
-                                MessageText = reader.GetString("message_text"),
+                                Text = reader.GetString("message_text"),
                                 Username = toUser.Username ?? ($"#{toUser.TelegramID}"),
                                 Date = reader.GetDateTime("date_added")
                             };
@@ -114,6 +113,7 @@ namespace makefoxsrv
                 {
                     ["Command"] = "Chat:GetMessages",
                     ["Success"] = true,
+                    ["ChatID"] = chatId,
                     ["Messages"] = jsonArray
                 };
 
@@ -412,34 +412,55 @@ namespace makefoxsrv
         {
             var username = fromUser.Username;
 
-            var msg = new Message
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
-                ToUID = toUser.UID,
-                FromUID = fromUser.UID,
-                TgPeer = tgPeerId,
-                MessageText = message,
-                Date = DateTime.Now,
-                Username = username,
-                isOutgoing = true
-            };
+                await SQL.OpenAsync();
 
-            var response = new
-            {
-                Command = "Chat:NewMessage",
-                Message = msg
-            };
-
-            string jsonMessage = JsonSerializer.Serialize(response);
-
-            foreach (var kvp in FoxWebSockets.ActiveConnections)
-            {
-                var outContext = kvp.Key;
-                var connectedUser = kvp.Value; // Get the user associated with the context (can be null)
-
-                // You can add your logic here using the connectedUser
-                if (connectedUser != null && connectedUser.CheckAccessLevel(AccessLevel.ADMIN))
+                using (var cmd = new MySqlCommand())
                 {
-                    await outContext.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
+                    cmd.Connection = SQL;
+                    cmd.CommandText = "SELECT from_uid, id FROM admin_open_chats WHERE to_uid = @toUID AND tg_peer_id IS NULL ORDER BY date_opened";
+                    cmd.Parameters.AddWithValue("toUID", toUser.UID);
+
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            var chatId = reader.GetUInt64("id");
+
+
+                            foreach (var kvp in FoxWebSockets.ActiveConnections)
+                            {
+                                var context = kvp.Key;
+                                var connectedUser = kvp.Value; // Get the user associated with the context (can be null)
+
+                                if (connectedUser != null && (connectedUser.CheckAccessLevel(AccessLevel.ADMIN)))
+                                {
+                                    var msg = new Message
+                                    {
+                                        ToUID = toUser.UID,
+                                        FromUID = fromUser.UID,
+                                        TgPeer = tgPeerId,
+                                        Text = message,
+                                        Date = DateTime.Now,
+                                        Username = username,
+                                        isOutgoing = true
+                                    };
+
+                                    var response = new
+                                    {
+                                        Command = "Chat:NewMessage",
+                                        ChatID = chatId, //Put the chatId here.
+                                        Message = msg
+                                    };
+
+                                    string jsonMessage = JsonSerializer.Serialize(response);
+                                    await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
+                                }
+                            }
+                        }
+
+                    }
                 }
             }
         }
@@ -461,34 +482,56 @@ namespace makefoxsrv
 
             var username = chatUser.Username ?? ($"#{tgUser.UserId}");
 
-            var msg = new Message
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
-                ToUID = chatUser.UID,
-                FromUID = null,
-                TgPeer = tgPeer?.ID,
-                MessageText = message,
-                Date = DateTime.Now,
-                Username = username,
-                isOutgoing = false
-            };
+                await SQL.OpenAsync();
 
-            var response = new
-            {
-                Command = "Chat:NewMessage",
-                Message = msg
-            };
-
-            string jsonMessage = JsonSerializer.Serialize(response);
-
-            foreach (var kvp in FoxWebSockets.ActiveConnections)
-            {
-                var context = kvp.Key;
-                var connectedUser = kvp.Value; // Get the user associated with the context (can be null)
-
-                // You can add your logic here using the connectedUser
-                if (connectedUser != null && (connectedUser.TelegramID == tgUser?.UserId || connectedUser.CheckAccessLevel(AccessLevel.ADMIN)))
+                using (var cmd = new MySqlCommand())
                 {
-                    await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
+                    cmd.Connection = SQL;
+                    cmd.CommandText = "SELECT from_uid, id FROM admin_open_chats WHERE to_uid = @toUID AND tg_peer_id IS NULL ORDER BY date_opened";
+                    cmd.Parameters.AddWithValue("toUID", chatUser.UID);
+
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            var fromUser = await FoxUser.GetByUID(reader.GetInt64("from_uid"));
+                            var chatId = reader.GetUInt64("id");
+
+
+                            foreach (var kvp in FoxWebSockets.ActiveConnections)
+                            {
+                                var context = kvp.Key;
+                                var connectedUser = kvp.Value; // Get the user associated with the context (can be null)
+
+                                if (connectedUser != null && (connectedUser.TelegramID == tgUser?.UserId || connectedUser.CheckAccessLevel(AccessLevel.ADMIN)))
+                                {
+                                    var msg = new Message
+                                    {
+                                        ToUID = chatUser.UID,
+                                        FromUID = fromUser.UID,
+                                        TgPeer = tgPeer?.ID,
+                                        Text = message,
+                                        Date = DateTime.Now,
+                                        Username = username,
+                                        isOutgoing = false
+                                    };
+
+                                    var response = new
+                                    {
+                                        Command = "Chat:NewMessage",
+                                        ChatID = chatId, //Put the chatId here.
+                                        Message = msg
+                                    };
+
+                                    string jsonMessage = JsonSerializer.Serialize(response);
+                                    await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
+                                }
+                            }
+                        }
+
+                    }
                 }
             }
         }

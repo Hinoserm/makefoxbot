@@ -1,4 +1,4 @@
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 const { Container, Box, Button, TextField, Dialog, DialogActions, DialogContent, DialogTitle, List, ListItem, ListItemText, Typography, Paper } = MaterialUI;
 
 // WebSocket URL construction
@@ -14,15 +14,22 @@ const ChatApp = () => {
   const [socket, setSocket] = useState(null);
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState({});
   const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
   const [newChatUsername, setNewChatUsername] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [autocompleteSuggestions, setAutocompleteSuggestions] = useState([]);
+  const messageEndRef = useRef(null);
 
   useEffect(() => {
     initializeWebSocket();
   }, []);
+
+  useEffect(() => {
+    if (activeChatId && messageEndRef.current) {
+      messageEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, activeChatId]);
 
   const initializeWebSocket = () => {
     const ws = new WebSocket(wsUrl);
@@ -63,14 +70,23 @@ const ChatApp = () => {
       case 'Chat:List':
         console.log('Processing Chat:List:', message.Chats);
         setChats(message.Chats);
+        const initMessages = {};
+        message.Chats.forEach(chat => {
+          initMessages[chat.ChatID] = [];
+        });
+        setMessages(initMessages);
         break;
       case 'Chat:GetMessages':
         console.log('Processing Chat:GetMessages:', message.Messages);
-        setMessages(message.Messages);
+        setMessages(prev => ({ ...prev, [message.ChatID]: message.Messages }));
         break;
       case 'Chat:NewMessage':
-        console.log('Processing Chat:NewMessage:', message.Message);
-        setMessages(prevMessages => [...prevMessages, message.Message]);
+        console.log('Processing Chat:NewMessage:', message);
+        const { ChatID, Message } = message;
+        setMessages(prev => {
+          const updatedMessages = prev[ChatID] ? [...prev[ChatID], Message] : [Message];
+          return { ...prev, [ChatID]: updatedMessages };
+        });
         break;
       case 'Chat:New':
         if (message.Error) {
@@ -199,7 +215,7 @@ const ChatApp = () => {
       React.createElement(
         Box,
         { style: { flex: 1, overflowY: 'auto', paddingBottom: '10px' } },
-        messages.map((message, index) =>
+        activeChatId ? messages[activeChatId] && messages[activeChatId].map((message, index) =>
           React.createElement(
             Paper,
             {
@@ -216,11 +232,12 @@ const ChatApp = () => {
                 marginRight: message.isOutgoing ? '10px' : 'auto'
               }
             },
-            React.createElement(Typography, { variant: 'body1' }, `${message.Username}: ${message.MessageText}`)
+            React.createElement(Typography, { variant: 'body1' }, `${message.Username}: ${message.Text}`)
           )
-        )
+        ) : React.createElement(Typography, { style: { textAlign: 'center', marginTop: '20%' } }, 'Select a chat'),
+        React.createElement('div', { ref: messageEndRef }) // Keep this to ensure scrolling behavior
       ),
-      React.createElement(
+      activeChatId ? React.createElement(
         Box,
         { style: { display: 'flex', padding: '10px', borderTop: '1px solid #ddd' } },
         React.createElement(TextField, {
@@ -236,7 +253,7 @@ const ChatApp = () => {
           }
         }),
         React.createElement(Button, { variant: 'contained', color: 'primary', onClick: handleSendMessage }, 'Send')
-      )
+      ) : React.createElement('div') // Hide or disable the message input area
     ),
     React.createElement(
       Dialog,

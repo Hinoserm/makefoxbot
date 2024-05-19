@@ -54,6 +54,7 @@ Chat:GetMessages
     ChatID: (ID of chat)
   Returns:
     Command: "GetMessages"
+    ChatID: (ID of chat)
     Messages:
       FromUID: (UID of the originiating user)
       ToUID: (UID of the user sent to, could be NULL)
@@ -69,12 +70,13 @@ BROADCAST MESSAGES (WebSocket Only)
 
 Chat:NewMessage
   Command: "Chat:NewMessage"
+  ChatID: (ID of chat)
   Message:
     FromUID: (UID of the originiating user)
     ToUID: (UID of the user sent to, could be NULL)
     TgPeer: (Not currently used)
     Username: (Display name of fromUser, if available otherwise null)
-    MessageText: (The message text)
+    Text: (The message text)
     Date: (Date message was sent/received)
     isOutgoing: (bool, used to indicate which side the message should be displayed on)
 
