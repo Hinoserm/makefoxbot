@@ -404,30 +404,36 @@ We are committed to using your donation to further develop and maintain the serv
 
             if (msg.message is not null)
             {
-                await FoxCommandHandler.HandleCommand(t, msg);
-
                 try
                 {
-                    using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                    _ = Task.Run(async () =>
                     {
-                        await SQL.OpenAsync();
-
-                        using (var cmd = new MySqlCommand())
+                        using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                         {
-                            cmd.Connection = SQL;
-                            cmd.CommandText = "INSERT INTO telegram_log (user_id, chat_id, message_id, message_text, date_added) VALUES (@tele_id, @tele_chatid, @message_id, @message, @now)";
-                            cmd.Parameters.AddWithValue("tele_id", t.User.ID);
-                            cmd.Parameters.AddWithValue("tele_chatid", t.Chat is not null ? t.Chat.ID : null);
-                            cmd.Parameters.AddWithValue("message_id", msg.ID);
-                            cmd.Parameters.AddWithValue("message", message);
-                            cmd.Parameters.AddWithValue("now", DateTime.Now);
+                            await SQL.OpenAsync();
 
-                            await cmd.ExecuteNonQueryAsync();
+                            using (var cmd = new MySqlCommand())
+                            {
+                                cmd.Connection = SQL;
+                                cmd.CommandText = "INSERT INTO telegram_log (user_id, chat_id, message_id, message_text, date_added) VALUES (@tele_id, @tele_chatid, @message_id, @message, @now)";
+                                cmd.Parameters.AddWithValue("tele_id", t.User.ID);
+                                cmd.Parameters.AddWithValue("tele_chatid", t.Chat is not null ? t.Chat.ID : null);
+                                cmd.Parameters.AddWithValue("message_id", msg.ID);
+                                cmd.Parameters.AddWithValue("message", message);
+                                cmd.Parameters.AddWithValue("now", DateTime.Now);
+
+                                await cmd.ExecuteNonQueryAsync();
+                            }
                         }
-                    }
+
+                        await FoxWebChat.BroadcastMessageAsync(null, t.User, t.Peer, message);
+                    });
+
+                    await FoxCommandHandler.HandleCommand(t, msg);
+                    FoxLog.WriteLine($"Finished processing input for {t.User.username}.");
 
                     //await DatabaseHandler.DisplayReceivedTelegramMessage(t.User.ID, message);
-                    await FoxWebChat.BroadcastMessageAsync(null, t.User, t.Peer, message);
+                    
                 }
                 catch (Exception ex)
                 {

@@ -101,9 +101,13 @@ namespace makefoxsrv
 
             var commandHandler = FindBestMatch(command);
 
+            FoxLog.WriteLine($"Found command for {t.User.username}: {commandHandler.Method.Name}");
+
             if (commandHandler is not null)
             {
                 var fUser = await FoxUser.GetByTelegramUser(t.User, true);
+
+                FoxLog.WriteLine($"Found UID for {t.User}: {fUser?.UID}");
 
                 if (fUser is null)
                 {
@@ -125,7 +129,9 @@ namespace makefoxsrv
                     return;
                 }
 
+                FoxLog.WriteLine($"Running command for UID {fUser?.UID}...");
                 await commandHandler(t, message, fUser, argument);
+                FoxLog.WriteLine($"Finished running command for {fUser?.UID}.");
             }
             else if (explicitlyNamed) //Only send this message if we were explicitly named in the chat (e.g. /command@botname)
             {
