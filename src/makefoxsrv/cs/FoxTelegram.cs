@@ -540,7 +540,7 @@ We are committed to using your donation to further develop and maintain the serv
                                         }
                                         else
                                         {
-                                            await HandleMessageAsync(t, m);
+                                            _= HandleMessageAsync(t, m);
                                         }
 
                                         break;
