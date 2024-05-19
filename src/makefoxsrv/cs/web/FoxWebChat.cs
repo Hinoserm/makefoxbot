@@ -112,7 +112,8 @@ namespace makefoxsrv
 
                 var response = new JsonObject
                 {
-                    ["Command"] = "GetChatMessages",
+                    ["Command"] = "Chat:GetMessages",
+                    ["Success"] = true,
                     ["Messages"] = jsonArray
                 };
 
@@ -191,11 +192,18 @@ namespace makefoxsrv
                 }
             }
 
-            return null; //Doesn't output anything.
+            var response = new JsonObject
+            {
+                ["Command"] = "Chat:SendMessage",
+                ["Success"] = true
+            };
+
+            return response;
+
         }
 
         //This function deletes a chat tab from the database
-        [WebFunctionName("Delete")]    // Function name as seen in the URL or WebSocket command
+        [WebFunctionName("Delete")]         // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
         public static async Task<JsonObject?> Delete(FoxUser fromUser, JsonObject jsonMessage)
@@ -216,7 +224,80 @@ namespace makefoxsrv
                 }
             }
 
-            return null; //Doesn't output anything.
+            var response = new JsonObject
+            {
+                ["Command"] = "Chat:Delete",
+                ["Success"] = true
+            };
+
+            return response;
+        }
+
+        //Returns the details of a specified ChatID
+        [WebFunctionName("Get")]            // Function name as seen in the URL or WebSocket command
+        [WebLoginRequired(true)]            // User must be logged in to use this function
+        [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
+        public static async Task<JsonObject> Get(FoxUser user, JsonObject jsonMessage)
+        {
+            long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false)!.Value;
+
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = "SELECT * FROM admin_open_chats WHERE id = @chat_id LIMIT 1";
+                    cmd.Parameters.AddWithValue("chat_id", chatId);
+                    cmd.Parameters.AddWithValue("uid", user.UID);
+
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        if (await reader.ReadAsync())
+                        {
+                            var fromUID = reader.GetInt64("to_uid");
+
+                            if ((ulong)fromUID != user.UID)
+                            { 
+                                return new JsonObject
+                                {
+                                    ["Command"] = "Chat:List",
+                                    ["Success"] = false,
+                                    ["Error"] = $"ChatID '{chatId}' does not belong to current user '{user.UID}'."
+                                };
+                            }
+
+                            var chatUser = await FoxUser.GetByUID(reader.GetInt64("to_uid"));
+
+                            var displayName = chatUser?.Username ?? ($"#{reader.GetUInt64("to_uid")}");
+
+                            var chatResponse = new JsonObject
+                            {
+                                ["Command"] = "Chat:List",
+                                ["Success"] = true,
+                                ["ChatID"] = reader.GetUInt64("id"),
+                                ["FromUID"] = fromUID,
+                                ["ToUID"] = reader.GetInt64("to_uid"),
+                                ["TgPeer"] = reader.IsDBNull("tg_peer_id") ? (long?)null : reader.GetInt64("tg_peer_id"),
+                                ["DisplayName"] = displayName,
+                                ["Date"] = reader.GetDateTime("date_opened")
+                            };
+
+                            return chatResponse;
+                        }
+
+                        var errorResponse = new JsonObject
+                        {
+                            ["Command"] = "Chat:List",
+                            ["Success"] = false,
+                            ["Error"] = $"ChatID '{chatId}' not found."
+                        };
+
+                        return errorResponse;
+                    }
+                }
+            }
         }
 
         //This function saves the chat tab to the database
@@ -225,7 +306,7 @@ namespace makefoxsrv
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
         public static async Task<JsonObject?> New(FoxUser fromUser, JsonObject jsonMessage)
         {
-            string username = FoxJsonHelper.GetString(jsonMessage, "User", false)!;
+            string username = FoxJsonHelper.GetString(jsonMessage, "Username", false)!;
 
             var chatUser = await FoxUser.ParseUser(username);
 
@@ -233,7 +314,8 @@ namespace makefoxsrv
             {
                 var response = new JsonObject
                 {
-                    ["Command"] = "New",
+                    ["Command"] = "Chat:New",
+                    ["Success"] = false,
                     ["Error"] = $"User '{username}' not found."
                 };
 
@@ -262,19 +344,17 @@ namespace makefoxsrv
 
                     var response = new JsonObject
                     {
-                        ["Command"] = "New",
+                        ["Command"] = "Chat:New",
+                        ["Success"] = true,
                         ["ChatID"] = lastInsertedId
                     };
 
                     return response;
                 }
             }
-
-
         }
 
         //This function sends the current list of open chats back to the client
-        //This function saves the chat tab to the database
         [WebFunctionName("List")]    // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
@@ -296,12 +376,17 @@ namespace makefoxsrv
 
                         while (await reader.ReadAsync())
                         {
+                            var chatUser = await FoxUser.GetByUID(reader.GetInt64("to_uid"));
+
+                            var displayName = chatUser?.Username ?? ($"#{reader.GetUInt64("to_uid")}");
+
                             var chatTab = new
                             {
-                                TabID = reader.GetUInt64("id"),
-                                toUser = reader.GetInt64("to_uid"),
-                                tgPeerId = reader.IsDBNull("tg_peer_id") ? (long?)null : reader.GetInt64("tg_peer_id"),
-                                dateOpened = reader.GetDateTime("date_opened")
+                                ChatID = reader.GetUInt64("id"),
+                                ToUID = reader.GetInt64("to_uid"),
+                                TgPeer = reader.IsDBNull("tg_peer_id") ? (long?)null : reader.GetInt64("tg_peer_id"),
+                                DisplayName = displayName,
+                                Date = reader.GetDateTime("date_opened")
                             };
 
                             chatTabs.Add(chatTab);
@@ -311,7 +396,8 @@ namespace makefoxsrv
 
                         var response = new JsonObject
                         {
-                            ["Command"] = "List",
+                            ["Command"] = "Chat:List",
+                            ["Success"] = true,
                             ["Chats"] = jsonArray
                         };
 
@@ -339,8 +425,8 @@ namespace makefoxsrv
 
             var response = new
             {
-                Command = "ChatMessage",
-                Content = msg
+                Command = "Chat:NewMessage",
+                Message = msg
             };
 
             string jsonMessage = JsonSerializer.Serialize(response);
@@ -388,8 +474,8 @@ namespace makefoxsrv
 
             var response = new
             {
-                Command = "ChatMessage",
-                Content = msg
+                Command = "Chat:NewMessage",
+                Message = msg
             };
 
             string jsonMessage = JsonSerializer.Serialize(response);

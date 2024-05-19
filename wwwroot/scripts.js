@@ -11,7 +11,7 @@ let socket;
 let isSocketOpen = false;
 let activeTabId = null; // Track the active tab ID
 
-function initializeWebSocket() {
+function foxInitializeWebSocket() {
     console.log('Initializing WebSocket');
     socket = new WebSocket(wsUrl);
 
@@ -19,14 +19,14 @@ function initializeWebSocket() {
         console.log('WebSocket connection established');
         isSocketOpen = true;
         // Wait for a moment before sending the initial command
-        setTimeout(sendGetChatListCommand, 1000);
+        setTimeout(foxSendGetChatListCommand, 1000);
     };
 
     socket.onmessage = function (event) {
         console.log('WebSocket message received');
         const message = JSON.parse(event.data);
         console.log('Received:', message);
-        handleMessage(message);
+        foxHandleMessage(message);
     };
 
     socket.onerror = function (error) {
@@ -40,40 +40,48 @@ function initializeWebSocket() {
     };
 }
 
-function sendGetChatListCommand() {
+function foxSendGetChatListCommand() {
     if (isSocketOpen && socket.readyState === WebSocket.OPEN) {
-        const command = { Command: 'GetChatList' };
-        console.log('Sending GetChatList command:', JSON.stringify(command));
+        const command = { Command: 'Chat:List' };
+        console.log('Sending Chat:List command:', JSON.stringify(command));
         socket.send(JSON.stringify(command));
-        console.log('GetChatList command sent');
+        console.log('Chat:List command sent');
     } else {
-        console.error('WebSocket is not open. Cannot send GetChatList command');
+        console.error('WebSocket is not open. Cannot send Chat:List command');
     }
 }
 
 let activeChats = {};
 let activeUser = null; // Assuming we have a way to set the active user
 
-function handleMessage(message) {
+function foxHandleMessage(message) {
     console.log('Handling message:', message);
     switch (message.Command) {
-        case 'ListChatTabs':
-            console.log('Processing ListChatTabs:', message.Chats);
-            clearTabs();
-            message.Chats.forEach(chat => createTab(chat));
+        case 'Chat:List':
+            console.log('Processing Chat:List:', message.Chats);
+            foxClearTabs();
+            message.Chats.forEach(chat => foxCreateTab(chat));
             break;
-        case 'GetChatMessages':
-            console.log('Processing GetChatMessages:', message.Chats);
-            displayChatMessages(message.ChatID, message.Chats);
+        case 'Chat:GetMessages':
+            console.log('Processing Chat:GetMessages:', message.Messages);
+            foxDisplayChatMessages(message.ChatID, message.Messages);
+            break;
+        case 'Chat:NewMessage':
+            console.log('Processing Chat:NewMessage:', message.Message);
+            foxAppendChatMessage(message.Message);
+            break;
+        case 'Chat:New':
+            if (message.Error) {
+                console.error('Error creating new chat:', message.Error);
+                alert(message.Error);
+            } else {
+                console.log('New chat created with ChatID:', message.ChatID);
+                foxSendGetChatListCommand();
+            }
             break;
         case 'AutocompleteResponse':
             console.log('Processing AutocompleteResponse:', message.Suggestions);
-            showAutocompleteSuggestions(message.Suggestions);
-            break;
-        case 'ChatMsgRecv':
-        case 'ChatMessage':
-            console.log('Processing ChatMsgRecv:', message.Content);
-            appendChatMessage(message.Content);
+            foxShowAutocompleteSuggestions(message.Suggestions);
             break;
         case 'Error':
             console.error('Processing Error:', message.Message);
@@ -84,35 +92,35 @@ function handleMessage(message) {
     }
 }
 
-function createTab(chat) {
+function foxCreateTab(chat) {
     console.log('Creating tab for:', chat);
     const tabList = document.getElementById('tab-list');
     const tab = document.createElement('li');
-    tab.id = `tab-${chat.TabID}`;
+    tab.id = `tab-${chat.ChatID}`;
 
     const tabText = document.createElement('span');
-    tabText.textContent = `Chat with ${chat.toUser}`;
+    tabText.textContent = `${chat.DisplayName}`;
     tabText.onclick = () => {
-        console.log('Tab clicked:', chat.TabID);
-        selectChat(chat.TabID);
-        sendGetChatMessagesCommand(chat.TabID);
+        console.log('Tab clicked:', chat.ChatID);
+        foxSelectChat(chat.ChatID);
+        foxSendGetChatMessagesCommand(chat.ChatID);
     };
 
     const closeButton = document.createElement('button');
     closeButton.textContent = 'X';
     closeButton.onclick = (e) => {
         e.stopPropagation();
-        console.log('Closing tab:', chat.TabID);
-        deleteChat(chat.TabID);
+        console.log('Closing tab:', chat.ChatID);
+        foxDeleteChat(chat.ChatID);
     };
 
     tab.appendChild(tabText);
     tab.appendChild(closeButton);
     tabList.insertBefore(tab, document.getElementById('add-tab'));
-    activeChats[chat.TabID] = { tab, toUser: chat.toUser, messages: [] };
+    activeChats[chat.ChatID] = { tab, toUser: chat.ToUID, messages: [] };
 }
 
-function selectChat(tabId) {
+function foxSelectChat(tabId) {
     console.log('Selecting chat:', tabId);
     activeTabId = tabId;
     // Remove active class from all tabs
@@ -120,28 +128,28 @@ function selectChat(tabId) {
     // Add active class to selected tab
     activeChats[tabId].tab.classList.add('active');
     // Show chat content
-    displayChatMessages(tabId, activeChats[tabId].messages);
+    foxDisplayChatMessages(tabId, activeChats[tabId].messages);
 }
 
-function sendGetChatMessagesCommand(chatId) {
+function foxSendGetChatMessagesCommand(chatId) {
     if (isSocketOpen && socket.readyState === WebSocket.OPEN) {
-        const command = { Command: 'GetChatMessages', ChatID: chatId };
-        console.log('Sending GetChatMessages command for ChatID:', chatId, JSON.stringify(command));
+        const command = { Command: 'Chat:GetMessages', ChatID: chatId };
+        console.log('Sending Chat:GetMessages command for ChatID:', chatId, JSON.stringify(command));
         socket.send(JSON.stringify(command));
-        console.log('GetChatMessages command sent for ChatID:', chatId);
+        console.log('Chat:GetMessages command sent for ChatID:', chatId);
     } else {
-        console.error('WebSocket is not open. Cannot send GetChatMessages command');
+        console.error('WebSocket is not open. Cannot send Chat:GetMessages command');
     }
 }
 
-function displayChatMessages(chatId, messages) {
+function foxDisplayChatMessages(chatId, messages) {
     console.log('Displaying messages for chat:', chatId);
     const chatContent = document.getElementById('chat-content');
     chatContent.innerHTML = '';
-    messages.forEach(message => appendChatMessage(message));
+    messages.forEach(message => foxAppendChatMessage(message));
 }
 
-function appendChatMessage(message) {
+function foxAppendChatMessage(message) {
     const chatId = message.ChatID || activeTabId; // Handle cases where ChatID may not be explicitly provided
     const selectedChat = activeChats[activeTabId];
     if (selectedChat && (selectedChat.toUser === message.ToUID || selectedChat.toUser === message.FromUID)) {
@@ -157,19 +165,19 @@ function appendChatMessage(message) {
     }
 }
 
-function deleteChat(chatId) {
+function foxDeleteChat(chatId) {
     if (isSocketOpen && socket.readyState === WebSocket.OPEN) {
-        const command = { Command: 'DeleteChat', ChatID: chatId };
-        console.log('Sending DeleteChat command:', JSON.stringify(command));
+        const command = { Command: 'Chat:Delete', ChatID: chatId };
+        console.log('Sending Chat:Delete command:', JSON.stringify(command));
         socket.send(JSON.stringify(command));
-        console.log('DeleteChat command sent for ChatID:', chatId);
-        removeTab(chatId);
+        console.log('Chat:Delete command sent for ChatID:', chatId);
+        foxRemoveTab(chatId);
     } else {
-        console.error('WebSocket is not open. Cannot send DeleteChat command');
+        console.error('WebSocket is not open. Cannot send Chat:Delete command');
     }
 }
 
-function removeTab(chatId) {
+function foxRemoveTab(chatId) {
     console.log('Removing tab:', chatId);
     const tab = document.getElementById(`tab-${chatId}`);
     if (tab) {
@@ -178,7 +186,7 @@ function removeTab(chatId) {
     }
 }
 
-function clearTabs() {
+function foxClearTabs() {
     console.log('Clearing all tabs');
     const tabList = document.getElementById('tab-list');
     while (tabList.firstChild && tabList.firstChild.id !== 'add-tab') {
@@ -187,27 +195,27 @@ function clearTabs() {
     activeChats = {};
 }
 
-function showAddChatModal() {
+function foxShowAddChatModal() {
     console.log('Showing Add Chat Modal');
     document.getElementById('addChatModal').style.display = 'flex';
 }
 
-function hideAddChatModal() {
+function foxHideAddChatModal() {
     console.log('Hiding Add Chat Modal');
     document.getElementById('addChatModal').style.display = 'none';
 }
 
-function addChat() {
+function foxAddChat() {
     const username = document.getElementById('usernameInput').value;
     console.log('Adding chat for username:', username);
-    const command = { Command: 'NewChat', Username: username };
-    console.log('Sending NewChat command:', JSON.stringify(command));
+    const command = { Command: 'Chat:New', Username: username };
+    console.log('Sending Chat:New command:', JSON.stringify(command));
     socket.send(JSON.stringify(command));
-    console.log('NewChat command sent');
-    hideAddChatModal();
+    console.log('Chat:New command sent');
+    foxHideAddChatModal();
 }
 
-function fetchAutocomplete() {
+function foxFetchAutocomplete() {
     const query = document.getElementById('usernameInput').value;
     console.log('Fetching autocomplete for query:', query);
     const command = { Command: 'Autocomplete', Query: query };
@@ -216,7 +224,7 @@ function fetchAutocomplete() {
     console.log('Autocomplete command sent');
 }
 
-function showAutocompleteSuggestions(suggestions) {
+function foxShowAutocompleteSuggestions(suggestions) {
     console.log('Showing autocomplete suggestions:', suggestions);
     const autocompleteList = document.getElementById('autocomplete-list');
     autocompleteList.innerHTML = '';
@@ -233,14 +241,14 @@ function showAutocompleteSuggestions(suggestions) {
 }
 
 // Function to send a message
-function sendMessage() {
+function foxSendMessage() {
     const messageInput = document.getElementById('messageInput');
     const messageText = messageInput.value;
     if (messageText.trim() !== '' && activeTabId !== null) {
-        const command = { Command: 'SendChatMessage', ChatID: activeTabId, Message: messageText };
-        console.log('Sending SendChatMessage command:', JSON.stringify(command));
+        const command = { Command: 'Chat:SendMessage', ChatID: activeTabId, Message: messageText };
+        console.log('Sending Chat:SendMessage command:', JSON.stringify(command));
         socket.send(JSON.stringify(command));
-        console.log('SendChatMessage command sent');
+        console.log('Chat:SendMessage command sent');
         messageInput.value = ''; // Clear the input
     } else {
         console.error('Cannot send message. Either message is empty or no active chat selected.');
@@ -251,7 +259,7 @@ function sendMessage() {
 document.getElementById('messageInput').addEventListener('keypress', function (event) {
     if (event.key === 'Enter') {
         event.preventDefault();
-        sendMessage();
+        foxSendMessage();
     }
 });
 
@@ -259,12 +267,12 @@ document.getElementById('messageInput').addEventListener('keypress', function (e
 window.onclick = function (event) {
     if (event.target === document.getElementById('addChatModal')) {
         console.log('Click outside modal, hiding Add Chat Modal');
-        hideAddChatModal();
+        foxHideAddChatModal();
     }
 }
 
 // Initialize WebSocket and fetch initial data on load
 window.onload = function () {
     console.log('Window loaded, initializing WebSocket');
-    initializeWebSocket();
+    foxInitializeWebSocket();
 }

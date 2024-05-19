@@ -1,0 +1,81 @@
+--------------------------------------------------------------
+
+Chat:List
+  Description:
+    Lists all chats for the current user.
+  Expected Parameters:
+    None
+  Returns:
+    Command: "List"
+    Chats:
+      ChatID: (ID of chat)
+      ToUID: (UID of the user at the other side of the chat)
+      TgPeer: (Not currently used)
+      DisplayName: (Name of the chat)
+      Date: (Date the chat was opened)
+
+--------------------------------------------------------------
+
+Chat:New
+  Description:
+    Create a new chat.
+  Expected Parameters:
+    Username: (Name of the user in FoxUser Parsable Format)
+  Returns:
+    Command: "New"
+    ChatID: (ID of the new chat)
+   OR
+    Command: "New"
+    Error: (Error message)
+
+--------------------------------------------------------------
+
+Chat:Delete
+  Expected Parameters:
+    ChatID: (ID of chat to be deleted)
+  Returns:
+    Nothing.
+
+--------------------------------------------------------------
+
+Chat:SendMessage
+  Expected Parameters:
+    ChatID: (ID of chat)
+    Message: (Message to send to chat)
+  Returns:
+    Nothing.
+  Notes:
+    The message will be echoed back via a "Chat:NewMessage" packet to any connected websockets subscribed to this chat.
+
+--------------------------------------------------------------
+
+Chat:GetMessages
+  Expected Parameters:
+    ChatID: (ID of chat)
+  Returns:
+    Command: "GetMessages"
+    Messages:
+      FromUID: (UID of the originiating user)
+      ToUID: (UID of the user sent to, could be NULL)
+      TgPeer: (Not currently used)
+      Username: (Display name of fromUser, if available otherwise null)
+      MessageText: (The message text)
+      Date: (Date message was sent/received)
+      isOutgoing: (bool, used to indicate which side the message should be displayed on)
+
+--------------------------------------------------------------
+
+BROADCAST MESSAGES (WebSocket Only)
+
+Chat:NewMessage
+  Command: "Chat:NewMessage"
+  Message:
+    FromUID: (UID of the originiating user)
+    ToUID: (UID of the user sent to, could be NULL)
+    TgPeer: (Not currently used)
+    Username: (Display name of fromUser, if available otherwise null)
+    MessageText: (The message text)
+    Date: (Date message was sent/received)
+    isOutgoing: (bool, used to indicate which side the message should be displayed on)
+
+

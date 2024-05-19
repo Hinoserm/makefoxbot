@@ -26,6 +26,12 @@ using Swan;
 using Swan.Formatters;
 using System.Reflection.PortableExecutable;
 using System.Linq.Expressions;
+using static FoxWeb;
+using System.Reflection;
+
+using JsonObject = System.Text.Json.Nodes.JsonObject;
+using JsonArray = System.Text.Json.Nodes.JsonArray;
+using System.Xml;
 
 class FoxWebSockets {
 
@@ -79,6 +85,55 @@ class FoxWebSockets {
                                     Command = "AutocompleteResponse",
                                     Suggestions = suggestions.Select(s => new AutocompleteSuggestion { Display = s.Display, Paste = s.Paste }).ToList()
                                 };
+
+                                var responseMessage = JsonSerializer.Serialize(response);
+                                await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(responseMessage), true);
+                                break;
+                            }
+                        default:
+                            {
+                                JsonObject response;
+
+                                try
+                                {
+                                    // Use the CallMethod function to invoke the method dynamically
+                                    JsonObject? output = await MethodLookup.CallMethod(command, user, jsonMessage);
+
+                                    if (output is null)
+                                    {
+                                        //Send a generic Success response if the method didn't return anything
+                                        response = new JsonObject
+                                        {
+                                            ["Command"] = command,
+                                            ["Success"] = true
+                                        };
+                                    } else
+                                        response = output;
+                                }
+                                catch (TargetInvocationException tie)
+                                {
+                                    // Log and respond with the underlying cause if it's a reflection-invoked error
+                                    var realError = tie.InnerException ?? tie; // Fallback to the outer exception if no inner
+                                    Console.WriteLine($"Error invoking method: {realError.Message}\r\n{realError.StackTrace}");
+
+                                    response = new JsonObject
+                                    {
+                                        ["Command"] = command,
+                                        ["Success"] = false,
+                                        ["Error"] = $"{realError.Message}"
+                                    };
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"Error invoking method: {ex.Message}\r\n{ex.StackTrace}");
+
+                                    response = new JsonObject
+                                    {
+                                        ["Command"] = command,
+                                        ["Success"] = false,
+                                        ["Error"] = $"{ex.Message}"
+                                    };
+                                }
 
                                 var responseMessage = JsonSerializer.Serialize(response);
                                 await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(responseMessage), true);

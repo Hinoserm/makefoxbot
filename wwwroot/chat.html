@@ -11,7 +11,7 @@
         <div class="chat-tabs">
             <ul id="tab-list">
                 <!-- Tabs will be dynamically added here -->
-                <li id="add-tab"><button onclick="showAddChatModal()">+</button></li>
+                <li id="add-tab"><button onclick="foxShowAddChatModal()">+</button></li>
             </ul>
         </div>
         <div class="chat-content" id="chat-content">
@@ -19,18 +19,18 @@
         </div>
         <div class="chat-input">
             <input type="text" id="messageInput" placeholder="Type a message">
-            <button onclick="sendMessage()">Send</button>
+            <button onclick="foxSendMessage()">Send</button>
         </div>
     </div>
 
     <!-- Modal for adding a new chat -->
     <div id="addChatModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="hideAddChatModal()">&times;</span>
+            <span class="close" onclick="foxHideAddChatModal()">&times;</span>
             <h2>Add New Chat</h2>
-            <input type="text" id="usernameInput" placeholder="Enter username" oninput="fetchAutocomplete()">
+            <input type="text" id="usernameInput" placeholder="Enter username" oninput="foxFetchAutocomplete()">
             <ul id="autocomplete-list"></ul>
-            <button onclick="addChat()">Add</button>
+            <button onclick="foxAddChat()">Add</button>
         </div>
     </div>
 

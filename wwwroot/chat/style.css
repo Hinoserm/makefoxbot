@@ -1,0 +1,240 @@
+*, *:before, *:after {
+	-moz-box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	box-sizing: border-box;
+}
+
+:root {
+	--self-bubble-color: #2B5278;
+	--other-bubble-color: #182533;
+	--bubble-border-radius: 0.75em;
+	--bubble-no-border-radius: 0;
+	--bubble-gap: 0.25em;
+}
+
+BODY {
+	display: flex;
+	flex-flow: row nowrap;
+    justify-content: space-between;
+    align-items: stretch;
+
+	height: 100vh;
+    margin: 0;
+
+    font-family: sans-serif;
+	background-color: #000000;
+	color: #FFFFFF;
+}
+
+.chats {
+	flex: 0 0 25%;
+	max-width: 18em;
+
+	display: flex;
+	flex-flow: column nowrap;
+    justify-content: flex-start;
+    align-items: stretch;
+
+	background-color: #1F1F1F;
+}
+
+.chat-header {
+	display: flex;
+	flex-flow: row nowrap;
+    justify-content: space-between;
+    align-items: center;
+
+	padding: 0.5em;
+
+	background-color: #3F3F3F;
+}
+
+.chat-header > H2 {
+	flex: 0 1 100%;
+	text-align: center;
+	margin: 0;
+}
+
+.chat-list {
+	flex: 1 1 auto;
+	max-width: 18em;
+
+	display: flex;
+	flex-flow: column nowrap;
+    justify-content: flex-start;
+    align-items: stretch;
+
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #1F1F1F #3F3F3F;
+
+	background-color: #1F1F1F;
+}
+
+.new-chat {
+	flex: none;
+	width: 2em;
+	height: 2em;
+
+	background-color: #BFBFBF;
+}
+
+.chat {
+	position: relative;
+
+	flex: none;
+	padding: 0.5em;
+
+	background-color: #2F2F2F;
+
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	cursor: pointer;
+}
+
+.chat:nth-child(even) {
+	background-color: #272727;
+}
+
+.chat.selected {
+	background-color: #5F5F5F;
+}
+
+.chat.selected:nth-child(even) {
+	background-color: #575757;
+}
+
+
+.chat > .close-button {
+	display: none;
+	position: absolute;
+	top: 50%;
+	right: 0.5em;
+	transform: translateY(-50%);
+	width: 1.5em;
+	height: 1.5em;
+	line-height: 1.5em;
+	text-align: center;
+	border-radius: 50%;
+	background-color: #3F3F3F;
+	color: #FFFFFF;
+	cursor: pointer;
+}
+
+.chat:hover > .close-button {
+	display: block;
+}
+
+.chat > .close-button:hover {
+	background-color: #7F7F7F;
+}
+
+.chat-window {
+	padding: 0.75em;
+	flex: 1 0 auto;
+
+	display: flex;
+	flex-flow: column nowrap;
+    justify-content: flex-start;
+    align-items: stretch;
+
+	background-color: #0E1621;
+
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #0E1621 #182533;
+}
+
+.chat-window > P {
+	align-self: center;
+
+	margin: 0;
+	margin-bottom: var(--bubble-gap);
+	padding: 0.5em 0.75em;
+
+	border-radius: var(--bubble-border-radius);
+}
+
+.chat-window > P:last-child {
+	margin-bottom: 0;
+}
+
+/*Single / Default*/
+.chat-window > P.self {
+	align-self: flex-end;
+	background-color: var(--self-bubble-color);
+
+	border-radius: var(--bubble-border-radius);
+}
+
+/*Initial*/
+.chat-window > P.self:has(+ P.self) {
+	border-radius: var(--bubble-border-radius) var(--bubble-border-radius) var(--bubble-no-border-radius) var(--bubble-border-radius);
+}
+
+/*Medial*/
+.chat-window > P.self + P.self:has(+ :not(P:not(.self))) {
+	border-radius: var(--bubble-border-radius) var(--bubble-no-border-radius) var(--bubble-no-border-radius) var(--bubble-border-radius);
+}
+
+/*Final*/
+.chat-window > P.self + P.self {
+	border-radius: var(--bubble-border-radius) var(--bubble-no-border-radius) var(--bubble-border-radius) var(--bubble-border-radius);
+}
+
+
+/*Single / Default*/
+.chat-window > P.other {
+	align-self: flex-start;
+	background-color: var(--other-bubble-color);
+
+	border-radius: var(--bubble-border-radius);
+}
+
+/*Initial*/
+.chat-window > P.other:has(+ P.other) {
+	border-radius: var(--bubble-border-radius) var(--bubble-border-radius) var(--bubble-border-radius) var(--bubble-no-border-radius);
+}
+
+/*Medial*/
+.chat-window > P.other + P.other:has(+ :not(P:not(.other))) {
+	border-radius: var(--bubble-no-border-radius) var(--bubble-border-radius) var(--bubble-border-radius) var(--bubble-no-border-radius);
+}
+
+/*Final*/
+.chat-window > P.other + P.other {
+	border-radius: var(--bubble-no-border-radius) var(--bubble-border-radius) var(--bubble-border-radius) var(--bubble-border-radius);
+}
+
+.message-input {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin: 10px 0;
+}
+
+.text-box {
+    flex-grow: 1;
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-right: 10px;
+	background-color: #182533;
+	color: #FFFFFF;
+}
+
+.send-button {
+    padding: 10px 20px;
+    font-size: 16px;
+    color: #fff;
+    background-color: #007bff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.send-button:hover {
+    background-color: #0056b3;
+}
