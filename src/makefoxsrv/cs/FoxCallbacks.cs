@@ -280,6 +280,8 @@ namespace makefoxsrv
                 return;
             }
 
+            await t.SendCallbackAnswer(query.query_id, 0);
+
             if (argument == "cancel")
             {
                 await t.EditMessageAsync(
@@ -316,7 +318,7 @@ namespace makefoxsrv
                     new TL.LabeledPrice { label = days == -1 ? "Lifetime Access" : $"{days} Days Access", amount = (int)(amount * 100) },
                 };
 
-                await t.SendCallbackAnswer(query.query_id, 0);
+                
 
                 var inputInvoice = new TL.InputMediaInvoice
                 {

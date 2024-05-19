@@ -65,7 +65,7 @@ namespace makefoxsrv
                             {
                                 // If the message matches, extract the number
                                 int retryAfterSeconds = rex.X;
-                                FoxLog.WriteLine($"Failed to send image - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+                                FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
 
                                 await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
 
@@ -124,7 +124,7 @@ namespace makefoxsrv
                             messageText += $"\n\n⚠️ Image dimensions exceed Telegram's maximum image preview size.  For best quality, click below to download the full resoluton file.";
                         }
 
-                        /* var msg = await t.SendMessageAsync(
+                        var msg = await t.SendMessageAsync(
                             media: new InputMediaUploadedPhoto() { file = inputImage },
                             text: (t.Chat is not null ? messageText : null),
                             replyInlineMarkup: (t.Chat is not null ? inlineKeyboardButtons : null),
@@ -139,8 +139,9 @@ namespace makefoxsrv
                                 text: messageText,
                                 replyInlineMarkup: inlineKeyboardButtons
                             );
-                        } */
+                        }
 
+                        /*
                         var msg = await t.SendMessageAsync(
                             media: new InputMediaUploadedPhoto() { file = inputImage },
                             text: messageText,
@@ -148,7 +149,7 @@ namespace makefoxsrv
                             replyToMessageId: q.ReplyMessageID ?? 0
                             );
 
-                        await q.SetStatus(FoxQueue.QueueStatus.FINISHED, msg.ID);
+                        await q.SetStatus(FoxQueue.QueueStatus.FINISHED, msg.ID); */
                     }
                     catch (WTelegram.WTException ex)
                     {
