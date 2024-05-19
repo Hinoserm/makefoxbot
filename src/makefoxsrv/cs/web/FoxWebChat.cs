@@ -35,7 +35,12 @@ namespace makefoxsrv
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
         public static async Task<JsonObject?> GetMessages(FoxUser fromUser, JsonObject jsonMessage)
         {
-            long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false).Value;
+            long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false)!.Value;
+
+            int msgCount = FoxJsonHelper.GetInt(jsonMessage, "Count", true) ?? 30;
+
+            if (msgCount < 1)
+                throw new Exception("Invalid message count.");
 
             var toUser = await FoxWebChat.GetUserFromChatId(fromUser, chatId);
 
@@ -82,7 +87,7 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "SELECT * FROM telegram_log WHERE user_id = @toTGID AND chat_id IS NULL ORDER BY date_added DESC LIMIT 100";
+                    cmd.CommandText = "SELECT * FROM telegram_log WHERE user_id = @toTGID AND chat_id IS NULL ORDER BY date_added DESC LIMIT " + msgCount;
                     cmd.Parameters.AddWithValue("toTGID", toUser.TelegramID);
 
                     using (var reader = await cmd.ExecuteReaderAsync())
