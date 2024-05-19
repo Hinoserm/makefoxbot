@@ -1,45 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta http-equiv="content-type" content="text/html;charset=utf-8"/>
-	<meta name="viewport" content="width=device-width, initial-scale=1"/>
-	<title>Chat Window</title>
-	<link href="style.css" rel="stylesheet" type="text/css">
-	<script src="script.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Interface</title>
+    <!-- Include React, ReactDOM, Emotion, and Material-UI via jsDelivr CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emotion/react@11.11.4/dist/emotion-react.umd.min.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emotion/styled@11.8.1/dist/emotion-styled.umd.min.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mui/material@5.13.7/umd/material-ui.production.min.js" crossorigin></script>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-	<div class="chats">
-		<div class="chat-header">
-			<h2>Chats</h2>
-			<button class="new-chat">+</button>
-		</div>
-		<div class="chat-list">
-			<div class="chat" title="Tester 1">Tester 1<div class="close-button">&times;</div></div>
-			<div class="chat selected" title="Other">Other<div class="close-button">&times;</div></div>
-			<div class="chat" title="Tester 2">Tester 2<div class="close-button">&times;</div></div>
-			<div class="chat" title="Tester 3">Tester 3<div class="close-button">&times;</div></div>
-		</div>
-	</div>
-	<div class="chat-window">
-		<h2><b>Name</b> chatting with <b>Other</b></h2>
-		<p class="self"><b>Name:</b> This is what I'm saying.</p>
-		<p class="other"><b>Other:</b> No, I'm saying it.</p>
-		<p class="self"><b>Name:</b> But I said it already.</p>
-		<p class="other"><b>Other:</b> No you didn't.</p>
-		<p class="self"><b>Name:</b> ...</p>
-		<p><b>Name</b> has left</p>
-		<p><b>Name</b> has entered</p>
-		<p class="self"><b>Name:</b> I did.</p>
-		<p class="self"><b>Name:</b> I really did.</p>
-		<p class="self"><b>Name:</b> Why can't you be normal.</p>
-		<p><b>Name</b> has left.</p>
-		<p class="other"><b>Other:</b> Well that went well.</p>
-		<p class="other"><b>Other:</b> Oh hey, look, pie!</p>
-		<p><b>Other</b> has left</p>
-		<div class="message-input">
-			<input type="text" class="text-box" placeholder="Type your message here...">
-			<button class="send-button">Send</button>
-		</div>
-	</div>
+    <div id="root"></div>
+    <script src="scripts.js"></script>
 </body>
 </html>
