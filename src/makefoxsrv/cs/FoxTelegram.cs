@@ -398,7 +398,7 @@ We are committed to using your donation to further develop and maintain the serv
         {
             // Only process text messages
 
-            FoxLog.WriteLine($"Message: {t.User}" + (t.Chat is not null ? $" in {t.Chat}" : "") + $"> {ReplaceNonPrintableCharacters(msg.message)}");
+            FoxLog.WriteLine($"{msg.ID}: Message: {t.User}" + (t.Chat is not null ? $" in {t.Chat}" : "") + $"> {ReplaceNonPrintableCharacters(msg.message)}");
 
             var message = FoxTelegram.Client.EntitiesToHtml(msg.message, msg.entities);
 
@@ -430,7 +430,7 @@ We are committed to using your donation to further develop and maintain the serv
                     });
 
                     await FoxCommandHandler.HandleCommand(t, msg);
-                    FoxLog.WriteLine($"Finished processing input for {t.User.username}.");
+                    FoxLog.WriteLine($"{msg.ID}: Finished processing input for {t.User.username}.");
 
                     //await DatabaseHandler.DisplayReceivedTelegramMessage(t.User.ID, message);
                     
