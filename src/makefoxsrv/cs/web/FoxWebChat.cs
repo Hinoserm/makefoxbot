@@ -9,6 +9,11 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using TL;
+using System.Text.Json.Nodes;
+
+using JsonObject = System.Text.Json.Nodes.JsonObject;
+using JsonArray = System.Text.Json.Nodes.JsonArray;
+using System.CodeDom;
 
 namespace makefoxsrv
 {
@@ -21,13 +26,23 @@ namespace makefoxsrv
             public long? TgPeer { get; set; }
             public string MessageText { get; set; } = "";
             public DateTime Date { get; set; }
-            public string Username { get; set; } = "";
+            public string? Username { get; set; } = null;
             public bool isOutgoing { get; set; } = false;
         }
 
         // This function retrieves the last x messages from a chat and sends them to the client
-        public static async Task<object> GetChatMessages(FoxUser fromUser, FoxUser toUser, long? tgPeerId)
+        [WebFunctionName("GetMessages")]    // Function name as seen in the URL or WebSocket command
+        [WebLoginRequired(true)]            // User must be logged in to use this function
+        [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
+        public static async Task<JsonObject?> GetMessages(FoxUser fromUser, JsonObject jsonMessage)
         {
+            long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false).Value;
+
+            var toUser = await FoxWebChat.GetUserFromChatId(fromUser, chatId);
+
+            if (toUser is null)
+                throw new Exception("Failed to get user from chat ID.");
+
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
@@ -40,7 +55,6 @@ namespace makefoxsrv
                     cmd.CommandText = "SELECT * FROM admin_chats WHERE to_uid = @toUID AND tg_peer_id IS NULL";
                     cmd.Parameters.AddWithValue("fromUID", fromUser.UID);
                     cmd.Parameters.AddWithValue("toUID", toUser.UID);
-                    cmd.Parameters.AddWithValue("peerid", tgPeerId);
 
                     using (var reader = await cmd.ExecuteReaderAsync())
                     {
@@ -71,7 +85,6 @@ namespace makefoxsrv
                     cmd.Connection = SQL;
                     cmd.CommandText = "SELECT * FROM telegram_log WHERE user_id = @toTGID AND chat_id IS NULL ORDER BY date_added DESC LIMIT 100";
                     cmd.Parameters.AddWithValue("toTGID", toUser.TelegramID);
-                    cmd.Parameters.AddWithValue("peerid", tgPeerId);
 
                     using (var reader = await cmd.ExecuteReaderAsync())
                     {
@@ -95,10 +108,12 @@ namespace makefoxsrv
                 // Sort the messages by date
                 messageList.Sort((a, b) => a.Date.CompareTo(b.Date));
 
-                var response = new
+                var jsonArray = JsonSerializer.Deserialize<JsonArray>(JsonSerializer.Serialize(messageList));
+
+                var response = new JsonObject
                 {
-                    Command = "GetChatMessages",
-                    Chats = messageList
+                    ["Command"] = "GetChatMessages",
+                    ["Messages"] = jsonArray
                 };
 
                 return response;
@@ -135,8 +150,19 @@ namespace makefoxsrv
         }
 
         //This function sends a chat message to a user on telegram and stores it in the database
-        public static async Task SendChatMessage(FoxUser fromUser, FoxUser toUser, long? tgPeerId, string message)
+        [WebFunctionName("SendMessage")]    // Function name as seen in the URL or WebSocket command
+        [WebLoginRequired(true)]            // User must be logged in to use this function
+        [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
+        public static async Task<JsonObject?> SendMessage(FoxUser fromUser, JsonObject jsonMessage)
         {
+            long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false).Value;
+            string message = FoxJsonHelper.GetString(jsonMessage, "Message", false);
+
+            var toUser = await FoxWebChat.GetUserFromChatId(fromUser, chatId);
+
+            if (toUser is null)
+                throw new Exception("Chat or user not found.");
+
             var teleUser = toUser.TelegramID is not null ? await FoxTelegram.GetUserFromID(toUser.TelegramID.Value) : null;
             var t = teleUser is not null ? new FoxTelegram(teleUser, null) : null;
 
@@ -145,7 +171,7 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(message);
  
-            await BroadcastChatMessage(fromUser, toUser, tgPeerId, message);
+            await BroadcastChatMessage(fromUser, toUser, null, message);
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -157,18 +183,25 @@ namespace makefoxsrv
                     cmd.CommandText = "INSERT INTO admin_chats (from_uid, to_uid, tg_peer_id, message, message_date) VALUES (@fromUID, @toUID, @peer, @message, @now)";
                     cmd.Parameters.AddWithValue("fromUID", fromUser.UID);
                     cmd.Parameters.AddWithValue("toUID", toUser.UID);
-                    cmd.Parameters.AddWithValue("peer", tgPeerId); //Allowed to be null if the chat is user-to-user.
+                    cmd.Parameters.AddWithValue("peer", null); //Allowed to be null if the chat is user-to-user.
                     cmd.Parameters.AddWithValue("message", message);
                     cmd.Parameters.AddWithValue("now", DateTime.Now);
 
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
+
+            return null; //Doesn't output anything.
         }
 
         //This function deletes a chat tab from the database
-        public static async Task DeleteChat(FoxUser user, long chatId)
+        [WebFunctionName("Delete")]    // Function name as seen in the URL or WebSocket command
+        [WebLoginRequired(true)]            // User must be logged in to use this function
+        [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
+        public static async Task<JsonObject?> Delete(FoxUser fromUser, JsonObject jsonMessage)
         {
+            long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false).Value;
+
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
@@ -177,16 +210,36 @@ namespace makefoxsrv
                 {
                     cmd.Connection = SQL;
                     cmd.CommandText = "DELETE FROM admin_open_chats WHERE from_uid = @uid AND id = @chatId";
-                    cmd.Parameters.AddWithValue("uid", user.UID);
+                    cmd.Parameters.AddWithValue("uid", fromUser.UID);
                     cmd.Parameters.AddWithValue("chatId", chatId);
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
+
+            return null; //Doesn't output anything.
         }
 
         //This function saves the chat tab to the database
-        public static async Task SaveChat(FoxUser fromUser, FoxUser toUser, long? tgPeerId)
+        [WebFunctionName("New")]    // Function name as seen in the URL or WebSocket command
+        [WebLoginRequired(true)]            // User must be logged in to use this function
+        [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
+        public static async Task<JsonObject?> New(FoxUser fromUser, JsonObject jsonMessage)
         {
+            string username = FoxJsonHelper.GetString(jsonMessage, "User", false)!;
+
+            var chatUser = await FoxUser.ParseUser(username);
+
+            if (chatUser is null || chatUser.TelegramID is null)
+            {
+                var response = new JsonObject
+                {
+                    ["Command"] = "New",
+                    ["Error"] = $"User '{username}' not found."
+                };
+
+                return response;
+            }
+
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
@@ -196,17 +249,36 @@ namespace makefoxsrv
                     cmd.Connection = SQL;
                     cmd.CommandText = "INSERT INTO admin_open_chats (from_uid, to_uid, tg_peer_id, date_opened) VALUES (@uid, @toUID, @tgPeerId, @now)";
                     cmd.Parameters.AddWithValue("uid", fromUser.UID);
-                    cmd.Parameters.AddWithValue("toUID", toUser.UID);
-                    cmd.Parameters.AddWithValue("tgPeerId", tgPeerId); //Allowed to be null if the chat is user-to-user.
+                    cmd.Parameters.AddWithValue("toUID", chatUser.UID);
+                    cmd.Parameters.AddWithValue("tgPeerId", null); //Allowed to be null if the chat is user-to-user.
                     cmd.Parameters.AddWithValue("now", DateTime.Now);
 
                     await cmd.ExecuteNonQueryAsync();
+
+                    var lastInsertedId = cmd.LastInsertedId;
+
+                    if (lastInsertedId <= 0)
+                        throw new Exception("Failed to create new chat.");
+
+                    var response = new JsonObject
+                    {
+                        ["Command"] = "New",
+                        ["ChatID"] = lastInsertedId
+                    };
+
+                    return response;
                 }
             }
+
+
         }
 
         //This function sends the current list of open chats back to the client
-        public static async Task<object> GetChatList(FoxUser user)
+        //This function saves the chat tab to the database
+        [WebFunctionName("List")]    // Function name as seen in the URL or WebSocket command
+        [WebLoginRequired(true)]            // User must be logged in to use this function
+        [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
+        public static async Task<JsonObject> List(FoxUser user, JsonObject jsonMessage)
         {
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -215,7 +287,7 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "SELECT * FROM admin_open_chats WHERE from_uid = @uid";
+                    cmd.CommandText = "SELECT * FROM admin_open_chats WHERE from_uid = @uid ORDER BY date_opened";
                     cmd.Parameters.AddWithValue("uid", user.UID);
 
                     using (var reader = await cmd.ExecuteReaderAsync())
@@ -235,10 +307,12 @@ namespace makefoxsrv
                             chatTabs.Add(chatTab);
                         }
 
-                        var response = new
+                        var jsonArray = JsonSerializer.Deserialize<JsonArray>(JsonSerializer.Serialize(chatTabs));
+
+                        var response = new JsonObject
                         {
-                            Command = "ListChatTabs",
-                            Chats = chatTabs
+                            ["Command"] = "List",
+                            ["Chats"] = jsonArray
                         };
 
                         return response;
