@@ -15,6 +15,7 @@ const ChatApp = () => {
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [messages, setMessages] = useState({});
+  const [newMessageHighlight, setNewMessageHighlight] = useState({});
   const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
   const [newChatUsername, setNewChatUsername] = useState('');
   const [newMessage, setNewMessage] = useState('');
@@ -83,6 +84,9 @@ const ChatApp = () => {
       case 'Chat:NewMessage':
         console.log('Processing Chat:NewMessage:', message);
         const { ChatID, Message } = message;
+        if (ChatID !== activeChatId) {
+          setNewMessageHighlight(prev => ({ ...prev, [ChatID]: true }));
+        }
         setMessages(prev => {
           const updatedMessages = prev[ChatID] ? [...prev[ChatID], Message] : [Message];
           return { ...prev, [ChatID]: updatedMessages };
@@ -167,6 +171,8 @@ const ChatApp = () => {
             {
               button: true,
               key: chat.ChatID,
+              style: chat.ChatID === activeChatId ? { backgroundColor: '#c7d2fe' } :
+                     newMessageHighlight[chat.ChatID] ? { backgroundColor: '#e3f2fd' } : {},
               onClick: () => {
                 console.log('Chat tab clicked:', chat.ChatID);
                 setActiveChatId(chat.ChatID);
@@ -178,6 +184,7 @@ const ChatApp = () => {
                 } else {
                   console.error('WebSocket is not open. Cannot send Chat:GetMessages command');
                 }
+                setNewMessageHighlight(prev => ({ ...prev, [chat.ChatID]: false }));
               }
             },
             React.createElement(ListItemText, { primary: chat.DisplayName }),
