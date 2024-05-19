@@ -67,7 +67,7 @@ namespace makefoxsrv
                                 int retryAfterSeconds = rex.X;
                                 FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
 
-                                await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
+                                await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 20));
 
                                 return;
                             }
@@ -163,7 +163,7 @@ namespace makefoxsrv
                                 int retryAfterSeconds = rex.X;
                                 FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
 
-                                await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
+                                await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 20));
 
                                 return;
                             }
