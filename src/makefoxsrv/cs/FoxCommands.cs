@@ -649,6 +649,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                     break;
             }
 
+            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking count...");
             if (await FoxQueue.GetCount(user) >= q_limit)
             {
                 await t.SendMessageAsync(
@@ -659,6 +660,8 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
+
+            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking worker models...");
             if (await FoxWorker.GetWorkersForModel(settings.model) is null)
             {
                 await t.SendMessageAsync(
@@ -669,6 +672,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
+            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking worker availability...");
             if (FoxQueue.CheckWorkerAvailability(settings) is null)
             {
                 await t.SendMessageAsync(
@@ -679,6 +683,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
+            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking next position...");
             (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
 
             Message waitMsg = await t.SendMessageAsync(
@@ -686,10 +691,13 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 replyToMessageId: message.ID
             );
 
+            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Adding to queue..");
+
             var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
+            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Enqueueing...");
             await FoxQueue.Enqueue(q);
         }
 
