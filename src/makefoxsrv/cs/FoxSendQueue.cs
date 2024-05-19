@@ -161,7 +161,7 @@ namespace makefoxsrv
                             {
                                 // If the message matches, extract the number
                                 int retryAfterSeconds = rex.X;
-                                FoxLog.WriteLine($"Failed to send image - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+                                FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
 
                                 await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
 
