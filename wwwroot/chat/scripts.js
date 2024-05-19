@@ -71,11 +71,10 @@ const ChatApp = () => {
       case 'Chat:List':
         console.log('Processing Chat:List:', message.Chats);
         setChats(message.Chats);
-        const initMessages = {};
-        message.Chats.forEach(chat => {
-          initMessages[chat.ChatID] = [];
-        });
-        setMessages(initMessages);
+        // If there is an activeChatId, load its messages
+        if (activeChatId) {
+          sendGetChatMessagesCommand(activeChatId);
+        }
         break;
       case 'Chat:GetMessages':
         console.log('Processing Chat:GetMessages:', message.Messages);
@@ -98,8 +97,8 @@ const ChatApp = () => {
           alert(message.Error);
         } else {
           console.log('New chat created with ChatID:', message.ChatID);
-          setActiveChatId(message.ChatID);
-          sendGetChatListCommand(globalSocket);
+          setActiveChatId(message.ChatID);  // Immediately update the active chat ID
+          sendGetChatListCommand(globalSocket);  // Refresh the chat list to ensure UI consistency
         }
         break;
       case 'AutocompleteResponse':
@@ -122,6 +121,17 @@ const ChatApp = () => {
       setNewChatUsername('');
     } else {
       console.error('WebSocket is not open. Cannot send Chat:New command');
+    }
+  };
+
+  const sendGetChatMessagesCommand = (chatId) => {
+    if (globalSocket && globalSocket.readyState === WebSocket.OPEN) {
+      const command = { Command: 'Chat:GetMessages', ChatID: chatId };
+      console.log('Sending Chat:GetMessages command for ChatID:', chatId, JSON.stringify(command));
+      globalSocket.send(JSON.stringify(command));
+      console.log('Chat:GetMessages command sent for ChatID:', chatId);
+    } else {
+      console.error('WebSocket is not open. Cannot send Chat:GetMessages command');
     }
   };
 
@@ -156,6 +166,11 @@ const ChatApp = () => {
     }
   };
 
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
   return React.createElement(
     Container,
     { maxWidth: 'xl', style: { display: 'flex', height: '100vh' } },
@@ -176,14 +191,7 @@ const ChatApp = () => {
               onClick: () => {
                 console.log('Chat tab clicked:', chat.ChatID);
                 setActiveChatId(chat.ChatID);
-                if (globalSocket && globalSocket.readyState === WebSocket.OPEN) {
-                  const command = { Command: 'Chat:GetMessages', ChatID: chat.ChatID };
-                  console.log('Sending Chat:GetMessages command:', JSON.stringify(command));
-                  globalSocket.send(JSON.stringify(command));
-                  console.log('Chat:GetMessages command sent');
-                } else {
-                  console.error('WebSocket is not open. Cannot send Chat:GetMessages command');
-                }
+                sendGetChatMessagesCommand(chat.ChatID);
                 setNewMessageHighlight(prev => ({ ...prev, [chat.ChatID]: false }));
               }
             },
@@ -200,6 +208,9 @@ const ChatApp = () => {
                     globalSocket.send(JSON.stringify(command));
                     console.log('Chat:Delete command sent');
                     setChats(prev => prev.filter(c => c.ChatID !== chat.ChatID));
+                    if (activeChatId === chat.ChatID) {
+                      setActiveChatId(null); // Clear the active chat if it's being deleted
+                    }
                   } else {
                     console.error('WebSocket is not open. Cannot send Chat:Delete command');
                   }
@@ -239,7 +250,8 @@ const ChatApp = () => {
                 marginRight: message.isOutgoing ? '10px' : 'auto'
               }
             },
-            React.createElement(Typography, { variant: 'body1' }, `${message.Username}: ${message.Text}`)
+            React.createElement(Typography, { variant: 'body1' }, `${message.Username}: ${message.Text}`),
+            React.createElement(Typography, { variant: 'caption', style: { textAlign: 'right', display: 'block', marginTop: '4px' } }, formatDate(message.Date))
           )
         ) : React.createElement(Typography, { style: { textAlign: 'center', marginTop: '20%' } }, 'Select a chat'),
         React.createElement('div', { ref: messageEndRef }) // Keep this to ensure scrolling behavior

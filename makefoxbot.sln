@@ -15,6 +15,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Autofocus.ImageSharp", "src
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "trainer", "src\trainer\ConsoleApp1\trainer.csproj", "{4A94C1F9-94E0-440E-9104-5ABD94AEBF4F}"
 EndProject
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "react", "react\react.esproj", "{97A0A9E8-5943-489B-8C66-A4ECD909BD32}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +47,12 @@ Global
 		{4A94C1F9-94E0-440E-9104-5ABD94AEBF4F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4A94C1F9-94E0-440E-9104-5ABD94AEBF4F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4A94C1F9-94E0-440E-9104-5ABD94AEBF4F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97A0A9E8-5943-489B-8C66-A4ECD909BD32}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{97A0A9E8-5943-489B-8C66-A4ECD909BD32}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{97A0A9E8-5943-489B-8C66-A4ECD909BD32}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{97A0A9E8-5943-489B-8C66-A4ECD909BD32}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{97A0A9E8-5943-489B-8C66-A4ECD909BD32}.Release|Any CPU.Build.0 = Release|Any CPU
+		{97A0A9E8-5943-489B-8C66-A4ECD909BD32}.Release|Any CPU.Deploy.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
