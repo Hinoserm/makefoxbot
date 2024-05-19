@@ -1186,13 +1186,13 @@ namespace makefoxsrv
                     {
                         // If the message matches, extract the number
                         int retryAfterSeconds = rex.X;
-                        FoxLog.WriteLine($"Worker {ID} - Rate limit exceeded. Trying again after {retryAfterSeconds} seconds.");
+                        FoxLog.WriteLine($"Worker {ID} - Queue ID {qItem?.ID} User {qItem?.User?.UID} - Rate limit exceeded. Trying again after {retryAfterSeconds} seconds.");
 
                         if (qItem is not null)
                         {
                             try
                             {
-                                await qItem.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 65));
+                                await qItem.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 20));
                                 OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
                             } catch (Exception ex2)
                             {
