@@ -29,7 +29,7 @@ namespace makefoxsrv
             {
                 // Banned users can't do anything.
 
-                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "❌ You are banned from using this bot.");
+                await t.SendCallbackAnswer(query.query_id, 0, "❌ You are banned from using this bot.");
 
                 return;
             }
@@ -79,11 +79,11 @@ namespace makefoxsrv
 
             if (q.Telegram?.User.ID != t.User.ID)
             {
-                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
+                await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
                 return; // Just silently return.
             }
 
-            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
+            await t.SendCallbackAnswer(query.query_id, 0);
             
             if (user.DateTermsAccepted is null)
             {
@@ -192,7 +192,7 @@ namespace makefoxsrv
 
             await user.SetPreferredLanguage(argument);
 
-            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, user.Strings.Get("Lang.AnswerCallbackMsg"));
+            await t.SendCallbackAnswer(query.query_id, 0, user.Strings.Get("Lang.AnswerCallbackMsg"));
 
             await FoxMessages.SendWelcome(t, user, 0, query.msg_id);
 
@@ -208,7 +208,7 @@ namespace makefoxsrv
 
             await user.SetTermsAccepted();
 
-            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, user.Strings.Get("Terms.AgreeClicked"));
+            await t.SendCallbackAnswer(query.query_id, 0, user.Strings.Get("Terms.AgreeClicked"));
 
             await FoxMessages.SendTerms(t, user, 0, query.msg_id);
 
@@ -229,7 +229,7 @@ namespace makefoxsrv
                 return;
             }
 
-            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
+            await t.SendCallbackAnswer(query.query_id, 0);
 
             if (argument == "cancel")
             {
@@ -316,7 +316,7 @@ namespace makefoxsrv
                     new TL.LabeledPrice { label = days == -1 ? "Lifetime Access" : $"{days} Days Access", amount = (int)(amount * 100) },
                 };
 
-                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
+                await t.SendCallbackAnswer(query.query_id, 0);
 
                 var inputInvoice = new TL.InputMediaInvoice
                 {
@@ -401,11 +401,11 @@ namespace makefoxsrv
             
 
             if (q is not null && q.Telegram?.User.ID != t.User.ID) {
-                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Only the original creator can click this button!");
+                await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator can click this button!");
             }
             else 
             {
-                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
+                await t.SendCallbackAnswer(query.query_id, 0);
                 // Construct the inline keyboard buttons and rows
                 var inlineKeyboardButtons = new ReplyInlineMarkup()
                 {
@@ -463,7 +463,7 @@ namespace makefoxsrv
 
             int help_id = 1;
 
-            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0);
+            await t.SendCallbackAnswer(query.query_id, 0);
 
             if (argument is null || argument.Length <= 0 || !int.TryParse(argument, out help_id))
                 help_id = 1;
@@ -508,13 +508,13 @@ namespace makefoxsrv
             var q = await FoxQueue.Get(info_id);
             if (q is null)
             {
-                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Error loading image.");
+                await t.SendCallbackAnswer(query.query_id, 0, "Error loading image.");
                 return;
             }
 
             if (q.Telegram?.User.ID != t.User.ID)
             {
-                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
+                await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
                 return;
             }
 
@@ -543,11 +543,11 @@ namespace makefoxsrv
             var q = await FoxQueue.Get(info_id);
             if (q is null)
             {
-                await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Error loading image.");
+                await t.SendCallbackAnswer(query.query_id, 0, "Error loading image.");
                 return;
             }
 
-            await FoxTelegram.Client.Messages_SetBotCallbackAnswer(query.query_id, 0, "Selected for img2img");
+            await t.SendCallbackAnswer(query.query_id, 0, "Selected for img2img");
 
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 

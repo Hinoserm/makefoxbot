@@ -297,12 +297,20 @@ namespace makefoxsrv
                 return new Chat() { id = id };
         }
 
-        public async Task SendCallbackAnswer(long queryID, int cacheTime, string? message = null)
+        public async Task SendCallbackAnswer(long queryID, int cacheTime, string? message = null, string? url = null, bool alert = false, bool ignoreErrors = true)
         {
             if (!IsConnected)
                 throw new InvalidOperationException("Telegram is disconnected");
 
-            await _client.Messages_SetBotCallbackAnswer(queryID, cacheTime, message);
+            try {
+                await _client.Messages_SetBotCallbackAnswer(queryID, cacheTime, message, url, alert);
+            }
+            catch (Exception ex)
+            {
+                FoxLog.WriteLine($"SendCallbackAnswer error: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
+                if (!ignoreErrors)
+                    throw;
+            }
         }
             
         private static async Task HandlePayment(FoxTelegram t, MessageService ms, MessageActionPaymentSentMe payment)
