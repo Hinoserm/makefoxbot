@@ -124,7 +124,7 @@ namespace makefoxsrv
                             messageText += $"\n\n⚠️ Image dimensions exceed Telegram's maximum image preview size.  For best quality, click below to download the full resoluton file.";
                         }
 
-                        var msg = await t.SendMessageAsync(
+                        /* var msg = await t.SendMessageAsync(
                             media: new InputMediaUploadedPhoto() { file = inputImage },
                             text: (t.Chat is not null ? messageText : null),
                             replyInlineMarkup: (t.Chat is not null ? inlineKeyboardButtons : null),
@@ -132,14 +132,23 @@ namespace makefoxsrv
                             );
 
                         await q.SetStatus(FoxQueue.QueueStatus.FINISHED, msg.ID);
-
+               
                         if (t.Chat is null) // Only offer the buttons in private chats, not groups.
                         {
                             await t.SendMessageAsync(
                                 text: messageText,
                                 replyInlineMarkup: inlineKeyboardButtons
                             );
-                        }
+                        } */
+
+                        var msg = await t.SendMessageAsync(
+                            media: new InputMediaUploadedPhoto() { file = inputImage },
+                            text: messageText,
+                            replyInlineMarkup: inlineKeyboardButtons,
+                            replyToMessageId: q.ReplyMessageID ?? 0
+                            );
+
+                        await q.SetStatus(FoxQueue.QueueStatus.FINISHED, msg.ID);
                     }
                     catch (WTelegram.WTException ex)
                     {
