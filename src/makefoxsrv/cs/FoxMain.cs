@@ -321,6 +321,8 @@ namespace makefoxsrv
                 cts.Cancel();
             }
 
+            await FoxTelegram.Disconnect();
+
             var shutdownStart = DateTime.Now;
             var shutdownTimeout = TimeSpan.FromSeconds(3); // Adjust as needed
 
@@ -328,10 +330,10 @@ namespace makefoxsrv
             {
                 // Wait for all workers to complete, with timeout
                 // This gives them a chance to finish storing their state if they were in the middle of a task.
-                await Task.Delay(100); 
+                await Task.Delay(10000); //10 Seconds. 
             }
 
-            await FoxTelegram.Disconnect();
+            
         }
     }
 }
