@@ -101,13 +101,13 @@ namespace makefoxsrv
 
             var commandHandler = FindBestMatch(command);
 
-            FoxLog.WriteLine($"{message.ID}: Found command for {t.User.username}: {commandHandler.Method.Name}");
+            //FoxLog.WriteLine($"{message.ID}: Found command for {t.User.username}: {commandHandler.Method.Name}");
 
             if (commandHandler is not null)
             {
                 var fUser = await FoxUser.GetByTelegramUser(t.User, true);
 
-                FoxLog.WriteLine($"{message.ID}: Found UID for {t.User}: {fUser?.UID}");
+                //FoxLog.WriteLine($"{message.ID}: Found UID for {t.User}: {fUser?.UID}");
 
                 if (fUser is null)
                 {
@@ -129,9 +129,9 @@ namespace makefoxsrv
                     return;
                 }
 
-                FoxLog.WriteLine($"{message.ID}: Running command for UID {fUser?.UID}...");
+                //FoxLog.WriteLine($"{message.ID}: Running command for UID {fUser?.UID}...");
                 await commandHandler(t, message, fUser, argument);
-                FoxLog.WriteLine($"{message.ID}: Finished running command for {fUser?.UID}.");
+                //FoxLog.WriteLine($"{message.ID}: Finished running command for {fUser?.UID}.");
             }
             else if (explicitlyNamed) //Only send this message if we were explicitly named in the chat (e.g. /command@botname)
             {
@@ -649,7 +649,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                     break;
             }
 
-            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking count...");
+            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking count...");
             if (await FoxQueue.GetCount(user) >= q_limit)
             {
                 await t.SendMessageAsync(
@@ -661,7 +661,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
             }
 
 
-            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking worker models...");
+            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking worker models...");
             if (await FoxWorker.GetWorkersForModel(settings.model) is null)
             {
                 await t.SendMessageAsync(
@@ -672,7 +672,7 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 return;
             }
 
-            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking worker availability...");
+            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking worker availability...");
             if (FoxQueue.CheckWorkerAvailability(settings) is null)
             {
                 await t.SendMessageAsync(
@@ -684,22 +684,22 @@ We sincerely appreciate your support and understanding. Your contribution direct
             }
 
             //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking next position...");
-            //(int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
+            (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
 
-            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Sending message...");
+            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Sending message...");
             Message waitMsg = await t.SendMessageAsync(
-                //text: $"⏳ Adding to queue ({position} of {totalItems})...",
-                text: $"⏳ Adding to queue...",
+                text: $"⏳ Adding to queue ({position} of {totalItems})...",
+                //text: $"⏳ Adding to queue...",
                 replyToMessageId: message.ID
             );
 
-            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Adding to queue..");
+            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Adding to queue..");
 
             var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
-            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Enqueueing...");
+            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Enqueueing...");
             await FoxQueue.Enqueue(q);
         }
 

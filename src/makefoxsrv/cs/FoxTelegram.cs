@@ -430,7 +430,7 @@ We are committed to using your donation to further develop and maintain the serv
                     });
 
                     await FoxCommandHandler.HandleCommand(t, msg);
-                    FoxLog.WriteLine($"{msg.ID}: Finished processing input for {t.User.username}.");
+                    //FoxLog.WriteLine($"{msg.ID}: Finished processing input for {t.User.username}.");
 
                     //await DatabaseHandler.DisplayReceivedTelegramMessage(t.User.ID, message);
                     
