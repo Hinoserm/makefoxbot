@@ -330,7 +330,7 @@ namespace makefoxsrv
             {
                 // Wait for all workers to complete, with timeout
                 // This gives them a chance to finish storing their state if they were in the middle of a task.
-                await Task.Delay(10000); //10 Seconds. 
+                await Task.Delay(100); 
             }
 
             
