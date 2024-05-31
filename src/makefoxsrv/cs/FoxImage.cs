@@ -149,6 +149,9 @@ namespace makefoxsrv
         //bool archiverRunning = false;
         public static async Task RunImageArchiver()
         {
+
+            return; //Broken
+
             int count = 0;
 
             var dataPath =  Path.GetFullPath("../data");
