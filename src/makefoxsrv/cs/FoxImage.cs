@@ -16,6 +16,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 using System.Linq.Expressions;
 using SixLabors.Fonts.Unicode;
+using EmbedIO.Utilities;
 
 namespace makefoxsrv
 {
@@ -97,6 +98,147 @@ namespace makefoxsrv
                 }
             }
             FoxLog.WriteLine($"Finished converting {count} images.");
+        }
+
+        private static async Task UpdatePath(long imageId, string imagePath)
+        {
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+
+            await SQL.OpenAsync();
+
+            using (var cmd = new MySqlCommand())
+            {
+                cmd.Connection = SQL;
+                cmd.CommandText = $"UPDATE images SET image_file = @imgpath WHERE id = @id";
+                cmd.Parameters.AddWithValue("id", imageId);
+                cmd.Parameters.AddWithValue("imgpath", imagePath);
+
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        private static void DeleteEmptyDirectories(string startDirectory)
+        {
+            // Recursively delete empty directories
+            foreach (var directory in Directory.GetDirectories(startDirectory))
+            {
+                DeleteEmptyDirectories(directory);
+            }
+
+            // After the loop to check and potentially remove subdirectories,
+            // we check if the current directory is empty.
+            var entries = Directory.GetFileSystemEntries(startDirectory);
+            if (entries.Length == 0)
+            {
+                try
+                {
+                    Directory.Delete(startDirectory);
+                    Console.WriteLine($"Deleted empty directory: {startDirectory}");
+                }
+                catch (IOException e)
+                {
+                    Console.WriteLine($"Failed to delete {startDirectory}: {e.Message}");
+                }
+                catch (UnauthorizedAccessException e)
+                {
+                    Console.WriteLine($"No permission to delete {startDirectory}: {e.Message}");
+                }
+            }
+        }
+
+        //bool archiverRunning = false;
+        public static async Task RunImageArchiver()
+        {
+            int count = 0;
+
+            var dataPath =  Path.GetFullPath("../data");
+            var archivePath = Path.Combine(dataPath, "archive");
+
+            if (!Directory.Exists(archivePath))
+            {
+                FoxLog.WriteLine("Archive directory does not exist, aborting operation.");
+
+                return;
+            }
+
+            try
+            {
+                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = @"
+                                        SELECT id,image_file
+                                        FROM images 
+                                        WHERE
+                                            image_file IS NOT NULL 
+                                            AND date_added < NOW() - INTERVAL 15 DAY 
+                                            AND image_file NOT LIKE 'archive/%' 
+                                        ORDER BY date_added ASC
+                                        LIMIT 100000";
+
+                    using var r = await cmd.ExecuteReaderAsync();
+
+                    while (await r.ReadAsync())
+                    {
+                        try
+                        {
+                            long id = System.Convert.ToInt64(r["id"]);
+                            string imagePath = System.Convert.ToString(r["image_file"]);
+
+                            var newPath = Path.Combine("archive/", imagePath);
+
+                            var destFile = Path.Combine(dataPath, newPath);
+                            var srcFile = Path.Combine(dataPath, imagePath);
+
+                            if (File.Exists(srcFile) && !File.Exists(destFile))
+                            {
+                                string directoryPath = Path.GetDirectoryName(destFile);
+                                if (!Directory.Exists(directoryPath))
+                                {
+                                    Directory.CreateDirectory(directoryPath);
+                                }
+
+                                File.Move(srcFile, destFile);
+
+                                await UpdatePath(id, newPath);
+
+                                count++;
+                            } else if (!File.Exists(srcFile) && File.Exists(destFile)) {
+                                // Assume it has an identical hash as a previous file, so just update path.
+
+                                await UpdatePath(id, newPath);
+
+                                FoxLog.WriteLine($"Reusing existing file for {id}: {imagePath}");
+                            } else {
+                                FoxLog.WriteLine($"Image file does not exist for {id}: {imagePath}");
+                            }
+
+                            if (count % 100 == 0)
+                            {
+                                FoxLog.WriteLine($"Moved {count} images to archive.");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            FoxLog.WriteLine($"Error archiving image: {ex.Message}\r\n{ex.StackTrace}");
+                        }
+                    }
+                }
+
+                FoxLog.WriteLine("Cleaning up empty directories...");
+
+                DeleteEmptyDirectories(Path.Combine(dataPath, "images"));
+            }
+            catch (Exception ex)
+            {
+                FoxLog.WriteLine($"Error archiving images: {ex.Message}\r\n{ex.StackTrace}");
+            }
+
+            FoxLog.WriteLine($"Finished archiving {count} images.");
         }
 
         public static (int, int) NormalizeImageSize(int width, int height)

@@ -23,6 +23,7 @@ using System.Threading.Channels;
 using static System.Net.Mime.MediaTypeNames;
 using System.Runtime.Intrinsics.Arm;
 using Castle.Core.Smtp;
+using System.Timers;
 public interface IMySettings
 {
     [Option(Alias = "Telegram.BOT_TOKEN")]
@@ -270,6 +271,14 @@ namespace makefoxsrv
 
                 await FoxQueue.EnqueueOldItems();
 
+                var timer = new System.Threading.Timer(state =>
+                {
+                    // Fire and forget the async method
+                    var _ = FoxImage.RunImageArchiver();
+                }, null, 0, 3600000);
+
+                //await FoxImage.RunImageArchiver();
+
                 FoxQueue.StartTaskLoop(cts.Token);
             }
             catch (Exception ex)
@@ -332,8 +341,6 @@ namespace makefoxsrv
                 // This gives them a chance to finish storing their state if they were in the middle of a task.
                 await Task.Delay(100); 
             }
-
-            
         }
     }
 }
