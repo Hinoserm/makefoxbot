@@ -150,8 +150,6 @@ namespace makefoxsrv
         public static async Task RunImageArchiver()
         {
 
-            return; //Broken
-
             int count = 0;
 
             var dataPath =  Path.GetFullPath("../data");
@@ -181,7 +179,7 @@ namespace makefoxsrv
                                             AND date_added < NOW() - INTERVAL 15 DAY 
                                             AND image_file NOT LIKE 'archive/%' 
                                         ORDER BY date_added ASC
-                                        LIMIT 100000";
+                                        LIMIT 20000";
 
                     using var r = await cmd.ExecuteReaderAsync();
 
