@@ -376,9 +376,11 @@ namespace makefoxsrv
 
             sb.AppendLine(" - <b>Early Access:</b> Be the first to try new experimental models and features.\n");
 
-            sb.AppendLine("<i>Note: Membership purchases are not tax-deductible.</i>\n");
+            sb.AppendLine("<a href=\"https://telegra.ph/MakeFox-Membership-06-07\"><b>Click here for more information.</b></a>\n");
 
-            sb.Append("<a href=\"https://telegra.ph/MakeFox-Membership-06-07\"><b>Click here for more information.</b></a>");
+            sb.Append("<i>Note: Membership purchases are not tax-deductible.</i>");
+
+
 
             var msg = sb.ToString();
 
