@@ -207,12 +207,6 @@ namespace makefoxsrv
             }
             FoxLog.WriteLine("done.");
 
-            var assembly = Assembly.GetExecutingAssembly();
-            foreach (var resourceName in assembly.GetManifestResourceNames())
-            {
-                Console.WriteLine(resourceName);
-            }
-
             FoxLog.Write("Connecting to database... ");
             try
             {
@@ -255,7 +249,6 @@ namespace makefoxsrv
 
                 await FoxCommandHandler.SetBotCommands(FoxTelegram.Client);
 
-
                 using (var sql = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
                     await sql.OpenAsync(cts.Token);
@@ -268,6 +261,8 @@ namespace makefoxsrv
                             FoxLog.WriteLine($"Unstuck {stuck_count} queue items.");
                     }
                 }
+
+                await Task.Delay(3000); //Wait a bit for telegram to settle.
 
                 await FoxWorker.StartWorkers();
 

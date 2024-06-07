@@ -31,7 +31,16 @@ namespace makefoxsrv
         // Logging function
         public static void Write(string message, LogLevel level = LogLevel.INFO, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
-            _= Task.Run(() =>
+            // Check if the current log message level is greater than or equal to the application's log level
+            if (level >= CurrentLogLevel)
+            {
+                // Log the message with a timestamp and the level
+                //FoxLog.WriteLine();
+                //FoxUI.AppendLog($"{DateTime.Now} [{level}]: {message}");
+                FoxUI.AppendLog(message);
+            }
+
+            _ = Task.Run(() =>
             {
                 try
                 {
@@ -53,15 +62,6 @@ namespace makefoxsrv
                 catch (Exception e)
                 {
                     Console.WriteLine($"Error writing log: {e.Message}");
-                }
-
-                // Check if the current log message level is greater than or equal to the application's log level
-                if (level >= CurrentLogLevel)
-                {
-                    // Log the message with a timestamp and the level
-                    //FoxLog.WriteLine();
-                    //FoxUI.AppendLog($"{DateTime.Now} [{level}]: {message}");
-                    FoxUI.AppendLog(message);
                 }
             });
         }
