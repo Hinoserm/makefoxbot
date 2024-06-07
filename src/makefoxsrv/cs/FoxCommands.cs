@@ -65,6 +65,7 @@ namespace makefoxsrv
             { "/cancel",      CmdCancel },
             //--------------- -----------------
             { "/donate",      CmdDonate },
+            { "/membership",  CmdDonate },
             //--------------- -----------------
             { "/ban",         CmdBan },
             { "/broadcast",   CmdBroadcast },
