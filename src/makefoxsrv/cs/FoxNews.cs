@@ -61,7 +61,7 @@ namespace makefoxsrv
                     LEFT JOIN user_news un ON q.uid = un.uid AND un.news_id = @newsId
                     WHERE q.date_added >= NOW() - INTERVAL 30 DAY
                     GROUP BY q.uid
-                    HAVING COUNT(q.uid) >= 1 AND COUNT(un.news_id) = 0;";
+                    HAVING COUNT(q.uid) >= 10 AND COUNT(un.news_id) = 0;";
 
                 var activeUsers = new List<long>();
 
