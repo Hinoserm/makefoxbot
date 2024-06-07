@@ -298,7 +298,7 @@ namespace makefoxsrv
         {
 
             if (string.IsNullOrEmpty(FoxMain.settings?.TelegramPaymentToken))
-                throw new Exception("Donations are currently disabled. (token not set)");
+                throw new Exception("Payments are currently disabled. (token not set)");
 
             // Define donation amounts in whole dollars
             int[] donationAmounts = new int[] { 5, 10, 20, 40, 60, 100 };
@@ -328,13 +328,13 @@ namespace makefoxsrv
             }
 
             // Add lifetime access button
-            buttonRows.Add(new TL.KeyboardButtonRow
-            {
-                buttons = new TL.KeyboardButtonCallback[]
-                {
-                    new() { text = "✨💰 💳 $600 (Lifetime Access!) 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate 600 lifetime") }
-                }
-            });
+            //buttonRows.Add(new TL.KeyboardButtonRow
+            //{
+            //    buttons = new TL.KeyboardButtonCallback[]
+            //    {
+            //        new() { text = "✨💰 💳 $600 (Lifetime Access!) 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate 600 lifetime") }
+            //    }
+            //});
 
             // Add cancel button on its own row at the end
             buttonRows.Add(new TL.KeyboardButtonRow
@@ -347,20 +347,40 @@ namespace makefoxsrv
 
             var inlineKeyboard = new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() };
 
-            var msg = @"
-<b>Support Our Service - Unlock Premium Access</b>
+            StringBuilder sb = new StringBuilder();
 
-Thank you for considering a donation to our platform. Your support is crucial for the development and maintenance of our service.
+            sb.AppendLine("<b>MakeFox Membership – Unlock Exclusive Benefits</b>\n"); //Intentional extra newline.
 
-Every <b>$10 US Dollars</b> spent grants 30 days of premium access, with rewards increasing for larger contributions.
+            if (user.datePremiumExpires > DateTime.Now)
+            {
+                //User is already a premium member
+                sb.AppendLine("Thank you for purchasing a MakeFox membership!\n");
+                sb.AppendFormat("Your membership is active until <b>{0:MMMM d\\t\\h yyyy}</b>.\n", user.datePremiumExpires);
 
-<b>Legal:</b>
+            }
+            else
+            {
+                sb.AppendLine("Thank you for considering a membership. <i>MakeFox Group, Inc.</i> is a registered US non-profit, and your support is crucial for the development and maintenance of our platform.");
+                if (user.datePremiumExpires < DateTime.Now)
+                {
+                    sb.AppendFormat("\nYour previous membership expired on <b>{0:MMMM d\\t\\h yyyy}</b>.\n", user.datePremiumExpires);
+                }
+            }
 
-Our service is provided on a best-effort basis, without express or implied warranties.  We reserve the right to modify or discontinue features and limits at any time. <b>Donations are final and non-refundable.</b>
+            sb.AppendLine("\n<b>Membership Benefits:</b>\n");
+            sb.AppendLine(" - <b>High-Resolution Image Enhancements:</b> Members enjoy nearly unlimited enhancements, subject to fair usage limits.\n");
 
-<a href=""https://telegra.ph/Makefoxbot-Tier-Limits-02-22"">Click for more information...</a>
+            sb.AppendLine(" - <b>Flexible Image Dimensions:</b> Create images in any shape and size up to 3.7 million pixels.\n");
 
-We sincerely appreciate your support and understanding. Your contribution directly impacts our ability to maintain and enhance our service, ensuring a robust platform for all users.";
+            sb.AppendLine(" - <b>Prompt Assistance (Coming Soon!):</b> Access to a natural language AI assistant for prompt building.\n");
+
+            sb.AppendLine(" - <b>Early Access:</b> Be the first to try new experimental models and features.\n");
+
+            sb.AppendLine("<i>Note: Membership purchases are not tax-deductible.</i>\n");
+
+            sb.Append("<a href=\"https://telegra.ph/MakeFox-Membership-06-07\"><b>Click here for more information.</b></a>");
+
+            var msg = sb.ToString();
 
             var entities = FoxTelegram.Client.HtmlToEntities(ref msg);
 

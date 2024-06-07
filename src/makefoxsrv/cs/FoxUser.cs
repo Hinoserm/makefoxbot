@@ -19,7 +19,6 @@ public enum AccessLevel
     ADMIN
 }
 
-
 namespace makefoxsrv
 {
     public class FoxUser
@@ -28,7 +27,7 @@ namespace makefoxsrv
         public string? Username;
         public long? TelegramID;
 
-        private DateTime? datePremiumExpires = null;          //Date premium subscription expires.
+        public DateTime? datePremiumExpires { get; private set; } = null;          //Date premium subscription expires.
         private bool lifetimeSubscription = false;            //Do they have a lifetime sub?
         private AccessLevel accessLevel = AccessLevel.BANNED; //Default to BANNED, just in case.
 

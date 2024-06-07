@@ -125,7 +125,7 @@ namespace makefoxsrv
                                 var span = TimeSpan.FromMinutes(30) - (DateTime.Now - date);
 
                                 await t.SendMessageAsync(
-                                    text: $"❌ Basic users are limited to 1 enhanced image per 30 minutes.\nTry again after {span.ToPrettyFormat()}.\n\nPlease consider becoming a premium member to remove this limit: /donate",
+                                    text: $"❌ Basic users are limited to 1 enhanced image per 30 minutes.\nTry again after {span.ToPrettyFormat()}.\n\nPlease consider a membership to remove this limit: /membership",
                                     replyToMessageId: query.msg_id
                                 );
 
@@ -299,7 +299,7 @@ namespace makefoxsrv
             else
             {
                 if (string.IsNullOrEmpty(FoxMain.settings?.TelegramPaymentToken))
-                    throw new Exception("Donations are currently disabled. (token not set)");
+                    throw new Exception("Payments are currently disabled. (token not set)");
 
                 var parts = argument.Split(' ');
                 if (parts.Length != 2)
@@ -315,18 +315,16 @@ namespace makefoxsrv
                     throw new Exception("Invalid days.");
 
                 var prices = new TL.LabeledPrice[] {
-                    new TL.LabeledPrice { label = days == -1 ? "Lifetime Access" : $"{days} Days Access", amount = (int)(amount * 100) },
+                    new TL.LabeledPrice { label = days == -1 ? "Lifetime Membership" : $"{days} Day Membership", amount = (int)(amount * 100) },
                 };
-
-                
 
                 var inputInvoice = new TL.InputMediaInvoice
                 {
                     title = $"One-Time Payment for User ID {user.UID}",
-                    description = days == -1 ? "Lifetime Access" : $"{days} Days Access",
+                    description = (days == -1 ? "Lifetime Membership" : $"{days} Day Membership") + " with MakeFox Group, Inc.",
                     payload = System.Text.Encoding.UTF8.GetBytes($"PAY_{user.UID}_{days}"),
                     provider = FoxMain.settings?.TelegramPaymentToken, // Make sure this is correctly obtained
-                    provider_data = new TL.DataJSON { data = "{\"items\":[{\"description\":\"Product\",\"quantity\":1.0}]}" },
+                    provider_data = new TL.DataJSON { data = "{\"items\":[{\"description\":\"MakeFox Group, Inc. Membership Fee\",\"quantity\":1.0}]}" },
                     invoice = new TL.Invoice
                     {
                         currency = "USD",
@@ -358,7 +356,7 @@ namespace makefoxsrv
                 }
                 catch ( Exception ex )
                 {
-                    FoxLog.WriteLine("DONATE ERROR: " + ex.Message);
+                    FoxLog.WriteLine("PAYMENT ERROR: " + ex.Message);
                 }
 
 
