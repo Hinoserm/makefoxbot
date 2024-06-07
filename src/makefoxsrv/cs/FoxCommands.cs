@@ -356,7 +356,7 @@ namespace makefoxsrv
                 //User is already a premium member
                 sb.AppendLine("Thank you for purchasing a MakeFox membership!\n");
                 sb.AppendFormat("Your membership is active until <b>{0:MMMM d\\t\\h yyyy}</b>.\n", user.datePremiumExpires);
-
+                sb.AppendLine("\nYou can purchase additional days, which will be added to your existing membership time.");
             }
             else
             {

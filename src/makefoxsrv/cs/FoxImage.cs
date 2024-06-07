@@ -218,7 +218,7 @@ namespace makefoxsrv
                                 FoxLog.WriteLine($"Image file does not exist for {id}: {imagePath}");
                             }
 
-                            if (count % 100 == 0)
+                            if (count % 1000 == 0)
                             {
                                 FoxLog.WriteLine($"Moved {count} images to archive.");
                             }

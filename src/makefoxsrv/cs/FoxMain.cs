@@ -168,6 +168,8 @@ namespace makefoxsrv
             var attribute = (AssemblyInformationalVersionAttribute)Attribute.GetCustomAttribute(assembly, typeof(AssemblyInformationalVersionAttribute));
             return attribute?.InformationalVersion; // This will include the version and Git revision
         }
+        
+        private static System.Threading.Timer _HourlyTimer;
 
         static async Task Main(string[] args)
         {
@@ -271,13 +273,13 @@ namespace makefoxsrv
 
                 await FoxQueue.EnqueueOldItems();
 
-                var timer = new System.Threading.Timer(state =>
+                _HourlyTimer = new System.Threading.Timer(state =>
                 {
+                    FoxLog.WriteLine("Running hourly timer.");
+
                     // Fire and forget the async method
                     var _ = FoxImage.RunImageArchiver();
                 }, null, 0, 3600000);
-
-                //await FoxImage.RunImageArchiver();
 
                 FoxQueue.StartTaskLoop(cts.Token);
             }
