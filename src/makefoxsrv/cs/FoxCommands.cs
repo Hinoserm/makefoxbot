@@ -67,6 +67,7 @@ namespace makefoxsrv
             { "/donate",      CmdDonate },
             //--------------- -----------------
             { "/ban",         CmdBan },
+            { "/broadcast",   CmdBroadcast },
             //--------------- -----------------
             { "/info",        CmdInfo },
         };
@@ -130,7 +131,18 @@ namespace makefoxsrv
                 }
 
                 //FoxLog.WriteLine($"{message.ID}: Running command for UID {fUser?.UID}...");
-                await commandHandler(t, message, fUser, argument);
+                try
+                {
+                    await commandHandler(t, message, fUser, argument);
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.WriteLine($"{message.ID}: Error running command '{command}' for {fUser?.UID}.  Error: {ex.Message}\r\n{ex.StackTrace}");
+                    await t.SendMessageAsync(
+                        text: $"❌ Error: {ex.Message}",
+                        replyToMessageId: message.ID
+                    );
+                }
                 //FoxLog.WriteLine($"{message.ID}: Finished running command for {fUser?.UID}.");
             }
             else if (explicitlyNamed) //Only send this message if we were explicitly named in the chat (e.g. /command@botname)
@@ -765,6 +777,43 @@ We sincerely appreciate your support and understanding. Your contribution direct
                 text: "Select a model:",
                 replyInlineMarkup: inlineKeyboard
             );
+        }
+
+        private static async Task CmdBroadcast(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            if (!user.CheckAccessLevel(AccessLevel.ADMIN))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must be an admin to use this command.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            if (String.IsNullOrEmpty(argument))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must provide a user ID to ban.\r\n\r\nFormat:\r\n  /ban <uid>\r\n  /ban @username",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            long news_id = 0;
+
+            if (!long.TryParse(argument, out news_id))
+            {
+                await t.SendMessageAsync(
+                    text: "❌You must provide a numeric value.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            _= FoxNews.BroadcastNewsItem(news_id);
         }
 
         private static async Task CmdBan(FoxTelegram t, Message message, FoxUser user, String? argument)

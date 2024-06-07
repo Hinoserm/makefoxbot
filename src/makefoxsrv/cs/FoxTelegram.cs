@@ -437,7 +437,7 @@ We are committed to using your donation to further develop and maintain the serv
                 }
                 catch (Exception ex)
                 {
-                    FoxLog.WriteLine("telegram_log error: " + ex.Message);
+                    FoxLog.WriteLine("HandleMessageAsync error: " + ex.Message);
                 }
             }
         }

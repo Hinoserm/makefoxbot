@@ -1033,7 +1033,9 @@ namespace makefoxsrv
                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
                     var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
-                    var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
+                    //var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
+
+                    var sampler = await api.Sampler("Euler A", ctsLoop.Token);
 
                     FoxImage? inputImage = await qItem.GetInputImage();
 
@@ -1083,8 +1085,9 @@ namespace makefoxsrv
 
                     //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
                     var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
-                    var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
+                    //var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
                     //var sampler = await api.Sampler("Restart", ctsLoop.Token);
+                    var sampler = await api.Sampler("Euler A", ctsLoop.Token);
 
                     var width = settings.width;
                     var height = settings.height;
