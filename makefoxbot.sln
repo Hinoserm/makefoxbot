@@ -17,7 +17,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "trainer", "src\trainer\Cons
 EndProject
 Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "react", "react\react.esproj", "{97A0A9E8-5943-489B-8C66-A4ECD909BD32}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "admingui", "..\admingui\admingui.csproj", "{DA19612D-B207-4365-9ECD-0D95EB89EE73}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "admingui", "src\admingui\admingui.csproj", "{6CCC49F8-299A-4A82-9AC2-4B9C4FF0C9D2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -55,10 +55,10 @@ Global
 		{97A0A9E8-5943-489B-8C66-A4ECD909BD32}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{97A0A9E8-5943-489B-8C66-A4ECD909BD32}.Release|Any CPU.Build.0 = Release|Any CPU
 		{97A0A9E8-5943-489B-8C66-A4ECD909BD32}.Release|Any CPU.Deploy.0 = Release|Any CPU
-		{DA19612D-B207-4365-9ECD-0D95EB89EE73}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{DA19612D-B207-4365-9ECD-0D95EB89EE73}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{DA19612D-B207-4365-9ECD-0D95EB89EE73}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{DA19612D-B207-4365-9ECD-0D95EB89EE73}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6CCC49F8-299A-4A82-9AC2-4B9C4FF0C9D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6CCC49F8-299A-4A82-9AC2-4B9C4FF0C9D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6CCC49F8-299A-4A82-9AC2-4B9C4FF0C9D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6CCC49F8-299A-4A82-9AC2-4B9C4FF0C9D2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
