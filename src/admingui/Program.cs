@@ -43,10 +43,10 @@ namespace admingui
         private static void OnChatClick(object sender, EventArgs e)
         {
             // Show the Chat form
-            //using (var chatForm = new frmChat())
-            //{
-            //    chatForm.ShowDialog();
-            //}
+            using (var chatForm = new FrmChat())
+            {
+                chatForm.ShowDialog();
+            }
         }
 
         private static void OnStatusClick(object sender, EventArgs e)

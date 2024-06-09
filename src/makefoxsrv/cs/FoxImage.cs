@@ -330,8 +330,13 @@ namespace makefoxsrv
             File.WriteAllBytes(fullPath, imageData);
         }
 
-        public static string GenerateImagePath(ImageType type, string sha1Checksum, DateTime creationTime, string fileExtension = "png")
+        private string GenerateImagePath()
         {
+            var creationTime = this.DateAdded;
+            var sha1Checksum = this.SHA1Hash;
+            var type = this.Type;
+            var fileExtension = GetImageExtension(this.Image);
+
             // Convert the ImageType enum to lowercase string, handling specific cases as needed
             string typePath = type.ToString().ToLower();
 
@@ -415,10 +420,9 @@ namespace makefoxsrv
             if (this.DateAdded == DateTime.MinValue)
                 this.DateAdded = DateTime.Now;
 
-            var imagePath = GenerateImagePath(this.Type, this.SHA1Hash, this.DateAdded, GetImageExtension(this.Image));
+            var imagePath = this.GenerateImagePath();
 
             WriteImageToFile(this.Image, imagePath);
-
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {

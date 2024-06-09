@@ -73,7 +73,9 @@ class FoxWeb
                 JsonObject parameters = await ParseParameters(HttpContext);
 
                 // Use the CallMethod function to invoke the method dynamically
-                JsonObject? result = await MethodLookup.CallMethod(command, user, parameters);
+                // FIXME: JsonObject? result = await MethodLookup.CallMethod(command, user, parameters);
+
+                JsonObject? result = null;
 
                 // Determine the appropriate response based on the result
                 HttpContext.Response.ContentType = "application/json";
@@ -232,7 +234,7 @@ class FoxWeb
 
             if (cookies.TryGetValue("PHPSESSID", out var sessionId))
             {
-                return await FoxWebSessions.GetUserFromSession(sessionId);
+                //return await FoxWebSession.GetUserFromSession(sessionId);
             }
         }
 
@@ -280,7 +282,7 @@ class FoxWeb
             }
         }
 
-        public static async Task<JsonObject?> CallMethod(string command, FoxUser? user, JsonObject jsonParameters)
+        public static async Task<JsonObject?> CallMethod(string command, FoxWebSession session, JsonObject jsonParameters)
         {
             string key = command.ToLower();
 
@@ -288,19 +290,19 @@ class FoxWeb
             {
                 // Check if user login is required and if the user is logged in
                 // Setting the AccessLevel implies the login check is also required
-                if ((details.LoginRequired || details.AccessLevel is not null) && user == null)
+                if ((details.LoginRequired || details.AccessLevel is not null) && session.user is null)
                 {
                     throw new Exception("User must be logged in to use this function.");
                 }
 
                 // Check if the user meets the required access level
                 // Make sure to only check the AccessLevel if it's set
-                if (details.AccessLevel is not null && (user is null || !user.CheckAccessLevel(details.AccessLevel.Value)))
+                if (details.AccessLevel is not null && (session.user is null || !session.user.CheckAccessLevel(details.AccessLevel.Value)))
                 {
                     throw new Exception($"User does not have the required access level. Required: {details.AccessLevel}");
                 }
 
-                object[] args = new object[] { user, jsonParameters };
+                object[] args = new object[] { session, jsonParameters };
 
                 object? result = details.MethodInfo.IsStatic
                     ? details.MethodInfo.Invoke(null, args)

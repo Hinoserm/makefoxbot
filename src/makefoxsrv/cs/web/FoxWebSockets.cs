@@ -32,10 +32,11 @@ using System.Reflection;
 using JsonObject = System.Text.Json.Nodes.JsonObject;
 using JsonArray = System.Text.Json.Nodes.JsonArray;
 using System.Xml;
+using EmbedIO.Sessions;
 
 class FoxWebSockets {
 
-    public static readonly ConcurrentDictionary<IWebSocketContext, FoxUser?> ActiveConnections = new ConcurrentDictionary<IWebSocketContext, FoxUser?>();
+    public static readonly ConcurrentDictionary<IWebSocketContext, FoxWebSession?> ActiveConnections = new ConcurrentDictionary<IWebSocketContext, FoxWebSession?>();
 
     public class Handler : WebSocketModule
     {
@@ -52,21 +53,9 @@ class FoxWebSockets {
 
                 System.Text.Json.Nodes.JsonObject jsonMessage = JsonNode.Parse(message).AsObject();
 
-                FoxUser? user = null;
+                string? sessionID = FoxJsonHelper.GetString(jsonMessage, "SessionID", true);
 
-                string? SessionID = FoxJsonHelper.GetString(jsonMessage, "SessionID", true);
-
-                if (SessionID is not null)
-                {
-                    user = await FoxWebSessions.GetUserFromSession(SessionID);
-
-                    if (user is null)
-                        throw new Exception("Invalid session ID");
-                }
-                else
-                {
-                    user = await GetUserFromRequest(context);
-                }
+                FoxWebSession session = await FoxWebSession.LoadFromContext(context, sessionID);
 
                 //var jsonMessage = JsonSerializer.Deserialize<Dictionary<string, object>>(message);
                 if (jsonMessage != null && jsonMessage.ContainsKey("Command"))
@@ -90,7 +79,7 @@ class FoxWebSockets {
                                 if (String.IsNullOrEmpty(query))
                                     return; //No point wasting our time if the query is empty
 
-                                if (user is null || !user.CheckAccessLevel(AccessLevel.ADMIN))
+                                if (session.user is null || !session.user.CheckAccessLevel(AccessLevel.ADMIN))
                                     return; //Only admins can use this feature
 
                                 var suggestions = await FoxUser.GetSuggestions(query);
@@ -111,7 +100,7 @@ class FoxWebSockets {
                                 try
                                 {
                                     // Use the CallMethod function to invoke the method dynamically
-                                    JsonObject? output = await MethodLookup.CallMethod(command, user, jsonMessage);
+                                    JsonObject? output = await MethodLookup.CallMethod(command, session, jsonMessage);
 
                                     if (output is null)
                                     {
@@ -165,52 +154,21 @@ class FoxWebSockets {
 
         protected override async Task OnClientConnectedAsync(IWebSocketContext context)
         {
-            var user = await GetUserFromRequest(context);
-            ActiveConnections.TryAdd(context, user);
-            Console.WriteLine($"WebSocket Connected. User: {(user?.Username ?? "(none)")}");
+            FoxWebSession? session = await FoxWebSession.LoadFromContext(context, createNew: false);
+
+            Console.WriteLine($"WebSocket Connected. User: {(session?.user?.Username ?? "(none)")}");
         }
 
         protected override Task OnClientDisconnectedAsync(IWebSocketContext context)
         {
-            ActiveConnections.TryRemove(context, out _);
-            Console.WriteLine("WebSocket disconnected!");
+            var removedSessions = FoxWebSession.RemoveByContext(context);
+
+            // Print comma-delimited list of usernames or "(none)"
+            var usernames = string.Join(", ", removedSessions.Select(s => s.user?.Username ?? "(none)"));
+
+            Console.WriteLine($"WebSocket disconnected! User: {usernames}");
             return Task.CompletedTask;
         }
-    }
-
-    public static async Task<FoxUser?> GetUserFromRequest(IWebSocketContext context)
-    {
-        // Check if the user is already in the active connections
-        if (ActiveConnections.TryGetValue(context, out var cachedUser))
-        {
-            return cachedUser;
-        }
-
-        // Proceed to check the cookie and get user from the session if not found in active connections
-        string? cookieHeader = context.Headers.GetValues("Cookie")?.FirstOrDefault();
-
-        if (cookieHeader is not null)
-        {
-            var cookies = cookieHeader.Split(';')
-                .Select(cookie => cookie.Split('='))
-                .Where(parts => parts.Length == 2)
-                .ToDictionary(parts => parts[0].Trim(), parts => parts[1].Trim());
-
-            if (cookies.TryGetValue("PHPSESSID", out var sessionId))
-            {
-                var user = await FoxWebSessions.GetUserFromSession(sessionId);
-
-                // Cache the user in ActiveConnections if not already cached
-                if (user != null)
-                {
-                    ActiveConnections[context] = user;
-                }
-
-                return user;
-            }
-        }
-
-        return null;
     }
 
     public static async Task SendResponse(IWebSocketContext context, object response)

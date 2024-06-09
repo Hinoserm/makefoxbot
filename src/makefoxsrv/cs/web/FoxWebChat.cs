@@ -33,11 +33,16 @@ namespace makefoxsrv
         [WebFunctionName("GetMessages")]    // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject?> GetMessages(FoxUser fromUser, JsonObject jsonMessage)
+        public static async Task<JsonObject?> GetMessages(FoxWebSession session, JsonObject jsonMessage)
         {
             long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false)!.Value;
 
             int msgCount = FoxJsonHelper.GetInt(jsonMessage, "Count", true) ?? 30;
+
+            if (session.user is null)
+                throw new Exception("User not logged in.");
+
+            FoxUser fromUser = session.user;
 
             if (msgCount < 1)
                 throw new Exception("Invalid message count.");
@@ -159,10 +164,12 @@ namespace makefoxsrv
         [WebFunctionName("SendMessage")]    // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject?> SendMessage(FoxUser fromUser, JsonObject jsonMessage)
+        public static async Task<JsonObject?> SendMessage(FoxWebSession session, JsonObject jsonMessage)
         {
             long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false).Value;
             string message = FoxJsonHelper.GetString(jsonMessage, "Message", false);
+
+            var fromUser = session.user;
 
             var toUser = await FoxWebChat.GetUserFromChatId(fromUser, chatId);
 
@@ -211,8 +218,10 @@ namespace makefoxsrv
         [WebFunctionName("Delete")]         // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject?> Delete(FoxUser fromUser, JsonObject jsonMessage)
+        public static async Task<JsonObject?> Delete(FoxWebSession session, JsonObject jsonMessage)
         {
+            var fromUser = session.user;
+
             long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false).Value;
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
@@ -242,7 +251,7 @@ namespace makefoxsrv
         [WebFunctionName("Get")]            // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject> Get(FoxUser user, JsonObject jsonMessage)
+        public static async Task<JsonObject> Get(FoxWebSession session, JsonObject jsonMessage)
         {
             long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false)!.Value;
 
@@ -255,7 +264,7 @@ namespace makefoxsrv
                     cmd.Connection = SQL;
                     cmd.CommandText = "SELECT * FROM admin_open_chats WHERE id = @chat_id LIMIT 1";
                     cmd.Parameters.AddWithValue("chat_id", chatId);
-                    cmd.Parameters.AddWithValue("uid", user.UID);
+                    cmd.Parameters.AddWithValue("uid", session.user.UID);
 
                     using (var reader = await cmd.ExecuteReaderAsync())
                     {
@@ -263,13 +272,13 @@ namespace makefoxsrv
                         {
                             var fromUID = reader.GetInt64("to_uid");
 
-                            if ((ulong)fromUID != user.UID)
+                            if ((ulong)fromUID != session.user.UID)
                             { 
                                 return new JsonObject
                                 {
                                     ["Command"] = "Chat:List",
                                     ["Success"] = false,
-                                    ["Error"] = $"ChatID '{chatId}' does not belong to current user '{user.UID}'."
+                                    ["Error"] = $"ChatID '{chatId}' does not belong to current user '{session.user.UID}'."
                                 };
                             }
 
@@ -309,9 +318,11 @@ namespace makefoxsrv
         [WebFunctionName("New")]    // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject?> New(FoxUser fromUser, JsonObject jsonMessage)
+        public static async Task<JsonObject?> New(FoxWebSession session, JsonObject jsonMessage)
         {
             string username = FoxJsonHelper.GetString(jsonMessage, "Username", false)!;
+
+            var fromUser = session.user;
 
             var chatUser = await FoxUser.ParseUser(username);
 
@@ -363,7 +374,7 @@ namespace makefoxsrv
         [WebFunctionName("List")]    // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject> List(FoxUser user, JsonObject jsonMessage)
+        public static async Task<JsonObject> List(FoxWebSession session, JsonObject jsonMessage)
         {
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -373,7 +384,7 @@ namespace makefoxsrv
                 {
                     cmd.Connection = SQL;
                     cmd.CommandText = "SELECT * FROM admin_open_chats WHERE from_uid = @uid ORDER BY date_opened";
-                    cmd.Parameters.AddWithValue("uid", user.UID);
+                    cmd.Parameters.AddWithValue("uid", session.user.UID);
 
                     using (var reader = await cmd.ExecuteReaderAsync())
                     {
@@ -433,13 +444,9 @@ namespace makefoxsrv
                         {
                             var chatId = reader.GetUInt64("id");
 
-
-                            foreach (var kvp in FoxWebSockets.ActiveConnections)
+                            foreach (var (context, connectedSession) in FoxWebSession.GetActiveWebSocketSessions())
                             {
-                                var context = kvp.Key;
-                                var connectedUser = kvp.Value; // Get the user associated with the context (can be null)
-
-                                if (connectedUser != null && (connectedUser.CheckAccessLevel(AccessLevel.ADMIN)))
+                                if (connectedSession.user is not null && (connectedSession.user.CheckAccessLevel(AccessLevel.ADMIN)))
                                 {
                                     var msg = new Message
                                     {
@@ -470,10 +477,10 @@ namespace makefoxsrv
             }
         }
 
+
         // Function to broadcast message to all WebSocket clients
         public static async Task BroadcastMessageAsync(FoxUser? user, TL.InputUser? tgUser, TL.InputPeer? tgPeer, string message)
         {
-
             if (tgUser is null || tgUser.UserId is null)
                 return;
 
@@ -504,13 +511,9 @@ namespace makefoxsrv
                             var fromUser = await FoxUser.GetByUID(reader.GetInt64("from_uid"));
                             var chatId = reader.GetUInt64("id");
 
-
-                            foreach (var kvp in FoxWebSockets.ActiveConnections)
+                            foreach (var (context, connectedSession) in FoxWebSession.GetActiveWebSocketSessions())
                             {
-                                var context = kvp.Key;
-                                var connectedUser = kvp.Value; // Get the user associated with the context (can be null)
-
-                                if (connectedUser != null && (connectedUser.TelegramID == tgUser?.UserId || connectedUser.CheckAccessLevel(AccessLevel.ADMIN)))
+                                if (connectedSession.user is not null && (connectedSession.user.TelegramID == tgUser?.UserId || connectedSession.user.CheckAccessLevel(AccessLevel.ADMIN)))
                                 {
                                     var msg = new Message
                                     {
@@ -535,10 +538,10 @@ namespace makefoxsrv
                                 }
                             }
                         }
-
                     }
                 }
             }
         }
+
     }
 }
