@@ -1095,12 +1095,12 @@ namespace makefoxsrv
 
                     if (settings.width > 1088 || settings.height > 1088)
                     {
-                        var upscaler = await api.Upscaler("R-ESRGAN 4x+", ctsLoop.Token);
+                        var upscaler = await api.Upscaler("Nearest", ctsLoop.Token);
                         hiResConfig = new HighResConfig()
                         {
                             Width = settings.width,
                             Height = settings.height,
-                            DenoisingStrength = 0.55,
+                            DenoisingStrength = 0.60,
                             Upscaler = upscaler,
                             Steps = 15
                         };
