@@ -11,6 +11,7 @@ using EmbedIO.WebApi;
 using EmbedIO.WebSockets;
 using System.Runtime.CompilerServices;
 using EmbedIO.Sessions;
+using static System.Collections.Specialized.BitVector32;
 
 namespace makefoxsrv
 {
@@ -368,6 +369,19 @@ namespace makefoxsrv
             }
 
             return sessionId.ToString();
+        }
+
+        public void End()
+        {
+            lock (sessionLock)
+            {
+                HttpContexts.Clear();
+                WsContexts.Clear();
+                var node = sessions.FirstOrDefault(s => s.Id == this.Id);
+
+                if (node is not null)
+                    sessions.Remove(node);
+            }
         }
     }
 }

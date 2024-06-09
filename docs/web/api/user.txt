@@ -1,0 +1,42 @@
+--------------------------------------------------------------
+
+User:Login
+  Description:
+    Attempt to log in a user to this session.
+  Expected Parameters:
+    Command  : "User:Login"
+    Username : (string)
+    Password : (string)
+    SessionID: (string, optional) -- attempt to reuse existing session
+    SeqID    : (optional) -- echo'd back on reply
+  Returns:
+    Command    : (string) "User:Login"
+    Success    : (bool) True
+    Username   : (string, optional) -- the user's username, if available
+    UID        : (long) -- the user's unique ID number
+    AccessLevel: (string) -- one of: "BANNED","LIMITED","BASIC","PREMIUM","ADMIN","UNKNOWN"
+    SessionID  : (string) -- always returned
+    SeqID      : (optional) -- identical as sent, if supplied
+  Auth Failure (or any other error):
+    Success : (bool) False
+    Error   : (string, optional) -- the error message, if available
+
+User:Status
+  Description:
+    Return the basic user info for this session
+  Expected Parameters:
+    Command  : "User:Status"
+    SessionID: (string, optional)
+    SeqID    : (optional) -- echo'd back on reply
+  Returns:
+    Command    : (string) "User:Status"
+    Success    : (bool) True
+    Username   : (string, optional) -- the user's username, if available
+    UID        : (long) -- the user's unique ID number
+    AccessLevel: (string) -- one of: "BANNED","LIMITED","BASIC","PREMIUM","ADMIN","UNKNOWN"
+    SessionID  : (string) -- always returned
+    SeqID      : (optional) -- identical as sent, if supplied
+  On Error:
+    Success : (bool) False
+    Error   : (string, optional) -- the error message, if available
+

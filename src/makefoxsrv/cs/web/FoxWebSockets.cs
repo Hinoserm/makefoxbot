@@ -47,108 +47,207 @@ class FoxWebSockets {
 
         protected override async Task OnMessageReceivedAsync(IWebSocketContext context, byte[] buffer, IWebSocketReceiveResult result)
         {
-            try {
+            JsonNode? seqID = null;
+            string? command = null;
+            JsonObject? responseMessage = null;
+            FoxWebSession? session = null;
+
+            try
+            {
                 var message = System.Text.Encoding.UTF8.GetString(buffer);
                 Console.WriteLine("Received: " + message);
 
-                System.Text.Json.Nodes.JsonObject jsonMessage = JsonNode.Parse(message).AsObject();
+                System.Text.Json.Nodes.JsonObject? jsonMessage = JsonNode.Parse(message)?.AsObject();
+
+                if (jsonMessage is null)
+                    throw new Exception("Invalid JSON message received!");
+
+                // Extract and store the "SeqID"
+                seqID = jsonMessage.ContainsKey("SeqID") ? jsonMessage["SeqID"].Deserialize<JsonNode>() : null;
 
                 string? sessionID = FoxJsonHelper.GetString(jsonMessage, "SessionID", true);
 
-                FoxWebSession session = await FoxWebSession.LoadFromContext(context, sessionID);
+                session = await FoxWebSession.LoadFromContext(context, sessionID);
 
-                //var jsonMessage = JsonSerializer.Deserialize<Dictionary<string, object>>(message);
-                if (jsonMessage != null && jsonMessage.ContainsKey("Command"))
+                if (!jsonMessage.ContainsKey("Command"))
+                    throw new Exception("No Command specified in message.");
+
+                command = jsonMessage["Command"].ToString();
+
+                switch (command)
                 {
-                    var command = jsonMessage["Command"].ToString();
-
-                    switch (command)
-                    {
-                        case "Ping":
+                    case "Ping":
+                        {
+                            responseMessage = new JsonObject
                             {
-                                var response = new { Command = "Pong" };
-                                var responseMessage = JsonSerializer.Serialize(response);
+                                ["Command"] = "Pong"
+                            };
 
-                                await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(responseMessage), true);
-                                break;
+                            break;
+                        }
+                    case "Session:Info":
+                        {
+                            if (session is null)
+                                throw new Exception("No session.");
+
+                            responseMessage = new JsonObject
+                            {
+                                ["SessionID"] = session.Id,
+                                ["LoggedIn"] = session.user is not null,
+                                ["Success"] = true
+                            };
+
+                            if (session.user is not null)
+                            {
+                                responseMessage["UID"] = session.user.UID;
+                                responseMessage["AccessLevel"] = session.user.GetAccessLevel().ToString();
                             }
-                        case "Autocomplete":
+
+                            break;
+                        }
+                    case "Session:End":
+                        {
+                            // Mark the session as ended and forget it completely.
+
+                            if (session is null)
+                                throw new Exception("No session.");
+
+                            await session.Save();
+                            session.End();
+
+                            responseMessage = new JsonObject
                             {
-                                var query = jsonMessage["Query"].ToString();
+                                ["SessionID"] = session.Id,
+                                ["Success"] = true
+                            };
 
-                                if (String.IsNullOrEmpty(query))
-                                    return; //No point wasting our time if the query is empty
+                            break;
+                        }
+                    case "Session:Forget":
+                        {
+                            // Remove the session for only this context, leaving it valid for re-use.
 
-                                if (session.user is null || !session.user.CheckAccessLevel(AccessLevel.ADMIN))
-                                    return; //Only admins can use this feature
+                            if (session is null)
+                                throw new Exception("No session.");
 
-                                var suggestions = await FoxUser.GetSuggestions(query);
-                                var response = new AutocompleteResponse
+                            FoxWebSession.RemoveByContext(context);
+
+                            responseMessage = new JsonObject
+                            {
+                                ["SessionID"] = session.Id,
+                                ["Success"] = true
+                            };
+
+                            break;
+                        }
+                    case "Autocomplete":
+                        {
+                            var query = jsonMessage["Query"].ToString();
+
+                            if (string.IsNullOrEmpty(query))
+                                return; // No point wasting our time if the query is empty
+
+                            if (session.user is null || !session.user.CheckAccessLevel(AccessLevel.ADMIN))
+                                return; // Only admins can use this feature
+
+                            var suggestions = await FoxUser.GetSuggestions(query);
+                            var response = new AutocompleteResponse
+                            {
+                                Command = "AutocompleteResponse",
+                                Suggestions = suggestions.Select(s => new AutocompleteSuggestion { Display = s.Display, Paste = s.Paste }).ToList()
+                            };
+
+                            var responseJson = JsonSerializer.SerializeToNode(response).AsObject();
+                            responseMessage = responseJson;
+                            break;
+                        }
+                    default:
+                        {
+                            JsonObject response;
+
+                            try
+                            {
+                                // Use the CallMethod function to invoke the method dynamically
+                                JsonObject? output = await MethodLookup.CallMethod(command, session, jsonMessage);
+
+                                if (output is null)
                                 {
-                                    Command = "AutocompleteResponse",
-                                    Suggestions = suggestions.Select(s => new AutocompleteSuggestion { Display = s.Display, Paste = s.Paste }).ToList()
+                                    // Send a generic Success response if the method didn't return anything
+                                    response = new JsonObject
+                                    {
+                                        ["Command"] = command,
+                                        ["Success"] = true
+                                    };
+                                }
+                                else
+                                {
+                                    response = output;
+                                }
+                            }
+                            catch (TargetInvocationException tie)
+                            {
+                                // Log and respond with the underlying cause if it's a reflection-invoked error
+                                var realError = tie.InnerException ?? tie; // Fallback to the outer exception if no inner
+                                Console.WriteLine($"Error invoking method: {realError.Message}\r\n{realError.StackTrace}");
+
+                                response = new JsonObject
+                                {
+                                    ["Command"] = command,
+                                    ["Success"] = false,
+                                    ["Error"] = $"{realError.Message}"
                                 };
-
-                                var responseMessage = JsonSerializer.Serialize(response);
-                                await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(responseMessage), true);
-                                break;
                             }
-                        default:
+                            catch (Exception ex)
                             {
-                                JsonObject response;
+                                Console.WriteLine($"Error invoking method: {ex.Message}\r\n{ex.StackTrace}");
 
-                                try
+                                response = new JsonObject
                                 {
-                                    // Use the CallMethod function to invoke the method dynamically
-                                    JsonObject? output = await MethodLookup.CallMethod(command, session, jsonMessage);
-
-                                    if (output is null)
-                                    {
-                                        //Send a generic Success response if the method didn't return anything
-                                        response = new JsonObject
-                                        {
-                                            ["Command"] = command,
-                                            ["Success"] = true
-                                        };
-                                    } else
-                                        response = output;
-                                }
-                                catch (TargetInvocationException tie)
-                                {
-                                    // Log and respond with the underlying cause if it's a reflection-invoked error
-                                    var realError = tie.InnerException ?? tie; // Fallback to the outer exception if no inner
-                                    Console.WriteLine($"Error invoking method: {realError.Message}\r\n{realError.StackTrace}");
-
-                                    response = new JsonObject
-                                    {
-                                        ["Command"] = command,
-                                        ["Success"] = false,
-                                        ["Error"] = $"{realError.Message}"
-                                    };
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine($"Error invoking method: {ex.Message}\r\n{ex.StackTrace}");
-
-                                    response = new JsonObject
-                                    {
-                                        ["Command"] = command,
-                                        ["Success"] = false,
-                                        ["Error"] = $"{ex.Message}"
-                                    };
-                                }
-
-                                var responseMessage = JsonSerializer.Serialize(response);
-                                await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(responseMessage), true);
-                                break;
+                                    ["Command"] = command,
+                                    ["Success"] = false,
+                                    ["Error"] = $"{ex.Message}"
+                                };
                             }
-                    }
+
+                            responseMessage = response;
+                            break;
+                        }
+                }
+
+                if (responseMessage is null)
+                    throw new Exception("No response was generated!");
+            }
+            catch (Exception ex)
+            {
+                responseMessage = new JsonObject
+                {
+                    ["Command"] = command ?? "Error",
+                    ["Success"] = false,
+                    ["Error"] = $"{ex.Message}"
+                };
+
+                Console.WriteLine($"Websocket Error: {ex.Message}\r\n{ex.StackTrace}");
+            }
+
+            try
+            {
+                if (responseMessage is not null)
+                {
+                    if (!responseMessage.ContainsKey("Command"))
+                        responseMessage["Command"] = command;
+
+                    if (!responseMessage.ContainsKey("Success"))
+                        responseMessage["Success"] = true;
+
+                    if (seqID is not null)
+                        responseMessage["SeqID"] = JsonNode.Parse(seqID.ToJsonString());
+
+                    await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(responseMessage.ToJsonString()), true);
                 }
             }
             catch (Exception ex)
             {
-                await SendErrorResponse(context, $"Error: {ex.Message}");
-                Console.WriteLine($"Websocket Error: {ex.Message}\r\n{ex.StackTrace}");
+                Console.WriteLine($"Websocket error: {ex.Message}\r\n{ex.StackTrace}");
             }
         }
 
@@ -174,22 +273,6 @@ class FoxWebSockets {
     public static async Task SendResponse(IWebSocketContext context, object response)
     {
         string jsonMessage = JsonSerializer.Serialize(response);
-
-        await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
-    }
-
-    public static async Task SendErrorResponse(IWebSocketContext context, string errorMessage)
-    {
-        var msg = new
-        {
-            Error = new
-            {
-                Command = "Error",
-                Message = errorMessage
-            }
-        };
-
-        string jsonMessage = JsonSerializer.Serialize(msg);
 
         await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
     }

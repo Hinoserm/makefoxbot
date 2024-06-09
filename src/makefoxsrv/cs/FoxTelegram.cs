@@ -531,7 +531,10 @@ We are committed to using your membership fees to further develop and maintain t
                                         updates.Chats.TryGetValue(m.peer_id, out chat);
 
                                         if (user is null)
+                                        {
+                                            FoxLog.WriteLine($"Weird message {m.ID}: {m.from_id} {m.peer_id} {m.GetType()}");
                                             throw new Exception("Invalid telegram user");
+                                        }
 
                                         t = new FoxTelegram(user, chat);
                                         msg_id = m.ID;
