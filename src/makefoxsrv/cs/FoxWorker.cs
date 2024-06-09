@@ -1034,8 +1034,7 @@ namespace makefoxsrv
 
                     var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
                     //var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
-
-                    var sampler = await api.Sampler("Euler A", ctsLoop.Token);
+                    var sampler = await api.Sampler(settings.model == "redwater_703" ? "DPM++ 2M Karras" : "Euler A", ctsLoop.Token);
 
                     FoxImage? inputImage = await qItem.GetInputImage();
 
@@ -1087,7 +1086,7 @@ namespace makefoxsrv
                     var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
                     //var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
                     //var sampler = await api.Sampler("Restart", ctsLoop.Token);
-                    var sampler = await api.Sampler("Euler A", ctsLoop.Token);
+                    var sampler = await api.Sampler(settings.model == "redwater_703" ? "DPM++ 2M Karras" : "Euler A", ctsLoop.Token);
 
                     var width = settings.width;
                     var height = settings.height;
