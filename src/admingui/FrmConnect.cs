@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 
 namespace admingui
 {
@@ -64,8 +65,10 @@ namespace admingui
 
         }
 
-        private void btnConnect_Click(object sender, EventArgs e)
+        private async void btnConnect_Click(object sender, EventArgs e)
         {
+
+            btnConnect.Enabled = false;
 
             if (String.IsNullOrEmpty(cmbServerAddress.Text))
             {
@@ -109,6 +112,27 @@ namespace admingui
             catch (Exception ex)
             {
                 MessageBox.Show($"Error saving settings: {ex.Message}");
+            }
+
+            try
+            {
+                await WebSocketManager.Instance.ConnectAsync(cmbServerAddress.Text);
+
+                var loginSuccess = await WebSocketManager.Instance.LoginAsync(txtUsername.Text, txtPassword.Text);
+
+                if (loginSuccess)
+                {
+                    MessageBox.Show("Login successful: " + WebSocketManager.Instance.Username, "Login Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    //this.Close();
+                } else
+                {
+                    MessageBox.Show("Login failed (unknown error)", "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: " + ex.Message, "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                btnConnect.Enabled = true;
             }
         }
 

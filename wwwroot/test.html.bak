@@ -8,8 +8,7 @@
 <body>
     <h1>WebSocket Test</h1>
     <div id="messages"></div>
-    <textarea id="messageInput" placeholder="Enter your message here" rows="4" cols="50"></textarea>
-    <br>
+    <input type="text" id="messageInput" placeholder="Enter your message here">
     <button onclick="sendMessage()">Send Message</button>
     <script>
         // Construct WebSocket URL based on the current location

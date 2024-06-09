@@ -47,12 +47,26 @@ class FoxWebSockets {
         protected override async Task OnMessageReceivedAsync(IWebSocketContext context, byte[] buffer, IWebSocketReceiveResult result)
         {
             try {
-                var user = await GetUserFromRequest(context);
-
                 var message = System.Text.Encoding.UTF8.GetString(buffer);
                 Console.WriteLine("Received: " + message);
 
                 System.Text.Json.Nodes.JsonObject jsonMessage = JsonNode.Parse(message).AsObject();
+
+                FoxUser? user = null;
+
+                string? SessionID = FoxJsonHelper.GetString(jsonMessage, "SessionID", true);
+
+                if (SessionID is not null)
+                {
+                    user = await FoxWebSessions.GetUserFromSession(SessionID);
+
+                    if (user is null)
+                        throw new Exception("Invalid session ID");
+                }
+                else
+                {
+                    user = await GetUserFromRequest(context);
+                }
 
                 //var jsonMessage = JsonSerializer.Deserialize<Dictionary<string, object>>(message);
                 if (jsonMessage != null && jsonMessage.ContainsKey("Command"))
