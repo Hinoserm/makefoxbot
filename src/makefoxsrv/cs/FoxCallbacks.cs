@@ -154,7 +154,7 @@ namespace makefoxsrv
 
             settings.seed = -1;
             settings.steps = 15;
-            settings.denoising_strength = 0.45M;
+            settings.denoising_strength = 0.40M;
 
             settings.selected_image = q.OutputImageID.Value;
 
