@@ -90,40 +90,44 @@ namespace admingui
 
             try
             {
-                RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
-                if (key != null)
-                {
-                    key.SetValue("ServerAddress", cmbServerAddress.Text);
-                    key.SetValue("Username", txtUsername.Text);
-                    key.SetValue("RememberPassword", chkRememberPassword.Checked ? "1" : "0");
-
-                    if (chkRememberPassword.Checked)
-                    {
-                        key.SetValue("Password", txtPassword.Text);
-                    }
-                    else
-                    {
-                        key.DeleteValue("Password", false);
-                    }
-
-                    key.Close();
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error saving settings: {ex.Message}");
-            }
-
-            try
-            {
                 await WebSocketManager.Instance.ConnectAsync(cmbServerAddress.Text);
 
                 var loginSuccess = await WebSocketManager.Instance.LoginAsync(txtUsername.Text, txtPassword.Text);
 
                 if (loginSuccess)
                 {
+                    // Normalize the username to match what the server returns
+                    txtUsername.Text = WebSocketManager.Instance.Username; 
+
+                    try
+                    {
+                        RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath);
+                        if (key != null)
+                        {
+                            key.SetValue("ServerAddress", cmbServerAddress.Text);
+                            key.SetValue("Username", txtUsername.Text);
+                            key.SetValue("RememberPassword", chkRememberPassword.Checked ? "1" : "0");
+
+                            if (chkRememberPassword.Checked)
+                            {
+                                key.SetValue("Password", txtPassword.Text);
+                            }
+                            else
+                            {
+                                key.DeleteValue("Password", false);
+                            }
+
+                            key.Close();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error saving settings: {ex.Message}");
+                    }
+
                     MessageBox.Show("Login successful: " + WebSocketManager.Instance.Username, "Login Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    //this.Close();
+                    this.DialogResult = DialogResult.OK;
+                    this.Close();
                 } else
                 {
                     MessageBox.Show("Login failed (unknown error)", "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -143,6 +147,7 @@ namespace admingui
 
         private void btnCancel_Click(object sender, EventArgs e)
         {
+            this.DialogResult = DialogResult.Cancel;
             this.Close();
         }
 

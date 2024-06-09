@@ -90,6 +90,7 @@
             // 
             txtPassword.Location = new Point(12, 121);
             txtPassword.Name = "txtPassword";
+            txtPassword.PasswordChar = '*';
             txtPassword.Size = new Size(160, 23);
             txtPassword.TabIndex = 5;
             txtPassword.TextChanged += textBox2_TextChanged;
