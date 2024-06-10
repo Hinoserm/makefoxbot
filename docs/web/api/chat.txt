@@ -34,7 +34,7 @@ Chat:Delete
   Expected Parameters:
     ChatID: (ID of chat to be deleted)
   Returns:
-    Nothing.
+    Success: True
 
 --------------------------------------------------------------
 

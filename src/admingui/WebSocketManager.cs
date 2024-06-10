@@ -9,7 +9,9 @@ public class WebSocketManager
 {
     private static WebSocketManager _instance;
     private WebsocketClient _webSocketClient;
-    private ConcurrentDictionary<string, TaskCompletionSource<JsonObject>> _responseTcs;
+    private ConcurrentDictionary<long, TaskCompletionSource<JsonObject>> _responseTcs;
+    private long _seqId;
+
     public string? Username { get; private set; }
     public string? SessionID { get; private set; }
 
@@ -19,7 +21,8 @@ public class WebSocketManager
 
     private WebSocketManager()
     {
-        _responseTcs = new ConcurrentDictionary<string, TaskCompletionSource<JsonObject>>();
+        _responseTcs = new ConcurrentDictionary<long, TaskCompletionSource<JsonObject>>();
+        _seqId = 0;
     }
 
     public async Task ConnectAsync(string url)
@@ -42,14 +45,19 @@ public class WebSocketManager
         if (string.IsNullOrEmpty(command))
             throw new ArgumentException("Request must contain a Command.");
 
+        long seqId = GetNextSeqID();
+        request["SeqID"] = seqId;
+
         var tcs = new TaskCompletionSource<JsonObject>();
-        _responseTcs[command] = tcs;
+        _responseTcs[seqId] = tcs;
 
         string jsonRequest = request.ToJsonString();
         Console.WriteLine($"Sending request: {jsonRequest}");
         await _webSocketClient.SendInstant(jsonRequest);
         return await tcs.Task; // Wait for the response
     }
+
+    public event EventHandler<MessageEventArgs> NewMessageReceived;
 
     private void HandleMessage(string message)
     {
@@ -58,16 +66,54 @@ public class WebSocketManager
 
         if (response != null)
         {
-            var command = response["Command"]?.ToString();
-            if (!string.IsNullOrEmpty(command))
+            if (response["SeqID"]?.GetValue<long>() is long seqId)
             {
-                if (_responseTcs.TryRemove(command, out var tcs))
+                if (_responseTcs.TryRemove(seqId, out var tcs))
                 {
                     tcs.TrySetResult(response);
                 }
-                MessageReceived?.Invoke(this, response);
+            }
+
+            var command = response["Command"]?.ToString();
+            switch (command)
+            {
+                case "Chat:NewMessage":
+                    var chatID = response["ChatID"]?.GetValue<int>() ?? 0;
+                    var messageObject = response["Message"]?.AsObject();
+                    var newMessage = new Message
+                    {
+                        FromUID = messageObject["FromUID"]?.GetValue<int>() ?? 0,
+                        ToUID = messageObject["ToUID"]?.GetValue<int?>(),
+                        TgPeer = messageObject["TgPeer"]?.ToString(),
+                        MessageText = messageObject["Text"]?.ToString(),
+                        Date = messageObject["Date"]?.GetValue<DateTime>() ?? DateTime.MinValue,
+                        Username = messageObject["Username"]?.ToString(),
+                        IsOutgoing = messageObject["isOutgoing"]?.GetValue<bool>() ?? false
+                    };
+                    NewMessageReceived?.Invoke(this, new MessageEventArgs(chatID, newMessage));
+                    break;
+                default:
+                    MessageReceived?.Invoke(this, response);
+                    break;
             }
         }
+    }
+
+    public class MessageEventArgs : EventArgs
+    {
+        public int ChatID { get; }
+        public Message Message { get; }
+
+        public MessageEventArgs(int chatID, Message message)
+        {
+            ChatID = chatID;
+            Message = message;
+        }
+    }
+
+    private long GetNextSeqID()
+    {
+        return ++_seqId;
     }
 
     public async Task<bool> LoginAsync(string username, string password)
@@ -93,6 +139,67 @@ public class WebSocketManager
             throw new Exception(error);
         }
     }
+
+    public async Task<bool> DeleteChatAsync(int chatID)
+    {
+        if (string.IsNullOrEmpty(SessionID))
+        {
+            throw new InvalidOperationException("SessionID is not set. Please log in first.");
+        }
+
+        var deleteChatRequest = new JsonObject
+        {
+            ["Command"] = "Chat:Delete",
+            ["SessionID"] = SessionID,
+            ["ChatID"] = chatID
+        };
+
+        var response = await SendRequestAsync(deleteChatRequest);
+
+        return response["Success"]?.GetValue<bool>() == true;
+    }
+    public async Task SendMessageAsync(int chatID, string message)
+    {
+        if (string.IsNullOrEmpty(SessionID))
+        {
+            throw new InvalidOperationException("SessionID is not set. Please log in first.");
+        }
+
+        var sendMessageRequest = new JsonObject
+        {
+            ["Command"] = "Chat:SendMessage",
+            ["SessionID"] = SessionID,
+            ["ChatID"] = chatID,
+            ["Message"] = message
+        };
+
+        await SendRequestAsync(sendMessageRequest);
+    }
+
+    public async Task<int> CreateNewChatAsync(string username)
+    {
+        if (string.IsNullOrEmpty(SessionID))
+        {
+            throw new InvalidOperationException("SessionID is not set. Please log in first.");
+        }
+
+        var newChatRequest = new JsonObject
+        {
+            ["Command"] = "Chat:New",
+            ["SessionID"] = SessionID,
+            ["Username"] = username
+        };
+
+        var response = await SendRequestAsync(newChatRequest);
+
+        if (response["Success"]?.GetValue<bool>() == true)
+        {
+            return response["ChatID"]?.GetValue<int>() ?? 0;
+        }
+
+        throw new Exception(response["Error"]?.ToString() ?? "Failed to create new chat.");
+    }
+
 
     public async Task<List<Chat>> GetChatListAsync()
     {
@@ -205,6 +312,52 @@ public class WebSocketManager
         public bool IsOutgoing { get; set; }
     }
 
+    public async Task<List<Suggestion>> GetAutocompleteSuggestionsAsync(string query)
+    {
+        if (string.IsNullOrEmpty(SessionID))
+        {
+            throw new InvalidOperationException("SessionID is not set. Please log in first.");
+        }
+
+        var autocompleteRequest = new JsonObject
+        {
+            ["Command"] = "Autocomplete",
+            ["SessionID"] = SessionID,
+            ["Query"] = query
+        };
+
+        var response = await SendRequestAsync(autocompleteRequest);
+
+        if (response["Command"]?.ToString() == "AutocompleteResponse")
+        {
+            var suggestions = response["Suggestions"]?.AsArray();
+            if (suggestions != null)
+            {
+                var result = new List<Suggestion>();
+                foreach (var suggestion in suggestions)
+                {
+                    if (suggestion?["Display"]?.ToString() is string display &&
+                        suggestion?["Paste"]?.ToString() is string paste)
+                    {
+                        result.Add(new Suggestion
+                        {
+                            Display = display,
+                            Paste = paste
+                        });
+                    }
+                }
+                return result;
+            }
+        }
+
+        throw new Exception(response["Error"]?.ToString() ?? "Failed to retrieve autocomplete suggestions.");
+    }
+
+    public class Suggestion
+    {
+        public string Display { get; set; }
+        public string Paste { get; set; }
+    }
 
 
 }

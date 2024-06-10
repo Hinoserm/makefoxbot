@@ -42,7 +42,7 @@
             // cmbServerAddress
             // 
             cmbServerAddress.FormattingEnabled = true;
-            cmbServerAddress.Items.AddRange(new object[] { "wss://makefox.bot/cs/ws", "ws://localhost:5555/ws" });
+            cmbServerAddress.Items.AddRange(new object[] { "wss://makefox.bot/ws", "ws://localhost:5555/ws" });
             cmbServerAddress.Location = new Point(12, 33);
             cmbServerAddress.Name = "cmbServerAddress";
             cmbServerAddress.Size = new Size(312, 23);
