@@ -48,6 +48,9 @@ namespace makefoxsrv
                 case "/model":
                     await CallbackCmdModel(t, query, fUser, argument);
                     break;
+                case "/sampler":
+                    await CallbackCmdSampler(t, query, fUser, argument);
+                    break;
                 case "/help":
                     await CallbackCmdHelp(t, query, fUser, argument);
                     break;
@@ -266,6 +269,56 @@ namespace makefoxsrv
             }
         }
 
+        private static async Task CallbackCmdSampler(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
+        {
+
+            if (argument is null || argument.Length <= 0)
+            {
+                /* await botClient.EditMessageTextAsync(
+                    chatId: update.CallbackQuery.Message.Chat.Id,
+                    text: "Invalid request",
+                    messageId: update.CallbackQuery.Message.MessageId,
+                    cancellationToken: cancellationToken
+                ); */
+
+                return;
+            }
+
+            if (argument == "premium")
+            {
+                await t.SendCallbackAnswer(query.query_id, 0, "Only premium members can select this option!");
+                return;
+            }
+
+            await t.SendCallbackAnswer(query.query_id, 0);
+
+            if (argument == "cancel")
+            {
+                await t.EditMessageAsync(
+                        text: "✅ Operation cancelled.",
+                        id: query.msg_id
+                    );
+            }
+            else
+            {
+                if (argument == "default")
+                {
+                    argument = null;
+                }
+
+                var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+
+                settings.sampler = argument;
+
+                await settings.Save();
+
+                await t.EditMessageAsync(
+                        text: "✅ Sampler selected: " + settings.sampler,
+                        id: query.msg_id
+                    );
+            }
+        }
+
         private static async Task CallbackCmdDonate(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
         {
             if (argument is null || argument.Length <= 0)
@@ -445,7 +498,7 @@ namespace makefoxsrv
                     text: $"🖤Prompt: {q.Settings.prompt}\r\n" +
                           $"🐊Negative: {q.Settings.negative_prompt}\r\n" +
                           $"{sizeString}\r\n" +
-                          $"🪜Sampler Steps: {q.Settings.steps}\r\n" +
+                          $"🪜Sampler: {q.Settings.sampler} ({q.Settings.steps} steps)\r\n" +
                           $"🧑‍🎨CFG Scale: {q.Settings.cfgscale}\r\n" +
                           $"👂Denoising Strength: {q.Settings.denoising_strength}\r\n" +
                           $"🧠Model: {q.Settings.model}\r\n" +

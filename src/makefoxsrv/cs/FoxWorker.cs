@@ -1034,7 +1034,8 @@ namespace makefoxsrv
 
                     var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
                     //var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
-                    var sampler = await api.Sampler(settings.model == "redwater_703" ? "DPM++ 2M Karras" : "Euler A", ctsLoop.Token);
+                    //var sampler = await api.Sampler(settings.model == "redwater_703" ? "DPM++ 2M Karras" : "Euler A", ctsLoop.Token);
+                    var sampler = await api.Sampler(settings.sampler);
 
                     FoxImage? inputImage = await qItem.GetInputImage();
 
@@ -1086,7 +1087,8 @@ namespace makefoxsrv
                     var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
                     //var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
                     //var sampler = await api.Sampler("Restart", ctsLoop.Token);
-                    var sampler = await api.Sampler(settings.model == "redwater_703" ? "DPM++ 2M Karras" : "Euler A", ctsLoop.Token);
+                    //var sampler = await api.Sampler(settings.model == "redwater_703" ? "DPM++ 2M Karras" : "Euler A", ctsLoop.Token);
+                    var sampler = await api.Sampler(settings.sampler);
 
                     var width = settings.width;
                     var height = settings.height;
@@ -1095,7 +1097,7 @@ namespace makefoxsrv
 
                     if (settings.width > 1088 || settings.height > 1088)
                     {
-                        var upscaler = await api.Upscaler("Nearest", ctsLoop.Token);
+                        var upscaler = await api.Upscaler("4x_foolhardy_Remacri", ctsLoop.Token);
                         hiResConfig = new HighResConfig()
                         {
                             Width = settings.width,

@@ -20,6 +20,7 @@ namespace makefoxsrv
         private uint? _height;
         private decimal? _denoising_strength;
         private string? _model;
+        private string? _sampler;
 
         [DbColumn("steps")]
         public int steps
@@ -77,6 +78,13 @@ namespace makefoxsrv
             set => _model = value;
         }
 
+        [DbColumn("sampler")]
+        public string sampler
+        {
+            get => _sampler ?? FoxSettings.Get<string>("DefaultSampler");
+            set => _sampler = value;
+        }
+
         [DbColumn("seed")]
         public int seed = -1;
 
@@ -100,6 +108,7 @@ namespace makefoxsrv
                 _height = this._height,
                 _denoising_strength = this._denoising_strength,
                 _model = this._model,
+                _sampler = this._sampler,
                 seed = this.seed,
                 selected_image = this.selected_image,
                 TelegramUserID = this.TelegramUserID,
@@ -117,13 +126,14 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "REPLACE INTO telegram_user_settings (uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed, model) VALUES (@uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @model)";
+                    cmd.CommandText = "REPLACE INTO telegram_user_settings (uid, tele_id, tele_chatid, steps, cfgscale, prompt, sampler, negative_prompt, selected_image, width, height, denoising_strength, seed, model) VALUES (@uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @sampler, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @model)";
                     cmd.Parameters.AddWithValue("uid", User.UID);
                     cmd.Parameters.AddWithValue("tele_id", TelegramUserID);
                     cmd.Parameters.AddWithValue("tele_chatid", TelegramChatID);
                     cmd.Parameters.AddWithValue("steps", this._steps);
                     cmd.Parameters.AddWithValue("cfgscale", this._cfgscale);
                     cmd.Parameters.AddWithValue("prompt", this._prompt);
+                    cmd.Parameters.AddWithValue("sampler", this._sampler);
                     cmd.Parameters.AddWithValue("negative_prompt", this._negative_prompt);
                     cmd.Parameters.AddWithValue("selected_image", this.selected_image);
                     cmd.Parameters.AddWithValue("width", this._width);
@@ -183,6 +193,8 @@ namespace makefoxsrv
                                 settings.seed = Convert.ToInt32(reader["seed"]);
                             if (!(reader["model"] is DBNull))
                                 settings._model = Convert.ToString(reader["model"]);
+                            if (!(reader["sampler"] is DBNull))
+                                settings._sampler = Convert.ToString(reader["sampler"]);
                         }
                     }
                 }
@@ -215,6 +227,8 @@ namespace makefoxsrv
                                 settings.seed = Convert.ToInt32(reader["seed"]);
                             if (!(reader["model"] is DBNull))
                                 settings._model = Convert.ToString(reader["model"]);
+                            if (!(reader["sampler"] is DBNull))
+                                settings._sampler = Convert.ToString(reader["sampler"]);
                         }
                     }
                 }

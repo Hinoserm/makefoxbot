@@ -61,6 +61,7 @@ namespace makefoxsrv
             { "/setseed",     CmdSetSeed },
             //--------------- -----------------
             { "/model",       CmdModel },
+            { "/sampler",     CmdSampler },
             //--------------- -----------------
             { "/cancel",      CmdCancel },
             //--------------- -----------------
@@ -738,6 +739,88 @@ namespace makefoxsrv
             await FoxQueue.Enqueue(q);
         }
 
+        [CommandDescription("Change current AI sampler.")]
+        [CommandArguments("")]
+        private static async Task CmdSampler(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            List<TL.KeyboardButtonRow> keyboardRows = new List<TL.KeyboardButtonRow>();
+
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+
+
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+
+            await SQL.OpenAsync();
+
+            var cmdText = "SELECT * FROM samplers";
+
+            MySqlCommand cmd = new MySqlCommand(cmdText, SQL);
+
+            using (var reader = await cmd.ExecuteReaderAsync())
+            {
+                while (await reader.ReadAsync())
+                {
+                    string samplerName = reader.GetString("sampler");
+                    bool isPremium = reader.GetBoolean("premium");
+
+                    var buttonLabel = $"{samplerName}";
+                    var buttonData = $"/sampler {samplerName}";
+
+                    if (isPremium)
+                    {
+                        if (!user.CheckAccessLevel(AccessLevel.PREMIUM))
+                        {
+                            buttonLabel = "🔒 " + buttonLabel;
+                            buttonData = "/sampler premium";
+                        }
+                        else
+                            buttonLabel = "⭐ " + buttonLabel;
+                    }
+
+                    if (samplerName == settings.sampler)
+                    {
+                        buttonLabel += " ✅";
+                    }
+
+                    keyboardRows.Add(new TL.KeyboardButtonRow
+                    {
+                        buttons = new TL.KeyboardButtonCallback[]
+                        {
+                    new TL.KeyboardButtonCallback { text = buttonLabel, data = System.Text.Encoding.UTF8.GetBytes(buttonData) }
+                        }
+                    });
+                }
+            }
+
+            keyboardRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonCallback[]
+                {
+                    new TL.KeyboardButtonCallback { text = "Default", data = System.Text.Encoding.UTF8.GetBytes("/sampler default") }
+                }
+            });
+
+            keyboardRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonCallback[]
+                {
+                    new TL.KeyboardButtonCallback { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/sampler cancel") }
+                }
+            });
+
+            var inlineKeyboard = new TL.ReplyInlineMarkup { rows = keyboardRows.ToArray() };
+
+            // Send the message with the inline keyboard
+
+            // Send the message with the inline keyboard
+
+            // Send the message with the inline keyboard
+            await t.SendMessageAsync(
+                text: "Select a sampler:",
+                replyInlineMarkup: inlineKeyboard
+            );
+        }
+
         [CommandDescription("Change current AI model.")]
         [CommandArguments("")]
         private static async Task CmdModel(FoxTelegram t, Message message, FoxUser user, String? argument)
@@ -1171,7 +1254,7 @@ namespace makefoxsrv
                 text: $"🖤Prompt: {settings.prompt}\r\n" +
                       $"🐊Negative: {settings.negative_prompt}\r\n" +
                       $"🖥️Size: {settings.width}x{settings.height}\r\n" +
-                      $"🪜Sampler Steps: {settings.steps}\r\n" +
+                      $"🪜Sampler: {settings.sampler} ({settings.steps} steps)\r\n" +
                       $"🧑‍🎨CFG Scale: {settings.cfgscale}\r\n" +
                       $"👂Denoising Strength: {settings.denoising_strength}\r\n" +
                       $"🧠Model: {settings.model}\r\n" +
