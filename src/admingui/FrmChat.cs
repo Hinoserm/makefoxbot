@@ -153,7 +153,8 @@ namespace admingui
 
         private async void AddChatButton_Click(object sender, EventArgs e)
         {
-            var selectedUser = userSearchControl.Text.Trim();
+            var selectedUser = userSearchControl.Text?.Trim();
+
             if (!string.IsNullOrEmpty(selectedUser))
             {
                 try
@@ -209,28 +210,35 @@ namespace admingui
 
         private void OnNewMessageReceived(object sender, WebSocketManager.MessageEventArgs e)
         {
-            if (InvokeRequired)
+            try
             {
-                Invoke(new Action(() => OnNewMessageReceived(sender, e)));
-                return;
-            }
-
-            foreach (ListViewItem item in listView1.Items)
-            {
-                if (int.Parse(item.SubItems[0].Text) == e.ChatID)
+                if (InvokeRequired)
                 {
-                    if (e.ChatID != GetCurrentChatID())
-                    {
-                        item.BackColor = Color.LightBlue;
-                        HighlightChatTab();
-                    }
-                    else
-                    {
-                        AddChatMessage(e.Message.MessageText, e.Message.Date, e.Message.Username, e.Message.IsOutgoing);
-                        chatPanel.ScrollToBottom();
-                    }
-                    break;
+                    Invoke(new Action(() => OnNewMessageReceived(sender, e)));
+                    return;
                 }
+
+                foreach (ListViewItem item in listView1.Items)
+                {
+                    if (int.Parse(item.SubItems[0].Text) == e.ChatID)
+                    {
+                        if (e.ChatID != GetCurrentChatID())
+                        {
+                            item.BackColor = Color.LightBlue;
+                            HighlightChatTab();
+                        }
+                        else
+                        {
+                            AddChatMessage(e.Message.MessageText, e.Message.Date, e.Message.Username, e.Message.IsOutgoing);
+                            chatPanel.ScrollToBottom();
+                        }
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error: {ex.Message}\r\n{ex.StackTrace}");
             }
         }
 
