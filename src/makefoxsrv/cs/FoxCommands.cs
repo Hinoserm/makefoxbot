@@ -265,33 +265,34 @@ namespace makefoxsrv
 
         public static int CalculateRewardDays(int amountInCents)
         {
-            int baseDays = 30; // Base days for $10
-            int targetDaysForMaxAmount = 365; // Target days for $100
+            // Define points for interpolation
+            int daysFor8 = 7; // Days for $8
+            int daysFor15 = 30; // Days for $15
+            int daysFor100 = 365; // Days for $160
 
             // Convert amount to dollars from cents for calculation
             decimal amountInDollars = amountInCents / 100m;
 
-            if (amountInCents == 500)
+            if (amountInDollars <= 8)
             {
-                return 10; // Directly return 10 days for $5
-            }
-            else if (amountInDollars <= 10)
-            {
-                return baseDays;
+                // For amounts <= $8, return proportionate days (linear scale from 1 to 7)
+                return (int)Math.Round(amountInDollars * (daysFor8 / 8m));
             }
             else if (amountInDollars >= 100)
             {
                 // Calculate days as if $100 is given for each $100 increment
                 decimal multiplesOverMax = amountInDollars / 100;
-                return (int)Math.Round(targetDaysForMaxAmount * multiplesOverMax);
+                return (int)Math.Round(daysFor100 * multiplesOverMax);
             }
             else
             {
-                // Linear interpolation for amounts between $10 and $100
-                decimal daysPerDollar = (targetDaysForMaxAmount - baseDays) / (100m - 10m);
-                return (int)Math.Round(baseDays + (amountInDollars - 10) * daysPerDollar);
+                // Linear interpolation for amounts between $8 and $160
+                decimal daysPerDollar = (daysFor100 - daysFor15) / (100m - 15m);
+                return (int)Math.Round(daysFor15 + (amountInDollars - 15) * daysPerDollar);
             }
         }
+
+
 
         [CommandDescription("Make a one-time monetary donation")]
         [CommandArguments("")]
@@ -302,7 +303,7 @@ namespace makefoxsrv
                 throw new Exception("Payments are currently disabled. (token not set)");
 
             // Define donation amounts in whole dollars
-            int[] donationAmounts = new int[] { 5, 10, 20, 40, 60, 100 };
+            int[] donationAmounts = new int[] { 8, 15, 25, 40, 60, 100 };
 
             // Initialize a list to hold TL.KeyboardButtonRow for each row of buttons
             List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
