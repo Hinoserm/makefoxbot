@@ -17,7 +17,7 @@ $sql = "SELECT u.id,u.access_level,u.telegram_id,u.username,tu.firstname,tu.last
                DATE_FORMAT(u.date_added, '%Y-%m-%d %H:%i:%s') AS date_added,
                DATE_FORMAT(u.date_last_seen, '%Y-%m-%d %H:%i:%s') AS date_last_seen,
                DATE_FORMAT(u.date_premium_expires, '%Y-%m-%d %H:%i:%s') AS date_premium_expires,
-               u.date_premium_expires < NOW() AS is_premium
+               IF(u.date_premium_expires IS NOT NULL AND u.date_premium_expires >= NOW(), 1, 0) AS is_premium
         FROM users u
         LEFT JOIN telegram_users tu ON u.telegram_id = tu.id";
 
