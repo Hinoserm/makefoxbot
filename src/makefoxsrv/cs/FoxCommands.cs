@@ -273,7 +273,7 @@ namespace makefoxsrv
 
             if (amountInCents == 500)
             {
-                return 10; // Directly return 10 days for $5
+                return 7; // Directly return 7 days for $5
             }
             else if (amountInDollars <= 10)
             {
