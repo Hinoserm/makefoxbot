@@ -293,7 +293,7 @@ namespace makefoxsrv
             }
         }
 
-        [CommandDescription("Make a one-time monetary donation")]
+        [CommandDescription("Purchase a membership")]
         [CommandArguments("")]
         private static async Task CmdDonate(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
