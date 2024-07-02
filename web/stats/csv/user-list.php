@@ -53,7 +53,9 @@ if ($stmt->rowCount() > 0) {
             //    $csvRow[] = null;
         }
         echo implode(",", array_map(function ($value) {
-            return '"' . str_replace('"', '""', $value) . '"'; }, $csvRow)) . "\r\n";
+            return '"' . str_replace('"', '""', $value ?? '') . '"';
+        }, $csvRow)) . "\r\n";
+
     }
 }
 ?>
