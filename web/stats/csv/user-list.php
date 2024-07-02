@@ -13,9 +13,11 @@ if (!isset($_GET['print'])) {
     header('Content-Disposition: attachment; filename=users-' . time() . '.csv');
 }
 
-$sql = "SELECT u.id,u.access_level,u.telegram_id,u.username,tu.firstname,tu.lastname,tu.is_premium,
+$sql = "SELECT u.id,u.access_level,u.telegram_id,u.username,tu.firstname,tu.lastname,
                DATE_FORMAT(u.date_added, '%Y-%m-%d %H:%i:%s') AS date_added,
-               DATE_FORMAT(u.date_last_seen, '%Y-%m-%d %H:%i:%s') AS date_last_seen
+               DATE_FORMAT(u.date_last_seen, '%Y-%m-%d %H:%i:%s') AS date_last_seen,
+               DATE_FORMAT(u.date_premium_expires, '%Y-%m-%d %H:%i:%s') AS date_premium_expires,
+               u.date_premium_expires < NOW() AS is_premium
         FROM users u
         LEFT JOIN telegram_users tu ON u.telegram_id = tu.id";
 
@@ -23,7 +25,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute();
 
 if (isset($user) && isset($user['id']) && $user['access_level'] == 'ADMIN')
-    $fields = array("id", "access_level", "telegram_id", "username", "firstname", "lastname", "is_premium", "date_added", "date_last_seen");
+    $fields = array("id", "access_level", "telegram_id", "username", "firstname", "lastname", "is_premium", "date_premium_expires", "date_added", "date_last_seen");
 else
     $fields = array("id", "date_added", "date_last_seen");
 
