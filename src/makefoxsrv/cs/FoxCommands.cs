@@ -72,6 +72,7 @@ namespace makefoxsrv
             { "/broadcast",   CmdBroadcast },
             //--------------- -----------------
             { "/info",        CmdInfo },
+            { "/privacy",     CmdPrivacy },
         };
 
         public static async Task HandleCommand(FoxTelegram t, Message message)
@@ -393,6 +394,19 @@ namespace makefoxsrv
                 entities: entities,
                 disableWebPagePreview: true
             );            
+        }
+
+        [CommandDescription("View the privacy policy")]
+        private static async Task CmdPrivacy(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            var outMsg = user.Strings.Get("Terms.PrivacyPolicy");
+            var entities = FoxTelegram.Client.HtmlToEntities(ref outMsg);
+
+            await t.SendMessageAsync(
+                text: outMsg,
+                entities: entities
+
+            );
         }
 
         [CommandDescription("It's delicious!")]

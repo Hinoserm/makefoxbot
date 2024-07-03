@@ -114,6 +114,18 @@ namespace makefoxsrv.lang {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to &lt;b&gt;Privacy Policy&lt;/b&gt;
+        ///We collect and store all images sent or created using the bot, as well as your Telegram username, first name, last name, Telegram ID, and any other information generated through normal use of the service. We do not sell or share your information with any third parties. Your data is used solely to enhance and provide our services.
+        ///
+        ///We will comply with all legally required requests to remove your personal information.  Please contact us via email at privacy@makefox.group.
+        /// </summary>
+        internal static string Terms_PrivacyPolicy {
+            get {
+                return ResourceManager.GetString("Terms.PrivacyPolicy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to &lt;b&gt;You have acknowleged your acceptance of these terms.  Thank you!&lt;/b&gt;.
         /// </summary>
         internal static string Terms_UserAgreed {
