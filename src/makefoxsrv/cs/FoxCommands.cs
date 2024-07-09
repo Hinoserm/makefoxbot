@@ -1105,7 +1105,7 @@ namespace makefoxsrv
                     }
                 }
 
-                sb.AppendLine($"Total Images Generated: {imageCount}"); // ({FoxMessages.FormatBytes(imageBytes)})
+                sb.AppendLine($"Total Images: {imageCount}"); // ({FoxMessages.FormatBytes(imageBytes)})
                 sb.AppendLine($"Total Users: {userCount}");
             }
 

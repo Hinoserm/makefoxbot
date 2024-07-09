@@ -178,7 +178,7 @@ namespace makefoxsrv
 
                 MySqlCommand sqlcmd;
 
-                sqlcmd = new MySqlCommand("SELECT COUNT(id) as image_count, SUM(filesize) as image_bytes FROM images WHERE user_id = @uid", connection);
+                sqlcmd = new MySqlCommand("SELECT COUNT(id) as image_count, SUM(filesize) as image_bytes FROM images WHERE user_id = @uid AND type = 'OUTPUT'", connection);
                 sqlcmd.Parameters.AddWithValue("@uid", user.UID);
 
                 using (var reader = await sqlcmd.ExecuteReaderAsync())
