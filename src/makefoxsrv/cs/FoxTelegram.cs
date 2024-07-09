@@ -114,12 +114,12 @@ namespace makefoxsrv
             {
                 _client = new WTelegram.Client(appID, apiHash, sessionFile);
                 _client.OnOther += Client_OnOther;
-                _client.OnUpdate += HandleUpdateAsync;
+                _client.OnUpdates += HandleUpdateAsync;
             }
             else
                 _client.Reset(false, true);
 
-            _client.MaxAutoReconnects = 1000;
+            _client.MaxAutoReconnects = 100000;
             _client.FloodRetryThreshold = 0;
 
             await _client.LoginBotIfNeeded(botToken);

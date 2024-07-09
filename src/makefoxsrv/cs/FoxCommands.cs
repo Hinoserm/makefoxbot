@@ -1027,8 +1027,54 @@ namespace makefoxsrv
 
         private static async Task CmdInfo(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
+            var sb = new StringBuilder();
+
+            var uptime = DateTime.Now - FoxMain.startTime;
+
+            sb.AppendLine($"🦊 Version: " + FoxMain.GetVersion());
+            sb.AppendLine($"Uptime: {uptime.ToPrettyFormat()}");
+            sb.AppendLine("\nUser Info:\n");
+            sb.AppendLine(await FoxMessages.BuildUserInfoString(user));
+
+            long imageCount = 0;
+            long imageBytes = 0;
+            long userCount = 0;
+
+            sb.AppendLine("Global Stats:\n");
+
+            using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await connection.OpenAsync();
+
+                MySqlCommand sqlcmd;
+
+                sqlcmd = new MySqlCommand("SELECT COUNT(id) as image_count, SUM(filesize) as image_bytes FROM images", connection);
+
+                using (var reader = await sqlcmd.ExecuteReaderAsync())
+                {
+                    if (await reader.ReadAsync())
+                    {
+                        imageCount = reader.IsDBNull(reader.GetOrdinal("image_count")) ? 0 : reader.GetInt64("image_count");
+                        imageBytes = reader.IsDBNull(reader.GetOrdinal("image_bytes")) ? 0 : reader.GetInt64("image_bytes");
+                    }
+                }
+
+                sqlcmd = new MySqlCommand("SELECT COUNT(id) as user_count FROM users", connection);
+
+                using (var reader = await sqlcmd.ExecuteReaderAsync())
+                {
+                    if (await reader.ReadAsync())
+                    {
+                        userCount = reader.IsDBNull(reader.GetOrdinal("user_count")) ? 0 : reader.GetInt64("user_count");
+                    }
+                }
+            }
+
+            sb.AppendLine($"Total Images Generated: {imageCount} ({FoxMessages.FormatBytes(imageBytes)})");
+            sb.AppendLine($"Total Users: {userCount}");
+
             await t.SendMessageAsync(
-                text: $"🦊 Version: " + FoxMain.GetVersion(),
+                text: sb.ToString(),
                 replyToMessageId: message.ID
             );
         }

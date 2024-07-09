@@ -8,6 +8,8 @@ using static System.Net.Mime.MediaTypeNames;
 using WTelegram;
 using makefoxsrv;
 using MySqlConnector;
+using System.Collections;
+using Terminal.Gui;
 
 
 //This class deals with building and sending Telegram messages to the user.
@@ -98,7 +100,7 @@ namespace makefoxsrv
                 }
             };
 
-            var messageText = await BuildInfoString(q, true, true);
+            var messageText = await BuildQueryInfoString(q, true, true);
 
             if (editMessage)
             {
@@ -118,12 +120,10 @@ namespace makefoxsrv
             }
         }
 
-        public static async Task<string> BuildInfoString(FoxQueue q, bool showId = false, bool showDate = false)
+        public static async Task<string> BuildQueryInfoString(FoxQueue q, bool showId = false, bool showDate = false)
         {
             System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
             System.TimeSpan GPUTime = await q.GetGPUTime();
-
-            var sizeString = $"🖥️ Size: {q.Settings.width}x{q.Settings.height}";
 
             var sb = new StringBuilder();
 
@@ -131,7 +131,7 @@ namespace makefoxsrv
 
             sb.AppendLine($"🖤Prompt: {q.Settings.prompt}");
             sb.AppendLine($"🐊Negative: {q.Settings.negative_prompt}");
-            sb.AppendLine(sizeString);
+            sb.AppendLine($"🖥️ Size: {q.Settings.width}x{q.Settings.height}");
             sb.AppendLine($"🪜Sampler: {q.Settings.sampler} ({q.Settings.steps} steps)");
             sb.AppendLine($"🧑‍🎨CFG Scale: {q.Settings.cfgscale}");
             sb.AppendLine($"👂Denoising Strength: {q.Settings.denoising_strength}");
@@ -155,6 +155,98 @@ namespace makefoxsrv
             }
 
             return sb.ToString();
+        }
+
+        public static async Task<string> BuildUserInfoString(FoxUser user)
+        {
+
+
+            var sb = new StringBuilder();
+
+            sb.AppendLine($"UID: {user.UID}");
+            if (user.Username is not null)
+                sb.AppendLine($"Username: {user.Username}");
+            sb.AppendLine($"Access Level: {user.GetAccessLevel()}");
+
+            long imageCount = 0;
+            long imageBytes = 0;
+            decimal totalPaid = 0m;
+
+            using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await connection.OpenAsync();
+
+                MySqlCommand sqlcmd;
+
+                sqlcmd = new MySqlCommand("SELECT COUNT(id) as image_count, SUM(filesize) as image_bytes FROM images WHERE user_id = @uid", connection);
+                sqlcmd.Parameters.AddWithValue("@uid", user.UID);
+
+                using (var reader = await sqlcmd.ExecuteReaderAsync())
+                {
+                    if (await reader.ReadAsync())
+                    {
+                        imageCount = reader.IsDBNull(reader.GetOrdinal("image_count")) ? 0 : reader.GetInt64("image_count");
+                        imageBytes = reader.IsDBNull(reader.GetOrdinal("image_bytes")) ? 0 : reader.GetInt64("image_bytes");
+                    }
+                }
+
+                sqlcmd = new MySqlCommand("SELECT SUM(amount) as total_paid FROM user_payments WHERE uid = @uid", connection);
+                sqlcmd.Parameters.AddWithValue("@uid", user.UID);
+
+                using (var reader = await sqlcmd.ExecuteReaderAsync())
+                {
+                    if (await reader.ReadAsync())
+                    {
+                        totalPaid = reader.IsDBNull(reader.GetOrdinal("total_paid")) ? 0 : (reader.GetInt64("total_paid") / 100.0m);
+                    }
+                }
+            }
+
+            sb.AppendLine($"Images Generated: {imageCount} ({FormatBytes(imageBytes)})");
+
+            if (totalPaid > 0)
+                sb.AppendLine($"Paid: ${totalPaid:F2}");
+
+            return sb.ToString();
+        }
+
+        public static string FormatBytes(long bytes)
+        {
+            const long KiloByte = 1024;
+            const long MegaByte = KiloByte * 1024;
+            const long GigaByte = MegaByte * 1024;
+            const long TeraByte = GigaByte * 1024;
+            const long PetaByte = TeraByte * 1024;
+            const long ExaByte = PetaByte * 1024;
+
+            if (bytes < KiloByte)
+            {
+                return $"{bytes} B";
+            }
+            else if (bytes < MegaByte)
+            {
+                return $"{bytes / (double)KiloByte:F2} KB";
+            }
+            else if (bytes < GigaByte)
+            {
+                return $"{bytes / (double)MegaByte:F2} MB";
+            }
+            else if (bytes < TeraByte)
+            {
+                return $"{bytes / (double)GigaByte:F2} GB";
+            }
+            else if (bytes < PetaByte)
+            {
+                return $"{bytes / (double)TeraByte:F2} TB";
+            }
+            else if (bytes < ExaByte)
+            {
+                return $"{bytes / (double)PetaByte:F2} PB";
+            }
+            else
+            {
+                return $"{bytes / (double)ExaByte:F2} EB";
+            }
         }
 
         // Helper method to get timezone abbreviation

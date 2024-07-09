@@ -131,6 +131,8 @@ namespace makefoxsrv
             $"maxpoolsize=15;" +
             $"default command timeout=180;";
 
+        public static DateTime startTime = DateTime.Now;
+
         static string sha1hash(byte[] input)
         {
             using var sha1 = SHA1.Create();
