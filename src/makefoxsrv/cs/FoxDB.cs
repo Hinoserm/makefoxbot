@@ -250,7 +250,7 @@ namespace makefoxsrv
         public static async Task<T?> LoadObjectAsync<T>(
            string tableName,
            string whereClause,
-           IDictionary<string, object>? parameters = null,
+           IDictionary<string, object?>? parameters = null,
            Func<T, MySqlDataReader, Task>? postLoadAction = null)
            where T : new()
         {

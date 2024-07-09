@@ -694,6 +694,48 @@ namespace makefoxsrv
 
         //    return (long)this.ID;
         //}
+
+        public static async Task<FoxQueue?> GetNewestFromUser(FoxUser user, long? tgChatId = null)
+        {
+            // Attempt to find the FoxQueue item in the fullQueue cache
+
+            // Attempt to find the FoxQueue item in the fullQueue cache
+            var cachedItem = fullQueue.FirstOrDefault(fq => fq.User.UID == user.UID && (tgChatId == null || fq.Telegram?.Peer?.ID == tgChatId));
+
+            if (cachedItem is not null)
+            {
+                // If found in cache, return the cached item
+                return cachedItem;
+            }
+
+            var parameters = new Dictionary<string, object?>
+            {
+                { "@uid", user.UID },
+                { "@peerId", tgChatId }
+            };
+
+            var q = await FoxDB.LoadObjectAsync<FoxQueue>("queue", "uid = @uid AND (@peerId IS NULL OR tele_chatid = @peerId) ORDER BY id DESC LIMIT 1", parameters, async (o, r) =>
+            {
+                long uid = Convert.ToInt64(r["uid"]);
+                o.User = await FoxUser.GetByUID(uid);
+
+                long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
+
+                var teleChat = teleChatId is not null ? await FoxTelegram.GetChatFromID(teleChatId.Value) : null;
+
+                var teleUser = await FoxTelegram.GetUserFromID(Convert.ToInt64(r["tele_id"]));
+
+                if (teleUser is not null)
+                    o.Telegram = new FoxTelegram(teleUser, teleChat);
+            });
+
+            // After loading, add the object to the fullQueue cache if it's not null
+            if (q is not null)
+                fullQueue.Enqueue(q);
+
+            return q;
+        }
+
         public static async Task<FoxQueue?> Get(ulong id)
         {
             // Attempt to find the FoxQueue item in the fullQueue cache
@@ -726,8 +768,8 @@ namespace makefoxsrv
             });
 
             // After loading, add the object to the fullQueue cache if it's not null
-            //if (q is not null)
-            //    fullQueue.Enqueue(q);
+            if (q is not null)
+                fullQueue.Enqueue(q);
 
             return q;
         }

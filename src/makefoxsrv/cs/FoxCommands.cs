@@ -73,6 +73,7 @@ namespace makefoxsrv
             //--------------- -----------------
             { "/info",        CmdInfo },
             { "/privacy",     CmdPrivacy },
+            { "/history",     CmdHistory },
         };
 
         public static async Task HandleCommand(FoxTelegram t, Message message)
@@ -293,6 +294,14 @@ namespace makefoxsrv
                 return (int)Math.Round(baseDays + (amountInDollars - 10) * daysPerDollar);
             }
         }
+
+        [CommandDescription("Show your recent history")]
+        [CommandArguments("")]
+        private static async Task CmdHistory(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            await FoxMessages.SendHistory(t, user, argument, message.ID);
+        }
+
 
         [CommandDescription("Purchase a membership")]
         [CommandArguments("")]

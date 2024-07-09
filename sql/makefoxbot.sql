@@ -11,7 +11,7 @@
  Target Server Version : 100523 (10.5.23-MariaDB)
  File Encoding         : 65001
 
- Date: 05/06/2024 17:12:30
+ Date: 08/07/2024 18:15:02
 */
 
 SET NAMES utf8mb4;
@@ -27,9 +27,10 @@ CREATE TABLE `admin_chats`  (
   `to_uid` bigint(20) UNSIGNED NOT NULL COMMENT 'Receiving user\'s telegram ID',
   `tg_peer_id` bigint(20) NULL DEFAULT NULL COMMENT 'Receiving Telegram peer ID (chat or user)',
   `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `message_id` bigint(20) NULL DEFAULT NULL COMMENT 'The telegram message ID',
   `message_date` datetime NOT NULL,
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 125 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 211 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for admin_open_chats
@@ -42,7 +43,7 @@ CREATE TABLE `admin_open_chats`  (
   `tg_peer_id` bigint(20) NULL DEFAULT NULL COMMENT 'Telegram Peer ID (Chat or User)',
   `date_opened` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 110 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 220 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for gpu_stats
@@ -102,7 +103,19 @@ CREATE TABLE `images`  (
   INDEX `idx6`(`flagged`) USING BTREE,
   INDEX `idx7`(`telegram_msgid`) USING BTREE,
   CONSTRAINT `images_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 2385851 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 3545919 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for news_messages
+-- ----------------------------
+DROP TABLE IF EXISTS `news_messages`;
+CREATE TABLE `news_messages`  (
+  `news_id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `date_added` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`news_id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for queue
@@ -117,6 +130,7 @@ CREATE TABLE `queue`  (
   `tele_chatid` bigint(20) NULL DEFAULT NULL,
   `image_id` bigint(20) UNSIGNED NULL DEFAULT NULL,
   `model` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
+  `sampler` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `steps` int(11) NULL DEFAULT NULL,
   `seed` int(11) NULL DEFAULT NULL,
   `cfgscale` decimal(6, 2) NULL DEFAULT NULL,
@@ -153,7 +167,18 @@ CREATE TABLE `queue`  (
   INDEX `idx8`(`tele_id`, `tele_chatid`) USING BTREE,
   INDEX `idx9`(`status`, `date_added`) USING BTREE,
   INDEX `idx10`(`selected_image`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2278074 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 3381725 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for samplers
+-- ----------------------------
+DROP TABLE IF EXISTS `samplers`;
+CREATE TABLE `samplers`  (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `sampler` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `premium` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 6 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for send_queue
@@ -180,9 +205,10 @@ CREATE TABLE `send_queue`  (
 DROP TABLE IF EXISTS `sessions`;
 CREATE TABLE `sessions`  (
   `session_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  `uid` bigint(20) UNSIGNED NOT NULL,
-  `session_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  `date_added` datetime NOT NULL,
+  `uid` bigint(20) UNSIGNED NULL DEFAULT NULL,
+  `session_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
+  `date_added` datetime NOT NULL DEFAULT current_timestamp(),
+  `date_accessed` datetime NULL DEFAULT NULL,
   `date_deleted` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`session_id`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
@@ -252,7 +278,7 @@ CREATE TABLE `telegram_log`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx1`(`user_id`, `chat_id`, `date_added`) USING BTREE,
   INDEX `idx2`(`message_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2772371 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 4055652 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for telegram_user_settings
@@ -263,6 +289,7 @@ CREATE TABLE `telegram_user_settings`  (
   `tele_id` bigint(20) NOT NULL,
   `tele_chatid` bigint(20) NOT NULL,
   `model` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
+  `sampler` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `steps` int(11) NULL DEFAULT NULL,
   `seed` int(11) NULL DEFAULT NULL,
   `cfgscale` decimal(6, 2) NULL DEFAULT NULL,
@@ -300,6 +327,37 @@ CREATE TABLE `telegram_users`  (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
+-- Table structure for user_auth
+-- ----------------------------
+DROP TABLE IF EXISTS `user_auth`;
+CREATE TABLE `user_auth`  (
+  `uid` bigint(20) NOT NULL,
+  `username` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `password_hash` char(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `salt` char(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `date_created` datetime NOT NULL DEFAULT current_timestamp(),
+  `date_last_used` datetime NULL DEFAULT NULL,
+  `date_password_set` datetime NULL DEFAULT NULL,
+  PRIMARY KEY (`uid`) USING BTREE,
+  INDEX `idx1`(`username`) USING BTREE,
+  INDEX `idx2`(`username`, `password_hash`, `salt`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for user_news
+-- ----------------------------
+DROP TABLE IF EXISTS `user_news`;
+CREATE TABLE `user_news`  (
+  `uid` bigint(20) NOT NULL,
+  `news_id` bigint(20) NOT NULL,
+  `telegram_msg_id` bigint(20) NOT NULL,
+  `date_received` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`uid`, `news_id`) USING BTREE,
+  INDEX `news_id`(`news_id`) USING BTREE,
+  CONSTRAINT `user_news_ibfk_1` FOREIGN KEY (`news_id`) REFERENCES `news_messages` (`news_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
 -- Table structure for user_payments
 -- ----------------------------
 DROP TABLE IF EXISTS `user_payments`;
@@ -314,7 +372,7 @@ CREATE TABLE `user_payments`  (
   `telegram_charge_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `provider_charge_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 86 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 160 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for users
@@ -335,7 +393,7 @@ CREATE TABLE `users`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `telegram_id`(`telegram_id`) USING BTREE,
   INDEX `id`(`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 4639 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 6136 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for worker_lora_tags
@@ -401,6 +459,6 @@ CREATE TABLE `workers`  (
   `last_error` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'Last error message encountered',
   `last_queue_id` bigint(20) UNSIGNED NULL DEFAULT NULL COMMENT 'Last queue item processed',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 11 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 SET FOREIGN_KEY_CHECKS = 1;
