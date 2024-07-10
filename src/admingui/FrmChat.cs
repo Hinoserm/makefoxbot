@@ -46,17 +46,16 @@ namespace admingui
                 foreach (var chat in chatList)
                 {
                     var item = new ListViewItem(new[] { chat.ChatID.ToString(), chat.DisplayName });
-                    item.Tag = chat;
+                    item.Tag = chat.ToUID;
                     listView1.Items.Add(item);
                 }
-
-                // Keep existing sorting and behavior
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error: {ex.Message}");
             }
         }
+
 
         private void FrmChat_FormClosing(object sender, FormClosingEventArgs e)
         {
@@ -113,6 +112,13 @@ namespace admingui
                     // Scroll to the bottom
                     chatPanel.ResumeLayout();
                     chatPanel.ScrollToBottom();
+
+                    // Load images if the Images tab is selected
+                    if (tabControl.SelectedTab == tabPageImages)
+                    {
+                        var selectedUid = (long)selectedItem.Tag;
+                        await imageListView.LoadList(selectedUid);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -253,11 +259,17 @@ namespace admingui
             }
         }
 
-        private void TabControl_SelectedIndexChanged(object sender, EventArgs e)
+        private async void TabControl_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (tabControl.SelectedTab == tabPageChat)
             {
                 tabPageChat.ImageKey = null;
+            }
+            else if (tabControl.SelectedTab == tabPageImages && listView1.SelectedItems.Count > 0)
+            {
+                var selectedItem = listView1.SelectedItems[0];
+                var selectedUid = (long)selectedItem.Tag;
+                await imageListView.LoadList(selectedUid, "IMG2IMG");
             }
         }
 
@@ -274,6 +286,16 @@ namespace admingui
         private void UserSearchControl_UserSelected(object sender, string selectedUser)
         {
             MessageBox.Show($"Selected user: {selectedUser}");
+        }
+
+        private void backgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+
+        }
+
+        private void tabPageImages_Click(object sender, EventArgs e)
+        {
+
         }
     }
 

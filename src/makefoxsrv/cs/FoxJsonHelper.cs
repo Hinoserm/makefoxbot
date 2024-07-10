@@ -95,5 +95,27 @@ namespace makefoxsrv
 
             return result;
         }
+
+        // Get a list of string parameters
+        public static List<string>? GetStringList(JsonObject jsonMessage, string paramName, bool optional = true)
+        {
+            if (!jsonMessage.TryGetPropertyValue(paramName, out JsonNode? paramNode) || paramNode == null)
+            {
+                if (optional)
+                    return null;
+                else
+                    throw new Exception($"Parameter '{paramName}' is required but not provided.");
+            }
+
+            // Ensure the parameter is an array
+            if (paramNode is not JsonArray jsonArray)
+                throw new Exception($"Parameter '{paramName}' must be an array.");
+
+            // Convert the JsonArray to a list of strings
+            var resultList = jsonArray.Select(node => node?.ToString() ?? string.Empty).ToList();
+
+            return resultList;
+        }
+
     }
 }

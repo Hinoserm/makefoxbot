@@ -247,8 +247,8 @@ public class WebSocketManager
 
     public class Chat
     {
-        public int ChatID { get; set; }
-        public int ToUID { get; set; }
+        public long ChatID { get; set; }
+        public long ToUID { get; set; }
         public string? TgPeer { get; set; }
         public string? DisplayName { get; set; }
         public DateTime Date { get; set; }
@@ -357,6 +357,103 @@ public class WebSocketManager
     {
         public string Display { get; set; }
         public string Paste { get; set; }
+    }
+
+    public async Task<List<Dictionary<string, object>>> GetQueueItemsAsync(int pageNumber, int pageSize, long? uid = null, string? status = null, string? type = null, List<string>? columns = null)
+    {
+        if (string.IsNullOrEmpty(SessionID))
+        {
+            throw new InvalidOperationException("SessionID is not set. Please log in first.");
+        }
+
+        var getQueueItemsRequest = new JsonObject
+        {
+            ["Command"] = "Queue:List",
+            ["SessionID"] = SessionID,
+            ["PageNumber"] = pageNumber,
+            ["PageSize"] = pageSize
+        };
+
+        if (status != null)
+        {
+            getQueueItemsRequest["Status"] = status;
+        }
+
+        if (type != null)
+        {
+            getQueueItemsRequest["Type"] = type;
+        }
+
+        if (uid.HasValue)
+        {
+            getQueueItemsRequest["UID"] = uid.Value;
+        }
+
+        if (columns != null && columns.Any())
+        {
+            getQueueItemsRequest["Columns"] = JsonSerializer.SerializeToNode(columns);
+        }
+
+        var response = await SendRequestAsync(getQueueItemsRequest);
+
+        if (response["Success"]?.GetValue<bool>() == true)
+        {
+            var queueItemsArray = response["QueueItems"]?.AsArray();
+            if (queueItemsArray != null)
+            {
+                var queueItems = new List<Dictionary<string, object>>();
+                foreach (var queueItemNode in queueItemsArray)
+                {
+                    var queueItemObject = queueItemNode?.AsObject();
+                    if (queueItemObject != null)
+                    {
+                        var queueItemDict = new Dictionary<string, object>();
+                        foreach (var kvp in queueItemObject)
+                        {
+                            queueItemDict[kvp.Key] = kvp.Value;
+                        }
+                        queueItems.Add(queueItemDict);
+                    }
+                }
+                return queueItems;
+            }
+        }
+
+        throw new Exception(response["Error"]?.ToString() ?? "Failed to retrieve queue items.");
+    }
+
+    public async Task<byte[]> GetImageAsync(long imageId, int? maxSize = null)
+    {
+        if (string.IsNullOrEmpty(SessionID))
+        {
+            throw new InvalidOperationException("SessionID is not set. Please log in first.");
+        }
+
+        var getImageRequest = new JsonObject
+        {
+            ["Command"] = "Image:Get",
+            ["SessionID"] = SessionID,
+            ["ImageID"] = imageId
+        };
+
+        if (maxSize.HasValue)
+        {
+            getImageRequest["MaxSize"] = maxSize.Value;
+        }
+
+        var response = await SendRequestAsync(getImageRequest);
+
+        if (response["Success"]?.GetValue<bool>() == true)
+        {
+            var imageDataBase64 = response["Image"]?.ToString();
+            if (!string.IsNullOrEmpty(imageDataBase64))
+            {
+                return Convert.FromBase64String(imageDataBase64);
+            }
+            throw new Exception("Image data is missing in the response.");
+        }
+
+        throw new Exception(response["Error"]?.ToString() ?? "Failed to retrieve the image.");
     }
 
 

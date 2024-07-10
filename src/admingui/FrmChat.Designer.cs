@@ -23,6 +23,7 @@ namespace admingui
         private TabPage tabPageChat;
         private TabPage tabPageSettings;
         private TabPage tabPageImages;
+        private ImageListView imageListView;
 
         protected override void Dispose(bool disposing)
         {
@@ -36,28 +37,34 @@ namespace admingui
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
+            ColumnHeader chatId;
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FrmChat));
             imageList1 = new ImageList(components);
             splitContainer1 = new SplitContainer();
             leftPanel = new Panel();
+            userSearchControl = new UserSearchControl();
+            addChatButton = new Button();
             listView1 = new ListView();
             userName = new ColumnHeader();
             updateTime = new ColumnHeader();
-            chatId = new ColumnHeader();
+            imageListView = new ImageListView();
+            listViewContextMenu = new ContextMenuStrip(components);
+            deleteChatMenuItem = new ToolStripMenuItem();
             tabControl = new TabControl();
             tabPageChat = new TabPage();
-            tabPageSettings = new TabPage();
-            tabPageImages = new TabPage();
             chatPanel = new ChatContainerControl();
             messageInputBox = new TextBox();
             sendButton = new Button();
-            userSearchControl = new UserSearchControl();
-            addChatButton = new Button();
+            tabPageSettings = new TabPage();
+            tabPageImages = new TabPage();
+            backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
+            chatId = new ColumnHeader();
             ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
             splitContainer1.Panel1.SuspendLayout();
             splitContainer1.Panel2.SuspendLayout();
             splitContainer1.SuspendLayout();
             leftPanel.SuspendLayout();
+            listViewContextMenu.SuspendLayout();
             tabControl.SuspendLayout();
             tabPageChat.SuspendLayout();
             SuspendLayout();
@@ -113,7 +120,8 @@ namespace admingui
             userSearchControl.Location = new Point(0, 0);
             userSearchControl.Name = "userSearchControl";
             userSearchControl.Size = new Size(210, 23);
-            userSearchControl.UserSelected += new EventHandler<string>(UserSearchControl_UserSelected);
+            userSearchControl.TabIndex = 0;
+            userSearchControl.UserSelected += UserSearchControl_UserSelected;
             // 
             // addChatButton
             // 
@@ -124,12 +132,13 @@ namespace admingui
             addChatButton.TabIndex = 4;
             addChatButton.Text = "+";
             addChatButton.UseVisualStyleBackColor = true;
-            addChatButton.Click += new EventHandler(AddChatButton_Click);
+            addChatButton.Click += AddChatButton_Click;
             // 
             // listView1
             // 
             listView1.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             listView1.Columns.AddRange(new ColumnHeader[] { chatId, userName, updateTime });
+            listView1.ContextMenuStrip = listViewContextMenu;
             listView1.FullRowSelect = true;
             listView1.Location = new Point(0, 30);
             listView1.MultiSelect = false;
@@ -139,8 +148,8 @@ namespace admingui
             listView1.Sorting = SortOrder.Ascending;
             listView1.TabIndex = 1;
             listView1.UseCompatibleStateImageBehavior = false;
-            listView1.SelectedIndexChanged += new EventHandler(this.listView1_SelectedIndexChanged);
             listView1.View = View.Details;
+            listView1.SelectedIndexChanged += listView1_SelectedIndexChanged;
             // 
             // userName
             // 
@@ -150,6 +159,19 @@ namespace admingui
             // updateTime
             // 
             updateTime.Text = "Time";
+            // 
+            // listViewContextMenu
+            // 
+            listViewContextMenu.Items.AddRange(new ToolStripItem[] { deleteChatMenuItem });
+            listViewContextMenu.Name = "listViewContextMenu";
+            listViewContextMenu.Size = new Size(136, 26);
+            // 
+            // deleteChatMenuItem
+            // 
+            deleteChatMenuItem.Name = "deleteChatMenuItem";
+            deleteChatMenuItem.Size = new Size(135, 22);
+            deleteChatMenuItem.Text = "Delete Chat";
+            deleteChatMenuItem.Click += DeleteChatMenuItem_Click;
             // 
             // tabControl
             // 
@@ -162,7 +184,7 @@ namespace admingui
             tabControl.SelectedIndex = 0;
             tabControl.Size = new Size(848, 738);
             tabControl.TabIndex = 3;
-            tabControl.SelectedIndexChanged += new EventHandler(TabControl_SelectedIndexChanged);
+            tabControl.SelectedIndexChanged += TabControl_SelectedIndexChanged;
             // 
             // tabPageChat
             // 
@@ -177,31 +199,13 @@ namespace admingui
             tabPageChat.Text = "Chat";
             tabPageChat.UseVisualStyleBackColor = true;
             // 
-            // tabPageSettings
-            // 
-            tabPageSettings.Location = new Point(4, 24);
-            tabPageSettings.Name = "tabPageSettings";
-            tabPageSettings.Padding = new Padding(3);
-            tabPageSettings.Size = new Size(840, 710);
-            tabPageSettings.TabIndex = 1;
-            tabPageSettings.Text = "Settings";
-            tabPageSettings.UseVisualStyleBackColor = true;
-            // 
-            // tabPageImages
-            // 
-            tabPageImages.Location = new Point(4, 24);
-            tabPageImages.Name = "tabPageImages";
-            tabPageImages.Padding = new Padding(3);
-            tabPageImages.Size = new Size(840, 710);
-            tabPageImages.TabIndex = 2;
-            tabPageImages.Text = "Images";
-            tabPageImages.UseVisualStyleBackColor = true;
-            // 
             // chatPanel
             // 
             chatPanel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            chatPanel.AutoScroll = true;
             chatPanel.Location = new Point(0, 0);
             chatPanel.Name = "chatPanel";
+            chatPanel.Padding = new Padding(10, 10, 10, 25);
             chatPanel.Size = new Size(840, 650);
             chatPanel.TabIndex = 0;
             // 
@@ -210,8 +214,8 @@ namespace admingui
             messageInputBox.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             messageInputBox.Location = new Point(0, 650);
             messageInputBox.Multiline = true;
-            messageInputBox.ScrollBars = ScrollBars.Vertical;
             messageInputBox.Name = "messageInputBox";
+            messageInputBox.ScrollBars = ScrollBars.Vertical;
             messageInputBox.Size = new Size(740, 60);
             messageInputBox.TabIndex = 1;
             // 
@@ -226,14 +230,33 @@ namespace admingui
             sendButton.UseVisualStyleBackColor = true;
             sendButton.Click += SendButton_Click;
             // 
-            // listViewContextMenu
+            // tabPageSettings
             // 
-            listViewContextMenu = new ContextMenuStrip();
-            deleteChatMenuItem = new ToolStripMenuItem("Delete Chat");
-            deleteChatMenuItem.Click += new EventHandler(DeleteChatMenuItem_Click);
-            listViewContextMenu.Items.AddRange(new ToolStripItem[] { deleteChatMenuItem });
-            listView1.ContextMenuStrip = listViewContextMenu;
+            tabPageSettings.Location = new Point(4, 24);
+            tabPageSettings.Name = "tabPageSettings";
+            tabPageSettings.Padding = new Padding(3);
+            tabPageSettings.Size = new Size(840, 710);
+            tabPageSettings.TabIndex = 1;
+            tabPageSettings.Text = "Settings";
+            tabPageSettings.UseVisualStyleBackColor = true;
+            // 
+            // tabPageImages
+            // 
+            tabPageImages.Controls.Add(imageListView); // Add this line
+            imageListView.Dock = DockStyle.Fill; // Add this line
+            tabPageImages.Location = new Point(4, 24);
+            tabPageImages.Name = "tabPageImages";
+            tabPageImages.Padding = new Padding(3);
+            tabPageImages.Size = new Size(840, 710);
+            tabPageImages.TabIndex = 2;
+            tabPageImages.Text = "Images";
+            tabPageImages.UseVisualStyleBackColor = true;
+            tabPageImages.Click += tabPageImages_Click;
 
+            // 
+            // backgroundWorker1
+            // 
+            backgroundWorker1.DoWork += backgroundWorker1_DoWork;
             // 
             // FrmChat
             // 
@@ -243,20 +266,20 @@ namespace admingui
             Controls.Add(splitContainer1);
             Name = "FrmChat";
             Text = "FrmChat";
-            Load += FrmChat_Load;
             FormClosing += FrmChat_FormClosing;
+            Load += FrmChat_Load;
             splitContainer1.Panel1.ResumeLayout(false);
-            splitContainer1.Panel1.PerformLayout();
             splitContainer1.Panel2.ResumeLayout(false);
-            splitContainer1.Panel2.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)splitContainer1).EndInit();
             splitContainer1.ResumeLayout(false);
             leftPanel.ResumeLayout(false);
-            leftPanel.PerformLayout();
+            listViewContextMenu.ResumeLayout(false);
             tabControl.ResumeLayout(false);
             tabPageChat.ResumeLayout(false);
             tabPageChat.PerformLayout();
             ResumeLayout(false);
         }
+
+        private System.ComponentModel.BackgroundWorker backgroundWorker1;
     }
 }
