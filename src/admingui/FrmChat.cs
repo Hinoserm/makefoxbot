@@ -269,7 +269,7 @@ namespace admingui
             {
                 var selectedItem = listView1.SelectedItems[0];
                 var selectedUid = (long)selectedItem.Tag;
-                await imageListView.LoadList(selectedUid, "IMG2IMG");
+                await imageListView.LoadList(selectedUid);
             }
         }
 
