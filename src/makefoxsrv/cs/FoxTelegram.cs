@@ -545,7 +545,7 @@ We are committed to using your membership fees to further develop and maintain t
                                         }
                                         else
                                         {
-                                            await HandleMessageAsync(t, m);
+                                            _= HandleMessageAsync(t, m);
                                         }
 
                                         break;

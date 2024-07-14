@@ -137,6 +137,7 @@ namespace makefoxsrv
                 //FoxLog.WriteLine($"{message.ID}: Running command for UID {fUser?.UID}...");
                 try
                 {
+                    await fUser.LockAsync();
                     await commandHandler(t, message, fUser, argument);
                 }
                 catch (Exception ex)
@@ -146,6 +147,10 @@ namespace makefoxsrv
                         text: $"❌ Error: {ex.Message}",
                         replyToMessageId: message.ID
                     );
+                }
+                finally
+                {
+                    fUser.Unlock();
                 }
                 //FoxLog.WriteLine($"{message.ID}: Finished running command for {fUser?.UID}.");
             }
