@@ -378,6 +378,62 @@ namespace makefoxsrv
             FoxLog.WriteLine($"Added {count} saved tasks to queue.");
         }
 
+        public static async Task<int> GetTotalCount(FoxUser user)
+        {
+            int totalCount = 0;
+
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+            await SQL.OpenAsync();
+
+            using (var cmd = new MySqlCommand())
+            {
+                cmd.Connection = SQL;
+                cmd.CommandText = @"
+                    SELECT COUNT(*) AS total_count
+                    FROM queue 
+                    WHERE uid = @userID";
+
+                cmd.Parameters.AddWithValue("@userID", user.UID);
+
+                using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                {
+                    totalCount = Convert.ToInt32(r["total_count"]);
+                }
+            }
+
+            return totalCount;
+        }
+
+        public static async Task<int> GetRecentCount(FoxUser user, TimeSpan recentWindow)
+        {
+            int recentCount = 0;
+            DateTime recentThreshold = DateTime.Now.Subtract(recentWindow); // Using local time as per your requirements
+
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+            await SQL.OpenAsync();
+
+            using (var cmd = new MySqlCommand())
+            {
+                cmd.Connection = SQL;
+                cmd.CommandText = @"
+                    SELECT COUNT(*) AS recent_count
+                    FROM queue 
+                    WHERE uid = @userID AND date_added >= @recentThreshold";
+
+                cmd.Parameters.AddWithValue("@userID", user.UID);
+                cmd.Parameters.AddWithValue("@recentThreshold", recentThreshold);
+
+                using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                {
+                    recentCount = Convert.ToInt32(r["recent_count"]);
+                }
+            }
+
+            return recentCount;
+        }
+
         public async Task SetStatus(QueueStatus status, int? newMessageID = null)
         {
             this.status = status;
@@ -483,7 +539,7 @@ namespace makefoxsrv
             return (position, totalItems);
         }
 
-        public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings, QueueType type, int messageID, int? replyMessageID = null, bool enhanced = false, FoxQueue? originalTask = null)
+        public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings, QueueType type, int messageID, int? replyMessageID = null, bool enhanced = false, FoxQueue? originalTask = null, TimeSpan? delay = null)
         {
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
@@ -504,7 +560,8 @@ namespace makefoxsrv
                 MessageID = messageID,
                 ReplyMessageID = replyMessageID,
                 Enhanced = enhanced,
-                OriginalID = originalTask?.ID
+                OriginalID = originalTask?.ID,
+                RetryDate = delay.HasValue ? DateTime.Now.Add(delay.Value) : null
             };
 
             if (type == QueueType.IMG2IMG && !(await FoxImage.IsImageValid(settings.selected_image)))

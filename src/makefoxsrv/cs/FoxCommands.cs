@@ -611,6 +611,9 @@ namespace makefoxsrv
                 return;
             }
 
+            long imageSize = settings.width * settings.height;
+            long imageComplexity = imageSize * settings.steps;
+
             int q_limit = 1;
             switch (user.GetAccessLevel())
             {
@@ -618,9 +621,16 @@ namespace makefoxsrv
                     q_limit = 20;
                     break;
                 case AccessLevel.PREMIUM:
-                    q_limit = 3;
+                    if (imageComplexity > 1024 * 1024 * 20)
+                        q_limit = 1;
+                    else
+                        q_limit = 3;
                     break;
             }
+
+            // Force reduction of steps if complexity is too high.
+            //if (settings.steps > 20 && imageSize > (1024 * 1024))
+            //    settings.steps = 20;
 
             if (await FoxQueue.GetCount(user) >= q_limit)
             {
@@ -652,14 +662,53 @@ namespace makefoxsrv
                 return;
             }
 
-            (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
+            // Check if the user is premium
+            bool isPremium = user.GetAccessLevel() == AccessLevel.PREMIUM;
 
-            Message waitMsg = await t.SendMessageAsync(
-                text: $"⏳ Adding to queue ({position} of {totalItems})...",
-                replyToMessageId: message.ID
-            );
+            // Get the total count and recently generated count for the user
+            int totalCount = await FoxQueue.GetTotalCount(user);
+            int recentCount = await FoxQueue.GetRecentCount(user, TimeSpan.FromHours(3));
 
-            var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, message.ID);
+            TimeSpan? delay = null;
+
+            Message? waitMsg;
+
+            // Apply delay for non-premium users after 20 generations
+            if (!isPremium && totalCount > 20)
+            {
+                // Calculate delay based on recent count
+                int delaySeconds = Math.Min(recentCount * 2, 30);  // Delay increases by 2 seconds per image, up to a maximum of 30 seconds.
+                delay = TimeSpan.FromSeconds(delaySeconds);
+
+
+                var msgString = $"⏳ Adding to queue...";
+
+                // Nag non-premium users every 5th image
+                if (totalCount % 5 == 0 || delaySeconds > 15)
+                {
+                    msgString += "\n\n✨ Consider a /membership for faster processing and other benefits!";
+                }
+
+                waitMsg = await t.SendMessageAsync(
+                    text: msgString,
+                    replyToMessageId: message.ID
+                );
+
+                FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds} seconds.");
+            }
+            else
+            {
+                //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking next position...");
+                (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
+
+                //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Sending message...");
+                waitMsg = await t.SendMessageAsync(
+                    text: $"⏳ Adding to queue ({position} of {totalItems})...",
+                    replyToMessageId: message.ID
+                );
+            }
+
+            var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, message.ID, delay: delay);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
@@ -697,6 +746,9 @@ namespace makefoxsrv
                 return;
             }
 
+            long imageSize = settings.width * settings.height;
+            long imageComplexity = imageSize * settings.steps;
+
             int q_limit = 1;
             switch (user.GetAccessLevel())
             {
@@ -704,21 +756,27 @@ namespace makefoxsrv
                     q_limit = 20;
                     break;
                 case AccessLevel.PREMIUM:
-                    q_limit = 3;
+                    if (imageComplexity > 1024 * 1024 * 20)
+                        q_limit = 1;
+                    else
+                        q_limit = 3;
                     break;
             }
+
+            // Force reduction of steps if complexity is too high.
+            //if (settings.steps > 20 && imageSize > (1024 * 1024))
+            //    settings.steps = 20;
 
             //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking count...");
             if (await FoxQueue.GetCount(user) >= q_limit)
             {
                 await t.SendMessageAsync(
-                    text: $"❌Maximum of {q_limit} queued requests per user.",
+                    text: $"❌Maximum of {q_limit} queued requests per user.  This limit is affected by current system load and requested image complexity.",
                     replyToMessageId: message.ID
                 );
 
                 return;
             }
-
 
             //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking worker models...");
             if (await FoxWorker.GetWorkersForModel(settings.model) is null)
@@ -742,23 +800,55 @@ namespace makefoxsrv
                 return;
             }
 
-            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking next position...");
-            (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
+            // Check if the user is premium
+            bool isPremium = user.GetAccessLevel() == AccessLevel.PREMIUM;
 
-            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Sending message...");
-            Message waitMsg = await t.SendMessageAsync(
-                text: $"⏳ Adding to queue ({position} of {totalItems})...",
-                //text: $"⏳ Adding to queue...",
-                replyToMessageId: message.ID
-            );
+            // Get the total count and recently generated count for the user
+            int totalCount = await FoxQueue.GetTotalCount(user);
+            int recentCount = await FoxQueue.GetRecentCount(user, TimeSpan.FromHours(1));
 
-            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Adding to queue..");
+            TimeSpan? delay = null;
 
-            var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
+            Message? waitMsg;
+
+            // Apply delay for non-premium users after 40 generations
+            if (!isPremium && totalCount > 40)
+            {
+                // Calculate delay based on recent count
+                int delaySeconds = Math.Min(recentCount * 2, 30);  // Delay increases by 2 seconds per image, up to a maximum of 30 seconds.
+                delay = TimeSpan.FromSeconds(delaySeconds);
+
+                var msgString = $"⏳ Adding to queue...";
+
+                // Nag non-premium users every 5th image
+                if (totalCount % 5 == 0 || delaySeconds > 15)
+                {
+                    msgString += "\n\n✨ Consider a /membership for faster processing and other benefits!";
+                }
+
+                waitMsg = await t.SendMessageAsync(
+                    text: msgString,
+                    replyToMessageId: message.ID
+                );
+
+                FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds} seconds.");
+            }
+            else
+            {
+                //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking next position...");
+                (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
+
+                //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Sending message...");
+                waitMsg = await t.SendMessageAsync(
+                    text: $"⏳ Adding to queue ({position} of {totalItems})...",
+                    replyToMessageId: message.ID
+                );
+            }
+
+            var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID, delay: delay);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
-            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Enqueueing...");
             await FoxQueue.Enqueue(q);
         }
 
@@ -1317,7 +1407,7 @@ namespace makefoxsrv
             if (steps > 20 && !user.CheckAccessLevel(AccessLevel.PREMIUM))
             {
                 await t.SendMessageAsync(
-                    text: "❌ Only premium users can exceed 20 steps.\r\n\r\nConsider making a donation: /donate",
+                    text: "❌ Only members can exceed 20 steps.\r\n\r\nPlease consider a /membership",
                     replyToMessageId: message.ID
                 );
 
@@ -1329,10 +1419,10 @@ namespace makefoxsrv
                 }
                 return;
             }
-            else if (steps < 1 || (steps > 40 && !user.CheckAccessLevel(AccessLevel.ADMIN)))
+            else if (steps < 1 || (steps > 30 && !user.CheckAccessLevel(AccessLevel.ADMIN)))
             {
                 await t.SendMessageAsync(
-                    text: "❌ Value must be above 1 and below 40.",
+                    text: "❌ Value must be above 1 and below 30.",
                     replyToMessageId: message.ID
                 );
 
