@@ -673,8 +673,8 @@ namespace makefoxsrv
 
             Message? waitMsg;
 
-            // Apply delay for non-premium users after 20 generations
-            if (!isPremium && totalCount > 20)
+            // Apply delay for non-premium users after 100 generations
+            if (!isPremium && totalCount > 100)
             {
                 // Calculate delay based on recent count
                 int delaySeconds = Math.Min(recentCount * 1, 60);
@@ -805,14 +805,14 @@ namespace makefoxsrv
 
             // Get the total count and recently generated count for the user
             int totalCount = await FoxQueue.GetTotalCount(user);
-            int recentCount = await FoxQueue.GetRecentCount(user, TimeSpan.FromHours(1));
+            int recentCount = await FoxQueue.GetRecentCount(user, TimeSpan.FromHours(3));
 
             TimeSpan? delay = null;
 
             Message? waitMsg;
 
-            // Apply delay for non-premium users after 40 generations
-            if (!isPremium && totalCount > 40)
+            // Apply delay for non-premium users after 100 generations
+            if (!isPremium && totalCount > 100)
             {
                 // Calculate delay based on recent count
                 int delaySeconds = Math.Min(recentCount * 1, 60);
