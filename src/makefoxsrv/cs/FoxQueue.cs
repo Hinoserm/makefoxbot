@@ -391,7 +391,7 @@ namespace makefoxsrv
                 cmd.CommandText = @"
                     SELECT COUNT(*) AS total_count
                     FROM queue 
-                    WHERE uid = @userID";
+                    WHERE uid = @userID AND status = 'FINISHED'";
 
                 cmd.Parameters.AddWithValue("@userID", user.UID);
 
@@ -419,7 +419,7 @@ namespace makefoxsrv
                 cmd.CommandText = @"
                     SELECT COUNT(*) AS recent_count
                     FROM queue 
-                    WHERE uid = @userID AND date_added >= @recentThreshold";
+                    WHERE uid = @userID AND date_added >= @recentThreshold AND status != 'CANCELLED'";
 
                 cmd.Parameters.AddWithValue("@userID", user.UID);
                 cmd.Parameters.AddWithValue("@recentThreshold", recentThreshold);
