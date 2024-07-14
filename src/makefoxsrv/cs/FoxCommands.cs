@@ -815,7 +815,7 @@ namespace makefoxsrv
             if (!isPremium && totalCount > 100)
             {
                 // Calculate delay based on recent count
-                int delaySeconds = Math.Min(recentCount * 1, 60);
+                double delaySeconds = Math.Min(recentCount * 0.5, 60);
                 delay = TimeSpan.FromSeconds(delaySeconds);
 
                 var msgString = $"⏳ Adding to queue...";
@@ -1056,7 +1056,12 @@ namespace makefoxsrv
                 return;
             }
 
-            var banUser = await FoxUser.ParseUser(argument);
+            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+
+            if (args.Length < 1)
+                throw new ArgumentException("You must specify a username.");
+
+            var banUser = await FoxUser.ParseUser(args[0]);
 
             if (banUser is null)
             {
@@ -1067,6 +1072,11 @@ namespace makefoxsrv
 
                 return;
             }
+
+            string? banMessage = null;
+
+            if (args.Length == 2)
+                banMessage = args[1];
 
             if (banUser.CheckAccessLevel(AccessLevel.PREMIUM) || banUser.CheckAccessLevel(AccessLevel.ADMIN))
             {
@@ -1088,7 +1098,7 @@ namespace makefoxsrv
                 return;
             }
 
-            await banUser.Ban();
+            await banUser.Ban(reasonMessage: banMessage);
 
             await t.SendMessageAsync(
                 text: $"✅ User {banUser.UID} banned.",

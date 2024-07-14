@@ -405,7 +405,7 @@ namespace makefoxsrv
                 return this.accessLevel;
         }
 
-        public async Task Ban(bool silent = false)
+        public async Task Ban(bool silent = false, string? reasonMessage = null)
         {
             await SetAccessLevel(AccessLevel.BANNED);
 
@@ -441,9 +441,16 @@ namespace makefoxsrv
             {
                 if (!silent && t is not null) {
 
-                    await t.SendMessageAsync(
-                        text: $"🚫 You have been banned from using this service due to a content policy violation.  I will no longer respond to your commands."
-                    );
+                    if (reasonMessage is null)
+                    {
+                        await t.SendMessageAsync(
+                            text: $"🚫 You have been banned from using this service due to a content policy violation.  I will no longer respond to your commands."
+                        );
+                    } else {
+                        await t.SendMessageAsync(
+                            text: $"🚫 You have been banned from using this service.  I will no longer respond to your commands.\n\nReason: {reasonMessage}"
+                        );
+                    }
                 }
             }
             catch
