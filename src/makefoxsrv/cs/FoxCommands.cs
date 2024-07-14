@@ -677,7 +677,7 @@ namespace makefoxsrv
             if (!isPremium && totalCount > 20)
             {
                 // Calculate delay based on recent count
-                int delaySeconds = Math.Min(recentCount * 1, 30);
+                int delaySeconds = Math.Min(recentCount * 1, 60);
                 delay = TimeSpan.FromSeconds(delaySeconds);
 
                 var msgString = $"⏳ Adding to queue...";
@@ -693,7 +693,8 @@ namespace makefoxsrv
                     replyToMessageId: message.ID
                 );
 
-                FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds} seconds.");
+                if (delaySeconds > 0)
+                    FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds} seconds.");
             }
             else
             {
@@ -814,7 +815,7 @@ namespace makefoxsrv
             if (!isPremium && totalCount > 40)
             {
                 // Calculate delay based on recent count
-                int delaySeconds = Math.Min(recentCount * 1, 30);
+                int delaySeconds = Math.Min(recentCount * 1, 60);
                 delay = TimeSpan.FromSeconds(delaySeconds);
 
                 var msgString = $"⏳ Adding to queue...";
