@@ -33,7 +33,7 @@ namespace makefoxsrv
         private static Dictionary<long, FoxUser> userCacheByTelegramID = new Dictionary<long, FoxUser>();
         private static readonly object cacheLock = new object();
 
-        private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(6);
+        private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(1);
 
         public DateTime? CachedTime { get; set; } = null;
 
