@@ -677,9 +677,8 @@ namespace makefoxsrv
             if (!isPremium && totalCount > 20)
             {
                 // Calculate delay based on recent count
-                int delaySeconds = Math.Min(recentCount * 2, 30);  // Delay increases by 2 seconds per image, up to a maximum of 30 seconds.
+                int delaySeconds = Math.Min(recentCount * 1, 30);
                 delay = TimeSpan.FromSeconds(delaySeconds);
-
 
                 var msgString = $"⏳ Adding to queue...";
 
@@ -815,7 +814,7 @@ namespace makefoxsrv
             if (!isPremium && totalCount > 40)
             {
                 // Calculate delay based on recent count
-                int delaySeconds = Math.Min(recentCount * 2, 30);  // Delay increases by 2 seconds per image, up to a maximum of 30 seconds.
+                int delaySeconds = Math.Min(recentCount * 1, 30);
                 delay = TimeSpan.FromSeconds(delaySeconds);
 
                 var msgString = $"⏳ Adding to queue...";
