@@ -687,5 +687,85 @@ namespace makefoxsrv
             }
         }
 
+        public static async Task HandleShowGroups(FoxTelegram t, Message message, string? argument)
+        {
+            if (String.IsNullOrEmpty(argument))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must provide a user ID. Format:\r\n  /admin #showgroups <uid>\r\n  /admin #showgroups @username",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+
+            if (args.Length < 1)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must specify a user ID or username.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var user = await FoxUser.ParseUser(args[0]);
+
+            if (user is null)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Unable to parse user ID.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var groups = new List<string>();
+
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = @"
+                SELECT tc.title 
+                FROM telegram_chats tc
+                INNER JOIN telegram_chat_admins tca ON tc.id = tca.chatid
+                WHERE tca.userid = @userId AND tc.type IN ('GROUP', 'SUPERGROUP', 'GIGAGROUP')";
+                    cmd.Parameters.AddWithValue("@userId", user.TelegramID);
+
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            groups.Add(reader.GetString("title"));
+                        }
+                    }
+                }
+            }
+
+            if (groups.Count == 0)
+            {
+                await t.SendMessageAsync(
+                    text: $"ℹ️ User {user.UID} is not a member of any groups.",
+                    replyToMessageId: message.ID
+                );
+            }
+            else
+            {
+                var groupList = string.Join("\n", groups);
+                await t.SendMessageAsync(
+                    text: $"📋 User {user.UID} is a member of the following groups:\n{groupList}",
+                    replyToMessageId: message.ID
+                );
+            }
+        }
+
+
     }
 }
