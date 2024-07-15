@@ -321,30 +321,30 @@ namespace makefoxsrv
             switch (command.ToLower())
             {
                 case "#uncache":
-                    await FoxMessages.HandleUncache(t, message, commandArgs);
+                    await FoxAdmin.HandleUncache(t, message, commandArgs);
                     break;
 
                 case "#ban":
-                    await FoxMessages.HandleBan(t, message, commandArgs);
+                    await FoxAdmin.HandleBan(t, message, commandArgs);
                     break;
 
                 case "#unban":
-                    await FoxMessages.HandleUnban(t, message, commandArgs);
+                    await FoxAdmin.HandleUnban(t, message, commandArgs);
                     break;
                 case "#resetterms":
                 case "#resettos":
-                    await FoxMessages.HandleResetTerms(t, message, commandArgs);
+                    await FoxAdmin.HandleResetTerms(t, message, commandArgs);
                     break;
                 case "#premium":
-                    await FoxMessages.HandlePremium(t, message, commandArgs);
+                    await FoxAdmin.HandlePremium(t, message, commandArgs);
                     break;
                 case "#showgroups":
                 case "#groups":
-                    await FoxMessages.HandleShowGroups(t, message, commandArgs);
+                    await FoxAdmin.HandleShowGroups(t, message, commandArgs);
                     break;
                 case "#payments":
                 case "#pay":
-                    await FoxMessages.HandleShowPayments(t, message, commandArgs);
+                    await FoxAdmin.HandleShowPayments(t, message, commandArgs);
                     break;
                 default:
                     await t.SendMessageAsync(
@@ -740,7 +740,7 @@ namespace makefoxsrv
             Message? waitMsg;
 
             // Apply delay for non-premium users after 100 generations
-            if (!isPremium && totalCount > 100)
+            if (!isPremium && totalCount > 100 && normalizedComplexity > 0.001)
             {
 
                 double complexityDelay = Math.Round(0.3 + normalizedComplexity * (5.0 - 0.3), 1);
@@ -876,6 +876,7 @@ namespace makefoxsrv
                 return;
             }
 
+
             // Check if the user is premium
             bool isPremium = user.GetAccessLevel() >= AccessLevel.PREMIUM;
 
@@ -888,7 +889,7 @@ namespace makefoxsrv
             Message? waitMsg;
 
             // Apply delay for non-premium users after 100 generations
-            if (!isPremium && totalCount > 100)
+            if (!isPremium && totalCount > 100 && normalizedComplexity > 0.001)
             {
                 // Calculate delay based on image complexity
                 double complexityDelay = Math.Round(0.3 + normalizedComplexity * (5.0 - 0.3), 1);
