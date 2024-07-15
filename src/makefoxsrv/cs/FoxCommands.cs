@@ -776,7 +776,7 @@ namespace makefoxsrv
                 );
             }
 
-            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Calculated complexity: {normalizedComplexity}");
+            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Calculated complexity: {normalizedComplexity:F3}");
 
             var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, message.ID, delay: delay);
             if (q is null)
@@ -924,7 +924,7 @@ namespace makefoxsrv
                 );
             }
 
-            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Calculated complexity: {normalizedComplexity}");
+            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Calculated complexity: {normalizedComplexity:F3}");
 
             var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID, delay: delay);
             if (q is null)
