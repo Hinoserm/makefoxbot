@@ -604,5 +604,88 @@ namespace makefoxsrv
                 replyToMessageId: message.ID
             );
         }
+
+        public static async Task HandlePremium(FoxTelegram t, Message message, string? argument)
+        {
+            if (String.IsNullOrEmpty(argument))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must provide a user ID and a time span. Format:\r\n  /admin #premium <uid> <timespan>\r\n  /admin #premium @username <timespan>",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+
+            if (args.Length < 2)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must specify a user ID or username and a time span.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var premiumUser = await FoxUser.ParseUser(args[0]);
+
+            if (premiumUser is null)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Unable to parse user ID.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            try
+            {
+                TimeSpan timeSpan = FoxStrings.ParseTimeSpan(args[1]);
+                string action = timeSpan.TotalSeconds >= 0 ? "added to" : "subtracted from";
+
+                DateTime oldExpiry = premiumUser.datePremiumExpires ?? DateTime.Now;
+                DateTime newExpiry = oldExpiry.Add(timeSpan);
+
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                {
+                    await SQL.OpenAsync();
+
+                    using (var cmd = new MySqlCommand())
+                    {
+                        cmd.Connection = SQL;
+                        cmd.CommandText = "UPDATE users SET date_premium_expires = @date_premium_expires WHERE id = @uid";
+                        cmd.Parameters.AddWithValue("@date_premium_expires", newExpiry);
+                        cmd.Parameters.AddWithValue("@uid", premiumUser.UID);
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+                }
+
+                await premiumUser.SetPremiumDate(newExpiry);
+
+                string responseMessage = $"✅ {Math.Abs(timeSpan.TotalSeconds)} seconds have been {action} user {premiumUser.UID}'s premium membership.\n" +
+                                         $"New Expiration Date: {newExpiry}";
+
+                if (newExpiry < DateTime.Now)
+                {
+                    responseMessage += "\n⚠️ The new expiration date is in the past!";
+                }
+
+                await t.SendMessageAsync(
+                    text: responseMessage,
+                    replyToMessageId: message.ID
+                );
+            }
+            catch (ArgumentException ex)
+            {
+                await t.SendMessageAsync(
+                    text: $"❌ Invalid time span: {ex.Message}",
+                    replyToMessageId: message.ID
+                );
+            }
+        }
+
     }
 }

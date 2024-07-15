@@ -444,6 +444,27 @@ namespace makefoxsrv
             return null; // Return null if no valid user is found
         }
 
+        public async Task SetPremiumDate(DateTime newExpiry)
+        {
+            this.datePremiumExpires = newExpiry;
+
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = "UPDATE users SET date_premium_expires = @date_premium_expires WHERE id = @uid";
+                    cmd.Parameters.AddWithValue("@date_premium_expires", newExpiry);
+                    cmd.Parameters.AddWithValue("@uid", this.UID);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            FoxLog.WriteLine($"SetPremiumDate({this.UID}, {newExpiry})");
+        }
+
         public async Task<ulong> RecordPayment(int amount, string currency, int days, string? invoice_payload = null, string? telegram_charge_id = null, string? provider_charge_id = null)
         {
             ulong payment_id = 0;

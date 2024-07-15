@@ -2,12 +2,57 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace makefoxsrv
 {
     internal class FoxStrings
     {
+        public static TimeSpan ParseTimeSpan(string timeSpan)
+        {
+            // Define a regex pattern to match the time span
+            string pattern = @"^([+-]?\d+)\s*(\w+)$";
+            var match = Regex.Match(timeSpan, pattern);
+
+            if (!match.Success)
+            {
+                throw new ArgumentException("Invalid time span format.");
+            }
+
+            // Parse the number and the unit
+            int value = int.Parse(match.Groups[1].Value);
+            string unit = match.Groups[2].Value.ToLower();
+
+            // Determine the TimeSpan adjustment
+            switch (unit)
+            {
+                case "seconds":
+                case "sec":
+                case "s":
+                    return TimeSpan.FromSeconds(value);
+
+                case "minutes":
+                case "min":
+                case "m":
+                    return TimeSpan.FromMinutes(value);
+
+                case "hours":
+                case "h":
+                    return TimeSpan.FromHours(value);
+
+                case "days":
+                case "d":
+                    return TimeSpan.FromDays(value);
+
+                case "weeks":
+                case "w":
+                    return TimeSpan.FromDays(value * 7);
+
+                default:
+                    throw new ArgumentException($"Unknown time unit: {unit}");
+            }
+        }
 
         public static string[] text_help = {
 @"Hi, I’m Makefoxbot. I can help you generate furry pictures through AI.

@@ -335,6 +335,9 @@ namespace makefoxsrv
                 case "#resettos":
                     await FoxMessages.HandleResetTerms(t, message, commandArgs);
                     break;
+                case "#premium":
+                    await FoxMessages.HandlePremium(t, message, commandArgs);
+                    break;
                 default:
                     await t.SendMessageAsync(
                         text: "❌ Unknown command.  Use one of these:\r\n  #uncache, #ban, #unban, #resetterms, #resettos",
