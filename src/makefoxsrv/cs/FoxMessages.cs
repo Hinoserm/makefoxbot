@@ -393,5 +393,216 @@ namespace makefoxsrv
                 // We don't care if the message is not modified
             }
         }
+
+        public static async Task HandleUncache(FoxTelegram t, Message message, string? argument)
+        {
+            if (string.IsNullOrEmpty(argument) || argument.ToLower().Split(' ').Contains("all"))
+            {
+                long usersRemoved = FoxUser.ClearCache();
+                long queueRemoved = FoxQueue.ClearCache();
+
+                await t.SendMessageAsync(
+                    text: $"✅ Cleared all caches. Removed {usersRemoved + queueRemoved} items.",
+                    replyToMessageId: message.ID
+                );
+            }
+            else
+            {
+                var elements = argument.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                long totalRemoved = 0;
+
+                foreach (var element in elements)
+                {
+                    switch (element.ToLower())
+                    {
+                        case "users":
+                        case "user":
+                            totalRemoved += FoxUser.ClearCache();
+                            break;
+                        case "queue":
+                            totalRemoved += FoxQueue.ClearCache();
+                            break;
+                        default:
+                            await t.SendMessageAsync(
+                                text: $"❌ Unknown cache element: {element}",
+                                replyToMessageId: message.ID
+                            );
+                            return;
+                    }
+                }
+
+                await t.SendMessageAsync(
+                    text: $"✅ Cleared selected caches. Removed {totalRemoved} items.",
+                    replyToMessageId: message.ID
+                );
+            }
+        }
+
+        public static async Task HandleBan(FoxTelegram t, Message message, string? argument)
+        {
+            if (String.IsNullOrEmpty(argument))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must provide a user ID to ban.\r\n\r\nFormat:\r\n  /admin #ban <uid>\r\n  /admin #ban @username",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+
+            if (args.Length < 1)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must specify a user ID or username.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var banUser = await FoxUser.ParseUser(args[0]);
+
+            if (banUser is null)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Unable to parse user ID.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            string? banMessage = args.Length == 2 ? args[1] : null;
+
+            if (banUser.CheckAccessLevel(AccessLevel.PREMIUM) || banUser.CheckAccessLevel(AccessLevel.ADMIN))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You can't ban an admin or premium user!",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            if (banUser.GetAccessLevel() == AccessLevel.BANNED)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ User is already banned.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            await banUser.Ban(reasonMessage: banMessage);
+
+            await t.SendMessageAsync(
+                text: $"✅ User {banUser.UID} banned.",
+                replyToMessageId: message.ID
+            );
+        }
+
+        public static async Task HandleUnban(FoxTelegram t, Message message, string? argument)
+        {
+            if (String.IsNullOrEmpty(argument))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must provide a user ID to unban.\r\n\r\nFormat:\r\n  /admin #unban <uid>\r\n  /admin #unban @username",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+
+            if (args.Length < 1)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must specify a user ID or username.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var banUser = await FoxUser.ParseUser(args[0]);
+
+            if (banUser is null)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Unable to parse user ID.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            string? banMessage = args.Length == 2 ? args[1] : null;
+
+            if (banUser.GetAccessLevel() != AccessLevel.BANNED)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ User isn't currently banned!",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            await banUser.UnBan(reasonMessage: banMessage);
+
+            await t.SendMessageAsync(
+                text: $"✅ User {banUser.UID} unbanned.",
+                replyToMessageId: message.ID
+            );
+        }
+
+        public static async Task HandleResetTerms(FoxTelegram t, Message message, string? argument)
+        {
+            if (String.IsNullOrEmpty(argument))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must provide a user ID Format:\r\n  /admin #resetterms <uid>\r\n  /admin #resettos @username",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+
+            if (args.Length < 1)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must specify a user ID or username.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var banUser = await FoxUser.ParseUser(args[0]);
+
+            if (banUser is null)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Unable to parse user ID.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            
+            await banUser.SetTermsAccepted(false);
+
+            await t.SendMessageAsync(
+                text: $"✅ User {banUser.UID} must now re-agree to the terms on their next command.",
+                replyToMessageId: message.ID
+            );
+        }
     }
 }

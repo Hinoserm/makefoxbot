@@ -56,6 +56,20 @@ namespace makefoxsrv
             this.PreferredLanguage = language;
             this.Strings = new FoxLocalization(this, PreferredLanguage ?? "en");
         }
+
+        public static long ClearCache()
+        {
+            lock (cacheLock)
+            {
+                long count = Math.Max(userCacheByUID.Count,  userCacheByTelegramID.Count);
+
+                userCacheByUID.Clear();
+                userCacheByTelegramID.Clear();
+
+                return count;
+            }
+        }
+
         private static void AddToCache(FoxUser user)
         {
             user.CachedTime = DateTime.Now;
@@ -146,9 +160,12 @@ namespace makefoxsrv
             }
         }
 
-        public async Task SetTermsAccepted()
+        public async Task SetTermsAccepted(bool accepted = true)
         {
-            this.DateTermsAccepted = DateTime.Now;
+            if (accepted)
+                this.DateTermsAccepted = DateTime.Now;
+            else
+                this.DateTermsAccepted = null;
 
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
@@ -579,6 +596,38 @@ namespace makefoxsrv
                     } else {
                         await t.SendMessageAsync(
                             text: $"🚫 You have been banned from using this service.  I will no longer respond to your commands.\n\nReason: {reasonMessage}"
+                        );
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore any errors
+            }
+        }
+
+        public async Task UnBan(bool silent = false, string? reasonMessage = null)
+        {
+            await SetAccessLevel(AccessLevel.BASIC);
+
+            var teleUser = TelegramID is not null ? await FoxTelegram.GetUserFromID(TelegramID.Value) : null;
+            var t = teleUser is not null ? new FoxTelegram(teleUser, null) : null;
+
+            try
+            {
+                if (!silent && t is not null)
+                {
+
+                    if (reasonMessage is null)
+                    {
+                        await t.SendMessageAsync(
+                            text: $"🚫 Your account restrictions have been lifted."
+                        );
+                    }
+                    else
+                    {
+                        await t.SendMessageAsync(
+                            text: $"🚫 Your account restrictions have been lifted.\n\nMessage from Admin: {reasonMessage}"
                         );
                     }
                 }

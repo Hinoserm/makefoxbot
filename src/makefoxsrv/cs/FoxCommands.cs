@@ -74,6 +74,7 @@ namespace makefoxsrv
             { "/info",        CmdInfo },
             { "/privacy",     CmdPrivacy },
             { "/history",     CmdHistory },
+            { "/admin",       CmdAdmin },
         };
 
         public static async Task HandleCommand(FoxTelegram t, Message message)
@@ -297,6 +298,49 @@ namespace makefoxsrv
                 // Linear interpolation for amounts between $10 and $100
                 decimal daysPerDollar = (targetDaysForMaxAmount - baseDays) / (100m - 10m);
                 return (int)Math.Round(baseDays + (amountInDollars - 10) * daysPerDollar);
+            }
+        }
+
+        private static async Task CmdAdmin(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            if (!user.CheckAccessLevel(AccessLevel.ADMIN))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must be an admin to use this command.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var args = argument?.Split(' ', 2);
+
+            string command = args is not null ? args[0] : "";
+            string? commandArgs = args?.Length > 1 ? args[1] : null;
+
+            switch (command.ToLower())
+            {
+                case "#uncache":
+                    await FoxMessages.HandleUncache(t, message, commandArgs);
+                    break;
+
+                case "#ban":
+                    await FoxMessages.HandleBan(t, message, commandArgs);
+                    break;
+
+                case "#unban":
+                    await FoxMessages.HandleUnban(t, message, commandArgs);
+                    break;
+                case "#resetterms":
+                case "#resettos":
+                    await FoxMessages.HandleResetTerms(t, message, commandArgs);
+                    break;
+                default:
+                    await t.SendMessageAsync(
+                        text: "❌ Unknown command.  Use one of these:\r\n  #uncache, #ban, #unban, #resetterms, #resettos",
+                        replyToMessageId: message.ID
+                    );
+                    break;
             }
         }
 

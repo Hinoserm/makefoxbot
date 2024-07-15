@@ -138,6 +138,11 @@ namespace makefoxsrv
             FoxWorker.OnWorkerOnline += (sender, args) => _ = queueSemaphore.Release();
         }
 
+        public static long ClearCache()
+        {
+            return 0; //Not yet implemented.
+        }
+
         public static async Task Enqueue(FoxQueue item)
         {
             fullQueue.Enqueue(item);
