@@ -273,7 +273,7 @@ namespace makefoxsrv
         }
 
 
-        public static async Task SendTerms(FoxTelegram t, FoxUser user, int replyMessageID = 0, int editMessage = 0)
+        public static async Task<Message?> SendTerms(FoxTelegram t, FoxUser user, int replyMessageID = 0, int editMessage = 0)
         {
             try
             {
@@ -311,7 +311,7 @@ namespace makefoxsrv
 
                 if (editMessage != 0)
                 {
-                    await t.EditMessageAsync(
+                    return await t.EditMessageAsync(
                         id: editMessage,
                         text: message,
                         entities: entities,
@@ -320,22 +320,29 @@ namespace makefoxsrv
                 }
                 else
                 {
-                    await t.SendMessageAsync(
+                    var sentMsg = await t.SendMessageAsync(
                         text: message,
                         entities: entities,
                         replyInlineMarkup: inlineKeyboardButtons,
                         replyToMessageId: replyMessageID
 
                     );
+
+                    if (sentMsg is not null && t.User.ID == t.Peer?.ID) // Don't try to pin in groups.
+                        await t.PinMessage(sentMsg.ID);
+
+                    return sentMsg;
                 }
             }
             catch (WTelegram.WTException ex) when (ex.Message == "MESSAGE_NOT_MODIFIED")
             {
                 // We don't care if the message is not modified
             }
+
+            return null;
         }
 
-        public static async Task SendWelcome(FoxTelegram t, FoxUser user, int replyMessageID = 0, int editMessage = 0)
+        public static async Task<Message?> SendWelcome(FoxTelegram t, FoxUser user, int replyMessageID = 0, int editMessage = 0)
         {
             try
             {
@@ -368,10 +375,9 @@ namespace makefoxsrv
 
                 var entities = FoxTelegram.Client.HtmlToEntities(ref message);
 
-
                 if (editMessage != 0)
                 {
-                    await t.EditMessageAsync(
+                    return await t.EditMessageAsync(
                         id: editMessage,
                         text: message,
                         entities: entities,
@@ -380,7 +386,7 @@ namespace makefoxsrv
                 }
                 else
                 {
-                    await t.SendMessageAsync(
+                    var sentMsg = await t.SendMessageAsync(
                         text: message,
                         entities: entities,
                         replyInlineMarkup: inlineKeyboardButtons,
@@ -388,11 +394,17 @@ namespace makefoxsrv
 
                     );
 
+                    if (sentMsg is not null && t.User.ID == t.Peer?.ID) // Don't try to pin in groups.
+                        await t.PinMessage(sentMsg.ID);
+
+                    return sentMsg;
                 }
             } catch (WTelegram.WTException ex) when (ex.Message == "MESSAGE_NOT_MODIFIED")
             {
                 // We don't care if the message is not modified
             }
+
+            return null;
         }
 
         public static async Task HandleUncache(FoxTelegram t, Message message, string? argument)

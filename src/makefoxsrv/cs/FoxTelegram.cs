@@ -138,6 +138,18 @@ namespace makefoxsrv
             _ => null,
         };
 
+        public async Task PinMessage(int messageId)
+        {
+            if (!IsConnected)
+                throw new InvalidOperationException("Telegram is disconnected");
+
+            await _client.Messages_UpdatePinnedMessage(
+                peer: _peer,
+                id: messageId
+
+            );
+        }
+
         public async Task<Message> SendMessageAsync(string? text = null, int replyToMessageId = 0, ReplyInlineMarkup? replyInlineMarkup = null, MessageEntity[]? entities = null,
             bool disableWebPagePreview = true, InputMedia? media = null)
         {
@@ -202,18 +214,28 @@ namespace makefoxsrv
             return null;
         }
 
-        public async Task EditMessageAsync(int id, string? text = null, ReplyInlineMarkup ? replyInlineMarkup = null, MessageEntity[]? entities = null)
+        public async Task<Message?> EditMessageAsync(int id, string? text = null, ReplyInlineMarkup ? replyInlineMarkup = null, MessageEntity[]? entities = null)
         {
             if (!IsConnected)
                 throw new InvalidOperationException("Telegram is disconnected");
 
-            await _client.Messages_EditMessage(
+            var updates = await _client.Messages_EditMessage(
                 peer: _peer,
                 message: text,
                 id: id,
                 reply_markup: replyInlineMarkup,
                 entities: entities
             );
+
+            foreach (var update in updates.UpdateList)
+            {
+                switch (update)
+                {
+                    case UpdateEditMessage { message: Message message }: return message;
+                }
+            }
+
+            return null;
         }
 
         public async Task DeleteMessage(int id)
