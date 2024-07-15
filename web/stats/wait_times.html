@@ -9,36 +9,37 @@
 </head>
 <body>
     <canvas id="processingStageChart"></canvas>
-	<canvas id="processingStageChart2"></canvas>
+    <canvas id="processingStageChart2"></canvas>
     <script>
-		let chart, chart2;
+        let chart, chart2;
 
-async function fetchData(url) {
-    const response = await fetch(url);
-    const data = await response.json(); // Fetch JSON data
-    const userStats = data['user-stats']; // Access the 'user-stats' property
-    console.log(userStats);
+        async function fetchData(url) {
+            const response = await fetch(url);
+            const data = await response.json(); // Fetch JSON data
+            const userStats = data['user-stats']; // Access the 'user-stats' property
+            console.log(userStats);
 
-    const processedData = userStats.map(stat => ({
-        time: stat.TimeSlot.split('.')[0],
-        queueSec: parseFloat(stat.QueueSec),
-        gpuSec: parseFloat(stat.GPUSec),
-        uploadSec: parseFloat(stat.UploadSec),
-        totalSec: parseFloat(stat.TotalSec)
-    }));
+            const processedData = userStats.map(stat => ({
+                time: stat.TimeSlot.split('.')[0],
+                queueSec: parseFloat(stat.QueueSec),
+                gpuSec: parseFloat(stat.GPUSec),
+                uploadSec: parseFloat(stat.UploadSec),
+                totalSec: parseFloat(stat.TotalSec),
+                waitTimeSec: parseFloat(stat.WaitTimeSec)
+            }));
 
-    const labels = processedData.map(item => item.time);
-    const queueData = processedData.map(item => item.queueSec);
-    const processingData = processedData.map(item => item.gpuSec);
-    const uploadData = processedData.map(item => item.uploadSec);
-    const totalData = processedData.map(item => item.totalSec);
+            const labels = processedData.map(item => item.time);
+            const queueData = processedData.map(item => item.queueSec);
+            const processingData = processedData.map(item => item.gpuSec);
+            const uploadData = processedData.map(item => item.uploadSec);
+            const totalData = processedData.map(item => item.totalSec);
+            const waitTimeData = processedData.map(item => item.waitTimeSec);
 
-    return { labels, queueData, processingData, uploadData, totalData };
-}
-
+            return { labels, queueData, processingData, uploadData, totalData, waitTimeData };
+        }
 
         async function updateChart(ctx, url, chartInstance, chartTitle) {
-            const { labels, queueData, processingData, uploadData, totalData } = await fetchData(url);
+            const { labels, queueData, processingData, uploadData, totalData, waitTimeData } = await fetchData(url);
 
             console.log(labels);
 
@@ -47,7 +48,8 @@ async function fetchData(url) {
                 chartInstance.data.datasets[0].data = queueData;
                 chartInstance.data.datasets[1].data = processingData;
                 chartInstance.data.datasets[2].data = uploadData;
-				chartInstance.data.datasets[3].data = totalData;
+                chartInstance.data.datasets[3].data = totalData;
+                chartInstance.data.datasets[4].data = waitTimeData;
                 chartInstance.update();
             } else {
                 chartInstance = new Chart(ctx, {
@@ -61,7 +63,7 @@ async function fetchData(url) {
                                 borderColor: 'red',
                                 backgroundColor: 'rgba(255, 0, 0, 0.5)',
                                 fill: true,
-								pointRadius: 0,
+                                pointRadius: 0,
                             },
                             {
                                 label: 'Processing Time',
@@ -69,7 +71,7 @@ async function fetchData(url) {
                                 borderColor: 'green',
                                 backgroundColor: 'rgba(0, 255, 0, 0.5)',
                                 fill: true,
-								pointRadius: 0,
+                                pointRadius: 0,
                             },
                             {
                                 label: 'Upload Time',
@@ -77,21 +79,29 @@ async function fetchData(url) {
                                 borderColor: 'blue',
                                 backgroundColor: 'rgba(0, 0, 255, 0.5)',
                                 fill: true,
-								pointRadius: 0,
+                                pointRadius: 0,
                             },
-							{
-								label: 'Total Time',
-								data: totalData, // Your array of data for the hidden dataset
-								borderColor: 'grey',
+                            {
+                                label: 'Total Time',
+                                data: totalData,
+                                borderColor: 'grey',
                                 backgroundColor: 'rgba(128, 128, 128, 0.5)',
-								fill: true,
-								pointRadius: 0,
-								hidden:true,
-							}
+                                fill: true,
+                                pointRadius: 0,
+                                hidden: true,
+                            },
+                            {
+                                label: 'Wait Time',
+                                data: waitTimeData,
+                                borderColor: 'orange',
+                                backgroundColor: 'rgba(255, 165, 0, 0.5)',
+                                fill: true,
+                                pointRadius: 0,
+                            }
                         ]
                     },
                     options: {
-						aspectRatio: 4,
+                        aspectRatio: 4,
                         scales: {
                             x: {
                                 type: 'time',
@@ -109,7 +119,7 @@ async function fetchData(url) {
                                 }
                             },
                             y: {
-								stacked: true,
+                                stacked: true,
                                 beginAtZero: true,
                                 title: {
                                     display: true,
@@ -127,50 +137,50 @@ async function fetchData(url) {
                                 position: 'nearest',
                                 intersect: false,
                             },
-							title: {
-								display: true,
-								text: chartTitle,
-								position: 'top', // This can be 'top', 'left', 'bottom', 'right'
-								font: {
-									size: 18 // You can adjust the size as needed
-								},
-								padding: {
-									top: 5,
-									bottom: 5 // Adjust padding as needed
-								}
-							},
+                            title: {
+                                display: true,
+                                text: chartTitle,
+                                position: 'top', // This can be 'top', 'left', 'bottom', 'right'
+                                font: {
+                                    size: 18 // You can adjust the size as needed
+                                },
+                                padding: {
+                                    top: 5,
+                                    bottom: 5 // Adjust padding as needed
+                                }
+                            },
                         }
                     }
                 });
             }
 
-			return chartInstance;
+            return chartInstance;
         }
 
-		function adjustCanvasSize() {
-			const vh = window.innerHeight * 0.01;
-			const canvasHeight = vh * 48; // 45% of the viewport height
-			const canvases = document.querySelectorAll('canvas');
-			canvases.forEach(canvas => {
-				canvas.style.height = `${canvasHeight}px`;
-				canvas.style.width = '100%';
-			});
-		}
+        function adjustCanvasSize() {
+            const vh = window.innerHeight * 0.01;
+            const canvasHeight = vh * 48; // 45% of the viewport height
+            const canvases = document.querySelectorAll('canvas');
+            canvases.forEach(canvas => {
+                canvas.style.height = `${canvasHeight}px`;
+                canvas.style.width = '100%';
+            });
+        }
 
-		window.onload = async () => {
-			adjustCanvasSize();
-			const chartConfigurations = [
-				{refresh: 300000, ctx: document.getElementById('processingStageChart').getContext('2d'), url: "/stats/api/wait-times.php?hours=30&div=15", chart: chart, title: 'Average Time Spent in Each Processing Stage per 15 Minute Interval Over the Last 30 Hours'},
-				{refresh: 20000, ctx: document.getElementById('processingStageChart2').getContext('2d'), url: "/stats/api/wait-times.php?hours=1&div=1", chart: chart2, title: 'Average Time Spent in Each Processing Stage per Minute Over the Last Hour'}
-			];
+        window.onload = async () => {
+            adjustCanvasSize();
+            const chartConfigurations = [
+                { refresh: 300000, ctx: document.getElementById('processingStageChart').getContext('2d'), url: "/stats/api/wait-times.php?hours=30&div=15", chart: chart, title: 'Average Time Spent in Each Processing Stage per 15 Minute Interval Over the Last 30 Hours' },
+                { refresh: 20000, ctx: document.getElementById('processingStageChart2').getContext('2d'), url: "/stats/api/wait-times.php?hours=1&div=1", chart: chart2, title: 'Average Time Spent in Each Processing Stage per Minute Over the Last Hour' }
+            ];
 
-			chartConfigurations.forEach(async (config) => {
-				config.chart = await updateChart(config.ctx, config.url, config.chart, config.title);
-				setInterval(async () => {
-					config.chart = await updateChart(config.ctx, config.url, config.chart, config.title);
-				}, config.refresh);
-			});
-		};
+            chartConfigurations.forEach(async (config) => {
+                config.chart = await updateChart(config.ctx, config.url, config.chart, config.title);
+                setInterval(async () => {
+                    config.chart = await updateChart(config.ctx, config.url, config.chart, config.title);
+                }, config.refresh);
+            });
+        };
     </script>
 </body>
 </html>
