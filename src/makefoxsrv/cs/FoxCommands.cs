@@ -762,7 +762,7 @@ namespace makefoxsrv
                     replyToMessageId: message.ID
                 );
 
-                FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds} seconds ({complexityDelay}).");
+                FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds:F2} seconds ({complexityDelay}).");
             }
             else
             {
@@ -908,7 +908,7 @@ namespace makefoxsrv
                     replyToMessageId: message.ID
                 );
 
-                FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds} seconds ({complexityDelay}).");
+                FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds:F2} seconds ({complexityDelay}).");
             }
             else
             {
