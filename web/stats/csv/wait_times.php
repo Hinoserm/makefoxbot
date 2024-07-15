@@ -41,14 +41,20 @@ $sql = "SELECT
     q.original_id,
     IFNULL(q.model, 'indigoFurryMix_v105Hybrid') AS model,
     IFNULL(w.name, 'Unknown') AS worker_name,
-    (UNIX_TIMESTAMP(CASE
+    (UNIX_TIMESTAMP(q.date_worker_start) - UNIX_TIMESTAMP(CASE
        WHEN q.retry_date IS NOT NULL THEN q.retry_date
-       ELSE q.date_worker_start
-   END) - UNIX_TIMESTAMP(q.date_added)) AS QueueSec,
+       ELSE q.date_added
+   END)) AS QueueSec,
     (UNIX_TIMESTAMP(q.date_sent) - UNIX_TIMESTAMP(q.date_worker_start)) AS GPUSec,
     (UNIX_TIMESTAMP(q.date_finished) - UNIX_TIMESTAMP(q.date_sent)) AS UploadSec,
-    (UNIX_TIMESTAMP(q.date_finished) - UNIX_TIMESTAMP(q.date_added)) AS TotalSec,
-    (UNIX_TIMESTAMP(q.retry_date) - UNIX_TIMESTAMP(q.date_added)) AS WaitTimeSec
+    (UNIX_TIMESTAMP(q.date_finished) - UNIX_TIMESTAMP(CASE
+       WHEN q.retry_date IS NOT NULL THEN q.retry_date
+       ELSE q.date_added
+   END)) AS TotalSec,
+    (CASE
+        WHEN q.retry_date IS NOT NULL THEN UNIX_TIMESTAMP(q.retry_date) - UNIX_TIMESTAMP(q.date_added)
+        ELSE 0
+   END) AS WaitTimeSec
 FROM
     queue q
 LEFT JOIN users u ON q.uid = u.id
