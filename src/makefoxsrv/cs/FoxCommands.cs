@@ -342,6 +342,10 @@ namespace makefoxsrv
                 case "#groups":
                     await FoxMessages.HandleShowGroups(t, message, commandArgs);
                     break;
+                case "#payments":
+                case "#pay":
+                    await FoxMessages.HandleShowPayments(t, message, commandArgs);
+                    break;
                 default:
                     await t.SendMessageAsync(
                         text: "❌ Unknown command.  Use one of these:\r\n  #uncache, #ban, #unban, #resetterms, #resettos",

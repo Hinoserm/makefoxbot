@@ -823,6 +823,94 @@ namespace makefoxsrv
             }
         }
 
+        public static async Task HandleShowPayments(FoxTelegram t, Message message, string? argument)
+        {
+            if (String.IsNullOrEmpty(argument))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must provide a user ID. Format:\r\n  /admin #payments <uid>\r\n  /admin #payments @username",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+
+            if (args.Length < 1)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must specify a user ID or username.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var user = await FoxUser.ParseUser(args[0]);
+
+            if (user is null)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Unable to parse user ID.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var payments = new List<(long id, DateTime date, decimal amount, int days, string currency, string provider)>();
+
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = @"
+                SELECT *
+                FROM user_payments
+                WHERE uid = @userId
+                ORDER BY id ASC";
+                    cmd.Parameters.AddWithValue("@userId", user.UID);
+
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            long id = reader.GetInt64("id");
+                            DateTime date = reader.GetDateTime("date");
+                            decimal amount = reader.GetInt32("amount") / 100m; // Convert cents to decimal format
+                            int days = reader.GetInt32("days");
+                            string currency = reader.GetString("currency");
+                            string provider = reader.GetString("type");
+
+                            payments.Add((id, date, amount, days, currency, provider));
+                        }
+                    }
+                }
+            }
+
+            if (payments.Count == 0)
+            {
+                await t.SendMessageAsync(
+                    text: $"ℹ️ User {user.UID} has no recorded payments.",
+                    replyToMessageId: message.ID
+                );
+            }
+            else
+            {
+                var paymentDetails = payments.Select(p => $"{p.id}: {p.amount:F2} {p.currency}, {p.days} days, {p.provider}, {p.date}");
+                var paymentList = string.Join("\n", paymentDetails);
+
+                await t.SendMessageAsync(
+                    text: $"📋 Payment history for user {user.UID}:\n{paymentList}",
+                    replyToMessageId: message.ID
+                );
+            }
+        }
+
 
 
 
