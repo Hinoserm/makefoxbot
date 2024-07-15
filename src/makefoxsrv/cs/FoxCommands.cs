@@ -729,7 +729,7 @@ namespace makefoxsrv
             }
 
             // Check if the user is premium
-            bool isPremium = user.GetAccessLevel() == AccessLevel.PREMIUM;
+            bool isPremium = user.GetAccessLevel() >= AccessLevel.PREMIUM;
 
             // Get the total count and recently generated count for the user
             int totalCount = await FoxQueue.GetTotalCount(user);
@@ -877,7 +877,7 @@ namespace makefoxsrv
             }
 
             // Check if the user is premium
-            bool isPremium = user.GetAccessLevel() == AccessLevel.PREMIUM;
+            bool isPremium = user.GetAccessLevel() >= AccessLevel.PREMIUM;
 
             // Get the total count and recently generated count for the user
             int totalCount = await FoxQueue.GetTotalCount(user);
