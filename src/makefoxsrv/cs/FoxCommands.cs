@@ -583,7 +583,6 @@ namespace makefoxsrv
             );
         }
 
-
         private static async Task CmdStart(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             await FoxMessages.SendWelcome(t, user, message.ID);
@@ -605,7 +604,6 @@ namespace makefoxsrv
                     }
                 }
             };
-
 
             await t.SendMessageAsync(
                 text: FoxStrings.text_help[0],

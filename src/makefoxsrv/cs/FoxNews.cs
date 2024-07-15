@@ -59,7 +59,7 @@ namespace makefoxsrv
                     SELECT q.uid
                     FROM queue q
                     LEFT JOIN user_news un ON q.uid = un.uid AND un.news_id = @newsId
-                    WHERE q.date_added >= NOW() - INTERVAL 30 DAY
+                    WHERE q.date_added >= NOW() - INTERVAL 90 DAY
                     GROUP BY q.uid
                     HAVING COUNT(q.uid) >= 10 AND COUNT(un.news_id) = 0;";
 
