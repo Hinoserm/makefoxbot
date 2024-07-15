@@ -21,14 +21,20 @@ $div = isset($_GET['div']) && is_numeric($_GET['div']) && $_GET['div'] > 0 ? $_G
 $sql = "SELECT
         CONCAT(DATE(date_added), ' ', LPAD(HOUR(date_added), 2, '0'), ':',
                LPAD(FLOOR(MINUTE(date_added) / :div) * :div, 2, '0'), ':00.00') AS TimeSlot,
-        MAX(UNIX_TIMESTAMP(CASE
+        AVG(UNIX_TIMESTAMP(CASE
                WHEN q.retry_date IS NOT NULL THEN q.retry_date
                ELSE q.date_worker_start
            END) - UNIX_TIMESTAMP(q.date_added)) AS QueueSec,
-        MAX(UNIX_TIMESTAMP(q.retry_date) - UNIX_TIMESTAMP(q.date_added)) AS WaitTimeSec,
-        MAX(UNIX_TIMESTAMP(q.date_sent) - UNIX_TIMESTAMP(q.date_worker_start)) AS GPUSec,
-        MAX(UNIX_TIMESTAMP(q.date_finished) - UNIX_TIMESTAMP(q.date_sent)) AS UploadSec,
-        MAX(UNIX_TIMESTAMP(q.date_finished) - UNIX_TIMESTAMP(q.date_added)) AS TotalSec
+        AVG(UNIX_TIMESTAMP(q.date_worker_start) - UNIX_TIMESTAMP(CASE
+               WHEN q.retry_date IS NOT NULL THEN q.retry_date
+               ELSE q.date_added
+           END)) AS WaitTimeSec,
+        AVG(UNIX_TIMESTAMP(q.date_sent) - UNIX_TIMESTAMP(q.date_worker_start)) AS GPUSec,
+        AVG(UNIX_TIMESTAMP(q.date_finished) - UNIX_TIMESTAMP(q.date_sent)) AS UploadSec,
+        AVG(UNIX_TIMESTAMP(q.date_finished) - UNIX_TIMESTAMP(CASE
+               WHEN q.retry_date IS NOT NULL THEN q.retry_date
+               ELSE q.date_added
+           END)) AS TotalSec
     FROM
         queue q
     WHERE
