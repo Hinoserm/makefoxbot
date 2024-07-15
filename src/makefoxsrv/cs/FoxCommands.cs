@@ -674,6 +674,12 @@ namespace makefoxsrv
             long imageSize = settings.width * settings.height;
             long imageComplexity = imageSize * settings.steps;
 
+            // Default and maximum complexity
+            long defaultComplexity = 640 * 768 * 20;
+            long maxComplexity = 1920 * 1920 * 20;
+
+            double normalizedComplexity = (double)(imageComplexity - defaultComplexity) / (maxComplexity - defaultComplexity);
+
             int q_limit = 1;
             switch (user.GetAccessLevel())
             {
@@ -733,16 +739,10 @@ namespace makefoxsrv
 
             Message? waitMsg;
 
-            // Default and maximum complexity
-            long defaultComplexity = 640 * 768 * 20;
-            long maxComplexity = 1920 * 1920 * 20;
-
             // Apply delay for non-premium users after 100 generations
             if (!isPremium && totalCount > 100)
             {
-                // Calculate delay based on image complexity
-                long complexity = settings.width * settings.height * settings.steps;
-                double normalizedComplexity = (double)(complexity - defaultComplexity) / (maxComplexity - defaultComplexity);
+
                 double complexityDelay = Math.Round(0.3 + normalizedComplexity * (5.0 - 0.3), 1);
 
                 // Calculate additional delay based on recent count
@@ -775,6 +775,8 @@ namespace makefoxsrv
                     replyToMessageId: message.ID
                 );
             }
+
+            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Calculated complexity: {normalizedComplexity}");
 
             var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, message.ID, delay: delay);
             if (q is null)
@@ -816,6 +818,12 @@ namespace makefoxsrv
 
             long imageSize = settings.width * settings.height;
             long imageComplexity = imageSize * settings.steps;
+
+            // Default and maximum complexity
+            long defaultComplexity = 640 * 768 * 20;
+            long maxComplexity = 1920 * 1920 * 20;
+
+            double normalizedComplexity = (double)(imageComplexity - defaultComplexity) / (maxComplexity - defaultComplexity);
 
             int q_limit = 1;
             switch (user.GetAccessLevel())
@@ -879,16 +887,10 @@ namespace makefoxsrv
 
             Message? waitMsg;
 
-            // Default and maximum complexity
-            long defaultComplexity = 640 * 768 * 20;
-            long maxComplexity = 1920 * 1920 * 20;
-
             // Apply delay for non-premium users after 100 generations
             if (!isPremium && totalCount > 100)
             {
                 // Calculate delay based on image complexity
-                long complexity = settings.width * settings.height * settings.steps;
-                double normalizedComplexity = (double)(complexity - defaultComplexity) / (maxComplexity - defaultComplexity);
                 double complexityDelay = Math.Round(0.3 + normalizedComplexity * (5.0 - 0.3), 1);
 
                 // Calculate additional delay based on recent count
@@ -921,6 +923,8 @@ namespace makefoxsrv
                     replyToMessageId: message.ID
                 );
             }
+
+            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Calculated complexity: {normalizedComplexity}");
 
             var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID, delay: delay);
             if (q is null)
