@@ -743,10 +743,10 @@ namespace makefoxsrv
                 // Calculate delay based on image complexity
                 long complexity = settings.width * settings.height * settings.steps;
                 double normalizedComplexity = (double)(complexity - defaultComplexity) / (maxComplexity - defaultComplexity);
-                double complexityDelay = Math.Round(0.1 + normalizedComplexity * (5.0 - 0.1), 1);
+                double complexityDelay = Math.Round(0.3 + normalizedComplexity * (5.0 - 0.3), 1);
 
                 // Calculate additional delay based on recent count
-                double delaySeconds = Math.Min(recentCount * complexityDelay, 60);
+                double delaySeconds = Math.Round(Math.Min(recentCount * complexityDelay, 60), 1);
                 delay = TimeSpan.FromSeconds(delaySeconds);
 
                 var msgString = $"⏳ Adding to queue...";
@@ -889,10 +889,10 @@ namespace makefoxsrv
                 // Calculate delay based on image complexity
                 long complexity = settings.width * settings.height * settings.steps;
                 double normalizedComplexity = (double)(complexity - defaultComplexity) / (maxComplexity - defaultComplexity);
-                double complexityDelay = Math.Round(0.1 + normalizedComplexity * (5.0 - 0.1), 1);
+                double complexityDelay = Math.Round(0.3 + normalizedComplexity * (5.0 - 0.3), 1);
 
                 // Calculate additional delay based on recent count
-                double delaySeconds = Math.Min(recentCount * complexityDelay, 60);
+                double delaySeconds = Math.Round(Math.Min(recentCount * complexityDelay, 60), 1);
                 delay = TimeSpan.FromSeconds(delaySeconds);
 
                 var msgString = $"⏳ Adding to queue...";
