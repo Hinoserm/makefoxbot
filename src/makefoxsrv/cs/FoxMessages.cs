@@ -10,6 +10,7 @@ using makefoxsrv;
 using MySqlConnector;
 using System.Collections;
 using Terminal.Gui;
+using System.Numerics;
 
 
 //This class deals with building and sending Telegram messages to the user.
@@ -860,6 +861,7 @@ namespace makefoxsrv
             }
 
             var payments = new List<(long id, DateTime date, decimal amount, int days, string currency, string provider)>();
+            decimal total = 0;
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -882,6 +884,7 @@ namespace makefoxsrv
                             long id = reader.GetInt64("id");
                             DateTime date = reader.GetDateTime("date");
                             decimal amount = reader.GetInt32("amount") / 100m; // Convert cents to decimal format
+                            total += amount;
                             int days = reader.GetInt32("days");
                             string currency = reader.GetString("currency");
                             string provider = reader.GetString("type");
@@ -901,11 +904,11 @@ namespace makefoxsrv
             }
             else
             {
-                var paymentDetails = payments.Select(p => $"{p.id}: {p.amount:F2} {p.currency}, {p.days} days, {p.provider}, {p.date}");
+                var paymentDetails = payments.Select(p => $"{p.id}: ${p.amount:F2} {p.currency}, {p.days} days, {p.provider}, {p.date}");
                 var paymentList = string.Join("\n", paymentDetails);
 
                 await t.SendMessageAsync(
-                    text: $"📋 Payment history for user {user.UID}:\n{paymentList}",
+                    text: $"📋 Payment history for user {user.UID}:\n{paymentList}\n\nTotal: {payments.Count()} transactions (${total:F2})",
                     replyToMessageId: message.ID
                 );
             }
