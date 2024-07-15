@@ -723,27 +723,84 @@ namespace makefoxsrv
                 return;
             }
 
-            var groups = new List<string>();
+            var groups = new Dictionary<long, string>();
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
+                // Check admin groups
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
                     cmd.CommandText = @"
-                SELECT tc.title 
+                SELECT tc.id, tc.title, tca.type AS admin_type
                 FROM telegram_chats tc
                 INNER JOIN telegram_chat_admins tca ON tc.id = tca.chatid
-                WHERE tca.userid = @userId AND tc.type IN ('GROUP', 'SUPERGROUP', 'GIGAGROUP')";
-                    cmd.Parameters.AddWithValue("@userId", user.TelegramID);
+                WHERE tca.userid = @teleUserId";
+                    cmd.Parameters.AddWithValue("@teleUserId", user.TelegramID);
 
                     using (var reader = await cmd.ExecuteReaderAsync())
                     {
                         while (await reader.ReadAsync())
                         {
-                            groups.Add(reader.GetString("title"));
+                            long chatId = reader.GetInt64("id");
+                            string groupName = reader.GetString("title");
+                            string adminType = reader.IsDBNull(reader.GetOrdinal("admin_type")) ? "" : " (Admin)";
+                            if (!groups.ContainsKey(chatId))
+                            {
+                                groups.Add(chatId, groupName + adminType);
+                            }
+                        }
+                    }
+                }
+
+                // Check telegram_log for messages sent by the user in groups
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = @"
+                SELECT DISTINCT tc.id, tc.title
+                FROM telegram_chats tc
+                INNER JOIN telegram_log tl ON tl.chat_id = tc.id
+                WHERE tl.user_id = @teleUserId AND tc.type IN ('GROUP', 'SUPERGROUP', 'GIGAGROUP')";
+                    cmd.Parameters.AddWithValue("@teleUserId", user.TelegramID);
+
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            long chatId = reader.GetInt64("id");
+                            string groupName = reader.GetString("title");
+                            if (!groups.ContainsKey(chatId))
+                            {
+                                groups.Add(chatId, groupName);
+                            }
+                        }
+                    }
+                }
+
+                // Check queue for user entries in groups
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = @"
+                SELECT DISTINCT tc.id, tc.title
+                FROM telegram_chats tc
+                INNER JOIN queue q ON q.tele_chatid = tc.id
+                WHERE q.tele_id = @teleUserId AND tc.type IN ('GROUP', 'SUPERGROUP', 'GIGAGROUP')";
+                    cmd.Parameters.AddWithValue("@teleUserId", user.TelegramID);
+
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            long chatId = reader.GetInt64("id");
+                            string groupName = reader.GetString("title");
+                            if (!groups.ContainsKey(chatId))
+                            {
+                                groups.Add(chatId, groupName);
+                            }
                         }
                     }
                 }
@@ -758,13 +815,16 @@ namespace makefoxsrv
             }
             else
             {
-                var groupList = string.Join("\n", groups);
+                var groupList = string.Join("\n", groups.Values);
                 await t.SendMessageAsync(
                     text: $"📋 User {user.UID} is a member of the following groups:\n{groupList}",
                     replyToMessageId: message.ID
                 );
             }
         }
+
+
+
 
 
     }
