@@ -733,16 +733,25 @@ namespace makefoxsrv
 
             Message? waitMsg;
 
+            // Default and maximum complexity
+            long defaultComplexity = 640 * 768 * 20;
+            long maxComplexity = 1920 * 1920 * 20;
+
             // Apply delay for non-premium users after 100 generations
             if (!isPremium && totalCount > 100)
             {
-                // Calculate delay based on recent count
-                int delaySeconds = Math.Min(recentCount * 1, 60);
+                // Calculate delay based on image complexity
+                long complexity = settings.width * settings.height * settings.steps;
+                double normalizedComplexity = (double)(complexity - defaultComplexity) / (maxComplexity - defaultComplexity);
+                double complexityDelay = Math.Round(0.1 + normalizedComplexity * (5.0 - 0.1), 1);
+
+                // Calculate additional delay based on recent count
+                double delaySeconds = Math.Min(recentCount * complexityDelay, 60);
                 delay = TimeSpan.FromSeconds(delaySeconds);
 
                 var msgString = $"⏳ Adding to queue...";
 
-                // Nag non-premium users every 5th image
+                // Nag non-premium users every 5th image or if the delay is substantial
                 if (totalCount % 5 == 0 || delaySeconds > 15)
                 {
                     msgString += "\n\n✨ Consider a /membership for faster processing and other benefits!";
@@ -753,8 +762,7 @@ namespace makefoxsrv
                     replyToMessageId: message.ID
                 );
 
-                if (delaySeconds > 0)
-                    FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds} seconds.");
+                FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds} seconds ({complexityDelay}).");
             }
             else
             {
@@ -881,7 +889,7 @@ namespace makefoxsrv
                 // Calculate delay based on image complexity
                 long complexity = settings.width * settings.height * settings.steps;
                 double normalizedComplexity = (double)(complexity - defaultComplexity) / (maxComplexity - defaultComplexity);
-                double complexityDelay = 0.1 + normalizedComplexity * (5.0 - 0.1);
+                double complexityDelay = Math.Round(0.1 + normalizedComplexity * (5.0 - 0.1), 1);
 
                 // Calculate additional delay based on recent count
                 double delaySeconds = Math.Min(recentCount * complexityDelay, 60);
