@@ -492,30 +492,42 @@ namespace makefoxsrv
                     FoxLog.WriteLine($"recordPayment({this.UID}, {amount} {currency}, {days} days)");
                 }
 
-                using (var cmd = new MySqlCommand())
-                {
-                    cmd.Connection = SQL;
-                    cmd.CommandText = @"
-                        UPDATE users
-                        SET 
-                            date_premium_expires = IF(
-                                @days = -1, 
-                                '9999-12-31',
-                                IF(
-                                    date_premium_expires IS NULL OR date_premium_expires < @now OR lifetime_subscription = 1, 
-                                    DATE_ADD(@now, INTERVAL @days DAY), 
-                                    DATE_ADD(date_premium_expires, INTERVAL @days DAY)
-                                )
-                            ),
-                            lifetime_subscription = IF(@days = -1, 1, lifetime_subscription)
-                        WHERE id = @uid AND (lifetime_subscription IS NULL OR lifetime_subscription = 0);";
-                    cmd.Parameters.AddWithValue("uid", this.UID);
-                    cmd.Parameters.AddWithValue("now", DateTime.Now);
-                    cmd.Parameters.AddWithValue("days", days);
+                //using (var cmd = new MySqlCommand())
+                //{
+                //    cmd.Connection = SQL;
+                //    cmd.CommandText = @"
+                //        UPDATE users
+                //        SET 
+                //            date_premium_expires = IF(
+                //                @days = -1, 
+                //                '9999-12-31',
+                //                IF(
+                //                    date_premium_expires IS NULL OR date_premium_expires < @now OR lifetime_subscription = 1, 
+                //                    DATE_ADD(@now, INTERVAL @days DAY), 
+                //                    DATE_ADD(date_premium_expires, INTERVAL @days DAY)
+                //                )
+                //            ),
+                //            lifetime_subscription = IF(@days = -1, 1, lifetime_subscription)
+                //        WHERE id = @uid AND (lifetime_subscription IS NULL OR lifetime_subscription = 0);";
+                //    cmd.Parameters.AddWithValue("uid", this.UID);
+                //    cmd.Parameters.AddWithValue("now", DateTime.Now);
+                //    cmd.Parameters.AddWithValue("days", days);
 
-                    await cmd.ExecuteNonQueryAsync();
-                    payment_id = (ulong)cmd.LastInsertedId;
-                }
+                //    await cmd.ExecuteNonQueryAsync();
+                //    payment_id = (ulong)cmd.LastInsertedId;
+                //}
+            }
+
+            if (days < 0)
+                days = 99999; // Lifetime subscription (a cheap hack for now)
+
+            if (this.datePremiumExpires > DateTime.Now)
+            {
+                await this.SetPremiumDate(this.datePremiumExpires.Value.AddDays(days));
+            }
+            else
+            {
+                await this.SetPremiumDate(DateTime.Now.AddDays(days));
             }
 
             return payment_id;
