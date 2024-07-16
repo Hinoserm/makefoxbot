@@ -309,6 +309,8 @@ public class StableDiffusion
 
         var request = new TextToImageConfigRequest(config);
 
+        Console.WriteLine(JsonSerializer.Serialize(request, new JsonSerializerOptions { WriteIndented = true }));
+
         var response = await SlowHttpClient.PostAsJsonAsync("/sdapi/v1/txt2img", request, SerializerOptions, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 

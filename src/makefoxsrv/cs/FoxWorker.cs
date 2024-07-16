@@ -24,6 +24,63 @@ using System.Configuration;
 
 namespace makefoxsrv
 {
+
+    public record RegionalPrompter
+    : IAdditionalScriptConfig
+    {
+        public bool Active { get; set; } = true;
+        public bool Debug { get; set; } = false;
+        public string Mode { get; set; } = "Matrix";
+        public string ModeMatrix { get; set; } = "Vertical";
+        public string ModeMask { get; set; } = "Mask";
+        public string ModePrompt { get; set; } = "Prompt";
+        public string Ratios { get; set; } = "1,1,1";
+        public string BaseRatios { get; set; } = "";
+        public bool UseBase { get; set; } = false;
+        public bool UseCommon { get; set; } = false;
+        public bool UseNegCommon { get; set; } = false;
+        public string CalcMode { get; set; } = "Attention";
+        public bool NotChangeAND { get; set; } = false;
+        public string LoRATextEncoder { get; set; } = "0";
+        public string LoRAUNet { get; set; } = "0";
+        public string Threshold { get; set; } = "0";
+        public string Mask { get; set; } = "";
+        public string LoRAStopStep { get; set; } = "0";
+        public string LoRAHiresStopStep { get; set; } = "0";
+        public bool Flip { get; set; } = false;
+
+        public string Key => "Regional Prompter";
+
+        public object ToJsonObject()
+        {
+            var args = new object[]
+            {
+            Active,
+            Debug,
+            Mode,
+            ModeMatrix,
+            ModeMask,
+            ModePrompt,
+            Ratios,
+            BaseRatios,
+            UseBase,
+            UseCommon,
+            UseNegCommon,
+            CalcMode,
+            NotChangeAND,
+            LoRATextEncoder,
+            LoRAUNet,
+            Threshold,
+            Mask,
+            LoRAStopStep,
+            LoRAHiresStopStep,
+            Flip
+            };
+
+            return new { args };
+        }
+    }
+
     internal class FoxWorker
     {
         public int ID { get; private set; }
@@ -1110,34 +1167,57 @@ namespace makefoxsrv
                         (width, height) = FoxImage.CalculateLimitedDimensions(settings.width, settings.height, 768);
                     }
 
-                    var txt2img = await api.TextToImage(
-                        new()
+                    var config = new TextToImageConfig()
+                    {
+                        Model = model,
+
+                        Prompt = new()
                         {
-                            Model = model,
+                            Positive = settings.prompt,
+                            Negative = settings.negative_prompt,
+                        },
 
-                            Prompt = new()
-                            {
-                                Positive = settings.prompt,
-                                Negative = settings.negative_prompt,
-                            },
+                        Seed = new()
+                        {
+                            Seed = settings.seed,
+                        },
 
-                            Seed = new()
-                            {
-                                Seed = settings.seed,
-                            },
+                        Width = width,
+                        Height = height,
 
-                            Width = width,
-                            Height = height,
+                        Sampler = new()
+                        {
+                            Sampler = sampler,
+                            SamplingSteps = settings.steps,
+                            CfgScale = (double)settings.cfgscale
+                        },
+                        HighRes = hiResConfig
+                    };
 
-                            Sampler = new()
-                            {
-                                Sampler = sampler,
-                                SamplingSteps = settings.steps,
-                                CfgScale = (double)settings.cfgscale
-                            },
-                            HighRes = hiResConfig
-                        }
-                    , ctsLoop.Token);
+                    // Add Regional Prompter configuration
+                    config.AdditionalScripts.Add(new RegionalPrompter
+                    {
+                        Active = true,
+                        Debug = false,
+                        Mode = "Matrix",
+                        ModeMatrix = "Columns",
+                        ModeMask = "Mask",
+                        ModePrompt = "Prompt",
+                        Ratios = "1",
+                        BaseRatios = "0.5",
+                        UseBase = false,
+                        UseCommon = false,
+                        UseNegCommon = false,
+                        CalcMode = "Latent",
+                        NotChangeAND = false,
+                        LoRATextEncoder = "0",
+                        LoRAUNet = "0",
+                        Threshold = "0",
+                        LoRAStopStep = "10"
+                    }) ;
+
+
+                    var txt2img = await api.TextToImage(config, ctsLoop.Token);
 
                     outputImage = txt2img.Images.Last().Data.ToArray();
                 }
