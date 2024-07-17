@@ -80,10 +80,10 @@ namespace makefoxsrv
                     errorMessage = charge.FailureMessage;
                 }
             }
-            catch (StripeException e)
+            catch (StripeException ex)
             {
                 // Handle error
-                errorMessage = e.Message;
+                errorMessage = ex.Message;
             }
 
             return new JsonObject

@@ -37,7 +37,7 @@ public interface IMySettings
     [Option(Alias = "Telegram.PAYMENT_TOKEN")]
     string TelegramPaymentToken { get; }
 
-    [Option(Alias = "Stripe.PRIVATE_TOKEN")]
+    [Option(Alias = "Stripe.PRIVATE_KEY")]
     string StripePrivateKey { get; }
 
     [Option(Alias = "Telegram.API_URL")]
