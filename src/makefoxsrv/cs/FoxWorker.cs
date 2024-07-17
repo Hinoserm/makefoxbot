@@ -1101,38 +1101,64 @@ namespace makefoxsrv
 
                     var img = new Base64EncodedImage(inputImage.Image);
 
-                    var img2img = await api.Image2Image(
-                        new()
+
+                    var config = new ImageToImageConfig()
+                    {
+                        Images = { img },
+
+                        Model = model,
+
+                        Prompt = new()
                         {
-                            Images = { img },
+                            Positive = settings.prompt,
+                            Negative = settings.negative_prompt,
+                        },
 
-                            Model = model,
+                        Width = settings.width,
+                        Height = settings.height,
 
-                            Prompt = new()
-                            {
-                                Positive = settings.prompt,
-                                Negative = settings.negative_prompt,
-                            },
+                        Seed = new()
+                        {
+                            Seed = settings.seed
+                        },
+                        ResizeMode = qItem.Enhanced ? 0 : 2, //Testing this
+                        InpaintingFill = MaskFillMode.LatentNoise,
+                        DenoisingStrength = (double)settings.denoising_strength,
 
-                            Width = settings.width,
-                            Height = settings.height,
-
-                            Seed = new()
-                            {
-                                Seed = settings.seed
-                            },
-                            ResizeMode = qItem.Enhanced ? 0 : 2, //Testing this
-                            InpaintingFill = MaskFillMode.LatentNoise,
-                            DenoisingStrength = (double)settings.denoising_strength,
-
-                            Sampler = new()
-                            {
-                                Sampler = sampler,
-                                SamplingSteps = settings.steps,
-                                CfgScale = (double)settings.cfgscale
-                            }
+                        Sampler = new()
+                        {
+                            Sampler = sampler,
+                            SamplingSteps = settings.steps,
+                            CfgScale = (double)settings.cfgscale
                         }
-                    , ctsLoop.Token);
+                    };
+
+                    if (qItem.Enhanced)
+                    {
+                        // Add Regional Prompter configuration
+                        config.AdditionalScripts.Add(new RegionalPrompter
+                        {
+                            Active = true,
+                            Debug = false,
+                            Mode = "Matrix",
+                            ModeMatrix = "Columns",
+                            ModeMask = "Mask",
+                            ModePrompt = "Prompt",
+                            Ratios = "1",
+                            BaseRatios = "0.5",
+                            UseBase = false,
+                            UseCommon = false,
+                            UseNegCommon = false,
+                            CalcMode = "Latent",
+                            NotChangeAND = false,
+                            LoRATextEncoder = "0",
+                            LoRAUNet = "0",
+                            Threshold = "0",
+                            LoRAStopStep = "10"
+                        });
+                    }
+
+                    var img2img = await api.Image2Image(config, ctsLoop.Token);
 
                     outputImage = img2img.Images.Last().Data.ToArray();
                 }
@@ -1214,7 +1240,7 @@ namespace makefoxsrv
                         LoRAUNet = "0",
                         Threshold = "0",
                         LoRAStopStep = "10"
-                    }) ;
+                    });
 
 
                     var txt2img = await api.TextToImage(config, ctsLoop.Token);
