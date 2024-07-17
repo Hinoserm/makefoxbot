@@ -20,6 +20,7 @@ using System.Security.Policy;
 using System.Diagnostics;
 using System.Collections.Concurrent;
 using Terminal.Gui;
+using static Swan.Terminal;
 
 namespace makefoxsrv
 {
@@ -308,7 +309,8 @@ namespace makefoxsrv
                 .Where(worker => worker.Online
                                  && (worker.qItem == null)  // Worker is not currently busy
                                  && (!worker.MaxImageSize.HasValue || (item.Settings.width * item.Settings.height) <= worker.MaxImageSize.Value)
-                                 && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value))
+                                 && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
+                                 && (!item.RegionalPrompting || worker.SupportsRegionalPrompter))
                                  //&& ((worker.MaxUpscaleSize.HasValue && ((item.Settings.UpscalerWidth ?? 0) * (item.Settings.UpscalerWidth ?? 0)) <= worker.MaxUpscaleSize.Value)
                                  //    || (!worker.MaxUpscaleSize.HasValue && !item.Enhanced)))
                 .ToList();
