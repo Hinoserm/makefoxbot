@@ -83,7 +83,7 @@ namespace makefoxsrv
             catch (StripeException e)
             {
                 // Handle error
-                errorMessage = e.StripeError.Message;
+                errorMessage = e.Message;
             }
 
             return new JsonObject
