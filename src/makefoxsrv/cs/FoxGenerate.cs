@@ -194,10 +194,10 @@ namespace makefoxsrv
                 //    msgString += "\n\n✨ Consider a /membership for faster processing and other benefits!";
                 //}
 
-                //waitMsg = await t.SendMessageAsync(
-                //    text: msgString,
-                //    replyToMessageId: message.ID
-                //);
+                waitMsg = await t.SendMessageAsync(
+                    text: msgString,
+                    replyToMessageId: message.ID
+                );
 
                 if (normalizedComplexity > 1.0)
                     FoxLog.WriteLine($"Delaying generation for premium user {user.UID} for {delaySeconds:F2} seconds due to image complexity of {normalizedComplexity}");
