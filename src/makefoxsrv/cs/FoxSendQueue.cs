@@ -124,6 +124,13 @@ namespace makefoxsrv
                             messageText += $"\n\n⚠️ Image dimensions exceed Telegram's maximum image preview size.  For best quality, click below to download the full resoluton file.";
                         }
 
+                        Regex regex = new Regex(@"<lora:[^>:]+(:\d+)?>", RegexOptions.IgnoreCase);
+
+                        if (q.RegionalPrompting && (regex.IsMatch(q.Settings.prompt ?? "") || regex.IsMatch(q.Settings.negative_prompt ?? "")))
+                        {
+                            messageText += $"\n\n⚠️ LoRAs are known to behave strangely when using regional prompting.  If your image appears strange or corrupted, remove LoRAs from your prompts and try again.";
+                        }
+
                         var msg = await t.SendMessageAsync(
                             media: new InputMediaUploadedPhoto() { file = inputImage },
                             text: (t.Chat is not null ? messageText : null),

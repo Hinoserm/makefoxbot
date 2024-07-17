@@ -13,6 +13,7 @@ using MySqlConnector;
 using WTelegram;
 using TL;
 using System.Collections;
+using System.Text.RegularExpressions;
 
 // Functions and commands specific to generating images
 
@@ -20,6 +21,18 @@ namespace makefoxsrv
 {
     internal class FoxGenerate
     {
+        private static bool DetectRegionalPrompting(string input)
+        {
+            // Define the regular expression pattern to match the words
+            string pattern = @"\b(ADDCOL|ADDROW|ADDCOMM|ADDBASE)\b";
+
+            // Create a Regex object with the pattern
+            Regex regex = new Regex(pattern);
+
+            // Return true if any matches are found, otherwise false
+            return regex.IsMatch(input);
+        }
+
         public static async Task HandleCmdGenerate(FoxTelegram t, Message message, FoxUser user, String? argument, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG)
         {
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
@@ -74,6 +87,17 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌You must specify a prompt!  Please seek /help",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            settings.regionalPrompting = DetectRegionalPrompting(settings.prompt ?? "") || DetectRegionalPrompting(settings.negative_prompt ?? "");
+
+            if (settings.regionalPrompting && !user.CheckAccessLevel(AccessLevel.PREMIUM)) {
+                await t.SendMessageAsync(
+                    text: "❌ Regional prompting is a premium feature.\n\nPlease consider a paid /membership",
                     replyToMessageId: message.ID
                 );
 
@@ -138,7 +162,7 @@ namespace makefoxsrv
             }
 
             // Check if the user is premium
-            bool isPremium = user.GetAccessLevel() >= AccessLevel.PREMIUM;
+            bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM);
 
             // Get the total count and recently generated count for the user
             int totalCount = await FoxQueue.GetTotalCount(user);

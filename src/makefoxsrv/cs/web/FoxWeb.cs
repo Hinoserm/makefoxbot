@@ -29,27 +29,36 @@ class FoxWeb
 {
     public static WebServer StartWebServer(string url = "http://*:5555/", CancellationToken cancellationToken = default)
     {
-        EndPointManager.UseIpv6 = false;
+        try
+        {
+            EndPointManager.UseIpv6 = false;
 
-        MethodLookup.BuildFunctionLookup();
+            MethodLookup.BuildFunctionLookup();
 
-        var server = new WebServer(o => o
-                    .WithUrlPrefix(url)
-                    .WithMode(HttpListenerMode.EmbedIO))
-                .WithCors()
-                .WithLocalSessionManager()
-                .WithModule(new FoxWebSockets.Handler("/ws"))
-                .WithWebApi("/api", module => module.WithController<DynamicController>())
-                //.WithStaticFolder("/", "../react/dist", false)
-                .WithStaticFolder("/", "../wwwroot", false)
-                .WithModule(new FileCacheInvalidationModule("/"));
-                
+            var server = new WebServer(o => o
+                        .WithUrlPrefix(url)
+                        .WithMode(HttpListenerMode.EmbedIO))
+                    .WithCors()
+                    .WithLocalSessionManager()
+                    .WithModule(new FoxWebSockets.Handler("/ws"))
+                    .WithWebApi("/api", module => module.WithController<DynamicController>())
+                    //.WithStaticFolder("/", "../react/dist", false)
+                    .WithStaticFolder("/", "../wwwroot", false)
+                    .WithModule(new FileCacheInvalidationModule("/"));
 
-        server.StateChanged += (s, e) => Console.WriteLine($"WebServer New State - {e.NewState}");
 
-        server.Start(cancellationToken);
+            server.StateChanged += (s, e) => Console.WriteLine($"WebServer New State - {e.NewState}");
 
-        return server;
+            server.Start(cancellationToken);
+
+            return server;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error starting web server: {ex.Message}\r\n{ex.StackTrace}");
+        }
+
+        return null;
     }
 
     // Define the dynamic controller that can handle all methods based on the lookup table

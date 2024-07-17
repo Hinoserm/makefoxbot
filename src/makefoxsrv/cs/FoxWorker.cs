@@ -95,7 +95,7 @@ namespace makefoxsrv
 
         public int? MaxImageSize { get; private set; } //width*height.  If null, no limit
         public int? MaxImageSteps { get; private set; } //If null, no limit
-        public int? MaxUpscaleSize { get; private set; } //If null, does not support upscaling
+        public bool SupportsRegionalPrompter { get; private set; } = false;
 
         public DateTime StartDate { get; private set; } //Worker start date
         public DateTime? TaskStartDate { get; private set; } = null;
@@ -328,8 +328,8 @@ namespace makefoxsrv
                     if (!(reader["max_img_steps"] is DBNull))
                         worker.MaxImageSteps = reader.GetInt32("max_img_steps");
 
-                    if (!(reader["max_upscale_size"] is DBNull))
-                        worker.MaxUpscaleSize = reader.GetInt32("max_upscale_size");
+                    if (!(reader["regional_prompting"] is DBNull))
+                        worker.SupportsRegionalPrompter = reader.GetBoolean("regional_prompting");
 
                     await worker.SetStartDate();
 
@@ -1133,8 +1133,10 @@ namespace makefoxsrv
                         }
                     };
 
-                    if (qItem.Enhanced)
+                    if (qItem.RegionalPrompting)
                     {
+                        FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Using regional prompting extension.");
+
                         // Add Regional Prompter configuration
                         config.AdditionalScripts.Add(new RegionalPrompter
                         {
@@ -1220,27 +1222,32 @@ namespace makefoxsrv
                         HighRes = hiResConfig
                     };
 
-                    // Add Regional Prompter configuration
-                    config.AdditionalScripts.Add(new RegionalPrompter
+                    if (qItem.RegionalPrompting)
                     {
-                        Active = true,
-                        Debug = false,
-                        Mode = "Matrix",
-                        ModeMatrix = "Columns",
-                        ModeMask = "Mask",
-                        ModePrompt = "Prompt",
-                        Ratios = "1",
-                        BaseRatios = "0.5",
-                        UseBase = false,
-                        UseCommon = false,
-                        UseNegCommon = false,
-                        CalcMode = "Latent",
-                        NotChangeAND = false,
-                        LoRATextEncoder = "0",
-                        LoRAUNet = "0",
-                        Threshold = "0",
-                        LoRAStopStep = "10"
-                    });
+                        FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Using regional prompting extension.");
+
+                        // Add Regional Prompter configuration
+                        config.AdditionalScripts.Add(new RegionalPrompter
+                        {
+                            Active = true,
+                            Debug = false,
+                            Mode = "Matrix",
+                            ModeMatrix = "Columns",
+                            ModeMask = "Mask",
+                            ModePrompt = "Prompt",
+                            Ratios = "1",
+                            BaseRatios = "0.5",
+                            UseBase = false,
+                            UseCommon = false,
+                            UseNegCommon = false,
+                            CalcMode = "Latent",
+                            NotChangeAND = false,
+                            LoRATextEncoder = "0",
+                            LoRAUNet = "0",
+                            Threshold = "0",
+                            LoRAStopStep = "10"
+                        });
+                    }
 
 
                     var txt2img = await api.TextToImage(config, ctsLoop.Token);

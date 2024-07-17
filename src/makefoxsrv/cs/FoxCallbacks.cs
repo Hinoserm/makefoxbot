@@ -178,6 +178,8 @@ namespace makefoxsrv
 
             settings.selected_image = q.OutputImageID.Value;
 
+            settings.regionalPrompting = q.RegionalPrompting; //Have to copy this over manually
+
             if (FoxQueue.CheckWorkerAvailability(settings) is null)
             {
                 await t.SendMessageAsync(

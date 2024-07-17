@@ -92,6 +92,9 @@ namespace makefoxsrv
         [DbColumn("enhanced")]
         public bool Enhanced = false;
 
+        [DbColumn("regional_prompting")]
+        public bool RegionalPrompting = false;
+
         [DbColumn("original_id")]
         public ulong? OriginalID { get; set; } // Used for tracking the original ID for Enhanced tasks
 
@@ -283,12 +286,13 @@ namespace makefoxsrv
             var workers = FoxWorker.GetWorkers().Values;
 
             // Filter out workers based on their online status, max image size, steps capacity,
-            // and the availability of the model.
+            // the availability of the model, and regional prompting support if required.
             var capableWorkers = workers
                 .Where(worker => worker.Online
                                  && (!worker.MaxImageSize.HasValue || (settings.width * settings.height) <= worker.MaxImageSize.Value)
                                  && (!worker.MaxImageSteps.HasValue || settings.steps <= worker.MaxImageSteps.Value)
-                                 && worker.availableModels.ContainsKey(settings.model)) // Check if the model is available to the worker
+                                 && worker.availableModels.ContainsKey(settings.model) // Check if the model is available to the worker
+                                 && (!settings.regionalPrompting || worker.SupportsRegionalPrompter)) // Check regional prompting condition
                 .FirstOrDefault(); // Immediately return the first capable worker found
 
             return capableWorkers; // Could be null if no capable workers are found
@@ -566,7 +570,8 @@ namespace makefoxsrv
                 ReplyMessageID = replyMessageID,
                 Enhanced = enhanced,
                 OriginalID = originalTask?.ID,
-                RetryDate = delay.HasValue ? DateTime.Now.Add(delay.Value) : null
+                RetryDate = delay.HasValue ? DateTime.Now.Add(delay.Value) : null,
+                RegionalPrompting = settings.regionalPrompting
             };
 
             if (type == QueueType.IMG2IMG && !(await FoxImage.IsImageValid(settings.selected_image)))

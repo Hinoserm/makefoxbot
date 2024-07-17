@@ -22,6 +22,8 @@ namespace makefoxsrv
         private string? _model;
         private string? _sampler;
 
+        public bool regionalPrompting = false;
+
         [DbColumn("steps")]
         public int steps
         {
@@ -113,7 +115,8 @@ namespace makefoxsrv
                 selected_image = this.selected_image,
                 TelegramUserID = this.TelegramUserID,
                 TelegramChatID = this.TelegramChatID,
-                User = this.User
+                User = this.User,
+                regionalPrompting = this.regionalPrompting
             };
         }
 
