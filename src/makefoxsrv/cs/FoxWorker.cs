@@ -24,22 +24,21 @@ using System.Configuration;
 
 namespace makefoxsrv
 {
-
     public record RegionalPrompter
     : IAdditionalScriptConfig
     {
         public bool Active { get; set; } = true;
         public bool Debug { get; set; } = false;
         public string Mode { get; set; } = "Matrix";
-        public string ModeMatrix { get; set; } = "Vertical";
+        public string ModeMatrix { get; set; } = "Columns";
         public string ModeMask { get; set; } = "Mask";
         public string ModePrompt { get; set; } = "Prompt";
-        public string Ratios { get; set; } = "1,1,1";
-        public string BaseRatios { get; set; } = "";
+        public string Ratios { get; set; } = "1";
+        public string BaseRatios { get; set; } = "0.3";
         public bool UseBase { get; set; } = false;
         public bool UseCommon { get; set; } = false;
         public bool UseNegCommon { get; set; } = false;
-        public string CalcMode { get; set; } = "Attention";
+        public string CalcMode { get; set; } = "Latent";
         public bool NotChangeAND { get; set; } = false;
         public string LoRATextEncoder { get; set; } = "0";
         public string LoRAUNet { get; set; } = "0";
@@ -1138,26 +1137,7 @@ namespace makefoxsrv
                         FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Using regional prompting extension.");
 
                         // Add Regional Prompter configuration
-                        config.AdditionalScripts.Add(new RegionalPrompter
-                        {
-                            Active = true,
-                            Debug = false,
-                            Mode = "Matrix",
-                            ModeMatrix = "Columns",
-                            ModeMask = "Mask",
-                            ModePrompt = "Prompt",
-                            Ratios = "1",
-                            BaseRatios = "0.5",
-                            UseBase = false,
-                            UseCommon = false,
-                            UseNegCommon = false,
-                            CalcMode = "Latent",
-                            NotChangeAND = false,
-                            LoRATextEncoder = "0",
-                            LoRAUNet = "0",
-                            Threshold = "0",
-                            LoRAStopStep = "10"
-                        });
+                        config.AdditionalScripts.Add(new RegionalPrompter()); // Use default options.;
                     }
 
                     var img2img = await api.Image2Image(config, ctsLoop.Token);
@@ -1227,26 +1207,7 @@ namespace makefoxsrv
                         FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Using regional prompting extension.");
 
                         // Add Regional Prompter configuration
-                        config.AdditionalScripts.Add(new RegionalPrompter
-                        {
-                            Active = true,
-                            Debug = false,
-                            Mode = "Matrix",
-                            ModeMatrix = "Columns",
-                            ModeMask = "Mask",
-                            ModePrompt = "Prompt",
-                            Ratios = "1",
-                            BaseRatios = "0.5",
-                            UseBase = false,
-                            UseCommon = false,
-                            UseNegCommon = false,
-                            CalcMode = "Latent",
-                            NotChangeAND = false,
-                            LoRATextEncoder = "0",
-                            LoRAUNet = "0",
-                            Threshold = "0",
-                            LoRAStopStep = "10"
-                        });
+                        config.AdditionalScripts.Add(new RegionalPrompter()); // Use default options.
                     }
 
 
