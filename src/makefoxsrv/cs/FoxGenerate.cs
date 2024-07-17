@@ -202,7 +202,7 @@ namespace makefoxsrv
                 if (normalizedComplexity > 1.0)
                     FoxLog.WriteLine($"Delaying generation for premium user {user.UID} for {delaySeconds:F2} seconds due to image complexity of {normalizedComplexity}");
                 else
-                    FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds:F2} seconds ({complexityDelay}).");
+                    FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds:F2} seconds ({recentCount} * {complexityDelay}).");
             }
             else
             {
