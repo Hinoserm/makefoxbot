@@ -120,7 +120,7 @@ namespace makefoxsrv
                     q_limit = 20;
                     break;
                 case AccessLevel.PREMIUM:
-                    if (imageComplexity > 1.0)
+                    if (normalizedComplexity > 1.0)
                         q_limit = 1;
                     else
                         q_limit = 3;
@@ -173,16 +173,16 @@ namespace makefoxsrv
             Message? waitMsg;
 
             // Apply delay for non-premium users after 100 generations
-            if ((!isPremium && totalCount > 100) || normalizedComplexity > 1.0)
+            if (false && (!isPremium && totalCount > 100) || normalizedComplexity > 1.0)
             {
 
                 double complexityDelay = Math.Round(0.2 + normalizedComplexity * (5.0 - 0.2), 1);
 
                 // Calculate additional delay based on recent count
-                double delaySeconds = Math.Round(Math.Min(recentCount * complexityDelay, 60), 1);
+                double delaySeconds = Math.Round(Math.Min(recentCount * complexityDelay, 30), 1);
 
                 if (normalizedComplexity > 1.0)
-                    delaySeconds = Math.Max(delaySeconds, 120); // 2 minutes
+                    delaySeconds = Math.Max(delaySeconds, 30);
 
                 delay = TimeSpan.FromSeconds(delaySeconds);
 
