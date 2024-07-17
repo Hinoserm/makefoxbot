@@ -24,6 +24,8 @@ using static System.Net.Mime.MediaTypeNames;
 using System.Runtime.Intrinsics.Arm;
 using Castle.Core.Smtp;
 using System.Timers;
+using Stripe;
+
 public interface IMySettings
 {
     [Option(Alias = "Telegram.BOT_TOKEN")]
@@ -34,6 +36,9 @@ public interface IMySettings
 
     [Option(Alias = "Telegram.PAYMENT_TOKEN")]
     string TelegramPaymentToken { get; }
+
+    [Option(Alias = "Stripe.TOKEN")]
+    string StripeToken { get; }
 
     [Option(Alias = "Telegram.API_URL")]
     string TelegramApiUrl { get; }
@@ -200,6 +205,9 @@ namespace makefoxsrv
                     throw new Exception("API_HASH setting not set.");
                 if (settings.TelegramBotToken is null)
                     throw new Exception("BOT_TOKEN setting not set.");
+
+                if (settings.StripeToken is not null)
+                    StripeConfiguration.ApiKey = settings.StripeToken;
             }
             catch (Exception ex)
             {

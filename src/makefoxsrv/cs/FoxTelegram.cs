@@ -115,6 +115,7 @@ namespace makefoxsrv
                 _client = new WTelegram.Client(appID, apiHash, sessionFile);
                 _client.OnOther += Client_OnOther;
                 _client.OnUpdates += HandleUpdateAsync;
+                //_client.OnOwnUpdates += HandleUpdateAsync;
             }
             else
                 _client.Reset(false, true);

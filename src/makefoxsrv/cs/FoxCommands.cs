@@ -378,7 +378,7 @@ namespace makefoxsrv
             List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
 
             // List to accumulate buttons for the current row
-            List<TL.KeyboardButtonCallback> currentRowButtons = new List<TL.KeyboardButtonCallback>();
+            List<TL.KeyboardButtonWebView> currentRowButtons = new List<TL.KeyboardButtonWebView>();
 
             // Loop through the donation amounts and create buttons
             for (int i = 0; i < donationAmounts.Length; i++)
@@ -386,15 +386,16 @@ namespace makefoxsrv
                 int amountInCents = donationAmounts[i] * 100;
                 int days = CalculateRewardDays(amountInCents);
                 string buttonText = $"💳 ${donationAmounts[i]} ({days} days)";
-                string callbackData = $"/donate {donationAmounts[i]} {days}";
 
-                currentRowButtons.Add(new TL.KeyboardButtonCallback { text = buttonText, data = System.Text.Encoding.UTF8.GetBytes(callbackData) });
+                string webUrl = $"https://makefox.bot/tgapp/membership.php?tg=1&days={days}&price={amountInCents}&uid={user.UID}";
+
+                currentRowButtons.Add(new TL.KeyboardButtonWebView { text = buttonText, url = webUrl });
 
                 // Every two buttons or at the end, add the current row to buttonRows and start a new row
                 if ((i + 1) % 2 == 0 || i == donationAmounts.Length - 1)
                 {
                     buttonRows.Add(new TL.KeyboardButtonRow { buttons = currentRowButtons.ToArray() });
-                    currentRowButtons = new List<TL.KeyboardButtonCallback>(); // Reset for the next row
+                    currentRowButtons = new List<TL.KeyboardButtonWebView>(); // Reset for the next row
                 }
             }
 
