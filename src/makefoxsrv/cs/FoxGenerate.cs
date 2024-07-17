@@ -109,7 +109,7 @@ namespace makefoxsrv
 
             // Default and maximum complexity
             long defaultComplexity = 640 * 768 * 20;
-            long maxComplexity = 1920 * 1920 * 20;
+            long maxComplexity = 1536 * 1536 * 20;
 
             double normalizedComplexity = (double)(imageComplexity - defaultComplexity) / (maxComplexity - defaultComplexity);
 
@@ -120,7 +120,7 @@ namespace makefoxsrv
                     q_limit = 20;
                     break;
                 case AccessLevel.PREMIUM:
-                    if (imageComplexity > 1024 * 1024 * 20)
+                    if (imageComplexity > 1.0)
                         q_limit = 1;
                     else
                         q_limit = 3;
@@ -173,29 +173,36 @@ namespace makefoxsrv
             Message? waitMsg;
 
             // Apply delay for non-premium users after 100 generations
-            if (!isPremium && totalCount > 100 && normalizedComplexity > 0.001)
+            if ((!isPremium && totalCount > 100) || normalizedComplexity > 1.0)
             {
 
-                double complexityDelay = Math.Round(0.3 + normalizedComplexity * (5.0 - 0.3), 1);
+                double complexityDelay = Math.Round(0.2 + normalizedComplexity * (5.0 - 0.2), 1);
 
                 // Calculate additional delay based on recent count
                 double delaySeconds = Math.Round(Math.Min(recentCount * complexityDelay, 60), 1);
+
+                if (normalizedComplexity > 1.0)
+                    delaySeconds = Math.Max(delaySeconds, 120); // 2 minutes
+
                 delay = TimeSpan.FromSeconds(delaySeconds);
 
                 var msgString = $"⏳ Adding to queue...";
 
                 // Nag non-premium users every 5th image or if the delay is substantial
-                if (totalCount % 5 == 0 || delaySeconds > 15)
-                {
-                    msgString += "\n\n✨ Consider a /membership for faster processing and other benefits!";
-                }
+                //if (totalCount % 5 == 0 || delaySeconds > 15)
+                //{
+                //    msgString += "\n\n✨ Consider a /membership for faster processing and other benefits!";
+                //}
 
-                waitMsg = await t.SendMessageAsync(
-                    text: msgString,
-                    replyToMessageId: message.ID
-                );
+                //waitMsg = await t.SendMessageAsync(
+                //    text: msgString,
+                //    replyToMessageId: message.ID
+                //);
 
-                FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds:F2} seconds ({complexityDelay}).");
+                if (normalizedComplexity > 1.0)
+                    FoxLog.WriteLine($"Delaying generation for premium user {user.UID} for {delaySeconds:F2} seconds due to image complexity of {normalizedComplexity}");
+                else
+                    FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds:F2} seconds ({complexityDelay}).");
             }
             else
             {
