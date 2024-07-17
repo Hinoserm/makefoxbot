@@ -32,7 +32,6 @@ namespace makefoxsrv
 
         private static Dictionary<ulong, FoxUser> userCacheByUID = new Dictionary<ulong, FoxUser>();
         private static Dictionary<long, FoxUser> userCacheByTelegramID = new Dictionary<long, FoxUser>();
-        private static Dictionary<string, FoxUser> userCacheByUsername = new Dictionary<string, FoxUser>(StringComparer.OrdinalIgnoreCase);
         private static readonly object cacheLock = new object();
 
         private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(1);
@@ -67,7 +66,6 @@ namespace makefoxsrv
 
                 userCacheByUID.Clear();
                 userCacheByTelegramID.Clear();
-                userCacheByUsername.Clear();
 
                 return count;
             }
@@ -84,13 +82,6 @@ namespace makefoxsrv
 
                 if (user.TelegramID != null && !userCacheByTelegramID.TryAdd(user.TelegramID.Value, user))
                     throw new InvalidOperationException($"User with Telegram ID {user.TelegramID.Value} already exists in cache.");
-
-                if (user.Username is not null)
-                {
-                    string lowerUsername = user.Username.ToLowerInvariant();
-                    if (!userCacheByUsername.TryAdd(lowerUsername, user))
-                        throw new InvalidOperationException($"User with Username {user.Username} already exists in cache.");
-                }
             }
         }
 
@@ -100,22 +91,24 @@ namespace makefoxsrv
             string lowerUsername = username.ToLowerInvariant();
             lock (cacheLock)
             {
-                if (userCacheByUsername.TryGetValue(lowerUsername, out var user) && user.CachedTime.HasValue)
+                foreach (var entry in userCacheByUID)
                 {
-                    if (DateTime.Now - user.CachedTime.Value < CacheDuration)
+                    var user = entry.Value;
+                    if (user.Username is not null && user.Username.ToLowerInvariant() == lowerUsername && user.CachedTime.HasValue)
                     {
-                        return user;
-                    }
-                    else
-                    {
-                        FoxLog.WriteLine($"GetUserFromCache({user.UID}): User has expired from cache, removing.", LogLevel.DEBUG);
-
-                        userCacheByUsername.Remove(lowerUsername);
-                        userCacheByUID.Remove(user.UID);
-
-                        if (user.TelegramID is not null)
+                        if (DateTime.Now - user.CachedTime.Value < CacheDuration)
                         {
-                            userCacheByTelegramID.Remove(user.TelegramID.Value);
+                            return user;
+                        }
+                        else
+                        {
+                            FoxLog.WriteLine($"GetUserFromCache({user.UID}): User has expired from cache, removing.", LogLevel.DEBUG);
+
+                            userCacheByUID.Remove(user.UID);
+                            if (user.TelegramID is not null)
+                            {
+                                userCacheByTelegramID.Remove(user.TelegramID.Value);
+                            }
                         }
                     }
                 }
