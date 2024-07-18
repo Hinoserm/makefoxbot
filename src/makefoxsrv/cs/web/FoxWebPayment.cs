@@ -18,6 +18,9 @@ using System.CodeDom;
 using Stripe.FinancialConnections;
 using WTelegram;
 
+using PayPalCheckoutSdk.Core;
+using PayPalCheckoutSdk.Orders;
+
 namespace makefoxsrv
 {
     public class FoxWebPayment
@@ -31,7 +34,6 @@ namespace makefoxsrv
             int price = FoxJsonHelper.GetInt(jsonMessage, "Price", false).Value;
             int days = FoxJsonHelper.GetInt(jsonMessage, "Days", false).Value;
             
-
             var user = await FoxUser.GetByUID(uid);
 
             if (user is null)
@@ -92,6 +94,88 @@ namespace makefoxsrv
                 ["Success"] = false,
                 ["Error"] = $"Payment failed: {errorMessage ?? "Reason Unknown"}"
             };
+        }
+
+        [WebFunctionName("ProcessPayPalOrder")]
+        [WebLoginRequired(false)]
+        public static async Task<JsonObject?> ProcessPayPalOrder(FoxWebSession session, JsonObject jsonMessage)
+        {
+            string payPalOrderId = FoxJsonHelper.GetString(jsonMessage, "OrderID", false);
+            long uid = FoxJsonHelper.GetLong(jsonMessage, "UID", false).Value;
+            int price = FoxJsonHelper.GetInt(jsonMessage, "Price", false).Value;
+            int days = FoxJsonHelper.GetInt(jsonMessage, "Days", false).Value;
+
+            var user = await FoxUser.GetByUID(uid);
+
+            if (user is null)
+            {
+                return new JsonObject
+                {
+                    ["Command"] = "Payments:ProcessPayPalOrder",
+                    ["Success"] = false,
+                    ["Error"] = "Invalid UID."
+                };
+            }
+
+            var client = PayPalClient();
+
+            var request = new OrdersGetRequest(payPalOrderId);
+            string? errorMessage;
+
+            try
+            {
+                var ppResponse = await client.Execute(request);
+                var order = ppResponse.Result<PayPalCheckoutSdk.Orders.Order>();
+
+                if (order.Status == "COMPLETED")
+                {
+                    //var amount = decimal.Parse(order.PurchaseUnits[0].Amount.Value);
+                    //var currency = order.PurchaseUnits[0].Amount.CurrencyCode;
+
+                    //if (amount * 100 == price && currency == "USD")
+                    //{
+                        await user.RecordPayment(price, "USD", days, null, null, order.Id);
+
+                        var response = new JsonObject
+                        {
+                            ["Command"] = "Payments:ProcessPayPalOrder",
+                            ["Success"] = true
+                        };
+
+                        FoxLog.WriteLine($"Payment recorded for user {user.UID}: ({price}, \"USD\", {days})");
+
+                        return response;
+                    //}
+                    //else
+                    //{
+                    //    errorMessage = "Payment amount or currency mismatch.";
+                    //}
+                }
+                else
+                {
+                    errorMessage = $"Payment not completed. Status: {order.Status}";
+                }
+            }
+            catch (HttpException ex)
+            {
+                errorMessage = ex.Message;
+            }
+
+            return new JsonObject
+            {
+                ["Command"] = "Payments:ProcessPayPalOrder",
+                ["Success"] = false,
+                ["Error"] = $"Payment failed: {errorMessage ?? "Reason Unknown"}"
+            };
+        }
+
+        private static PayPalHttpClient PayPalClient()
+        {
+            if (FoxMain.settings?.PayPalClientId is null || FoxMain.settings?.PayPalSecretKey is null)
+                throw new Exception("PayPal credentials are not properly configured.");
+
+            var environment = new LiveEnvironment(FoxMain.settings?.PayPalClientId, FoxMain.settings?.PayPalSecretKey);
+            return new PayPalHttpClient(environment);
         }
     }
 }

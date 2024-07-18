@@ -37,9 +37,6 @@ public interface IMySettings
     [Option(Alias = "Telegram.PAYMENT_TOKEN")]
     string TelegramPaymentToken { get; }
 
-    [Option(Alias = "Stripe.PRIVATE_KEY")]
-    string StripePrivateKey { get; }
-
     [Option(Alias = "Telegram.API_URL")]
     string TelegramApiUrl { get; }
 
@@ -57,6 +54,20 @@ public interface IMySettings
     string MySQLServer { get; }
     [Option(Alias = "MySQL.DATABASE")]
     string MySQLDatabase { get; }
+
+
+
+    [Option(Alias = "Stripe.PRIVATE_KEY")]
+    string StripePrivateKey { get; }
+
+
+
+    [Option(Alias = "PayPal.CLIENT_ID")]
+    string PayPalClientId { get; }
+
+
+    [Option(Alias = "Stripe.SECRET_KEY")]
+    string PayPalSecretKey { get; }
 }
 
 public static class TimeSpanExtensions
