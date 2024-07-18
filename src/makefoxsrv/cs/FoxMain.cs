@@ -66,7 +66,7 @@ public interface IMySettings
     string PayPalClientId { get; }
 
 
-    [Option(Alias = "Stripe.SECRET_KEY")]
+    [Option(Alias = "PayPal.SECRET_KEY")]
     string PayPalSecretKey { get; }
 }
 
@@ -115,7 +115,6 @@ public static class TimeSpanExtensions
 
 namespace makefoxsrv
 {
-
     public static class StringExtensions
     {
         public static string Left(this string str, int length)
