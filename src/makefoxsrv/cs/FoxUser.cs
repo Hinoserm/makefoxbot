@@ -21,6 +21,14 @@ public enum AccessLevel
     ADMIN
 }
 
+public enum PaymentTypes
+{
+    PAYPAL,
+    STRIPE,
+    TELEGRAM,
+    OTHER
+}
+
 namespace makefoxsrv
 {
     public class FoxUser
@@ -514,7 +522,7 @@ namespace makefoxsrv
             FoxLog.WriteLine($"SetPremiumDate({this.UID}, {newExpiry})");
         }
 
-        public async Task<ulong> RecordPayment(int amount, string currency, int days, string? invoice_payload = null, string? telegram_charge_id = null, string? provider_charge_id = null)
+        public async Task<ulong> RecordPayment(PaymentTypes type, int amount, string currency, int days, string? invoice_payload = null, string? telegram_charge_id = null, string? provider_charge_id = null)
         {
             ulong payment_id = 0;
 
@@ -525,8 +533,9 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "INSERT INTO user_payments (uid, date, amount, currency, days, invoice_payload, telegram_charge_id, provider_charge_id) VALUES (@uid, @now, @amount, @currency, @days, @invoice_payload, @telegram_charge_id, @provider_charge_id)";
+                    cmd.CommandText = "INSERT INTO user_payments (type, uid, date, amount, currency, days, invoice_payload, telegram_charge_id, provider_charge_id) VALUES (@type, @uid, @now, @amount, @currency, @days, @invoice_payload, @telegram_charge_id, @provider_charge_id)";
                     cmd.Parameters.AddWithValue("uid", this.UID);
+                    cmd.Parameters.AddWithValue("type", type.ToString().ToUpperInvariant());
                     cmd.Parameters.AddWithValue("now", DateTime.Now);
                     cmd.Parameters.AddWithValue("amount", amount);
                     cmd.Parameters.AddWithValue("currency", currency);

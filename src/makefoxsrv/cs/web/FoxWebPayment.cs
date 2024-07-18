@@ -69,7 +69,7 @@ namespace makefoxsrv
                         ["Success"] = true
                     };
 
-                    await user.RecordPayment(price, "USD", days, null, null, charge.Id);
+                    await user.RecordPayment(PaymentTypes.STRIPE, price, "USD", days, null, null, charge.Id);
 
 
                     FoxLog.WriteLine($"Payment recorded for user {user.UID}: ({price}, \"USD\", {days})");
@@ -134,7 +134,7 @@ namespace makefoxsrv
 
                     //if (amount * 100 == price && currency == "USD")
                     //{
-                        await user.RecordPayment(price, "USD", days, null, null, order.Id);
+                        await user.RecordPayment(PaymentTypes.PAYPAL, price, "USD", days, null, null, order.Id);
 
                         var response = new JsonObject
                         {
