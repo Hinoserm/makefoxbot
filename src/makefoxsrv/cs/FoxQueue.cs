@@ -21,6 +21,7 @@ using System.Diagnostics;
 using System.Collections.Concurrent;
 using Terminal.Gui;
 using static Swan.Terminal;
+using Microsoft.Extensions.Primitives;
 
 namespace makefoxsrv
 {
@@ -925,20 +926,57 @@ namespace makefoxsrv
             }
         }
 
+        
+
         public async Task SetError(Exception ex, DateTime? RetryWhen = null)
         {
             this.status = QueueStatus.ERROR;
             this.DateLastFailed = DateTime.Now;
             this.LastException = ex;
 
-            if (ex.Message.Contains("out of memory"))
-            {
-                // Ignore out of memory errors; retry these immediately.
+            const int maxRetries = 4; // Set the max number of retries here
 
-                this.RetryDate = RetryWhen;
+            bool shouldRetry = true;
+
+            // List of silent error strings
+            var silentErrors = new List<string> {
+                "out of memory",
+                "xpected all tensors to be on",
+                "onnection refused",
+                "ould not connect to server",
+                "error occurred while sending",
+                "rror while copying content to a stream"
+            };
+            var fatalErrors = new List<string> {
+                "ould not convert string to float",
+                "CHANNEL_PRIVATE",
+                "CHAT_SEND_PHOTOS_FORBIDDEN"
+            };
+
+            // Check if the error message contains any silent error strings
+            bool isSilentError = silentErrors.Any(silentError => ex.Message.Contains(silentError));
+
+            // Check if the error message contains any silent error strings
+            bool isFatalRrror = fatalErrors.Any(fatalErrStr => ex.Message.Contains(fatalErrStr));
+
+            // Set retry date
+            if (isSilentError)
+            {
+                this.RetryDate = DateTime.Now.AddSeconds(3); // Retry in 3 seconds for silent errors
+            }
+            else
+            {
+                this.RetryDate = RetryWhen ?? DateTime.Now.AddSeconds(5); // Use provided retry time for non-silent errors
                 this.RetryCount++;
-            } else
-                this.RetryDate = DateTime.Now.AddSeconds(4); // Add a short delay to give us a better chance of success.
+            }
+
+            if (this.RetryCount >= maxRetries) 
+            {
+                shouldRetry = false;
+            }
+
+            if (isFatalRrror)
+                shouldRetry = false;
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -958,11 +996,42 @@ namespace makefoxsrv
 
             try
             {
-                if (Telegram is not null && !ex.Message.Contains("out of memory"))
+                if (Telegram is not null)
                 {
-                    _= Telegram.EditMessageAsync(
+                    var messageBuilder = new StringBuilder();
+
+                    if (isFatalRrror)
+                    {
+                        messageBuilder.Append($"❌ Encountered a fatal error.");
+                    }
+                    else if (!shouldRetry)
+                    {
+                        messageBuilder.Append($"❌ Encountered an error.  Giving up after {this.RetryCount} attempts.");
+                    } else {
+                        messageBuilder.Append($"⏳ Encountered an error. ");
+                    }
+
+                    if (shouldRetry) {
+                        if (this.RetryDate is not null)
+                        {
+                            TimeSpan delay = this.RetryDate.Value - DateTime.Now;
+
+                            messageBuilder.Append($"Retrying in {delay.TotalSeconds:F0} seconds. ({this.RetryCount}/{maxRetries})");
+                        }
+                        else
+                        {
+                            messageBuilder.Append($"Retrying... ({this.RetryCount}/{maxRetries})");
+                        }
+                    }
+
+                    if (!isSilentError)
+                    {
+                        messageBuilder.Append($"\n\n{ex.Message}");
+                    }
+
+                    _ = Telegram.EditMessageAsync(
                         id: MessageID,
-                        text: $"⏳ Failed to generate image. " + (RetryCount >= 5 ? $"Giving up after {RetryCount} attempts." : $"Retrying soon.") + $"\n\n{ex.Message}"
+                        text: messageBuilder.ToString()
                     );
                 }
             }
@@ -970,7 +1039,7 @@ namespace makefoxsrv
 
             FoxLog.WriteLine($"Task {this.ID} failed: {ex.Message}\r\n{ex.StackTrace}", LogLevel.DEBUG);
 
-            if (RetryCount < 5)
+            if (shouldRetry)
             {
                 await Enqueue(this);
             } else {
