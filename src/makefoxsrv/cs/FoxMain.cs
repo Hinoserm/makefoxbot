@@ -25,6 +25,7 @@ using System.Runtime.Intrinsics.Arm;
 using Castle.Core.Smtp;
 using System.Timers;
 using Stripe;
+using System.ComponentModel;
 
 public interface IMySettings
 {
@@ -32,7 +33,7 @@ public interface IMySettings
     string TelegramBotToken { get; }
 
     [Option(Alias = "Telegram.BOT_USERNAME")]
-    string TelegramBotUsername{ get; }
+    string TelegramBotUsername { get; }
 
     [Option(Alias = "Telegram.PAYMENT_TOKEN")]
     string TelegramPaymentToken { get; }
@@ -60,14 +61,23 @@ public interface IMySettings
     [Option(Alias = "Stripe.PRIVATE_KEY")]
     string StripePrivateKey { get; }
 
-
-
     [Option(Alias = "PayPal.CLIENT_ID")]
     string PayPalClientId { get; }
 
-
     [Option(Alias = "PayPal.SECRET_KEY")]
     string PayPalSecretKey { get; }
+
+    [Option(Alias = "PayPal.SANDBOX", DefaultValue = true)]
+    bool PayPalSandboxMode { get; }
+
+    [Option(Alias = "Web.LOCAL_PORT", DefaultValue = 5555)]
+    int WebLocalPort { get; }
+
+    [Option(Alias = "Web.WEBROOT_URL")]
+    string WebRootUrl { get; }
+
+    [Option(Alias = "Web.WEBSOCKET_URL")]
+    string WebSocketUrl { get; }
 }
 
 public static class TimeSpanExtensions
@@ -201,7 +211,7 @@ namespace makefoxsrv
             string currentDirectory = Directory.GetCurrentDirectory();
             FoxLog.WriteLine($"Current Working Directory: {currentDirectory}");
 
-            FoxLog.Write("Loading configuration... ");
+            FoxLog.WriteLine("Loading configuration...");
             try
             {
                 LoadSettings();
@@ -209,15 +219,41 @@ namespace makefoxsrv
                 if (settings is null)
                     throw new Exception("Unable to load settings.ini");
 
-                if (settings.TelegramApiId is null)
-                    throw new Exception("API_ID setting not set.");
-                if (settings.TelegramApiHash is null)
-                    throw new Exception("API_HASH setting not set.");
-                if (settings.TelegramBotToken is null)
-                    throw new Exception("BOT_TOKEN setting not set.");
+                // Check for required Telegram settings
+                if (settings.TelegramApiId is null || settings.TelegramApiId == 0)
+                    throw new Exception("Required Telegram.API_ID setting not set.");
+                if (String.IsNullOrEmpty(settings.TelegramApiHash))
+                    throw new Exception("Required Telegram.API_HASH setting not set.");
+                if (String.IsNullOrEmpty(settings.TelegramBotToken))
+                    throw new Exception("Required Telegram.BOT_TOKEN setting not set.");
 
+                // Check for required MySQL settings
+                if (String.IsNullOrEmpty(settings.MySQLUsername))
+                    throw new Exception("Required MySQL.USERNAME setting not set.");
+                if (String.IsNullOrEmpty(settings.MySQLPassword))
+                    throw new Exception("Required MySQL.PASSWORD setting not set.");
+                if (String.IsNullOrEmpty(settings.MySQLServer))
+                    throw new Exception("Required MySQL.SERVER setting not set.");
+                if (String.IsNullOrEmpty(settings.MySQLDatabase))
+                    throw new Exception("Required MySQL.DATABASE setting not set.");
+
+                // Check for web-related settings
+                if (String.IsNullOrEmpty(settings.WebRootUrl))
+                    FoxLog.WriteLine(GetVersion() + "Web.WEBROOT_URL setting not set.  Web services may not be available.");
+                if (String.IsNullOrEmpty(settings.WebSocketUrl))
+                    FoxLog.WriteLine(GetVersion() + "Web.WEBSOCKET_URL setting not set.  Web services may not be available.");
+
+                // Check for optional payment settings
                 if (settings.StripePrivateKey is not null)
                     StripeConfiguration.ApiKey = settings.StripePrivateKey;
+                else
+                    FoxLog.WriteLine("Stripe private key not set.  Stripe payments will be disabled.");
+
+                if (settings.PayPalClientId is null || settings.PayPalSecretKey is null)
+                    FoxLog.WriteLine("PayPal credentials not set.  PayPal payments will be disabled.");
+
+                if (settings.PayPalSandboxMode)
+                    FoxLog.WriteLine("!!! PayPal is running in sandbox mode.");
             }
             catch (Exception ex)
             {
@@ -225,7 +261,7 @@ namespace makefoxsrv
 
                 return;
             }
-            FoxLog.WriteLine("done.");
+            FoxLog.WriteLine("Done loading configuration.");
 
             FoxLog.Write("Connecting to database... ");
             try

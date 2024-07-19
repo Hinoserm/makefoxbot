@@ -271,36 +271,6 @@ namespace makefoxsrv
             }
         }
 
-        public static int CalculateRewardDays(int amountInCents)
-        {
-            int baseDays = 30; // Base days for $10
-            int targetDaysForMaxAmount = 365; // Target days for $100
-
-            // Convert amount to dollars from cents for calculation
-            decimal amountInDollars = amountInCents / 100m;
-
-            if (amountInCents == 500)
-            {
-                return 7; // Directly return 7 days for $5
-            }
-            else if (amountInDollars <= 10)
-            {
-                return baseDays;
-            }
-            else if (amountInDollars >= 100)
-            {
-                // Calculate days as if $100 is given for each $100 increment
-                decimal multiplesOverMax = amountInDollars / 100;
-                return (int)Math.Round(targetDaysForMaxAmount * multiplesOverMax);
-            }
-            else
-            {
-                // Linear interpolation for amounts between $10 and $100
-                decimal daysPerDollar = (targetDaysForMaxAmount - baseDays) / (100m - 10m);
-                return (int)Math.Round(baseDays + (amountInDollars - 10) * daysPerDollar);
-            }
-        }
-
         private static async Task CmdAdmin(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             if (!user.CheckAccessLevel(AccessLevel.ADMIN))
@@ -380,14 +350,16 @@ namespace makefoxsrv
             // List to accumulate buttons for the current row
             List<TL.KeyboardButtonWebView> currentRowButtons = new List<TL.KeyboardButtonWebView>();
 
+            var pSession = await FoxPayments.Session.Create(user);
+
             // Loop through the donation amounts and create buttons
             for (int i = 0; i < donationAmounts.Length; i++)
             {
                 int amountInCents = donationAmounts[i] * 100;
-                int days = CalculateRewardDays(amountInCents);
+                int days = FoxPayments.CalculateRewardDays(amountInCents);
                 string buttonText = $"💳 ${donationAmounts[i]} ({days} days)";
 
-                string webUrl = $"https://makefox.bot/tgapp/membership.php?tg=1&days={days}&price={amountInCents}&uid={user.UID}";
+                string webUrl = $"{FoxMain.settings.WebRootUrl}tgapp/membership.php?tg=1&id={pSession.UUID}&amount={amountInCents}";
 
                 currentRowButtons.Add(new TL.KeyboardButtonWebView { text = buttonText, url = webUrl });
 
@@ -407,6 +379,15 @@ namespace makefoxsrv
             //        new() { text = "✨💰 💳 $600 (Lifetime Access!) 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate 600 lifetime") }
             //    }
             //});
+
+            // Add "Custom Amount" button
+            buttonRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonWebView[]
+                {
+                    new() { text = "Custom Amount", url = $"{FoxMain.settings.WebRootUrl}tgapp/membership.php?tg=1&id={pSession.UUID}" }
+                }
+            });
 
             // Add cancel button on its own row at the end
             buttonRows.Add(new TL.KeyboardButtonRow
@@ -452,18 +433,20 @@ namespace makefoxsrv
 
             sb.Append("<i>Note: Membership purchases are not tax-deductible.</i>");
 
-
-
             var msg = sb.ToString();
 
             var entities = FoxTelegram.Client.HtmlToEntities(ref msg);
 
-            await t.SendMessageAsync(
+            var sentMessage = await t.SendMessageAsync(
                 text: msg,
                 replyInlineMarkup: inlineKeyboard,
                 entities: entities,
                 disableWebPagePreview: true
-            );            
+            );
+            
+            pSession.TelegramMessageId = sentMessage.ID;
+            pSession.TelegramPeerId = sentMessage.peer_id;
+            await pSession.Save();
         }
 
         [CommandDescription("View the privacy policy")]

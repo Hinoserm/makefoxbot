@@ -21,14 +21,6 @@ public enum AccessLevel
     ADMIN
 }
 
-public enum PaymentTypes
-{
-    PAYPAL,
-    STRIPE,
-    TELEGRAM,
-    OTHER
-}
-
 namespace makefoxsrv
 {
     public class FoxUser

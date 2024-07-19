@@ -11,7 +11,7 @@
     <PHPDevHostName>0.0.0.0</PHPDevHostName>
     <PHPDevAutoPort>false</PHPDevAutoPort>
     <PHPDevRouting />
-    <PHPDevPort>80</PHPDevPort>
+    <PHPDevPort>11546</PHPDevPort>
   </PropertyGroup>
   <ItemGroup>
     <Content Remove="bin\**" />

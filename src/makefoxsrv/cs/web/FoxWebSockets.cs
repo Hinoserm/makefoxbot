@@ -55,6 +55,7 @@ class FoxWebSockets {
             try
             {
                 var message = System.Text.Encoding.UTF8.GetString(buffer);
+
                 Console.WriteLine("Received: " + message);
 
                 System.Text.Json.Nodes.JsonObject? jsonMessage = JsonNode.Parse(message)?.AsObject();

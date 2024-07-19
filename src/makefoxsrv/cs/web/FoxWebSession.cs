@@ -252,9 +252,11 @@ namespace makefoxsrv
                 if (cookieHeader is not null)
                 {
                     var cookies = cookieHeader.Split(';')
-                        .Select(cookie => cookie.Split('='))
+                        .Select(cookie => cookie.Split(new[] { '=' }, 2)) // Use 2 to ensure it only splits on the first '='
                         .Where(parts => parts.Length == 2)
-                        .ToDictionary(parts => parts[0].Trim(), parts => parts[1].Trim());
+                        .Select(parts => new { Name = parts[0].Trim(), Value = parts[1].Trim() })
+                        .GroupBy(cookie => cookie.Name)
+                        .ToDictionary(group => group.Key, group => group.Last().Value); // Get the last occurrence of each cookie name
 
                     cookies.TryGetValue("PHPSESSID", out sessionId);
                 }
