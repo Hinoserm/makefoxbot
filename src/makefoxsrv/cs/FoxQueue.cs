@@ -929,9 +929,16 @@ namespace makefoxsrv
         {
             this.status = QueueStatus.ERROR;
             this.DateLastFailed = DateTime.Now;
-            this.RetryDate = RetryWhen;
             this.LastException = ex;
-            this.RetryCount++;
+
+            if (!ex.Message.Contains("out of memory"))
+            {
+                // Ignore out of memory errors; retry these immediately.
+
+                this.RetryDate = RetryWhen;
+                this.RetryCount++;
+            } else
+                this.RetryDate = DateTime.Now.AddSeconds(3);
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -951,7 +958,7 @@ namespace makefoxsrv
 
             try
             {
-                if (Telegram is not null)
+                if (Telegram is not null && !ex.Message.Contains("out of memory"))
                 {
                     _= Telegram.EditMessageAsync(
                         id: MessageID,

@@ -77,7 +77,7 @@ namespace makefoxsrv
 
             public PaymentTypes? Provider { get; set; }
 
-            public int? Amount { get; set; }
+            public int? Amount { get; set; } // In cents
             public int? Days { get; set; }
             public string? Currency { get; set; }
             public bool Recurring { get; set; }
