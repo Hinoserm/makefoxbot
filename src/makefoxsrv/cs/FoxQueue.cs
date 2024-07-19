@@ -931,14 +931,14 @@ namespace makefoxsrv
             this.DateLastFailed = DateTime.Now;
             this.LastException = ex;
 
-            if (!ex.Message.Contains("out of memory"))
+            if (ex.Message.Contains("out of memory"))
             {
                 // Ignore out of memory errors; retry these immediately.
 
                 this.RetryDate = RetryWhen;
                 this.RetryCount++;
             } else
-                this.RetryDate = DateTime.Now.AddSeconds(3);
+                this.RetryDate = DateTime.Now.AddSeconds(4); // Add a short delay to give us a better chance of success.
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -962,7 +962,7 @@ namespace makefoxsrv
                 {
                     _= Telegram.EditMessageAsync(
                         id: MessageID,
-                        text: $"⏳ Failed to generate image. " + (RetryCount >= 3 ? $"Giving up after {RetryCount} attempts." : $"Retrying soon.") + $"\n\n{ex.Message}"
+                        text: $"⏳ Failed to generate image. " + (RetryCount >= 5 ? $"Giving up after {RetryCount} attempts." : $"Retrying soon.") + $"\n\n{ex.Message}"
                     );
                 }
             }
@@ -970,7 +970,7 @@ namespace makefoxsrv
 
             FoxLog.WriteLine($"Task {this.ID} failed: {ex.Message}\r\n{ex.StackTrace}", LogLevel.DEBUG);
 
-            if (RetryCount < 3)
+            if (RetryCount < 5)
             {
                 await Enqueue(this);
             } else {
