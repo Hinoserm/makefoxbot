@@ -281,7 +281,7 @@ namespace makefoxsrv
                         HttpResponse response = await client.Execute(request);
                         var capturedOrder = response.Result<PayPalCheckoutSdk.Payments.Capture>();
 
-                        if (capturedOrder.Status == "COMPLETED")
+                        if (capturedOrder.Status == "COMPLETED" || capturedOrder.Status == "PENDING")
                         {
                             this.OrderId = capturedOrder.InvoiceId;
                         }
