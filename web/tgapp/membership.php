@@ -26,11 +26,11 @@ if (!isset($s) || !isset($s['date_created'])) {
     die('Invalid payment session ID.');
 }
 
-$dateCreated = strtotime($s['date_created']);
+//$dateCreated = strtotime($s['date_created']);
 
-if ((time() - $dateCreated) > 3600) { // 3600 seconds = 1 hour
-    die('Payment link has expired.  Please try again.');
-}
+//if ((time() - $dateCreated) > 3600) { // 3600 seconds = 1 hour
+//    die('Payment link has expired.  Please try again.');
+//}
 
 if (!isset($s['user_id'])) {
     die('Invalid payment session data.');
