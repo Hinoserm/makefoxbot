@@ -938,15 +938,17 @@ namespace makefoxsrv
 
             bool shouldRetry = true;
 
-            // List of silent error strings
+            // List of silent error strings. If any of these are encountered, the task will be retried immediately.
             var silentErrors = new List<string> {
                 "out of memory",
                 "xpected all tensors to be on",
                 "onnection refused",
                 "ould not connect to server",
-                "error occurred while sending",
+                "rror occurred while sending",
                 "rror while copying content to a stream"
             };
+
+            // List of fatal errors. If any of these are encountered, the task will not be retried.
             var fatalErrors = new List<string> {
                 "ould not convert string to float",
                 "CHANNEL_PRIVATE",

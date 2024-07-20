@@ -259,7 +259,6 @@ namespace makefoxsrv
 
                         if (charge.Captured && charge.Status == "succeeded")
                         {
-                            this.DateCharged = DateTime.Now;
                             this.OrderId = charge.Id;
                         }
                         else
@@ -294,6 +293,8 @@ namespace makefoxsrv
                     default:
                         throw new Exception("Unknown payment provider.");
                 }
+
+                this.DateCharged = DateTime.Now;
 
                 await this.Save();
 
