@@ -13,6 +13,9 @@ using MySqlConnector;
 using WTelegram;
 using TL;
 using System.Collections;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Linq;
 
 namespace makefoxsrv
 {
@@ -916,8 +919,25 @@ namespace makefoxsrv
             {
                 var uptime = DateTime.Now - FoxMain.startTime;
 
-                sb.AppendLine($"🦊 Version: " + FoxMain.GetVersion());
-                sb.AppendLine($"Uptime: {uptime.ToPrettyFormat()}");
+                // Get memory usage
+                Process currentProcess = Process.GetCurrentProcess();
+                long usedMemory = currentProcess.WorkingSet64;
+
+                // Get thread count and active threads
+                int threadCount = currentProcess.Threads.Count;
+                int activeThreads = currentProcess.Threads.Cast<ProcessThread>().Count(t => t.ThreadState == System.Diagnostics.ThreadState.Running);
+
+                // Get system uptime
+                var systemUptime = TimeSpan.FromMilliseconds(Environment.TickCount64);
+
+
+                // Collecting information into a single StringBuilder
+                sb.AppendLine($"🦊 Bot info:\n\nVersion: " + FoxMain.GetVersion());
+                sb.AppendLine($"Bot Uptime: {uptime.ToPrettyFormat()}");
+                sb.AppendLine($"System Uptime: {systemUptime.ToPrettyFormat()}");
+                sb.AppendLine($"Memory Used: {usedMemory / 1024 / 1024} MB");
+                sb.AppendLine($"Threads (running/total): {activeThreads} / {threadCount}");
+
                 sb.AppendLine("\nUser Info:\n");
             }
 
