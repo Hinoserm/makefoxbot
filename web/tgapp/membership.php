@@ -17,13 +17,13 @@ $uuid = $_GET['id'];
 $pdo = new PDO("mysql:host=" . MYSQL_HOST . ";dbname=" . MYSQL_DBNAME . ";charset=utf8mb4", MYSQL_USERNAME, MYSQL_PASSWORD);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $pdo->prepare("SELECT * FROM payment_sessions WHERE uuid = :uuid");
+$stmt = $pdo->prepare("SELECT * FROM pay_invoices WHERE uuid = :uuid");
 $stmt->execute(['uuid' => $uuid]);
 
 $s = $stmt->fetch();
 
 if (!isset($s) || !isset($s['date_created'])) {
-    die('Invalid payment session ID.');
+    die('Invalid invoice ID.');
 }
 
 //$dateCreated = strtotime($s['date_created']);

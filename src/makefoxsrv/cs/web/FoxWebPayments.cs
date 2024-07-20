@@ -52,7 +52,7 @@ namespace makefoxsrv
             string provider = FoxJsonHelper.GetString(jsonMessage, "Provider", false)!;
             int amount = FoxJsonHelper.GetInt(jsonMessage, "Amount", false)!.Value;
 
-            var pSession = await FoxPayments.Session.GetByUUID(sessionUUID);
+            var pSession = await FoxPayments.Invoice.GetByUUID(sessionUUID);
 
             if (pSession is null)
                 throw new Exception("Invalid payment session.");
@@ -62,21 +62,24 @@ namespace makefoxsrv
 
             pSession.Amount = amount;
             pSession.Days = FoxPayments.CalculateRewardDays(amount);
-            pSession.ChargeId = chargeID;
+
+            PaymentTypes providerType;
 
             switch (provider.ToUpper())
             {
                 case "STRIPE":
-                    pSession.Provider = PaymentTypes.STRIPE;
+                    providerType = PaymentTypes.STRIPE;
                     break;
                 case "PAYPAL":
-                    pSession.Provider = PaymentTypes.PAYPAL;
+                    providerType = PaymentTypes.PAYPAL;
                     break;
                 default:
                     throw new Exception("Unknown payment provider.");
             }
 
-            await pSession.Charge();
+            var charge = FoxPayments.Charge.Create(pSession, providerType);
+
+            await charge.Process(chargeID);
 
             return new JsonObject
             {

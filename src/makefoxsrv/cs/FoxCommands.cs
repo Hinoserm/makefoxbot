@@ -350,7 +350,7 @@ namespace makefoxsrv
             // List to accumulate buttons for the current row
             List<TL.KeyboardButtonWebView> currentRowButtons = new List<TL.KeyboardButtonWebView>();
 
-            var pSession = await FoxPayments.Session.Create(user);
+            var pSession = await FoxPayments.Invoice.Create(user);
 
             // Loop through the donation amounts and create buttons
             for (int i = 0; i < donationAmounts.Length; i++)
