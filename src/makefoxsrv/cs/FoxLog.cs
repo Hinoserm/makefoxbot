@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -37,7 +38,8 @@ namespace makefoxsrv
                 // Log the message with a timestamp and the level
                 //FoxLog.WriteLine();
                 //FoxUI.AppendLog($"{DateTime.Now} [{level}]: {message}");
-                FoxUI.AppendLog(message);
+                //FoxUI.AppendLog(message);
+                Console.Write(message);
             }
 
             _ = Task.Run(() =>

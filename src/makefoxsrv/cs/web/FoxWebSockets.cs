@@ -19,7 +19,6 @@ using System.Text;
 using TL;
 using EmbedIO.Files;
 using EmbedIO.Net;
-using Terminal.Gui;
 using System.Data;
 using WTelegram;
 using Swan;

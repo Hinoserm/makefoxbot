@@ -19,8 +19,6 @@ using TL;
 using System.Security.Policy;
 using System.Diagnostics;
 using System.Collections.Concurrent;
-using Terminal.Gui;
-using static Swan.Terminal;
 using Microsoft.Extensions.Primitives;
 
 namespace makefoxsrv

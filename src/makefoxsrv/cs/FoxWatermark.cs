@@ -4,8 +4,6 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Drawing.Processing;
-using SkiaSharp;
-using Svg.Skia;
 using static System.Net.Mime.MediaTypeNames;
 
 using Image = SixLabors.ImageSharp.Image;
@@ -14,8 +12,8 @@ namespace makefoxsrv
 {
     internal class FoxWatermark
     {
-        private static readonly Image<Rgba32>? DarkWatermark = LoadSvgAsImage("../data/watermarks/dark.svg");
-        private static readonly Image<Rgba32>? LightWatermark = LoadSvgAsImage("../data/watermarks/light.svg");
+        private static readonly Image<Rgba32>? DarkWatermark = LoadWatermark("../data/watermarks/dark.png");
+        private static readonly Image<Rgba32>? LightWatermark = LoadWatermark("../data/watermarks/light.png");
 
         public static Image<Rgba32> ApplyWatermark(Image<Rgba32> inputImage)
         {
@@ -123,51 +121,34 @@ namespace makefoxsrv
             }
         }
 
-        private static Image<Rgba32>? LoadSvgAsImage(string svgPath)
+        private static Image<Rgba32>? LoadWatermark(string pngPath)
         {
             try
             {
-                var svg = new SKSvg();
-                svg.Load(svgPath);
-                var svgPicture = svg.Picture;
-
-                int width = (int)svgPicture.CullRect.Width;
-                int height = (int)svgPicture.CullRect.Height;
-
-                using (var bitmap = new SKBitmap(width, height))
-                using (var canvas = new SKCanvas(bitmap))
+                using (var ms = new MemoryStream(File.ReadAllBytes(pngPath)))
                 {
-                    canvas.Clear(SKColors.Transparent);
-                    canvas.DrawPicture(svgPicture);
-                    using (var img = SKImage.FromBitmap(bitmap))
-                    using (var data = img.Encode(SKEncodedImageFormat.Png, 100))
+                    var image = Image.Load<Rgba32>(ms);
+
+                    // Apply opacity to the watermark
+                    image.Mutate(ctx => ctx.Opacity(0.3f));
+
+                    // Resize the watermark to ensure it does not exceed 64x64 pixels
+                    image.Mutate(ctx => ctx.Resize(new ResizeOptions
                     {
-                        using (var ms = new MemoryStream())
-                        {
-                            data.SaveTo(ms);
-                            ms.Seek(0, SeekOrigin.Begin);
-                            var image = Image.Load<Rgba32>(ms);
+                        Size = new Size(64, 64),
+                        Mode = ResizeMode.Max
+                    }));
 
-                            // Apply opacity to the watermark
-                            image.Mutate(ctx => ctx.Opacity(0.3f));
-
-                            image.Mutate(ctx => ctx.Resize(new ResizeOptions
-                            {
-                                Size = new Size(64, 64),
-                                Mode = ResizeMode.Max
-                            }));
-
-                            return image;
-                        }
-                    }
+                    return image;
                 }
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine($"Failed to load SVG watermark {svgPath}: {ex.Message}\r\n{ex.StackTrace}");
+                FoxLog.WriteLine($"Failed to load PNG watermark {pngPath}: {ex.Message}\r\n{ex.StackTrace}");
                 return null;
             }
         }
+
 
         private static float GetCornerContrast(Image<Rgba32> image, Size watermarkSize, Point position)
         {

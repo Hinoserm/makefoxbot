@@ -17,8 +17,6 @@ using WTelegram;
 using makefoxsrv;
 using TL;
 using System.Linq.Expressions;
-using Terminal.Gui;
-using static NStack.Unicode;
 using Autofocus.Scripts;
 using System.Configuration;
 
