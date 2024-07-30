@@ -247,18 +247,18 @@ namespace makefoxsrv
             var outputStream = new MemoryStream();
             using (Image<Rgba32> image = Image.Load<Rgba32>(inputImageStream))
             {
-                using var image2 = addWatermark ? FoxWatermark.ApplyWatermark(image) : image.Clone();
-
                 if (maxDimension is not null)
                 {
-                    (uint newWidth, uint newHeight) = FoxImage.CalculateLimitedDimensions((uint)image2.Width, (uint)image2.Height, maxDimension.Value);
+                    (uint newWidth, uint newHeight) = FoxImage.CalculateLimitedDimensions((uint)image.Width, (uint)image.Height, maxDimension.Value);
 
-                    image2.Mutate(x => x.Resize(new ResizeOptions
+                    image.Mutate(x => x.Resize(new ResizeOptions
                     {
                         Size = new Size((int)newWidth, (int)newHeight),
                         Mode = ResizeMode.Max
                     }));
                 }
+
+                using var image2 = addWatermark ? FoxWatermark.ApplyWatermark(image) : image.Clone();
 
                 image2.SaveAsJpeg(outputStream, new JpegEncoder { Quality = quality });
                 outputStream.Position = 0;
