@@ -1,4 +1,8 @@
 ﻿using MySqlConnector;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -594,10 +598,28 @@ namespace makefoxsrv
 
             var img = await q.GetOutputImage();
 
-            if (img is null)
+            if (img is null || img.Image is null)
                 throw new Exception("Unable to locate image");
 
-            var inputImage = await FoxTelegram.Client.UploadFileAsync(new MemoryStream(img.Image), $"{FoxTelegram.Client.User.username}_full_image_{q.ID}.png");
+            var imageData = new MemoryStream(img.Image);
+
+            bool addWatermark = !(q.User.CheckAccessLevel(AccessLevel.PREMIUM));
+
+            if (addWatermark)
+            {
+                var outputStream = new MemoryStream();
+
+                using Image<Rgba32> image = Image.Load<Rgba32>(new MemoryStream(img.Image));
+                
+                using var outputImage = FoxWatermark.ApplyWatermark(image);
+
+                outputImage.SaveAsPng(outputStream, new PngEncoder());
+                outputStream.Position = 0;
+
+                imageData =  outputStream;
+            }
+            
+            var inputImage = await FoxTelegram.Client.UploadFileAsync(imageData, $"{FoxTelegram.Client.User.username}_full_image_{q.ID}.png");
 
             var msg = await FoxTelegram.Client.SendMessageAsync(t.Peer, "", new InputMediaUploadedDocument(inputImage, "image/png"));
 

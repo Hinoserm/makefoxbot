@@ -13,6 +13,7 @@ using WTelegram;
 using makefoxsrv;
 using TL;
 using System.Security.Policy;
+using SixLabors.ImageSharp.PixelFormats;
 
 //This isn't properly implemented yet; we really need a way to handle Telegram's rate limits by using a proper message queue.
 // For now we just push the message to the user and hope for the best.
@@ -111,7 +112,9 @@ namespace makefoxsrv
                             }
                         };
 
-                        var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image), 80, 1280), $"{FoxTelegram.Client.User.username}_smimage_{q.ID}.jpg");
+                        bool addWatermark = !(q.User.CheckAccessLevel(AccessLevel.PREMIUM));
+
+                        var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image), 80, 1280, addWatermark), $"{FoxTelegram.Client.User.username}_smimage_{q.ID}.jpg");
 
                         //var msg = await FoxTelegram.Client.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
 
@@ -239,23 +242,25 @@ namespace makefoxsrv
             }
         }
 
-        private static MemoryStream ConvertImageToJpeg(MemoryStream inputImageStream, int quality = 85, uint? maxDimension = 1280)
+        private static MemoryStream ConvertImageToJpeg(MemoryStream inputImageStream, int quality = 85, uint? maxDimension = 1280, bool addWatermark = true)
         {
             var outputStream = new MemoryStream();
-            using (var image = Image.Load(inputImageStream))
+            using (Image<Rgba32> image = Image.Load<Rgba32>(inputImageStream))
             {
+                using var image2 = addWatermark ? FoxWatermark.ApplyWatermark(image) : image.Clone();
+
                 if (maxDimension is not null)
                 {
-                    (uint newWidth, uint newHeight) = FoxImage.CalculateLimitedDimensions((uint)image.Width, (uint)image.Height, maxDimension.Value);
+                    (uint newWidth, uint newHeight) = FoxImage.CalculateLimitedDimensions((uint)image2.Width, (uint)image2.Height, maxDimension.Value);
 
-                    image.Mutate(x => x.Resize(new ResizeOptions
+                    image2.Mutate(x => x.Resize(new ResizeOptions
                     {
                         Size = new Size((int)newWidth, (int)newHeight),
                         Mode = ResizeMode.Max
                     }));
                 }
 
-                image.SaveAsJpeg(outputStream, new JpegEncoder { Quality = quality });
+                image2.SaveAsJpeg(outputStream, new JpegEncoder { Quality = quality });
                 outputStream.Position = 0;
 
                 return outputStream;

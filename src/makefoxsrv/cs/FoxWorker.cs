@@ -1210,7 +1210,6 @@ namespace makefoxsrv
                         config.AdditionalScripts.Add(new RegionalPrompter()); // Use default options.
                     }
 
-
                     var txt2img = await api.TextToImage(config, ctsLoop.Token);
 
                     outputImage = txt2img.Images.Last().Data.ToArray();
