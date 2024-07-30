@@ -56,7 +56,7 @@
     <PackageReference Include="System.Text.Json" Version="8.0.4" />
     <PackageReference Include="System.Windows.Extensions" Version="8.0.0" />
     <PackageReference Include="Terminal.Gui" Version="1.16.0" />
-    <PackageReference Include="WTelegramClient" Version="4.1.5" />
+    <PackageReference Include="WTelegramClient" Version="4.1.4" />
   </ItemGroup>
 
   <ItemGroup>
