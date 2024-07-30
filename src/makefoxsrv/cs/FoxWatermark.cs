@@ -162,8 +162,9 @@ namespace makefoxsrv
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                FoxLog.WriteLine($"Failed to load SVG watermark {svgPath}: {ex.Message}\r\n{ex.StackTrace}");
                 return null;
             }
         }
