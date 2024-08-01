@@ -39,6 +39,7 @@ $sql = "SELECT
     q.error_str,
     q.enhanced,
     q.original_id,
+    IFNULL(q.sampler, 'Unknown') AS sampler,
     IFNULL(q.model, 'indigoFurryMix_v105Hybrid') AS model,
     IFNULL(w.name, 'Unknown') AS worker_name,
     (UNIX_TIMESTAMP(q.date_worker_start) - UNIX_TIMESTAMP(CASE
