@@ -27,6 +27,7 @@ $sql = "SELECT
     q.id,
     DATE_FORMAT(q.date_added, '%Y-%m-%d %H:%i:%s.%f') as date_added,
     q.type,
+    q.status,
     q.uid,
     IFNULL(u.username, CONCAT_WS(' ', tu.firstname, tu.lastname)) AS username,
     tu.firstname,
