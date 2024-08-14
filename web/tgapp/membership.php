@@ -141,7 +141,7 @@ $currency = "USD";
 
         <div id="amount-step" class="hidden">
             <h1>Enter Amount</h1>
-            <input type="number" id="amount-input" placeholder="Enter amount (min $5.00)" min="5" />
+            <input type="number" id="amount-input" placeholder="Enter amount (min $10.00)" min="5" />
             <p id="reward-days" class="hidden"></p>
             <button id="amount-next-button">Next</button>
         </div>
@@ -224,12 +224,12 @@ $currency = "USD";
 
                     inputField.addEventListener('input', async () => {
                         const amount = parseFloat(inputField.value);
-                        if (amount >= 5) {
+                        if (amount >= 10) {
                             days = await CalcRewardDays(amount * 100);
                             rewardDaysP.textContent = `You will get ${days} days of membership for $${amount.toFixed(2)}.`;
                             price = amount * 100;
                         } else {
-                            rewardDaysP.textContent = 'Amount must be at least $5.00.';
+                            rewardDaysP.textContent = 'Amount must be at least $10.00.';
                         }
                     });
 
