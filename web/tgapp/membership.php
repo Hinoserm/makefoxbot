@@ -224,6 +224,8 @@ $currency = "USD";
 
                     inputField.addEventListener('input', async () => {
                         const amount = parseFloat(inputField.value);
+                        price = amount * 100;
+
                         if (amount >= 10) {
                             days = await CalcRewardDays(amount * 100);
                             rewardDaysP.textContent = `You will get ${days} days of membership for $${amount.toFixed(2)}.`;
