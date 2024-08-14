@@ -234,12 +234,12 @@ $currency = "USD";
                     });
 
                     document.getElementById('amount-next-button').addEventListener('click', () => {
-                        if (price >= 500) {
+                        if (price >= 1000) {
                             document.getElementById('confirm-details-text').textContent = `You will be charged $${(price / 100).toFixed(2)} ${currency} for ${days} days of membership. Would you like to proceed?`;
                             document.getElementById('amount-step').classList.add('hidden');
                             document.getElementById('confirm-details').classList.remove('hidden');
                         } else {
-                            alert('Amount must be at least $5.00.');
+                            alert('Amount must be at least $10.00.');
                         }
                     });
                 } else {
