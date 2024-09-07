@@ -171,42 +171,33 @@ namespace makefoxsrv
                             {
                                 // If the message matches, extract the number
                                 int retryAfterSeconds = rex.X;
-                                FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+                                FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - Rate limit exceeded. Trying again after {retryAfterSeconds} seconds.");
 
-                                await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 20));
+                                await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 40));
 
                                 return;
                             }
                             else if (ex.Message == "USER_IS_BLOCKED")
                             {
                                 //User is blocked, so we can't send them messages.
-                                FoxLog.WriteLine($"Failed to send image - User is blocked.  Cancelling.");
+                                FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - User is blocked.  Cancelling.");
                                 await q.SetCancelled(true);
 
                                 return;
                             }
                             else
                             {
-                                FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
-                                await q.SetError(ex);
-
-                                return;
+                                throw;
                             }
                         }
                         else
                         {
-                            FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
-                            await q.SetError(ex);
-
-                            return;
+                            throw;
                         }
                     }
                     catch (Exception ex)
                     {
-                        FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
-                        await q.SetError(ex);
-
-                        return;
+                        throw;
                     }
 
                     try
@@ -217,6 +208,9 @@ namespace makefoxsrv
                 }
                 else
                 {
+                    FoxLog.WriteLine("SendQueue {q.ID} to {q.User?.UID}: Unexpected error; output image was null.");
+                    await q.SetCancelled(true);
+
                     try
                     {
                         if (q.ReplyMessageID is not null && q.Telegram is not null)
@@ -227,7 +221,7 @@ namespace makefoxsrv
                             );
                         }
 
-                        FoxLog.WriteLine("SendQueue: Unexpected error; output image was null.");
+                        
                     }
                     catch { } //We don't care if editing fails.
                 }
@@ -237,8 +231,20 @@ namespace makefoxsrv
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
-                await q.SetError(ex);
+                FoxLog.WriteLine($"Failed to send image {q.ID} to {q.User?.UID} - {ex.Message}\r\n{ex.StackTrace}");
+                await q.SetCancelled(true);
+
+                try
+                {
+                    if (q.ReplyMessageID is not null && q.Telegram is not null)
+                    {
+                        await q.Telegram.EditMessageAsync(
+                            id: q.ReplyMessageID.Value,
+                            text: $"❌ An error occured.  Please try again later.\r\n\r\nError: {ex.Message}"
+                        );
+                    }
+                }
+                catch { } //We don't care if editing fails.
             }
         }
 

@@ -78,6 +78,8 @@ namespace makefoxsrv
             { "/privacy",     CmdPrivacy },
             { "/history",     CmdHistory },
             { "/admin",       CmdAdmin },
+            //--------------- -----------------
+            { "/styles",      CmdStyles },
         };
 
         public static async Task HandleCommand(FoxTelegram t, Message message)
@@ -272,6 +274,44 @@ namespace makefoxsrv
             {
                 Arguments = arguments;
             }
+        }
+
+        [CommandDescription("Load the styles menu")]
+        [CommandArguments("")]
+        private static async Task CmdStyles(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            // Initialize a list to hold TL.KeyboardButtonRow for each row of buttons
+            List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
+
+            // List to accumulate buttons for the current row
+            List<TL.KeyboardButtonWebView> currentRowButtons = new List<TL.KeyboardButtonWebView>();
+
+
+            string webUrl = $"{FoxMain.settings.WebRootUrl}tgapp/styles.php";
+
+            currentRowButtons.Add(new TL.KeyboardButtonWebView { text = "Edit Styles", url = webUrl });
+
+            buttonRows.Add(new TL.KeyboardButtonRow { buttons = currentRowButtons.ToArray() });
+
+            var inlineKeyboard = new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() };
+
+            StringBuilder sb = new StringBuilder();
+
+            sb.AppendLine("<b>Styles Menu</b>\n"); //Intentional extra newline.
+            sb.AppendLine("Styles allow you to have groups of extra text that are automatically added to your prompts and can be easily toggled on and off.\n");
+            sb.AppendLine("When a style is enabled (✅), it will be automatically appended to your prompts whenever you generate an image.\n");
+            sb.AppendLine("<u>Telegram can only display your first few styles below</u>; click the <b>Edit Styles</b> button to access your full list, add new styles, or make changes.\n");
+
+            var msg = sb.ToString();
+
+            var entities = FoxTelegram.Client.HtmlToEntities(ref msg);
+
+            var sentMessage = await t.SendMessageAsync(
+                text: msg,
+                replyInlineMarkup: inlineKeyboard,
+                entities: entities,
+                disableWebPagePreview: true
+            );
         }
 
         private static async Task CmdAdmin(FoxTelegram t, Message message, FoxUser user, String? argument)
