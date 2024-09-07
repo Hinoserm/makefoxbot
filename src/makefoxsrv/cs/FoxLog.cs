@@ -20,7 +20,7 @@ namespace makefoxsrv
 {
     internal class FoxLog
     {
-        public static LogLevel CurrentLogLevel { get; set; } = LogLevel.DEBUG;
+        public static LogLevel CurrentLogLevel { get; set; } = LogLevel.INFO;
 
         private static readonly object fileLock = new object();
 
