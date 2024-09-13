@@ -764,7 +764,7 @@ namespace makefoxsrv
                 string modelName = model.Key;
                 int workerCount = model.Value.GetWorkersRunningModel().Count; // Assuming you want the count of workers per model
 
-                var buttonLabel = $"{modelName} ({workerCount})";
+                var buttonLabel = (model.Value.IsPremium ? "⭐" : "") + $"{modelName} ({workerCount})";
                 var buttonData = $"/model {modelName}"; // Or any unique data you need to pass
 
                 if (modelName == settings.model)
@@ -795,7 +795,7 @@ namespace makefoxsrv
 
             // Send the message with the inline keyboard
             await t.SendMessageAsync(
-                text: "Select a model:",
+                text: "Select a model:\r\n\r\n (⭐ = Premium)",
                 replyInlineMarkup: inlineKeyboard
             );
         }

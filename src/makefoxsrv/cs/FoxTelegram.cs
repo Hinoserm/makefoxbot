@@ -215,7 +215,7 @@ namespace makefoxsrv
             return null;
         }
 
-        public async Task<Message?> EditMessageAsync(int id, string? text = null, ReplyInlineMarkup ? replyInlineMarkup = null, MessageEntity[]? entities = null)
+        public async Task<Message?> EditMessageAsync(int id, string? text = null, ReplyInlineMarkup ? replyInlineMarkup = null, MessageEntity[]? entities = null, bool disableWebPagePreview = true)
         {
             if (!IsConnected)
                 throw new InvalidOperationException("Telegram is disconnected");
@@ -225,6 +225,7 @@ namespace makefoxsrv
                 message: text,
                 id: id,
                 reply_markup: replyInlineMarkup,
+                no_webpage: disableWebPagePreview,
                 entities: entities
             );
 

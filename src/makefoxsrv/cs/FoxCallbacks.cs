@@ -263,46 +263,77 @@ namespace makefoxsrv
                         text: "✅ Operation cancelled.",
                         id: query.msg_id
                     );
+
+                return;
             }
-            else
+
+            if (argument == "default")
+                argument = null;
+
+            var model = FoxModel.GetModelByName(argument ?? FoxSettings.Get<string>("DefaultModel"));
+
+            if (model is null)
             {
-                if (argument == "default")
-                {
-                    argument = null;
-                }
-                else
-                {
-                    var model = FoxModel.GetModelByName(argument);
-
-                    if (model is null)
-                    {
-                        await t.EditMessageAsync(
-                            text: "❌ Unknown model selected.",
-                            id: query.msg_id
-                        );
-
-                        return;
-                    } else if (model.GetWorkersRunningModel().Count < 1) {
-                        await t.EditMessageAsync(
-                            text: "❌ There are no workers currently available that can handle that model.  Please try again later.",
-                            id: query.msg_id
-                        );
-
-                        return;
-                    }
-                }
-
-                var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-                settings.model = argument;
-
-                await settings.Save();
-
                 await t.EditMessageAsync(
-                        text: "✅ Model selected: " + settings.model,
-                        id: query.msg_id
-                    );
+                    text: "❌ Unknown model selected.",
+                    id: query.msg_id
+                );
+
+                return;
+            } else if (model.GetWorkersRunningModel().Count < 1) {
+                await t.EditMessageAsync(
+                    text: "❌ There are no workers currently available that can handle that model.  Please try again later.",
+                    id: query.msg_id
+                );
+
+                return;
             }
+
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+
+            settings.model = argument;
+
+            await settings.Save();
+
+            await model.LoadModelMetadataFromDatabase(); // Refresh info in case it changed.
+
+            StringBuilder message = new StringBuilder();
+
+            message.AppendLine("✅ <b>Model selected:</b> " + settings.model);
+
+            if (model.Description is not null)
+            {
+                message.AppendLine();
+                message.AppendLine("📝 <b>Description:</b> " + model.Description);
+            }
+
+            if (model.Notes is not null)
+            {
+                message.AppendLine();
+                message.AppendLine("⚠️ <b>Important Notes:</b> " + model.Notes);
+            }
+
+            if (model.InfoUrl is not null)
+            {
+                message.AppendLine();
+                message.AppendLine("🔗 <a href=\"" + model.InfoUrl + "\">More Information</a>");
+            }
+
+            if (model.IsPremium && !user.CheckAccessLevel(AccessLevel.PREMIUM))
+            {
+                message.AppendLine();
+                message.AppendLine("(🔒 This is a premium model and may require a membership to use)");
+            }
+
+            var msg = message.ToString();
+            var entities = FoxTelegram.Client.HtmlToEntities(ref msg);
+
+            await t.EditMessageAsync(
+                    text: msg,
+                    entities: entities,
+                    disableWebPagePreview: true,
+                    id: query.msg_id
+                );
         }
 
         private static async Task CallbackCmdSampler(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)

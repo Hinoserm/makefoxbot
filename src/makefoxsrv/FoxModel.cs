@@ -23,6 +23,7 @@ namespace makefoxsrv
         public bool IsPremium { get; private set; }
         public string? Notes { get; private set; }
         public string? Description { get; private set; }
+        public String? InfoUrl { get; private set; }
 
         // Workers that are running this model
         private HashSet<int> workersRunningModel;
@@ -75,7 +76,7 @@ namespace makefoxsrv
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
             await SQL.OpenAsync();
 
-            string query = @"SELECT is_premium, notes, description
+            string query = @"SELECT is_premium, notes, description, info_url
                          FROM model_info 
                          WHERE model_name = @modelName";
             using var cmd = new MySqlCommand(query, SQL);
@@ -90,13 +91,15 @@ namespace makefoxsrv
                     // Handle nullable fields, assigning null if the value is DBNull
                     Notes = reader.IsDBNull("notes") ? null : reader.GetString("notes");
                     Description = reader.IsDBNull("description") ? null : reader.GetString("description");
+                    InfoUrl = reader.IsDBNull("info_url") ? null : reader.GetString("info_url");
                 }
                 else
                 {
                     // If no metadata exists, set defaults
                     IsPremium = false;
                     Notes = null;            
-                    Description = null;      
+                    Description = null;
+                    InfoUrl = null;
                 }
             }
         }
