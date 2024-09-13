@@ -134,7 +134,7 @@ namespace makefoxsrv
                             messageText += $"\n\n⚠️ LoRAs are known to behave strangely when using regional prompting.  If your image appears strange or corrupted, remove LoRAs from your prompts and try again.";
                         }
 
-                        if (t.Chat is null) {
+                        if (t.Chat is null && !q.User.CheckAccessLevel(AccessLevel.PREMIUM)) {
                             int recentCount = await FoxQueue.GetRecentCount(q.User, TimeSpan.FromHours(6));
 
                             if (recentCount >= 30 && (recentCount % 10 == 0)) // Check if recentCount is a multiple of 10
