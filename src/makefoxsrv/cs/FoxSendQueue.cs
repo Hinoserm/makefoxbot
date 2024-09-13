@@ -135,11 +135,11 @@ namespace makefoxsrv
                         }
 
                         if (t.Chat is null && !q.User.CheckAccessLevel(AccessLevel.PREMIUM)) {
-                            int recentCount = await FoxQueue.GetRecentCount(q.User, TimeSpan.FromHours(6));
+                            int recentCount = await FoxQueue.GetRecentCount(q.User, TimeSpan.FromHours(24));
 
                             if (recentCount >= 30 && (recentCount % 10 == 0)) // Check if recentCount is a multiple of 10
                             {
-                                messageText += $"\n\n🤔 You've generated {recentCount} images in the last 6 hours.\r\n\r\nPlease consider purchasing a premium /membership to support our service and get more features.\r\n\r\nWe rely on financial support from our users to keep our service running.";
+                                messageText += $"\n\n🤔 You've generated {recentCount} images in the last 24 hours.\r\n\r\nPlease consider purchasing a premium /membership to support our service and get more features.\r\n\r\nWe rely on financial support from our users to keep our service running.";
                                 FoxLog.WriteLine($"Nagging user {q.User.Username ?? q.User.UID.ToString()}");
                             }
                         }
