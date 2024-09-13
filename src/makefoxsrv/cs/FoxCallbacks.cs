@@ -269,14 +269,27 @@ namespace makefoxsrv
                 if (argument == "default")
                 {
                     argument = null;
-                } else if (await FoxWorker.GetWorkersForModel(argument) is null)
+                }
+                else
                 {
-                    await t.EditMessageAsync(
-                        text: "❌ There are no workers currently available that can handle that model.  Please try again later.",
-                        id: query.msg_id
-                    );
+                    var model = FoxModel.GetModelByName(argument);
 
-                    return;
+                    if (model is null)
+                    {
+                        await t.EditMessageAsync(
+                            text: "❌ Unknown model selected.",
+                            id: query.msg_id
+                        );
+
+                        return;
+                    } else if (model.GetWorkersRunningModel().Count < 1) {
+                        await t.EditMessageAsync(
+                            text: "❌ There are no workers currently available that can handle that model.  Please try again later.",
+                            id: query.msg_id
+                        );
+
+                        return;
+                    }
                 }
 
                 var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);

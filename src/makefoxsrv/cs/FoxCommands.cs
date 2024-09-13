@@ -743,7 +743,7 @@ namespace makefoxsrv
 
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-            var models = await FoxWorker.GetAvailableModels(); // Use the GetModels function here
+            var models = FoxModel.GetAvailableModels();
 
             if (models.Count == 0)
             {
@@ -758,10 +758,11 @@ namespace makefoxsrv
                 }
             });
 
-            foreach (var model in models)
+            // Sort the models dictionary by key (model name) alphabetically
+            foreach (var model in models.OrderBy(m => m.Key))
             {
                 string modelName = model.Key;
-                int workerCount = model.Value.Count; // Assuming you want the count of workers per model
+                int workerCount = model.Value.GetWorkersRunningModel().Count; // Assuming you want the count of workers per model
 
                 var buttonLabel = $"{modelName} ({workerCount})";
                 var buttonData = $"/model {modelName}"; // Or any unique data you need to pass

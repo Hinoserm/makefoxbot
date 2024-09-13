@@ -285,13 +285,22 @@ namespace makefoxsrv
         {
             var workers = FoxWorker.GetWorkers().Values;
 
+            // Fetch the model by name using the new FoxModel method
+            var model = FoxModel.GetModelByName(settings.model);
+
+            // If the model does not exist or has no workers, return null
+            if (model is null || model.GetWorkersRunningModel().Count < 1)
+            {
+                return null; // No workers available for the specified model
+            }
+
             // Filter out workers based on their online status, max image size, steps capacity,
             // the availability of the model, and regional prompting support if required.
             var capableWorkers = workers
                 .Where(worker => worker.Online
                                  && (!worker.MaxImageSize.HasValue || (settings.width * settings.height) <= worker.MaxImageSize.Value)
                                  && (!worker.MaxImageSteps.HasValue || settings.steps <= worker.MaxImageSteps.Value)
-                                 && worker.availableModels.ContainsKey(settings.model) // Check if the model is available to the worker
+                                 && model.GetWorkersRunningModel().Contains(worker.ID) // Check if the worker has the model loaded
                                  && (!settings.regionalPrompting || worker.SupportsRegionalPrompter)) // Check regional prompting condition
                 .FirstOrDefault(); // Immediately return the first capable worker found
 
@@ -300,42 +309,51 @@ namespace makefoxsrv
 
         public static FoxWorker? FindSuitableWorkerForTask(FoxQueue item)
         {
-            // First, filter out workers based on their online status, image size and steps capacity,
-            // and further check if they are not busy (qItem is null) and either have the model loaded or it's available to them.
+            // Get the model from the global FoxModel system
+            var model = FoxModel.GetModelByName(item.Settings.model);
+
+            // If the model does not exist or has no workers running it, return null (no suitable worker found)
+            if (model == null || model.GetWorkersRunningModel().Count < 1)
+            {
+                return null;
+            }
+
+            // Get all workers
             var workers = FoxWorker.GetWorkers().Values;
 
+            // Filter out workers based on their online status, image size, steps capacity,
+            // and whether they have the model loaded (this avoids redundant checks later).
             var suitableWorkers = workers
                 .Where(worker => worker.Online
-                                 && (worker.qItem == null)  // Worker is not currently busy
+                                 && worker.qItem == null  // Worker is not currently busy
                                  && (!worker.MaxImageSize.HasValue || (item.Settings.width * item.Settings.height) <= worker.MaxImageSize.Value)
                                  && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
-                                 && (!item.RegionalPrompting || worker.SupportsRegionalPrompter))
-                                 //&& ((worker.MaxUpscaleSize.HasValue && ((item.Settings.UpscalerWidth ?? 0) * (item.Settings.UpscalerWidth ?? 0)) <= worker.MaxUpscaleSize.Value)
-                                 //    || (!worker.MaxUpscaleSize.HasValue && !item.Enhanced)))
+                                 && (!item.RegionalPrompting || worker.SupportsRegionalPrompter)
+                                 && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
                 .ToList();
 
-            // Prioritize workers who already have the model loaded.
+            // Prioritize workers who already have the model as their last used model (and still have it loaded)
             var preferredWorkers = suitableWorkers
-                .Where(worker => worker.GetRecentModels().Contains(item.Settings.model))
-                .OrderByDescending(worker => priorityMap[item.User.GetAccessLevel()])
+                .Where(worker => worker.LastUsedModel == item.Settings.model)  // Worker last used this model
+                .OrderByDescending(worker => priorityMap[item.User.GetAccessLevel()]) // Sort by user access level priority
                 .ToList();
 
+            // If there are any preferred workers, return the first one
             if (preferredWorkers.Any())
             {
                 var w = preferredWorkers.First();
-                //FoxLog.WriteLine($"Preferred worker found: {w.name}");
                 return w;
             }
 
-            // If no preferred worker is available, fall back to any suitable worker,
-            // still respecting the user's access level priority.
+            // If no preferred workers are available, fall back to any suitable worker
             var suitableWorker = suitableWorkers
-                .Where(worker => worker.availableModels.ContainsKey(item.Settings.model)) // Ensure model is available
-                .OrderByDescending(worker => priorityMap[item.User.GetAccessLevel()])
+                .OrderByDescending(worker => priorityMap[item.User.GetAccessLevel()]) // Sort by user access level priority
                 .FirstOrDefault();
-            //FoxLog.WriteLine($"Suitable worker found: {suitableWorker?.name ?? "none"}");
+
             return suitableWorker;
         }
+
+
 
         public static async Task EnqueueOldItems()
         {

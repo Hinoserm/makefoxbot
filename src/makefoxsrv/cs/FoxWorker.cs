@@ -96,7 +96,7 @@ namespace makefoxsrv
 
         public DateTime StartDate { get; private set; } //Worker start date
         public DateTime? TaskStartDate { get; private set; } = null;
-        
+
         static public TimeSpan ProgressUpdateInterval { get; set; } = TimeSpan.FromMilliseconds(100);
 
         private ManualResetEvent enabledEvent = new ManualResetEvent(true); // Initially enabled
@@ -132,6 +132,7 @@ namespace makefoxsrv
                         }
                         else
                         {
+                            FoxModel.WorkerWentOffline(this.ID);
                             OnWorkerOffline?.Invoke(this, new WorkerEventArgs());
                         }
                     }
@@ -159,88 +160,90 @@ namespace makefoxsrv
 
         public IProgress? Progress = null;
 
-        public Dictionary<string, int> availableModels { get; private set; } = new Dictionary<string, int>();
+        public string? LastUsedModel { get; private set; } = null;
 
-        private LinkedList<string>? recentModels = new LinkedList<string>();
-        private Dictionary<string, LinkedListNode<string>>? modelNodes = new Dictionary<string, LinkedListNode<string>>();
-        private int _modelCapacity;
+        //public Dictionary<string, int> availableModels { get; private set; } = new Dictionary<string, int>();
 
-        public int ModelCapacity
-        {
-            get => _modelCapacity;
-            set
-            {
-                _modelCapacity = value;
+        //private LinkedList<string>? recentModels = new LinkedList<string>();
+        //private Dictionary<string, LinkedListNode<string>>? modelNodes = new Dictionary<string, LinkedListNode<string>>();
+        //private int _modelCapacity;
 
-                if (_modelCapacity == 0)
-                {
-                    // Clear tracking structures if capacity is set to 0.
-                    if (recentModels is not null)
-                        recentModels?.Clear();
-                    if (modelNodes is not null)
-                        modelNodes?.Clear();
+        //public int ModelCapacity
+        //{
+        //    get => _modelCapacity;
+        //    set
+        //    {
+        //        _modelCapacity = value;
 
-                    recentModels = null;
-                    modelNodes = null;
-                }
-                else
-                {
-                    // Ensure structures are initialized (they are by default, but this is for clarity and future-proofing).
-                    if (recentModels is null)
-                        recentModels = new LinkedList<string>();
-                    if (modelNodes is null)
-                        modelNodes = new Dictionary<string, LinkedListNode<string>>();
+        //        if (_modelCapacity == 0)
+        //        {
+        //            // Clear tracking structures if capacity is set to 0.
+        //            if (recentModels is not null)
+        //                recentModels?.Clear();
+        //            if (modelNodes is not null)
+        //                modelNodes?.Clear();
 
-                    // If increasing capacity from 0, no need to trim structures, as they were just cleared or are already initialized.
-                    // Only trim if the count exceeds the new, non-zero capacity.
-                    while (recentModels.Count > _modelCapacity)
-                    {
-                        var oldestModel = recentModels.First?.Value;
-                        if (oldestModel is not null)
-                        {
-                            recentModels.RemoveFirst();
-                            modelNodes.Remove(oldestModel);
-                        }
-                    }
-                }
-            }
-        }
+        //            recentModels = null;
+        //            modelNodes = null;
+        //        }
+        //        else
+        //        {
+        //            // Ensure structures are initialized (they are by default, but this is for clarity and future-proofing).
+        //            if (recentModels is null)
+        //                recentModels = new LinkedList<string>();
+        //            if (modelNodes is null)
+        //                modelNodes = new Dictionary<string, LinkedListNode<string>>();
 
-        public void UseModel(string model)
-        {
-            if (string.IsNullOrEmpty(model) || _modelCapacity == 0)
-                return; // Do not track if capacity is 0 or model is invalid.
+        //            // If increasing capacity from 0, no need to trim structures, as they were just cleared or are already initialized.
+        //            // Only trim if the count exceeds the new, non-zero capacity.
+        //            while (recentModels.Count > _modelCapacity)
+        //            {
+        //                var oldestModel = recentModels.First?.Value;
+        //                if (oldestModel is not null)
+        //                {
+        //                    recentModels.RemoveFirst();
+        //                    modelNodes.Remove(oldestModel);
+        //                }
+        //            }
+        //        }
+        //    }
+        //}
 
-            if (modelNodes is null || recentModels is null)
-                return; // Do not track if structures are not initialized.
+        //public void UseModel(string model)
+        //{
+        //    if (string.IsNullOrEmpty(model) || _modelCapacity == 0)
+        //        return; // Do not track if capacity is 0 or model is invalid.
 
-            //FoxLog.WriteLine($"Worker {ID} - Using model: {model}");
+        //    if (modelNodes is null || recentModels is null)
+        //        return; // Do not track if structures are not initialized.
 
-            if (modelNodes.TryGetValue(model, out var existingNode))
-            {
-                // Update the model's position to the end as the most recently used.
-                recentModels.Remove(existingNode);
-                recentModels.AddLast(existingNode);
-            }
-            else
-            {
-                // Add a new model, ensuring capacity constraints are respected.
-                if (recentModels.Count >= ModelCapacity)
-                {
-                    var oldestModel = recentModels.First?.Value;
-                    if (oldestModel is not null) {
-                        recentModels.RemoveFirst();
-                        modelNodes.Remove(oldestModel);
-                    }
-                }
+        //    //FoxLog.WriteLine($"Worker {ID} - Using model: {model}");
 
-                var newNode = new LinkedListNode<string>(model);
-                recentModels.AddLast(newNode);
-                modelNodes[model] = newNode;
-            }
-        }
+        //    if (modelNodes.TryGetValue(model, out var existingNode))
+        //    {
+        //        // Update the model's position to the end as the most recently used.
+        //        recentModels.Remove(existingNode);
+        //        recentModels.AddLast(existingNode);
+        //    }
+        //    else
+        //    {
+        //        // Add a new model, ensuring capacity constraints are respected.
+        //        if (recentModels.Count >= ModelCapacity)
+        //        {
+        //            var oldestModel = recentModels.First?.Value;
+        //            if (oldestModel is not null) {
+        //                recentModels.RemoveFirst();
+        //                modelNodes.Remove(oldestModel);
+        //            }
+        //        }
 
-        public IEnumerable<string> GetRecentModels() => (recentModels is not null) ? recentModels.AsEnumerable() : Enumerable.Empty<string>();
+        //        var newNode = new LinkedListNode<string>(model);
+        //        recentModels.AddLast(newNode);
+        //        modelNodes[model] = newNode;
+        //    }
+        //}
+
+        //public IEnumerable<string> GetRecentModels() => (recentModels is not null) ? recentModels.AsEnumerable() : Enumerable.Empty<string>();
 
         private class Lora
         {
@@ -411,7 +414,7 @@ namespace makefoxsrv
 
         public async Task LoadModelInfo()
         {
-            long model_count = 0;
+            long modelCount = 0;
             var api = await ConnectAPI();
 
             if (api is null)
@@ -419,45 +422,35 @@ namespace makefoxsrv
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
 
+            // Retrieve models from the worker's API
             var models = await api.StableDiffusionModels(cts.Token);
 
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
-            await SQL.OpenAsync();
-
-            //Clear the list for this worker and start fresh.
-            using (var cmd = new MySqlCommand($"DELETE FROM worker_models WHERE worker_id = @id", SQL))
+            foreach (var modelData in models)
             {
-                cmd.Parameters.AddWithValue("id", ID);
-                await cmd.ExecuteNonQueryAsync();
-            }
+                // Try to get or create the model globally
+                var foxModel = await FoxModel.GetOrCreateModel(
+                    modelData.ModelName,
+                    modelData.Hash,
+                    modelData.SHA256,
+                    modelData.Title,
+                    modelData.FileName,
+                    modelData.Config
+                );
 
-            foreach (var model in models)
-            {
-                //FoxLog.WriteLine($"  Worker {id} - Model {model_count}: {model.ModelName}");
-
-                using (var cmd = new MySqlCommand($"INSERT INTO worker_models (worker_id, model_name, model_hash, model_sha256, model_title, model_filename, model_config) VALUES (@id, @model_name, @model_hash, @model_sha256, @model_title, @model_filename, @model_config)", SQL))
+                // Check if the hashes match, if not log a warning
+                if (foxModel.Hash != modelData.Hash || foxModel.SHA256 != modelData.SHA256)
                 {
-                    cmd.Parameters.AddWithValue("@id", ID);
-                    cmd.Parameters.AddWithValue("@model_name", model.ModelName);
-                    cmd.Parameters.AddWithValue("@model_hash", model.Hash);
-                    cmd.Parameters.AddWithValue("@model_sha256", model.SHA256);
-                    cmd.Parameters.AddWithValue("@model_title", model.Title);
-                    cmd.Parameters.AddWithValue("@model_filename", model.FileName);
-                    cmd.Parameters.AddWithValue("@model_config", model.Config);
-                    await cmd.ExecuteNonQueryAsync();
+                    FoxLog.WriteLine($"Warning: Model '{modelData.ModelName}' on worker {this.ID} has mismatched hashes.");
                 }
 
-                model_count++;
-
-                if (!availableModels.ContainsKey(model.ModelName))
-                {
-                    availableModels.Add(model.ModelName, ID);
-                }
+                // Add this worker to the model in memory (whether or not the hashes match)
+                foxModel.AddWorker(this.ID);
+                modelCount++;
             }
 
-            FoxLog.WriteLine($"  Worker {ID} - Loaded {model_count} available models");
+            FoxLog.WriteLine($"Worker {this.ID} - Loaded {modelCount} available models.");
         }
+
 
         public async Task GetLoRAInfo()
         {
@@ -611,101 +604,38 @@ namespace makefoxsrv
             }
         }
 
-        public static async Task<Dictionary<string, List<int>>> GetAvailableModels()
-        {
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+        //public static Task<Dictionary<string, List<int>>> GetAvailableModels()
+        //{
+        //    var models = new Dictionary<string, List<int>>();
 
-            await SQL.OpenAsync();
+        //    // Iterate over all global models
+        //    foreach (var model in FoxModel.GetAllLoadedModels())
+        //    {
+        //        // Get the workers running this model
+        //        var workers = model.GetWorkersRunningModel();
+        //        if (workers.Any())
+        //        {
+        //            models[model.Name] = workers;
+        //        }
+        //    }
 
-            var workerIds = FoxWorker.GetActiveWorkerIds(); // Assume this returns List<int> of active worker IDs
+        //    return Task.FromResult(models);
+        //}
 
-            if (!workerIds.Any())
-                throw new Exception("No active workers.");
+        //public static Task<List<int>?> GetWorkersForModel(string modelName)
+        //{
+        //    // Try to get the model from the global list
+        //    var model = FoxModel.GetAllLoadedModels().FirstOrDefault(m => m.Name == modelName);
 
-            // Dynamically building the IN clause directly in the command text like this poses a risk of SQL injection.
-            // Be absolutely sure that workerIds are safe (i.e., strictly controlled/validated as integers).
-            var workerIdParams = string.Join(", ", workerIds);
-            var cmdText = $@"
-                    SELECT
-                        wm.model_name, wm.worker_id
-                    FROM
-                        worker_models wm
-                    INNER JOIN
-                        workers w ON wm.worker_id = w.id
-                    WHERE
-                        wm.worker_id IN ({workerIdParams})
-                        AND w.online = TRUE
-                    ORDER BY
-                        wm.model_name ASC;";
+        //    // If the model doesn't exist or has no workers, return null
+        //    if (model == null || !model.GetWorkersRunningModel().Any())
+        //    {
+        //        return Task.FromResult<List<int>?>(null);
+        //    }
 
-            MySqlCommand cmd = new MySqlCommand(cmdText, SQL);
-
-            var models = new Dictionary<string, List<int>>();
-
-            using (var reader = await cmd.ExecuteReaderAsync())
-            {
-                while (await reader.ReadAsync())
-                {
-                    string modelName = reader.GetString("model_name");
-                    int workerId = reader.GetInt32("worker_id");
-
-                    if (!models.ContainsKey(modelName))
-                    {
-                        models[modelName] = new List<int>();
-                    }
-
-                    models[modelName].Add(workerId);
-                }
-            }
-
-            return models;
-        }
-
-        public static async Task<List<int>?> GetWorkersForModel(string modelName)
-        {
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
-            await SQL.OpenAsync();
-
-            var workerIds = FoxWorker.GetActiveWorkerIds(); // Assume this returns List<int> of active worker IDs
-
-            if (!workerIds.Any())
-                throw new Exception("No active workers.");
-
-            // Dynamically building the IN clause directly in the command text like this poses a risk of SQL injection.
-            // Be absolutely sure that workerIds are safe (i.e., strictly controlled/validated as integers).
-            var workerIdParams = string.Join(", ", workerIds);
-            var cmdText = $@"
-                    SELECT
-                        wm.worker_id
-                    FROM
-                        worker_models wm
-                    INNER JOIN
-                        workers w ON wm.worker_id = w.id
-                    WHERE
-                        wm.worker_id IN ({workerIdParams})
-                        AND w.online = TRUE
-                        AND wm.model_name = @modelName"; // Filter by the provided model name
-
-            MySqlCommand cmd = new MySqlCommand(cmdText, SQL);
-            cmd.Parameters.AddWithValue("@modelName", modelName); // Use parameterization to avoid SQL injection
-
-            var workersForModel = new List<int>();
-
-            using (var reader = await cmd.ExecuteReaderAsync())
-            {
-                if (!reader.HasRows)
-                    return null; // Return null if no workers are found for the model
-
-                while (await reader.ReadAsync())
-                {
-                    int workerId = reader.GetInt32("worker_id");
-                    workersForModel.Add(workerId);
-                }
-            }
-
-            return workersForModel;
-        }
+        //    // Otherwise, return the list of workers running this model
+        //    return Task.FromResult<List<int>?>(model.GetWorkersRunningModel());
+        //}
 
 
         public static ICollection<int> GetActiveWorkerIds()
@@ -913,8 +843,6 @@ namespace makefoxsrv
 
             //var waitHandles = new WaitHandle[] { enabledEvent, cts.Token.WaitHandle };
 
-            this.ModelCapacity = 1;
-
             try
             {
                 OnWorkerStart?.Invoke(this, new WorkerEventArgs());
@@ -1074,7 +1002,7 @@ namespace makefoxsrv
 
                 var settings = qItem.Settings.Copy();
 
-                this.UseModel(settings.model);
+                this.LastUsedModel =  settings.model;
 
                 progressCTS = StartProgressMonitor(qItem, ctsLoop.Token);
 
