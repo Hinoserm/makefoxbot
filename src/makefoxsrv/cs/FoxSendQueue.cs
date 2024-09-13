@@ -134,6 +134,15 @@ namespace makefoxsrv
                             messageText += $"\n\n⚠️ LoRAs are known to behave strangely when using regional prompting.  If your image appears strange or corrupted, remove LoRAs from your prompts and try again.";
                         }
 
+                        if (t.Chat is null) {
+                            int recentCount = await FoxQueue.GetRecentCount(q.User, TimeSpan.FromHours(6));
+
+                            if (recentCount >= 30 && (recentCount % 10 == 0)) // Check if recentCount is a multiple of 10
+                            {
+                                messageText += $"\n\n🤔 You've generated {recentCount} images in the last 6 hours.\r\n\r\nPlease consider purchasing a premium /membership to support our service and get more features.\r\n\r\nWe rely on financial support from our users to keep our service running.";
+                            }
+                        }
+
                         var msg = await t.SendMessageAsync(
                             media: new InputMediaUploadedPhoto() { file = inputImage },
                             text: (t.Chat is not null ? messageText : null),
@@ -142,7 +151,7 @@ namespace makefoxsrv
                             );
 
                         await q.SetStatus(FoxQueue.QueueStatus.FINISHED, msg.ID);
-               
+
                         if (t.Chat is null) // Only offer the buttons in private chats, not groups.
                         {
                             await t.SendMessageAsync(
