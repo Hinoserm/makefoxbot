@@ -1373,10 +1373,10 @@ namespace makefoxsrv
                 return;
             }
 
-            if (width < 512 || height < 512)
+            if (width < 128 || height < 128)
             {
                 await t.SendMessageAsync(
-                    text: "❌ Dimenion should be at least 512 pixels.",
+                    text: "❌ Dimension should be at least 128 pixels.",
                     replyToMessageId: message.ID
                 );
                 return;

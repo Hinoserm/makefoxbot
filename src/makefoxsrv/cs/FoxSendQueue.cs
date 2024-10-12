@@ -139,7 +139,7 @@ namespace makefoxsrv
 
                             if (recentCount >= 30 && (recentCount % 10 == 0)) // Check if recentCount is a multiple of 10
                             {
-                                messageText += $"\n\n🤔 You've generated {recentCount} images in the last 24 hours.\r\n\r\nIf you're enjoying the bot, please consider purchasing a premium /membership to support our service and unlock more features.\r\n\r\nWe rely on financial support from our users to keep our service running, and even a little bit really helps.\r\n\r\nThank you for your consideration!";
+                                messageText += $"\n\n🤔 You've generated {recentCount} images in the last 24 hours.\r\n\r\nIf you're enjoying the bot, please consider purchasing a premium /membership to support our service and unlock more features.\r\n\r\nWe depend solely on financial support from our users to keep this service running, and even a little bit really helps.\r\n\r\nThank you for your consideration!";
                                 FoxLog.WriteLine($"Nagging user {q.User.Username ?? q.User.UID.ToString()}");
                             }
                         }

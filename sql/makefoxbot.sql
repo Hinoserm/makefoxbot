@@ -11,7 +11,7 @@
  Target Server Version : 100523 (10.5.23-MariaDB)
  File Encoding         : 65001
 
- Date: 08/07/2024 18:15:02
+ Date: 07/10/2024 22:19:19
 */
 
 SET NAMES utf8mb4;
@@ -30,7 +30,7 @@ CREATE TABLE `admin_chats`  (
   `message_id` bigint(20) NULL DEFAULT NULL COMMENT 'The telegram message ID',
   `message_date` datetime NOT NULL,
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 211 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 395 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for admin_open_chats
@@ -43,7 +43,7 @@ CREATE TABLE `admin_open_chats`  (
   `tg_peer_id` bigint(20) NULL DEFAULT NULL COMMENT 'Telegram Peer ID (Chat or User)',
   `date_opened` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 220 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 349 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for gpu_stats
@@ -103,7 +103,20 @@ CREATE TABLE `images`  (
   INDEX `idx6`(`flagged`) USING BTREE,
   INDEX `idx7`(`telegram_msgid`) USING BTREE,
   CONSTRAINT `images_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 3545919 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 6625186 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for model_info
+-- ----------------------------
+DROP TABLE IF EXISTS `model_info`;
+CREATE TABLE `model_info`  (
+  `model_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
+  `notes` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
+  `info_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
+  `is_premium` tinyint(1) NULL DEFAULT 0,
+  PRIMARY KEY (`model_name`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for news_messages
@@ -115,7 +128,113 @@ CREATE TABLE `news_messages`  (
   `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `date_added` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`news_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for pay_charges
+-- ----------------------------
+DROP TABLE IF EXISTS `pay_charges`;
+CREATE TABLE `pay_charges`  (
+  `charge_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing charge ID',
+  `invoice_id` char(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL COMMENT 'UUID of the related invoice',
+  `user_id` bigint(20) UNSIGNED NOT NULL COMMENT 'User ID number',
+  `provider` enum('PAYPAL','STRIPE','OTHER') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'Payment provider',
+  `provider_token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'Token provided by payment provider, if applicable',
+  `provider_order_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'Order ID returned from the provider, if applicable',
+  `status` enum('PENDING','COMPLETED','FAILED') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'Status of the charge',
+  `date_created` datetime NOT NULL DEFAULT current_timestamp() COMMENT 'Date the charge was created',
+  `date_completed` datetime NULL DEFAULT NULL COMMENT 'Date the charge was completed',
+  `error_message` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'Error message encountered, if any',
+  PRIMARY KEY (`charge_id`) USING BTREE,
+  INDEX `invoice_id`(`invoice_id`) USING BTREE,
+  INDEX `user_id`(`user_id`) USING BTREE,
+  CONSTRAINT `pay_charges_ibfk_1` FOREIGN KEY (`invoice_id`) REFERENCES `pay_invoices` (`uuid`) ON DELETE CASCADE ON UPDATE RESTRICT,
+  CONSTRAINT `pay_charges_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 235 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = 'Table storing charge details' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for pay_customers
+-- ----------------------------
+DROP TABLE IF EXISTS `pay_customers`;
+CREATE TABLE `pay_customers`  (
+  `customer_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing customer ID',
+  `user_id` bigint(20) UNSIGNED NOT NULL COMMENT 'User ID number',
+  `provider` enum('PAYPAL','STRIPE','OTHER') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'Payment provider',
+  `customer_token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'Customer token provided by payment provider',
+  `date_created` datetime NOT NULL DEFAULT current_timestamp() COMMENT 'Date the customer was created',
+  PRIMARY KEY (`customer_id`) USING BTREE,
+  UNIQUE INDEX `user_id`(`user_id`) USING BTREE,
+  CONSTRAINT `pay_customers_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = 'Table storing customer details' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for pay_invoices
+-- ----------------------------
+DROP TABLE IF EXISTS `pay_invoices`;
+CREATE TABLE `pay_invoices`  (
+  `uuid` char(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL DEFAULT uuid() COMMENT 'UUID for this payment session',
+  `user_id` bigint(20) UNSIGNED NOT NULL COMMENT 'User ID number',
+  `amount` int(11) NULL DEFAULT NULL COMMENT 'Amount of transaction. in cents',
+  `currency` char(3) CHARACTER SET ascii COLLATE ascii_general_ci NULL DEFAULT NULL COMMENT 'Currency expected for this transaction',
+  `days` int(11) NULL DEFAULT NULL COMMENT 'Days of membership expected; null if this is another type of payment.',
+  `recurring` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Is this a recurring payment?',
+  `date_created` datetime NOT NULL DEFAULT current_timestamp() COMMENT 'Date this session was created',
+  `date_charged` datetime NULL DEFAULT NULL COMMENT 'Date this session was last successfully billed',
+  `date_last_failed` datetime NULL DEFAULT NULL COMMENT 'Date this session last failed to bill',
+  `last_error` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'Last error message encountered, if any',
+  `tg_peer_id` bigint(20) NULL DEFAULT NULL COMMENT 'Telegram Peer ID',
+  `tg_msg_id` bigint(20) NULL DEFAULT NULL COMMENT 'The message ID that generated the invoice',
+  PRIMARY KEY (`uuid`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for pay_subscriptions
+-- ----------------------------
+DROP TABLE IF EXISTS `pay_subscriptions`;
+CREATE TABLE `pay_subscriptions`  (
+  `subscription_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing subscription ID',
+  `customer_id` bigint(20) UNSIGNED NOT NULL COMMENT 'Customer ID number',
+  `invoice_id` char(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL COMMENT 'UUID of the related invoice',
+  `user_id` bigint(20) UNSIGNED NOT NULL COMMENT 'User ID number',
+  `provider` enum('PAYPAL','STRIPE','OTHER') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'Payment provider',
+  `subscription_token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'Subscription token provided by payment provider',
+  `amount` decimal(10, 2) NOT NULL COMMENT 'Subscription amount in smallest currency unit',
+  `currency` char(3) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL COMMENT 'Currency in ISO 4217 format',
+  `interval_days` int(11) NOT NULL COMMENT 'Number of days between each billing cycle',
+  `status` enum('ACTIVE','CANCELLED','PAUSED') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'Status of the subscription',
+  `date_created` datetime NOT NULL DEFAULT current_timestamp() COMMENT 'Date the subscription was created',
+  `date_updated` datetime NULL DEFAULT NULL COMMENT 'Date the subscription was last updated',
+  PRIMARY KEY (`subscription_id`) USING BTREE,
+  INDEX `customer_id`(`customer_id`) USING BTREE,
+  INDEX `invoice_id`(`invoice_id`) USING BTREE,
+  INDEX `user_id`(`user_id`) USING BTREE,
+  CONSTRAINT `pay_subscriptions_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `pay_customers` (`customer_id`) ON DELETE CASCADE ON UPDATE RESTRICT,
+  CONSTRAINT `pay_subscriptions_ibfk_2` FOREIGN KEY (`invoice_id`) REFERENCES `pay_invoices` (`uuid`) ON DELETE CASCADE ON UPDATE RESTRICT,
+  CONSTRAINT `pay_subscriptions_ibfk_3` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = 'Table storing subscription details' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for pay_transactions
+-- ----------------------------
+DROP TABLE IF EXISTS `pay_transactions`;
+CREATE TABLE `pay_transactions`  (
+  `transaction_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing transaction ID',
+  `charge_id` bigint(20) UNSIGNED NULL DEFAULT NULL COMMENT 'Linked charge ID',
+  `subscription_id` bigint(20) UNSIGNED NULL DEFAULT NULL COMMENT 'Linked subscription ID',
+  `user_id` bigint(20) UNSIGNED NOT NULL COMMENT 'User ID number',
+  `amount` decimal(10, 2) NOT NULL COMMENT 'Transaction amount in smallest currency unit',
+  `currency` varchar(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'Currency in ISO 4217 format',
+  `status` enum('PENDING','COMPLETED','FAILED') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'Status of the transaction',
+  `date_created` datetime NOT NULL DEFAULT current_timestamp() COMMENT 'Date the transaction was created',
+  `date_completed` datetime NULL DEFAULT NULL COMMENT 'Date the transaction was completed',
+  PRIMARY KEY (`transaction_id`) USING BTREE,
+  INDEX `charge_id`(`charge_id`) USING BTREE,
+  INDEX `subscription_id`(`subscription_id`) USING BTREE,
+  INDEX `user_id`(`user_id`) USING BTREE,
+  CONSTRAINT `pay_transactions_ibfk_1` FOREIGN KEY (`charge_id`) REFERENCES `pay_charges` (`charge_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `pay_transactions_ibfk_2` FOREIGN KEY (`subscription_id`) REFERENCES `pay_subscriptions` (`subscription_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `pay_transactions_ibfk_3` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = 'Table storing transaction details' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for queue
@@ -141,6 +260,7 @@ CREATE TABLE `queue`  (
   `denoising_strength` decimal(6, 2) NULL DEFAULT NULL,
   `selected_image` bigint(20) UNSIGNED NULL DEFAULT NULL,
   `enhanced` tinyint(1) UNSIGNED NOT NULL DEFAULT 0,
+  `regional_prompting` tinyint(1) UNSIGNED NOT NULL DEFAULT 0,
   `reply_msg` bigint(20) NULL DEFAULT NULL,
   `msg_id` bigint(20) NULL DEFAULT NULL,
   `msg_deleted` bigint(1) NOT NULL DEFAULT 0,
@@ -166,8 +286,9 @@ CREATE TABLE `queue`  (
   INDEX `idx7`(`status`, `uid`) USING BTREE,
   INDEX `idx8`(`tele_id`, `tele_chatid`) USING BTREE,
   INDEX `idx9`(`status`, `date_added`) USING BTREE,
-  INDEX `idx10`(`selected_image`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 3381725 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+  INDEX `idx10`(`selected_image`) USING BTREE,
+  INDEX `idx11`(`msg_id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 6297174 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for samplers
@@ -178,7 +299,7 @@ CREATE TABLE `samplers`  (
   `sampler` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `premium` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 6 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for send_queue
@@ -210,7 +331,8 @@ CREATE TABLE `sessions`  (
   `date_added` datetime NOT NULL DEFAULT current_timestamp(),
   `date_accessed` datetime NULL DEFAULT NULL,
   `date_deleted` datetime NULL DEFAULT NULL,
-  PRIMARY KEY (`session_id`) USING BTREE
+  PRIMARY KEY (`session_id`) USING BTREE,
+  INDEX `idx1`(`session_id`, `uid`) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
@@ -277,8 +399,9 @@ CREATE TABLE `telegram_log`  (
   `date_added` datetime NOT NULL,
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx1`(`user_id`, `chat_id`, `date_added`) USING BTREE,
-  INDEX `idx2`(`message_id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 4055652 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+  INDEX `idx2`(`message_id`) USING BTREE,
+  INDEX `idx3`(`chat_id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 7602134 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for telegram_user_settings
@@ -363,6 +486,7 @@ CREATE TABLE `user_news`  (
 DROP TABLE IF EXISTS `user_payments`;
 CREATE TABLE `user_payments`  (
   `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Payment ID.',
+  `type` enum('TELEGRAM','STRIPE','PAYPAL','OTHER') CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'TELEGRAM' COMMENT 'Type of payment.',
   `uid` bigint(20) UNSIGNED NOT NULL COMMENT 'User\'s ID.',
   `date` datetime NOT NULL COMMENT 'Date of payment received.',
   `amount` int(11) NOT NULL COMMENT 'Amount in smallest possible increment (cents for USD).',
@@ -372,7 +496,7 @@ CREATE TABLE `user_payments`  (
   `telegram_charge_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `provider_charge_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 160 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 406 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for users
@@ -393,7 +517,7 @@ CREATE TABLE `users`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `telegram_id`(`telegram_id`) USING BTREE,
   INDEX `id`(`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 6136 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 9773 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for worker_lora_tags
@@ -423,23 +547,6 @@ CREATE TABLE `worker_loras`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 17486 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
--- Table structure for worker_models
--- ----------------------------
-DROP TABLE IF EXISTS `worker_models`;
-CREATE TABLE `worker_models`  (
-  `worker_id` int(10) UNSIGNED NOT NULL,
-  `model_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  `model_hash` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `model_sha256` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `model_title` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `model_filename` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  `model_config` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-  PRIMARY KEY (`worker_id`, `model_name`) USING BTREE,
-  INDEX `idx1`(`model_name`) USING BTREE,
-  INDEX `idx2`(`model_hash`) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
-
--- ----------------------------
 -- Table structure for workers
 -- ----------------------------
 DROP TABLE IF EXISTS `workers`;
@@ -451,7 +558,7 @@ CREATE TABLE `workers`  (
   `url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT 'URL to A1111 API',
   `max_img_size` int(11) NULL DEFAULT NULL COMMENT 'Maximum image size in pixels (width*height)',
   `max_img_steps` int(11) NULL DEFAULT NULL COMMENT 'Maximum number of steps allowed',
-  `max_upscale_size` int(11) NULL DEFAULT NULL,
+  `regional_prompting` tinyint(1) UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Supports the regional promper extension',
   `gpu_uuid` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'Corresponding GPU UUID to match with gpu_stats',
   `date_started` datetime(3) NULL DEFAULT NULL COMMENT 'Date when worker was last started',
   `date_used` datetime(3) NULL DEFAULT NULL COMMENT 'Date last used for processing',
@@ -459,6 +566,6 @@ CREATE TABLE `workers`  (
   `last_error` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT 'Last error message encountered',
   `last_queue_id` bigint(20) UNSIGNED NULL DEFAULT NULL COMMENT 'Last queue item processed',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 11 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 23 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
 SET FOREIGN_KEY_CHECKS = 1;
