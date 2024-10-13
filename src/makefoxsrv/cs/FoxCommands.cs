@@ -276,8 +276,8 @@ namespace makefoxsrv
             }
         }
 
-        [CommandDescription("Load the styles menu")]
-        [CommandArguments("")]
+        //[CommandDescription("Load the styles menu")]
+        //[CommandArguments("")]
         private static async Task CmdStyles(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             // Initialize a list to hold TL.KeyboardButtonRow for each row of buttons
