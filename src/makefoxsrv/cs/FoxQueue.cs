@@ -1071,7 +1071,7 @@ namespace makefoxsrv
             }
             catch { }
 
-            FoxLog.WriteLine($"Task {this.ID} failed: {ex.Message}\r\n{ex.StackTrace}", LogLevel.DEBUG);
+            FoxLog.LogException(ex);
 
             if (shouldRetry)
             {

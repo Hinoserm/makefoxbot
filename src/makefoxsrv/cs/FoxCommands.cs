@@ -16,12 +16,13 @@ using System.Collections;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Linq;
+using System.ComponentModel.Design;
 
 namespace makefoxsrv
 {
     internal class FoxCommandHandler
     {
-        private static readonly Dictionary<string, Func<FoxTelegram, TL.Message,  FoxUser, String?, Task>> CommandMap = new Dictionary<string, Func<FoxTelegram, TL.Message, FoxUser, String?, Task>>
+        private static readonly Dictionary<string, Func<FoxTelegram, TL.Message, FoxUser, String?, Task>> CommandMap = new Dictionary<string, Func<FoxTelegram, TL.Message, FoxUser, String?, Task>>
         {
             { "/pizza",       CmdTest },
             { "/test",        CmdTest },
@@ -110,6 +111,15 @@ namespace makefoxsrv
 
             var argument = (args.Count() >= 2 ? args[1].TrimStart() : null);
 
+            // Initialize FoxContext for this command
+            FoxContextManager.Current = new FoxContext
+            {
+                Message = message,
+                Command = command,
+                Argument = argument,
+                Telegram = t
+            };
+
             var commandHandler = FindBestMatch(command);
 
             //FoxLog.WriteLine($"{message.ID}: Found command for {t.User.username}: {commandHandler.Method.Name}");
@@ -117,6 +127,8 @@ namespace makefoxsrv
             if (commandHandler is not null)
             {
                 var fUser = await FoxUser.GetByTelegramUser(t.User, true);
+
+                FoxContextManager.Current.User = fUser;
 
                 //FoxLog.WriteLine($"{message.ID}: Found UID for {t.User}: {fUser?.UID}");
 
@@ -129,6 +141,8 @@ namespace makefoxsrv
                 }
                 else
                     await fUser.UpdateTimestamps();
+
+                FoxContextManager.Current.User = fUser;
 
                 if (fUser.GetAccessLevel() == AccessLevel.BANNED)
                 {
@@ -148,7 +162,8 @@ namespace makefoxsrv
                 }
                 catch (Exception ex)
                 {
-                    FoxLog.WriteLine($"{message.ID}: Error running command '{command}' for {fUser?.UID}.  Error: {ex.Message}\r\n{ex.StackTrace}");
+                    FoxLog.LogException(ex);
+
                     await t.SendMessageAsync(
                         text: $"❌ Error: {ex.Message}",
                         replyToMessageId: message.ID
@@ -157,6 +172,7 @@ namespace makefoxsrv
                 finally
                 {
                     fUser.Unlock();
+                    FoxContextManager.Clear();
                 }
                 //FoxLog.WriteLine($"{message.ID}: Finished running command for {fUser?.UID}.");
             }
@@ -509,6 +525,7 @@ namespace makefoxsrv
         [CommandArguments("<pants level> [<pizza>]")]
         private static async Task CmdTest(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
+            throw new Exception("This is a test exception.");
 
             if (user.DateTermsAccepted is null)
             {
@@ -538,6 +555,8 @@ namespace makefoxsrv
                     throw new Exception("Unable to send start message.  Giving up.");
 
                 var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
+
+                FoxContextManager.Current.Queue = q;
 
                 await FoxQueue.Enqueue(q);
             }

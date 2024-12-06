@@ -224,6 +224,8 @@ namespace makefoxsrv
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
+            FoxContextManager.Current.Queue = q;
+
             await FoxQueue.Enqueue(q);
         }
     }

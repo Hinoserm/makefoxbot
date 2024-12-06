@@ -854,6 +854,13 @@ namespace makefoxsrv
 
             _ = Task.Run(async () =>
             {
+
+                // Initialize FoxContext for this worker
+                FoxContextManager.Current = new FoxContext
+                {
+                    Worker = this
+                };
+
                 try
                 {
                     Online = await ConnectAPI(false) is not null;
@@ -967,7 +974,13 @@ namespace makefoxsrv
                 }
                 catch (Exception ex)
                 {
-                    FoxLog.WriteLine($"Worker {ID} - Fatal error: {ex.Message}\r\n{ex.StackTrace}");
+                    //FoxLog.WriteLine($"Worker {ID} - Fatal error: {ex.Message}\r\n{ex.StackTrace}");
+                    FoxLog.LogException(ex);
+                }
+                finally
+                {
+                    // Clean up the FoxContext
+                    FoxContextManager.Clear();
                 }
             });
         }
@@ -978,8 +991,15 @@ namespace makefoxsrv
 
             try
             {
+                FoxContextManager.Current.Queue = qItem;
+                FoxContextManager.Current.Worker = this;
+
                 if (qItem is null)
                     throw new Exception("Attempt to process task when no task was assigned");
+
+                FoxContextManager.Current.User = qItem?.User;
+                FoxContextManager.Current.Telegram = qItem?.Telegram;
+                FoxContextManager.Current.Message = new Message { id = qItem.MessageID };
 
                 if (!FoxTelegram.IsConnected)
                     throw new Exception("Telegram client is disconnected.");
@@ -1060,7 +1080,7 @@ namespace makefoxsrv
 
                     if (qItem.RegionalPrompting)
                     {
-                        FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Using regional prompting extension.");
+                        FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Using regional prompting extension.", LogLevel.DEBUG);
 
                         // Add Regional Prompter configuration
                         config.AdditionalScripts.Add(new RegionalPrompter()); // Use default options.;
@@ -1128,7 +1148,7 @@ namespace makefoxsrv
 
                     if (qItem.RegionalPrompting)
                     {
-                        FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Using regional prompting extension.");
+                        FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Using regional prompting extension.", LogLevel.DEBUG);
 
                         // Add Regional Prompter configuration
                         config.AdditionalScripts.Add(new RegionalPrompter()); // Use default options.
@@ -1149,7 +1169,8 @@ namespace makefoxsrv
                 }
                 catch (Exception ex)
                 {
-                    FoxLog.WriteLine($"Error on worker {this.name} while sending task {qItem.ID}: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
+                    //FoxLog.WriteLine($"Error on worker {this.name} while sending task {qItem.ID}: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
+                    FoxLog.LogException(ex);
                 }
 
                 try
@@ -1158,14 +1179,17 @@ namespace makefoxsrv
                 }
                 catch (Exception ex)
                 {
-                    FoxLog.WriteLine($"Error on worker {this.name} while running OnTaskCompleted for task {qItem.ID}: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
+                    //FoxLog.WriteLine($"Error on worker {this.name} while running OnTaskCompleted for task {qItem.ID}: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
+                    FoxLog.LogException(ex, $"Error while running OnTaskCompleted: {ex.Message}");
                 }
             }
             catch (SDHttpException ex)
             {
                 //We probably don't need to crash the whole worker for these.
 
-                FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Stable Diffusion error: {ex.Message}");
+                //FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Stable Diffusion error: {ex.Message}");
+
+                FoxLog.LogException(ex, $"Stable Diffusion error: {ex.Message}");
 
                 try
                 {
@@ -1174,7 +1198,8 @@ namespace makefoxsrv
                 }
                 catch (Exception ex2)
                 {
-                    FoxLog.WriteLine($"Error running OnTaskError: {ex2.Message}\r\n{ex2.StackTrace}");
+                    //FoxLog.WriteLine($"Error running OnTaskError: {ex2.Message}\r\n{ex2.StackTrace}");
+                    FoxLog.LogException(ex, $"Error running OnTaskError: {ex2.Message}");
                 }
             }
             catch (WTelegram.WTException ex)
@@ -1187,7 +1212,9 @@ namespace makefoxsrv
                     {
                         // If the message matches, extract the number
                         int retryAfterSeconds = rex.X;
-                        FoxLog.WriteLine($"Worker {ID} - Queue ID {qItem?.ID} User {qItem?.User?.UID} - Rate limit exceeded. Trying again after {retryAfterSeconds} seconds.");
+                        //FoxLog.WriteLine($"Worker {ID} - Queue ID {qItem?.ID} User {qItem?.User?.UID} - Rate limit exceeded. Trying again after {retryAfterSeconds} seconds.");
+
+                        FoxLog.LogException(ex, $"Rate limit exceeded (X={rex.X}): {ex.Message}");
 
                         if (qItem is not null)
                         {
@@ -1197,14 +1224,15 @@ namespace makefoxsrv
                                 OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
                             } catch (Exception ex2)
                             {
-                                FoxLog.WriteLine($"Error running OnTaskError: {ex2.Message}\r\n{ex2.StackTrace}");
+                                FoxLog.LogException(ex, $"Error running OnTaskError: {ex2.Message}");
                             }
                             //_ = FoxQueue.Enqueue(qItem);
                         }
                     }
                     else if (ex.Message == "INPUT_USER_DEACTIVATED")
                     {
-                        FoxLog.WriteLine($"Worker {ID} - User deactivated. Stopping task.");
+                        //FoxLog.WriteLine($"Worker {ID} - User deactivated. Stopping task.");
+                        FoxLog.LogException(ex, $"User deactivated. Stopping task.  Error: {ex.Message}");
 
                         if (qItem is not null)
                         {
@@ -1214,18 +1242,18 @@ namespace makefoxsrv
                                 OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
                             } catch (Exception ex2)
                             {
-                                FoxLog.WriteLine($"Error running OnTaskCancelled: {ex2.Message}\r\n{ex2.StackTrace}");
+                                FoxLog.LogException(ex, $"Error running OnTaskCancelled: {ex2.Message}");
                             }
                         }
                     }
                     else
                     {
-                        FoxLog.WriteLine($"Telegram Error: {ex.Message}");
+                        FoxLog.LogException(ex, $"Telegram Error (X={rex.X}): {ex.Message}");
                         await HandleError(ex);
                     }
                 }
                 else //We don't care about other telegram errors, but log them for debugging purposes.
-                    FoxLog.WriteLine($"Telegram error {ex.Message}\r\n{ex.StackTrace}");
+                    FoxLog.LogException(ex, $"Telegram Error: {ex.Message}");
             }
             catch (OperationCanceledException ex)
             {
@@ -1247,7 +1275,7 @@ namespace makefoxsrv
                     }
                     catch (Exception ex2)
                     {
-                        FoxLog.WriteLine($"Error running OnTaskCancelled: {ex2.Message}\r\n{ex2.StackTrace}");
+                        FoxLog.LogException(ex, $"Error running OnTaskCancelled: {ex2.Message}");
                     }
                     finally
                     {
