@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using WTelegram;
 using makefoxsrv;
 using TL;
+using Castle.Core;
 
 namespace makefoxsrv
 {
@@ -93,6 +94,24 @@ namespace makefoxsrv
         [DbColumn("selected_image")]
         public ulong selected_image = 0;
 
+        [DbColumn("hires_width")]
+        public uint hires_width;
+
+        [DbColumn("hires_height")]
+        public uint hires_height;
+
+        [DbColumn("hires_steps")]
+        public uint hires_steps;
+
+        [DbColumn("hires_denoising_strength")]
+        public decimal hires_denoising_strength = 0.5M;
+
+        [DbColumn("hires_enabled")]
+        public bool hires_enabled = false;
+
+        [DbColumn("hires_upscaler")]
+        public string? hires_upscaler;
+
         public long TelegramUserID = 0;
         public long TelegramChatID = 0;
 
@@ -116,7 +135,13 @@ namespace makefoxsrv
                 TelegramUserID = this.TelegramUserID,
                 TelegramChatID = this.TelegramChatID,
                 User = this.User,
-                regionalPrompting = this.regionalPrompting
+                regionalPrompting = this.regionalPrompting,
+                hires_width = this.hires_width,
+                hires_height = this.hires_height,
+                hires_steps = this.hires_steps,
+                hires_denoising_strength = this.hires_denoising_strength,
+                hires_enabled = this.hires_enabled,
+                hires_upscaler = this.hires_upscaler
             };
         }
 

@@ -150,10 +150,12 @@ namespace makefoxsrv
         // Static method to handle worker going offline (removes worker from all models)
         public static void WorkerWentOffline(int workerId)
         {
-            foreach (var model in globalModels.Values)
-            {
-                model.workersRunningModel.Remove(workerId);
-            }
+            // We don't want to remove these unless the worker has actually been removed from the system.
+
+            //foreach (var model in globalModels.Values)
+            //{
+            //    model.workersRunningModel.Remove(workerId);
+            //}
         }
     }
 

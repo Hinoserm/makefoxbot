@@ -174,13 +174,29 @@ namespace makefoxsrv
 
             FoxUserSettings settings = q.Settings.Copy();
 
-            (settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
 
-            settings.seed = -1;
-            settings.steps = 15;
-            settings.denoising_strength = 0.45M;
 
-            settings.selected_image = q.OutputImageID.Value;
+            if (q.Type == FoxQueue.QueueType.IMG2IMG)
+            {
+                (settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
+
+                settings.seed = -1;
+                settings.steps = 15;
+                settings.denoising_strength = 0.45M;
+            }
+            else if (q.Type == FoxQueue.QueueType.TXT2IMG)
+            {
+                settings.hires_denoising_strength = 0.5M;
+                settings.hires_steps = 15;
+                settings.hires_enabled = true;
+
+                uint width = Math.Max(settings.width, settings.hires_width);
+                uint height = Math.Max(settings.height, settings.hires_height);
+
+                (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 1920);
+            }
+            else
+                throw new Exception("Invalid queue type");
 
             settings.regionalPrompting = q.RegionalPrompting; //Have to copy this over manually
 
@@ -201,7 +217,7 @@ namespace makefoxsrv
                 replyToMessageId: query.msg_id
             );
 
-            var newq = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.IMG2IMG, waitMsg.ID, query.msg_id, true, q);
+            var newq = await FoxQueue.Add(t, user, settings, q.Type, waitMsg.ID, query.msg_id, true, q);
             if (newq is null)
                 throw new Exception("Unable to add item to queue");
 
@@ -553,10 +569,10 @@ namespace makefoxsrv
                 System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
                 System.TimeSpan GPUTime = await q.GetGPUTime();
 
-                //var maxWidth = Math.Max(q.Settings.width, q.Settings.UpscalerWidth ?? 0);
-                //var maxHeight = Math.Max(q.Settings.height, q.Settings.UpscalerHeight ?? 0);
+                uint width = Math.Max(q.Settings.width, q.Settings.hires_width);
+                uint height = Math.Max(q.Settings.height, q.Settings.hires_height);
 
-                var sizeString = $"🖥️ Size: {q.Settings.width}x{q.Settings.height}";
+                var sizeString = $"🖥️ Size: {width}x{height}" + (q.Settings.hires_enabled ? $" (upscaled from {q.Settings.width}x{q.Settings.height})" : "");
 
                 //if (q.Settings.UpscalerWidth is not null && q.Settings.UpscalerHeight is not null)
                 //    sizeString += $" (upscaled from {q.Settings.width}x{q.Settings.height})";

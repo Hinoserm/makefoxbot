@@ -167,8 +167,8 @@ namespace makefoxsrv
             bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM);
 
             // Get the total count and recently generated count for the user
-            int totalCount = await FoxQueue.GetTotalCount(user);
-            int recentCount = await FoxQueue.GetRecentCount(user, TimeSpan.FromHours(3));
+            //int totalCount = await FoxQueue.GetTotalCount(user);
+            //int recentCount = await FoxQueue.GetRecentCount(user, TimeSpan.FromHours(3));
 
             TimeSpan? delay = null;
 

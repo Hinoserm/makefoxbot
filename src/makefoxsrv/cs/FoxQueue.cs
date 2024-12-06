@@ -288,17 +288,19 @@ namespace makefoxsrv
             // Fetch the model by name using the new FoxModel method
             var model = FoxModel.GetModelByName(settings.model);
 
+            uint width = Math.Max(settings.width, settings.hires_width);
+            uint height = Math.Max(settings.height, settings.hires_height);
+
             // If the model does not exist or has no workers, return null
             if (model is null || model.GetWorkersRunningModel().Count < 1)
             {
                 return null; // No workers available for the specified model
             }
 
-            // Filter out workers based on their online status, max image size, steps capacity,
+            // Filter out workers based on their enabled status, max image size, steps capacity,
             // the availability of the model, and regional prompting support if required.
             var capableWorkers = workers
-                .Where(worker => worker.Online
-                                 && (!worker.MaxImageSize.HasValue || (settings.width * settings.height) <= worker.MaxImageSize.Value)
+                .Where(worker => (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
                                  && (!worker.MaxImageSteps.HasValue || settings.steps <= worker.MaxImageSteps.Value)
                                  && model.GetWorkersRunningModel().Contains(worker.ID) // Check if the worker has the model loaded
                                  && (!settings.regionalPrompting || worker.SupportsRegionalPrompter)) // Check regional prompting condition
@@ -311,6 +313,9 @@ namespace makefoxsrv
         {
             // Get the model from the global FoxModel system
             var model = FoxModel.GetModelByName(item.Settings.model);
+
+            uint width = Math.Max(item.Settings.width, item.Settings.hires_width);
+            uint height = Math.Max(item.Settings.height, item.Settings.hires_height);
 
             // If the model does not exist or has no workers running it, return null (no suitable worker found)
             if (model == null || model.GetWorkersRunningModel().Count < 1)
@@ -326,7 +331,7 @@ namespace makefoxsrv
             var suitableWorkers = workers
                 .Where(worker => worker.Online
                                  && worker.qItem == null  // Worker is not currently busy
-                                 && (!worker.MaxImageSize.HasValue || (item.Settings.width * item.Settings.height) <= worker.MaxImageSize.Value)
+                                 && (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
                                  && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
                                  && (!item.RegionalPrompting || worker.SupportsRegionalPrompter)
                                  && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
@@ -574,6 +579,17 @@ namespace makefoxsrv
             await SQL.OpenAsync();
 
             FoxUserSettings settings = taskSettings.Copy();
+
+            if (settings.width > 1088 || settings.height > 1088)
+            {
+                settings.hires_denoising_strength = 0.5M;
+                settings.hires_steps = 15;
+                settings.hires_width = settings.width;
+                settings.hires_height = settings.height;
+                settings.hires_enabled = true;
+
+                (settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width, settings.height, 1024);
+            }
 
             if (settings.seed == -1)
                 settings.seed = GetRandomInt32();

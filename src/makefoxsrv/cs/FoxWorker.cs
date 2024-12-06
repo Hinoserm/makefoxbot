@@ -1086,19 +1086,17 @@ namespace makefoxsrv
 
                     HighResConfig? hiResConfig = null;
 
-                    if (settings.width > 1088 || settings.height > 1088)
+                    if (settings.hires_enabled)
                     {
                         var upscaler = await api.Upscaler("4x_foolhardy_Remacri", ctsLoop.Token);
                         hiResConfig = new HighResConfig()
                         {
-                            Width = settings.width,
-                            Height = settings.height,
-                            DenoisingStrength = 0.60,
+                            Width = settings.hires_width,
+                            Height = settings.hires_height,
+                            DenoisingStrength = (double)settings.hires_denoising_strength,
                             Upscaler = upscaler,
-                            Steps = 15
+                            Steps = settings.hires_steps
                         };
-
-                        (width, height) = FoxImage.CalculateLimitedDimensions(settings.width, settings.height, 768);
                     }
 
                     var config = new TextToImageConfig()
