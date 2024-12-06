@@ -20,6 +20,7 @@ using System.Security.Policy;
 using System.Diagnostics;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Primitives;
+using System.Runtime.CompilerServices;
 
 namespace makefoxsrv
 {
@@ -275,7 +276,7 @@ namespace makefoxsrv
                     }
                     catch (Exception ex)
                     {
-                        FoxLog.WriteLine($"Error in task loop: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
+                        FoxLog.LogException(ex);
                     }
                 }
             });
@@ -933,7 +934,6 @@ namespace makefoxsrv
             catch (Exception ex)
             {
                 await this.SetError(ex);
-                FoxLog.WriteLine($"Error sending task {this.ID}: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
             }
         }
 
@@ -960,7 +960,7 @@ namespace makefoxsrv
 
         
 
-        public async Task SetError(Exception ex, DateTime? RetryWhen = null)
+        public async Task SetError(Exception ex, DateTime? RetryWhen = null, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
             this.status = QueueStatus.ERROR;
             this.DateLastFailed = DateTime.Now;
@@ -1071,7 +1071,7 @@ namespace makefoxsrv
             }
             catch { }
 
-            FoxLog.LogException(ex);
+            FoxLog.LogException(ex, null, callerName, callerFilePath, lineNumber);
 
             if (shouldRetry)
             {

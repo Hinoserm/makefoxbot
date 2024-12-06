@@ -66,7 +66,7 @@ namespace makefoxsrv
                             {
                                 // If the message matches, extract the number
                                 int retryAfterSeconds = rex.X;
-                                FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+                                //FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
 
                                 await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 20));
 
@@ -181,7 +181,7 @@ namespace makefoxsrv
                             {
                                 // If the message matches, extract the number
                                 int retryAfterSeconds = rex.X;
-                                FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
+                                //FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - Rate limit exceeded. Try again after {retryAfterSeconds} seconds.");
 
                                 await q.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 20));
 
@@ -190,7 +190,7 @@ namespace makefoxsrv
                             else if (ex.Message == "USER_IS_BLOCKED")
                             {
                                 //User is blocked, so we can't send them messages.
-                                FoxLog.WriteLine($"Failed to send image {q.ID}:{OutputImage.ID} to {q.User?.UID} - User is blocked.  Cancelling.");
+                                FoxLog.LogException(ex, $"Error sending image - User is blocked: {ex.Message}");
                                 await q.SetCancelled(true);
 
                                 return;
@@ -241,7 +241,7 @@ namespace makefoxsrv
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine($"Failed to send image {q.ID} to {q.User?.UID} - {ex.Message}\r\n{ex.StackTrace}");
+                //FoxLog.WriteLine($"Failed to send image {q.ID} to {q.User?.UID} - {ex.Message}\r\n{ex.StackTrace}");
                 await q.SetError(ex, DateTime.Now.AddSeconds(30));
 
                 try

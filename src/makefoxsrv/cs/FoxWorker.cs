@@ -341,7 +341,7 @@ namespace makefoxsrv
                     }
                     catch (Exception ex)
                     {
-                        FoxLog.WriteLine($"Worker {worker.ID} - Failed due to error: {ex.Message}");
+                        FoxLog.LogException(ex);
                     }
 
                     //_ = worker.Run(botClient);
@@ -571,9 +571,9 @@ namespace makefoxsrv
 
                 FoxLog.WriteLine($"  Worker {ID} - Loaded {lora_count} LoRAs with {lora_tag_count} tags.");
             }
-            catch (HttpRequestException e)
+            catch (HttpRequestException ex)
             {
-                FoxLog.WriteLine($"Error fetching LoRAs: {e.Message}");
+                FoxLog.LogException(ex, $"Error fetching LoRAs: {ex.Message}");
 
                 await transaction.RollbackAsync();
             }
@@ -738,7 +738,7 @@ namespace makefoxsrv
                 {
                     OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
                 } catch (Exception ex2) {
-                    FoxLog.WriteLine($"Error running OnTaskError: {ex2.Message}\r\n{ex2.StackTrace}");
+                    FoxLog.LogException(ex2, $"Error running OnTaskError: {ex2.Message}");
                 }
             }
 
@@ -748,7 +748,7 @@ namespace makefoxsrv
             }
             catch (Exception ex2)
             {
-                FoxLog.WriteLine($"Error running OnWorkerError: {ex2.Message}\r\n{ex2.StackTrace}");
+                FoxLog.LogException(ex2, $"Error running OnWorkerError: {ex2.Message}");
             }
 
             if (qItem is not null)
@@ -826,7 +826,7 @@ namespace makefoxsrv
                     }
                     catch(Exception ex) when (ex is not OperationCanceledException)
                     {
-                        FoxLog.WriteLine($"Worker {ID} - Progress monitor error: {ex.Message}");
+                        FoxLog.LogException(ex, $"Progress monitor error: {ex.Message}");
                         break; //API error, stop the loop.
                     }
                 }
@@ -849,7 +849,8 @@ namespace makefoxsrv
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine($"Error running OnWorkerStart: {ex.Message}\r\n{ex.StackTrace}");
+                FoxLog.LogException(ex, $"Error running OnWorkerStart: {ex.Message}");
+
             }
 
             _ = Task.Run(async () =>
@@ -964,9 +965,9 @@ namespace makefoxsrv
                     {
                         OnWorkerStop?.Invoke(this, new WorkerEventArgs());
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        //Error?
+                        FoxLog.LogException(ex, $"Error running OnWorkerStop: {ex.Message}");
                     }
 
                     FoxLog.WriteLine($"Worker {ID} - Shutdown.");
@@ -974,7 +975,6 @@ namespace makefoxsrv
                 }
                 catch (Exception ex)
                 {
-                    //FoxLog.WriteLine($"Worker {ID} - Fatal error: {ex.Message}\r\n{ex.StackTrace}");
                     FoxLog.LogException(ex);
                 }
                 finally
@@ -1169,7 +1169,6 @@ namespace makefoxsrv
                 }
                 catch (Exception ex)
                 {
-                    //FoxLog.WriteLine($"Error on worker {this.name} while sending task {qItem.ID}: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
                     FoxLog.LogException(ex);
                 }
 
@@ -1179,16 +1178,12 @@ namespace makefoxsrv
                 }
                 catch (Exception ex)
                 {
-                    //FoxLog.WriteLine($"Error on worker {this.name} while running OnTaskCompleted for task {qItem.ID}: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
                     FoxLog.LogException(ex, $"Error while running OnTaskCompleted: {ex.Message}");
                 }
             }
             catch (SDHttpException ex)
             {
                 //We probably don't need to crash the whole worker for these.
-
-                //FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Stable Diffusion error: {ex.Message}");
-
                 FoxLog.LogException(ex, $"Stable Diffusion error: {ex.Message}");
 
                 try
@@ -1198,8 +1193,7 @@ namespace makefoxsrv
                 }
                 catch (Exception ex2)
                 {
-                    //FoxLog.WriteLine($"Error running OnTaskError: {ex2.Message}\r\n{ex2.StackTrace}");
-                    FoxLog.LogException(ex, $"Error running OnTaskError: {ex2.Message}");
+                    FoxLog.LogException(ex2, $"Error running OnTaskError: {ex2.Message}");
                 }
             }
             catch (WTelegram.WTException ex)
@@ -1224,7 +1218,7 @@ namespace makefoxsrv
                                 OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
                             } catch (Exception ex2)
                             {
-                                FoxLog.LogException(ex, $"Error running OnTaskError: {ex2.Message}");
+                                FoxLog.LogException(ex2, $"Error running OnTaskError: {ex2.Message}");
                             }
                             //_ = FoxQueue.Enqueue(qItem);
                         }
@@ -1242,7 +1236,7 @@ namespace makefoxsrv
                                 OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
                             } catch (Exception ex2)
                             {
-                                FoxLog.LogException(ex, $"Error running OnTaskCancelled: {ex2.Message}");
+                                FoxLog.LogException(ex2, $"Error running OnTaskCancelled: {ex2.Message}");
                             }
                         }
                     }
