@@ -525,7 +525,6 @@ namespace makefoxsrv
         [CommandArguments("<pants level> [<pizza>]")]
         private static async Task CmdTest(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            throw new Exception("This is a test exception.");
 
             if (user.DateTermsAccepted is null)
             {
