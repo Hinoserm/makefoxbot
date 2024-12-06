@@ -580,7 +580,7 @@ namespace makefoxsrv
 
             FoxUserSettings settings = taskSettings.Copy();
 
-            if (settings.width > 1088 || settings.height > 1088)
+            if (type == QueueType.TXT2IMG && (settings.width > 1088 || settings.height > 1088))
             {
                 settings.hires_denoising_strength = 0.5M;
                 settings.hires_steps = 15;
