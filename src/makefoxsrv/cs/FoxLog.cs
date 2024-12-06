@@ -52,9 +52,9 @@ namespace makefoxsrv
                         cmd.Connection = SQL;
                         cmd.CommandText = @"
                             INSERT INTO log
-                            (date, type, user_id, queue_id, message_id, worker_id, command, argument, message, stacktrace, tele_userid, tele_chatid, caller_name, caller_filepath, caller_linenumber, exception_json) 
+                            (date, type, user_id, queue_id, message_id, worker_id, command, message, stacktrace, tele_userid, tele_chatid, caller_name, caller_filepath, caller_linenumber, exception_json) 
                             VALUES 
-                            (@date, @type, @user_id, @queue_id, @message_id, @worker_id, @command, @argument, @message, @stacktrace, @tele_userid, @tele_chatid, @caller_name, @caller_filepath, @caller_linenumber, @exception_json)";
+                            (@date, @type, @user_id, @queue_id, @message_id, @worker_id, @command, @message, @stacktrace, @tele_userid, @tele_chatid, @caller_name, @caller_filepath, @caller_linenumber, @exception_json)";
 
                         cmd.Parameters.AddWithValue("@date", DateTime.Now);
                         cmd.Parameters.AddWithValue("@type", level.ToString());
@@ -63,7 +63,6 @@ namespace makefoxsrv
                         cmd.Parameters.AddWithValue("@message_id", context.Message?.ID);
                         cmd.Parameters.AddWithValue("@worker_id", context.Worker?.ID);
                         cmd.Parameters.AddWithValue("@command", context.Command);
-                        cmd.Parameters.AddWithValue("@argument", context.Argument);
                         cmd.Parameters.AddWithValue("@message", message);
                         cmd.Parameters.AddWithValue("@stacktrace", ex?.StackTrace);
                         cmd.Parameters.AddWithValue("@tele_userid", context.Telegram?.User.ID);
