@@ -123,7 +123,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 '<div>' + (q.tele_chatid == q.tele_id ? "" : '<strong>Chat:</strong> ' + q.tele_chatid + '<br>') + '</div>' +
                 (q.prompt ? '<div><strong>Prompt:</strong> <span class="' + (promptShortenedFlag ? 'shorten can-expand' : 'shorten') + '" data-fulltext="' + q.prompt + '" data-shorttext="' + promptShortened + '">' + promptShortened + '</span><br></div>' : '') +
                 (q.negative_prompt ? '<div><strong>Negative:</strong> <span class="' + (negativeShortenedFlag ? 'shorten can-expand' : 'shorten') + '" data-fulltext="' + q.negative_prompt + '" data-shorttext="' + negativeShortened + '">' + negativeShortened + '</span><br></div>' : '') +
-                '<div><strong>Size:</strong> ' + q.width + 'x' + q.height + '<br></div>' +
+                (q.hires_enabled ? '<div><strong>Size:</strong> ' + q.hires_width + 'x' + q.hires_height + ' (from ' + q.width + 'x' + q.height + ') <br></div>' : '<div><strong>Size:</strong> ' + q.width + 'x' + q.height + '<br></div>') +
                 '<div><strong>Sampler Steps:</strong> ' + q.steps + '<br></div>' +
                 '<div><strong>CFG Scale:</strong> ' + q.cfgscale + '<br></div>' +
                 (q.type == 'IMG2IMG' ? '<div><strong>Denoising Strength:</strong> ' + q.denoising_strength + '<br></div>' : '') +
