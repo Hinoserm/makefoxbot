@@ -1184,8 +1184,6 @@ namespace makefoxsrv
             catch (SDHttpException ex)
             {
                 //We probably don't need to crash the whole worker for these.
-                FoxLog.LogException(ex, $"Stable Diffusion error: {ex.Message}");
-
                 try
                 {
                     await qItem.SetError(ex, DateTime.Now.AddSeconds(10));
