@@ -129,6 +129,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 (q.type == 'IMG2IMG' ? '<div><strong>Denoising Strength:</strong> ' + q.denoising_strength + '<br></div>' : '') +
                 '<div><strong>Model:</strong> <a href="?uid=<?php echo $uid;?>&model=' + q.model + '">' + q.model + '</a><br></div>' +
                 '<div><strong>Seed:</strong> ' + q.seed + '<br></div>' +
+                '<div><strong>Sampler:</strong> ' + q.sampler + '<br></div>' +
 <?php if ($user['access_level'] == 'ADMIN'): ?>
                 '<div><strong>Worker:</strong> ' + q.worker_name + '<br></div>' +
 <?php endif; ?>

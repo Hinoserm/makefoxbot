@@ -21,7 +21,7 @@ $limit = $action === 'new' ? 25 : 10;
 
 $sql = "
 SELECT
-    q.id, q.uid, q.tele_id, q.tele_chatid, q.type, q.image_id, q.steps, q.seed, q.cfgscale, q.model, q.prompt,
+    q.id, q.uid, q.tele_id, q.tele_chatid, q.type, q.image_id, q.steps, q.seed, q.sampler, q.cfgscale, q.model, q.prompt,
     q.negative_prompt, q.width, q.height, q.denoising_strength, q.selected_image, q.date_added, q.date_finished,
     q.hires_width, q.hires_height, q.hires_enabled, q.hires_denoising_strength, q.hires_steps, q.hires_upscaler,
     IFNULL(w.name, 'Unknown') AS worker_name,
