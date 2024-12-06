@@ -23,6 +23,7 @@ $sql = "
 SELECT
     q.id, q.uid, q.tele_id, q.tele_chatid, q.type, q.image_id, q.steps, q.seed, q.cfgscale, q.model, q.prompt,
     q.negative_prompt, q.width, q.height, q.denoising_strength, q.selected_image, q.date_added, q.date_finished,
+    q.hires_width, q.hires_height, q.hires_denoising_strength, q.hires_steps, q.hires_upscaler,
     IFNULL(w.name, 'Unknown') AS worker_name,
     u.username AS username,
     tu.firstname AS firstname,
