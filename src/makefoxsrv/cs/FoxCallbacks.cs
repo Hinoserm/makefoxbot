@@ -178,11 +178,15 @@ namespace makefoxsrv
 
             if (q.Type == FoxQueue.QueueType.IMG2IMG)
             {
+                if (q.OutputImageID is null)
+                    throw new Exception("Missing output image ID.");
+
                 (settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
 
                 settings.seed = -1;
                 settings.steps = 15;
                 settings.denoising_strength = 0.45M;
+                settings.selected_image = q.OutputImageID.Value;
             }
             else if (q.Type == FoxQueue.QueueType.TXT2IMG)
             {

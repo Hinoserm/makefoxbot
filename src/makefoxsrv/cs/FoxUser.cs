@@ -242,7 +242,6 @@ namespace makefoxsrv
             {
                 //StackTrace stackTrace = new StackTrace(true);
 
-                FoxLog.WriteLine($"GetByUID({uid}): Returning cached user.", LogLevel.DEBUG);
                 return cachedUser;
             }
 
@@ -304,8 +303,6 @@ namespace makefoxsrv
                     }
                 }
 
-                FoxLog.WriteLine($"GetByTelegramUser({tuser.ID}): Returning cached user.", LogLevel.DEBUG);
-
                 return cachedUser;
             }
 
@@ -358,7 +355,6 @@ namespace makefoxsrv
             var cachedUser = GetFromCacheByTelegramID(tuserid);
             if (cachedUser is not null)
             {
-                FoxLog.WriteLine($"GetByTelegramUserID({tuserid}): Returning cached user.", LogLevel.DEBUG);
 
                 return cachedUser;
             }
@@ -394,7 +390,6 @@ namespace makefoxsrv
             {
                 //StackTrace stackTrace = new StackTrace(true);
 
-                FoxLog.WriteLine($"GetByUsername({username}): Returning cached user.", LogLevel.DEBUG);
                 return cachedUser;
             }
 
