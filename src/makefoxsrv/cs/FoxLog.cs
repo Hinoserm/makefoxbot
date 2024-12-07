@@ -62,7 +62,7 @@ namespace makefoxsrv
                         cmd.Parameters.AddWithValue("@queue_id", context.Queue?.ID);
                         cmd.Parameters.AddWithValue("@message_id", context.Message?.ID);
                         cmd.Parameters.AddWithValue("@worker_id", context.Worker?.ID);
-                        cmd.Parameters.AddWithValue("@command", context.Command?.Substring(0, 254)); //Ensure command is never too long
+                        cmd.Parameters.AddWithValue("@command", context.Command?.Length > 254 ? context.Command.Substring(0, 254) : context.Command);
                         cmd.Parameters.AddWithValue("@message", message);
                         cmd.Parameters.AddWithValue("@stacktrace", ex?.StackTrace);
                         cmd.Parameters.AddWithValue("@tele_userid", context.Telegram?.User.ID);
