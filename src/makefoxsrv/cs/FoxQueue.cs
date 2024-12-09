@@ -328,6 +328,16 @@ namespace makefoxsrv
             // Get all workers
             var workers = FoxWorker.GetWorkers().Values;
 
+            // Filter out unsuitable workers first
+            var suitableWorkers = workers
+                .Where(worker => worker.Online
+                                 && (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
+                                 && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
+                                 && (!item.RegionalPrompting || worker.SupportsRegionalPrompter)
+                                 && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
+                .ToList();
+
+            // Handle tasks requiring the same worker
             if (item.Enhanced || item.Settings.variation_seed != null)
             {
                 // Calculate the age of the queue item
@@ -336,29 +346,19 @@ namespace makefoxsrv
                 // If the task has been waiting for less than 2 minutes and requires special handling
                 if (timeInQueue.TotalMinutes < 2)
                 {
-                    // Attempt to find the previously used worker
-                    var previousWorker = workers.FirstOrDefault(worker => worker.ID == item.WorkerID);
+                    // Attempt to find the previously used worker among suitable workers
+                    var previousWorker = suitableWorkers.FirstOrDefault(worker => worker.ID == item.WorkerID);
 
                     if (previousWorker != null)
                     {
-                        // Check if the previously used worker is suitable for this task
-                        bool isSuitable = previousWorker.Online
-                            && (!previousWorker.MaxImageSize.HasValue || (width * height) <= previousWorker.MaxImageSize.Value)
-                            && (!previousWorker.MaxImageSteps.HasValue || item.Settings.steps <= previousWorker.MaxImageSteps.Value)
-                            && (!item.RegionalPrompting || previousWorker.SupportsRegionalPrompter)
-                            && model.GetWorkersRunningModel().Contains(previousWorker.ID);
-
-                        if (isSuitable)
+                        // If the worker is suitable but currently busy, return null to defer processing
+                        if (previousWorker.qItem != null)
                         {
-                            // If the worker is suitable but currently busy, return null to defer processing
-                            if (previousWorker.qItem != null)
-                            {
-                                return null;
-                            }
-
-                            // Otherwise, return the suitable previous worker
-                            return previousWorker;
+                            return null;
                         }
+
+                        // Otherwise, return the suitable previous worker
+                        return previousWorker;
                     }
                     else
                     {
@@ -368,52 +368,44 @@ namespace makefoxsrv
             }
 
             if (item.User is null)
-                throw new Exception("User is null");
-
-            var accessLevel = item.User.GetAccessLevel();
-
-            if (accessLevel == AccessLevel.BANNED)
             {
-                _= item.Cancel();
-
-                return null; // No reason to process requests of banned users.
+                throw new Exception("User object is null for the task in queue.");
             }
 
-            if (!priorityMap.ContainsKey(accessLevel))
-                throw new Exception("Access level not found in priority map");
-
-            // Filter out workers based on their online status, image size, steps capacity,
-            // and whether they have the model loaded (this avoids redundant checks later).
-            var suitableWorkers = workers
-                .Where(worker => worker.Online
-                                 && worker.qItem == null  // Worker is not currently busy
-                                 && (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
-                                 && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
-                                 && (!item.RegionalPrompting || worker.SupportsRegionalPrompter)
-                                 && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
+            // Check for workers with the requested model loaded
+            var workersWithModel = suitableWorkers
+                .Where(worker => worker.LastUsedModel == item.Settings.model) // Filter to workers with the model actively loaded
                 .ToList();
 
-            // Prioritize workers who already have the model as their last used model (and still have it loaded)
-            var preferredWorkers = suitableWorkers
-                .Where(worker => worker.LastUsedModel == item.Settings.model)  // Worker last used this model
-                .OrderByDescending(worker => priorityMap[accessLevel]) // Sort by user access level priority
+            // Check if there are workers with the model loaded and not busy
+            var availableWorkersWithModel = workersWithModel
+                .Where(worker => worker.qItem == null) // Worker is not busy
                 .ToList();
 
-            // If there are any preferred workers, return the first one
-            if (preferredWorkers.Any())
+            if (availableWorkersWithModel.Any())
             {
-                return preferredWorkers.First();
+                // If there are available workers with the model loaded, assign the task to one of them
+                return availableWorkersWithModel.First();
             }
 
-            // If no preferred workers are available, fall back to any suitable worker
-            var suitableWorker = suitableWorkers
-                .OrderByDescending(worker => priorityMap[accessLevel]) // Sort by user access level priority
-                .FirstOrDefault();
+            // If all workers with the model loaded are busy, check how long the task has been waiting
+            var modelWaitingTime = DateTime.Now - item.DateCreated;
 
-            return suitableWorker;
+            if (modelWaitingTime.TotalSeconds < 10)
+            {
+                // If the task has been waiting for less than 10 seconds for a worker with the model, defer the task
+                FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model.", LogLevel.DEBUG);
+                return null;
+            }
+
+            // If no workers with the model loaded are available, fall back to any suitable worker
+            var availableSuitableWorkers = suitableWorkers
+                .Where(worker => worker.qItem == null) // Worker is not busy
+                .ToList();
+
+            // If there are any suitable workers, assign the task to one of them
+            return availableSuitableWorkers.FirstOrDefault();
         }
-
-
 
 
         public static async Task EnqueueOldItems()
