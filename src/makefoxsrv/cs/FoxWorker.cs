@@ -1022,6 +1022,9 @@ namespace makefoxsrv
 
                 var settings = qItem.Settings.Copy();
 
+                if (LastUsedModel != settings.model)
+                    FoxLog.WriteLine($"Switching to model from {LastUsedModel} to {settings.model}", LogLevel.DEBUG);
+
                 this.LastUsedModel =  settings.model;
 
                 progressCTS = StartProgressMonitor(qItem, ctsLoop.Token);
