@@ -35,13 +35,10 @@ namespace makefoxsrv
             });
         }
 
-        private static async Task LogToDatabase(string message, LogLevel level = LogLevel.INFO, Exception ? ex = null, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
+        private static async Task LogToDatabase(FoxContext context, string message, LogLevel level = LogLevel.INFO, Exception ? ex = null, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
             try
             {
-                // Retrieve the current context
-                var context = FoxContextManager.Current; 
-
                 // Insert into the database
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
@@ -92,7 +89,7 @@ namespace makefoxsrv
 
             FoxLog.LogToFile($"Error: {message}\r\n{ex.StackTrace}\r\n");
 
-            _= FoxLog.LogToDatabase(message, LogLevel.ERROR, ex, callerName, callerFilePath, lineNumber);
+            _= FoxLog.LogToDatabase(context, message, LogLevel.ERROR, ex, callerName, callerFilePath, lineNumber);
 
         }
 
