@@ -328,39 +328,38 @@ namespace makefoxsrv
             // Get all workers
             var workers = FoxWorker.GetWorkers().Values;
 
-            // Filter out workers based on their online status, image size, steps capacity,
-            // and whether they have the model loaded (this avoids redundant checks later).
-            var suitableWorkers = workers
-                .Where(worker => worker.Online
-                                 && worker.qItem == null  // Worker is not currently busy
-                                 && (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
-                                 && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
-                                 && (!item.RegionalPrompting || worker.SupportsRegionalPrompter)
-                                 && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
-                .ToList();
-
             // Calculate the age of the queue item
             var timeInQueue = DateTime.Now - item.DateCreated;
 
             // If the task has been waiting for less than 2 minutes and requires special handling
             if (timeInQueue.TotalMinutes < 2 && (item.Enhanced || item.Settings.variation_seed != null))
             {
-                // Check if the previously used worker is among the suitable workers
-                var previousWorker = suitableWorkers.FirstOrDefault(worker => worker.ID == item.WorkerID);
+                // Attempt to find the previously used worker
+                var previousWorker = workers.FirstOrDefault(worker => worker.ID == item.WorkerID);
 
                 if (previousWorker != null)
                 {
-                    // If the worker is currently busy, return null to defer processing
-                    if (previousWorker.qItem != null)
-                    {
-                        return null;
-                    }
+                    // Check if the previously used worker is suitable for this task
+                    bool isSuitable = previousWorker.Online
+                        && (!previousWorker.MaxImageSize.HasValue || (width * height) <= previousWorker.MaxImageSize.Value)
+                        && (!previousWorker.MaxImageSteps.HasValue || item.Settings.steps <= previousWorker.MaxImageSteps.Value)
+                        && (!item.RegionalPrompting || previousWorker.SupportsRegionalPrompter)
+                        && model.GetWorkersRunningModel().Contains(previousWorker.ID);
 
-                    // Otherwise, return the suitable previous worker
-                    return previousWorker;
+                    if (isSuitable)
+                    {
+                        // If the worker is suitable but currently busy, return null to defer processing
+                        if (previousWorker.qItem != null)
+                        {
+                            return null;
+                        }
+
+                        // Otherwise, return the suitable previous worker
+                        return previousWorker;
+                    }
                 }
             }
-            
+
             if (item.User is null)
                 throw new Exception("User is null");
 
@@ -375,6 +374,17 @@ namespace makefoxsrv
 
             if (!priorityMap.ContainsKey(accessLevel))
                 throw new Exception("Access level not found in priority map");
+
+            // Filter out workers based on their online status, image size, steps capacity,
+            // and whether they have the model loaded (this avoids redundant checks later).
+            var suitableWorkers = workers
+                .Where(worker => worker.Online
+                                 && worker.qItem == null  // Worker is not currently busy
+                                 && (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
+                                 && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
+                                 && (!item.RegionalPrompting || worker.SupportsRegionalPrompter)
+                                 && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
+                .ToList();
 
             // Prioritize workers who already have the model as their last used model (and still have it loaded)
             var preferredWorkers = suitableWorkers
