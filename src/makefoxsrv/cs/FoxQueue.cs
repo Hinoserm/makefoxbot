@@ -21,6 +21,7 @@ using System.Diagnostics;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Primitives;
 using System.Runtime.CompilerServices;
+using PayPalCheckoutSdk.Orders;
 
 namespace makefoxsrv
 {
@@ -219,6 +220,8 @@ namespace makefoxsrv
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
+                    FoxContextManager.Current = new FoxContext();
+
                     try
                     {
                         FoxQueue? itemToAssign = null;
@@ -233,10 +236,21 @@ namespace makefoxsrv
                             for (int i = 0; i < taskList.Count; i++)
                             {
                                 var potentialItem = taskList[i].task;
+
+                                if (potentialItem is null)
+                                    continue;
+
+                                FoxContextManager.Current.Queue = potentialItem;
+                                FoxContextManager.Current.User = potentialItem.User;
+                                FoxContextManager.Current.Telegram = potentialItem.Telegram;
+                                FoxContextManager.Current.Message = new Message { id = potentialItem.MessageID };
+
                                 suitableWorker = FindSuitableWorkerForTask(potentialItem);
                                 if (suitableWorker != null)
                                 {
                                     // Found a suitable worker for the task
+                                    FoxContextManager.Current.Worker = suitableWorker;
+
                                     itemToAssign = potentialItem;
                                     taskList.RemoveAt(i); // Remove the task from the list since it's being assigned
                                     break; // Exit the loop as we've found a task to assign
@@ -278,6 +292,10 @@ namespace makefoxsrv
                     catch (Exception ex)
                     {
                         FoxLog.LogException(ex);
+                    }
+                    finally
+                    {
+                        FoxContextManager.Clear();
                     }
                 }
             });
