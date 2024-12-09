@@ -267,7 +267,7 @@ namespace makefoxsrv
                 return; // User must agree to the terms before they can use this command.
             }
 
-            if (user.GetAccessLevel() < AccessLevel.PREMIUM)
+            if (true || user.GetAccessLevel() < AccessLevel.PREMIUM)
             {
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
@@ -285,11 +285,14 @@ namespace makefoxsrv
                         if (reader.HasRows && await reader.ReadAsync())
                         {
                             var count = reader.GetInt32(0);
+                            var variation_limit = FoxSettings.Get<int?>("VariationFreeLimit") ?? 1;
 
-                            if (count > 0)
+                            if (count >= variation_limit)
                             {
+                                var plural = variation_limit == 1 ? "" : "s";
+
                                 await t.SendMessageAsync(
-                                    text: $"❌ Basic users are limited to 1 variation per image.\n\nPlease consider a membership to remove this limit: /membership",
+                                    text: $"❌ Basic users are limited to {variation_limit} variation{plural} per image.\n\nPlease consider a membership to remove this limit: /membership",
                                     replyToMessageId: query.msg_id
                                 );
 
@@ -298,18 +301,18 @@ namespace makefoxsrv
                         }
                     }
                 }
-            }
 
-            int q_limit = 1;
+                int q_limit = 1;
 
-            if (await FoxQueue.GetCount(user) >= q_limit)
-            {
-                await t.SendMessageAsync(
-                    text: $"❌Maximum of {q_limit} queued variation request per user.",
-                    replyToMessageId: query.msg_id
-                );
+                if (await FoxQueue.GetCount(user) >= q_limit)
+                {
+                    await t.SendMessageAsync(
+                        text: $"❌Maximum of {q_limit} queued variation request per user.",
+                        replyToMessageId: query.msg_id
+                    );
 
-                return;
+                    return;
+                }
             }
 
             FoxUserSettings settings = q.Settings.Copy();
