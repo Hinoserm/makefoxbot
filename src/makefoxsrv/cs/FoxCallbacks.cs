@@ -307,8 +307,11 @@ namespace makefoxsrv
                         }
                     }
                 }
+            }
 
-                int q_limit = 1;
+            if (user.GetAccessLevel() < AccessLevel.ADMIN)
+            {
+                int q_limit = (user.GetAccessLevel() >= AccessLevel.PREMIUM) ? 3 : 1;
 
                 if (await FoxQueue.GetCount(user) >= q_limit)
                 {
@@ -331,7 +334,7 @@ namespace makefoxsrv
             }
             else
             {
-                settings.variation_strength = 0.01M;
+                settings.variation_strength = 0.02M;
             }
 
             if (FoxQueue.CheckWorkerAvailability(settings) is null)
