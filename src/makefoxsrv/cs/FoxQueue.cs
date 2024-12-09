@@ -394,7 +394,7 @@ namespace makefoxsrv
             if (modelWaitingTime.TotalSeconds < 10)
             {
                 // If the task has been waiting for less than 10 seconds for a worker with the model, defer the task
-                FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model.", LogLevel.DEBUG);
+                FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}.", LogLevel.DEBUG);
                 return null;
             }
 
