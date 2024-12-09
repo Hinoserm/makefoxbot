@@ -52,12 +52,13 @@ namespace makefoxsrv
                         cmd.Connection = SQL;
                         cmd.CommandText = @"
                             INSERT INTO log
-                            (date, type, user_id, queue_id, message_id, worker_id, command, message, stacktrace, tele_userid, tele_chatid, caller_name, caller_filepath, caller_linenumber, exception_json) 
+                            (date, type, context_id, user_id, queue_id, message_id, worker_id, command, message, stacktrace, tele_userid, tele_chatid, caller_name, caller_filepath, caller_linenumber, exception_json) 
                             VALUES 
-                            (@date, @type, @user_id, @queue_id, @message_id, @worker_id, @command, @message, @stacktrace, @tele_userid, @tele_chatid, @caller_name, @caller_filepath, @caller_linenumber, @exception_json)";
+                            (@date, @type, @context_id, @user_id, @queue_id, @message_id, @worker_id, @command, @message, @stacktrace, @tele_userid, @tele_chatid, @caller_name, @caller_filepath, @caller_linenumber, @exception_json)";
 
                         cmd.Parameters.AddWithValue("@date", DateTime.Now);
                         cmd.Parameters.AddWithValue("@type", level.ToString());
+                        cmd.Parameters.AddWithValue("@context_id", context.GetHashCode());
                         cmd.Parameters.AddWithValue("@user_id", context.User?.UID);
                         cmd.Parameters.AddWithValue("@queue_id", context.Queue?.ID);
                         cmd.Parameters.AddWithValue("@message_id", context.Message?.ID);

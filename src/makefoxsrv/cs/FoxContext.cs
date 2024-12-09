@@ -7,6 +7,7 @@ using System;
 using System.Threading;
 using WTelegram;
 using TL;
+using System.Collections.Concurrent;
 
 namespace makefoxsrv
 {
@@ -24,16 +25,48 @@ namespace makefoxsrv
 
     internal static class FoxContextManager
     {
-        // AsyncLocal storage for the current FoxContext
-        private static readonly AsyncLocal<FoxContext> _context = new AsyncLocal<FoxContext>();
+        private static readonly ConcurrentDictionary<int, FoxContext> _contexts = new();
+        private static readonly AsyncLocal<FoxContext?> _defaultContext = new();
 
         public static FoxContext Current
         {
-            get => _context.Value ??= new FoxContext();
-            set => _context.Value = value;
+            get
+            {
+                int key = Task.CurrentId ?? Thread.CurrentThread.ManagedThreadId;
+                if (!_contexts.TryGetValue(key, out var context))
+                {
+                    if (_defaultContext.Value != null)
+                        return _defaultContext.Value;
+                    throw new InvalidOperationException("No context is set for the current execution.");
+                }
+                return context;
+            }
+            set
+            {
+                int key = Task.CurrentId ?? Thread.CurrentThread.ManagedThreadId;
+                if (Task.CurrentId == null)
+                {
+                    _defaultContext.Value = value; // Use AsyncLocal for thread-based fallback
+                }
+                else
+                {
+                    _contexts[key] = value;
+                }
+            }
         }
 
-        // Clear the current context
-        public static void Clear() => _context.Value = null;
+        public static void Clear()
+        {
+            int key = Task.CurrentId ?? Thread.CurrentThread.ManagedThreadId;
+            if (Task.CurrentId == null)
+            {
+                _defaultContext.Value = null;
+            }
+            else
+            {
+                _contexts.TryRemove(key, out _);
+            }
+        }
     }
+
 }

@@ -202,7 +202,7 @@ namespace makefoxsrv
         {
             using CancellationTokenSource cts = new();
 
-            ExecutionContext.SuppressFlow(); // Prevent unintended context propagation
+            FoxContextManager.Current = new FoxContext();
 
             //Console.BufferHeight = Int16.MaxValue - 1;
 
