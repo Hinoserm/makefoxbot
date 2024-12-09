@@ -220,7 +220,8 @@ namespace makefoxsrv
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    FoxContextManager.Current = new FoxContext();
+                    var context = new FoxContext();
+                    FoxContextManager.Current = context;
 
                     try
                     {
@@ -240,17 +241,17 @@ namespace makefoxsrv
                                 if (potentialItem is null)
                                     continue;
 
-                                FoxContextManager.Current.Queue = potentialItem;
-                                FoxContextManager.Current.User = potentialItem.User;
-                                FoxContextManager.Current.Telegram = potentialItem.Telegram;
-                                FoxContextManager.Current.Message = new Message { id = potentialItem.MessageID };
-                                FoxContextManager.Current.Worker = null;
+                                context.Queue = potentialItem;
+                                context.User = potentialItem.User;
+                                context.Telegram = potentialItem.Telegram;
+                                context.Message = new Message { id = potentialItem.MessageID };
+                                context.Worker = null;
 
                                 suitableWorker = FindSuitableWorkerForTask(potentialItem);
                                 if (suitableWorker != null)
                                 {
                                     // Found a suitable worker for the task
-                                    FoxContextManager.Current.Worker = suitableWorker;
+                                    context.Worker = suitableWorker;
 
                                     itemToAssign = potentialItem;
                                     taskList.RemoveAt(i); // Remove the task from the list since it's being assigned
