@@ -242,12 +242,13 @@ namespace makefoxsrv
             if (q is null)
                 throw new Exception("Unable to locate queue item");
 
-            if (q.Settings.variation_seed is not null)
+            if (q.Settings.variation_seed is not null && !q.Enhanced)
             {
                 if (q.OriginalID is null)
                     throw new Exception("Missing original ID for variation request");
 
                 q = await FoxQueue.Get(q.OriginalID.Value);
+
                 if (q is null)
                     throw new Exception("Unable to load original request data");
             }
