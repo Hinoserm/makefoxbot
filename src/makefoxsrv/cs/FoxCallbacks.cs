@@ -27,8 +27,11 @@ namespace makefoxsrv
             var fUser = await FoxUser.GetByTelegramUser(t.User, false);
 
             if (fUser is null)
-                return; // Return quitely to prevent spamming groups.
-                //throw new Exception("Callback from unknown user!");
+            {
+                await t.SendCallbackAnswer(query.query_id, 0, "❌ Callback from unknown user!");
+
+                return;
+            }
 
             if (fUser.GetAccessLevel() == AccessLevel.BANNED)
             {
