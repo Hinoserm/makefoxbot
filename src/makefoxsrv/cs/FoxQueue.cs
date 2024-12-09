@@ -339,8 +339,11 @@ namespace makefoxsrv
                                  && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
                 .ToList();
 
-            // Special handling for Enhanced or variation_seed not null
-            if (item.Enhanced || item.Settings.variation_seed is not null)
+            // Calculate the age of the queue item
+            var timeInQueue = DateTime.Now - item.DateCreated;
+
+            // If the task has been waiting for less than 2 minutes and requires special handling
+            if (timeInQueue.TotalMinutes < 2 && (item.Enhanced || item.Settings.variation_seed != null))
             {
                 // Attempt to find the previously used worker
                 var previousWorker = workers.FirstOrDefault(worker => worker.ID == item.WorkerID);
