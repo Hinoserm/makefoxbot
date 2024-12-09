@@ -213,6 +213,33 @@ namespace makefoxsrv
                 delayedTaskTimer = null;
             }
         }
+        public static FoxWorker? CheckWorkerAvailability(FoxUserSettings settings)
+        {
+            var workers = FoxWorker.GetWorkers().Values;
+
+            // Fetch the model by name using the new FoxModel method
+            var model = FoxModel.GetModelByName(settings.model);
+
+            uint width = Math.Max(settings.width, settings.hires_width);
+            uint height = Math.Max(settings.height, settings.hires_height);
+
+            // If the model does not exist or has no workers, return null
+            if (model is null || model.GetWorkersRunningModel().Count < 1)
+            {
+                return null; // No workers available for the specified model
+            }
+
+            // Filter out workers based on their enabled status, max image size, steps capacity,
+            // the availability of the model, and regional prompting support if required.
+            var capableWorkers = workers
+                .Where(worker => (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
+                                 && (!worker.MaxImageSteps.HasValue || settings.steps <= worker.MaxImageSteps.Value)
+                                 && model.GetWorkersRunningModel().Contains(worker.ID) // Check if the worker has the model loaded
+                                 && (!settings.regionalPrompting || worker.SupportsRegionalPrompter)) // Check regional prompting condition
+                .FirstOrDefault(); // Immediately return the first capable worker found
+
+            return capableWorkers; // Could be null if no capable workers are found
+        }
 
         public static void StartTaskLoop(CancellationToken cancellationToken)
         {
@@ -302,34 +329,6 @@ namespace makefoxsrv
             });
         }
 
-        public static FoxWorker? CheckWorkerAvailability(FoxUserSettings settings)
-        {
-            var workers = FoxWorker.GetWorkers().Values;
-
-            // Fetch the model by name using the new FoxModel method
-            var model = FoxModel.GetModelByName(settings.model);
-
-            uint width = Math.Max(settings.width, settings.hires_width);
-            uint height = Math.Max(settings.height, settings.hires_height);
-
-            // If the model does not exist or has no workers, return null
-            if (model is null || model.GetWorkersRunningModel().Count < 1)
-            {
-                return null; // No workers available for the specified model
-            }
-
-            // Filter out workers based on their enabled status, max image size, steps capacity,
-            // the availability of the model, and regional prompting support if required.
-            var capableWorkers = workers
-                .Where(worker => (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
-                                 && (!worker.MaxImageSteps.HasValue || settings.steps <= worker.MaxImageSteps.Value)
-                                 && model.GetWorkersRunningModel().Contains(worker.ID) // Check if the worker has the model loaded
-                                 && (!settings.regionalPrompting || worker.SupportsRegionalPrompter)) // Check regional prompting condition
-                .FirstOrDefault(); // Immediately return the first capable worker found
-
-            return capableWorkers; // Could be null if no capable workers are found
-        }
-
         public static FoxWorker? FindSuitableWorkerForTask(FoxQueue item)
         {
             // Get the model from the global FoxModel system
@@ -355,6 +354,18 @@ namespace makefoxsrv
                                  && (!item.RegionalPrompting || worker.SupportsRegionalPrompter)
                                  && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
                 .ToList();
+
+            // Check if any worker is currently processing a task for the same user
+            var userWorkers = suitableWorkers
+                .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
+                .ToList();
+
+            if (userWorkers.Any())
+            {
+                // If a worker is already processing a task for this user, skip this task
+                FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User.ID} is already being processed by another worker.", LogLevel.DEBUG);
+                return null;
+            }
 
             // Handle tasks requiring the same worker
             if (item.Enhanced || item.Settings.variation_seed != null)

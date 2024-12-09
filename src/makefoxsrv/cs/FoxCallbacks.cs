@@ -170,8 +170,10 @@ namespace makefoxsrv
 
                 if (await FoxQueue.GetCount(user) >= q_limit)
                 {
+                    var plural = q_limit == 1 ? "" : "s";
+
                     await t.SendMessageAsync(
-                        text: $"❌Maximum of {q_limit} queued enhancement request per user.",
+                        text: $"❌Maximum of {q_limit} queued request{plural} per user.",
                         replyToMessageId: query.msg_id
                     );
 
@@ -315,8 +317,10 @@ namespace makefoxsrv
 
                 if (await FoxQueue.GetCount(user) >= q_limit)
                 {
+                    var plural = q_limit == 1 ? "" : "s";
+
                     await t.SendMessageAsync(
-                        text: $"❌Maximum of {q_limit} queued variation request per user.",
+                        text: $"❌Maximum of {q_limit} queued request{plural} per user.",
                         replyToMessageId: query.msg_id
                     );
 
