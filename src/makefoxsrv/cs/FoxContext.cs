@@ -25,6 +25,21 @@ namespace makefoxsrv
 
     internal static class FoxContextManager
     {
+        private static readonly AsyncLocal<FoxContext?> _context = new();
+
+        public static FoxContext Current
+        {
+            get => _context.Value ?? throw new InvalidOperationException("No context is set.");
+            set => _context.Value = value ?? throw new ArgumentNullException(nameof(value), "Context cannot be null.");
+        }
+
+        public static void Clear() => _context.Value = null;
+    }
+
+
+    /*
+    internal static class FoxContextManager
+    {
         private static readonly ConcurrentDictionary<int, FoxContext> _contexts = new();
         private static readonly AsyncLocal<FoxContext?> _defaultContext = new();
 
@@ -67,6 +82,6 @@ namespace makefoxsrv
                 _contexts.TryRemove(key, out _);
             }
         }
-    }
+    } */
 
 }
