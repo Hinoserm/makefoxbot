@@ -104,7 +104,7 @@ namespace makefoxsrv
             if (q is null)
                 throw new Exception("Unable to locate queue item");
 
-            if (q.Telegram?.User.ID != t.User.ID)
+            if (q.Telegram?.User.ID != t.User.ID && user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
                 return; // Just silently return.
@@ -242,6 +242,7 @@ namespace makefoxsrv
             if (q is null)
                 throw new Exception("Unable to locate queue item");
 
+            // Treat enhanced images as fresh, new images for the sake of variations.
             if (q.Settings.variation_seed is not null && !q.Enhanced)
             {
                 if (q.OriginalID is null)
@@ -253,7 +254,7 @@ namespace makefoxsrv
                     throw new Exception("Unable to load original request data");
             }
 
-            if (q.Telegram?.User.ID != t.User.ID)
+            if (q.Telegram?.User.ID != t.User.ID && user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
                 return; // Just silently return.
@@ -663,9 +664,10 @@ namespace makefoxsrv
             if (q is null)
                 return;
 
-            
 
-            if (q is not null && q.Telegram?.User.ID != t.User.ID) {
+
+            if (q.Telegram?.User.ID != t.User.ID && user.CheckAccessLevel(AccessLevel.ADMIN))
+            {
                 await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator can click this button!");
             }
             else 
@@ -798,7 +800,7 @@ namespace makefoxsrv
                 return;
             }
 
-            if (q.Telegram?.User.ID != t.User.ID)
+            if (q.Telegram?.User.ID != t.User.ID && user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
                 return;
