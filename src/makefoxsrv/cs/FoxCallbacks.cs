@@ -318,7 +318,15 @@ namespace makefoxsrv
             FoxUserSettings settings = q.Settings.Copy();
 
             settings.variation_seed = FoxQueue.GetRandomInt32();
-            settings.variation_strength = 0.01M;
+
+            if (q.Type == FoxQueue.QueueType.IMG2IMG)
+            {
+                settings.variation_strength = 0.3M; //This seems to need a significant boost to make a difference w/IMG2IMG
+            }
+            else
+            {
+                settings.variation_strength = 0.02M;
+            }
 
             if (FoxQueue.CheckWorkerAvailability(settings) is null)
             {
