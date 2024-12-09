@@ -363,7 +363,7 @@ namespace makefoxsrv
             if (userWorkers.Any())
             {
                 // If a worker is already processing a task for this user, skip this task
-                FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User.ID} is already being processed by another worker.", LogLevel.DEBUG);
+                FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User?.UID} is already being processed by another worker.", LogLevel.DEBUG);
                 return null;
             }
 
