@@ -35,61 +35,94 @@ namespace makefoxsrv
             });
         }
 
-        private static async Task LogToDatabase(FoxContext context, string message, LogLevel level = LogLevel.INFO, Exception ? ex = null, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
+        private static void LogToDatabase(
+           string message,
+           LogLevel level = LogLevel.INFO,
+           Exception? ex = null,
+           [CallerMemberName] string callerName = "",
+           [CallerFilePath] string callerFilePath = "",
+           [CallerLineNumber] int lineNumber = 0)
         {
             try
             {
-                // Insert into the database
-                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                // Capture context data upfront
+                var context = FoxContextManager.Current;
+                var contextData = new
                 {
-                    await SQL.OpenAsync();
+                    Date = DateTime.Now,
+                    ContextId = context.GetHashCode(),
+                    UserId = context.User?.UID,
+                    QueueId = context.Queue?.ID,
+                    MessageId = context.Message?.ID,
+                    WorkerId = context.Worker?.ID,
+                    Command = context.Command?.Length > 254 ? context.Command.Substring(0, 254) : context.Command,
+                    Message = message,
+                    StackTrace = ex?.StackTrace,
+                    TelegramUserId = context.Telegram?.User.ID,
+                    TelegramChatId = context.Telegram?.Chat?.ID,
+                    CallerName = callerName,
+                    CallerFilePath = callerFilePath,
+                    CallerLineNumber = lineNumber,
+                    ExceptionJson = ex is null ? null : SerializeExceptionToJson(ex)
+                };
 
-                    using (var cmd = new MySqlCommand())
+                // Run the logging task in the background
+                _ = Task.Run(async () =>
+                {
+                    try
                     {
-                        cmd.Connection = SQL;
-                        cmd.CommandText = @"
-                            INSERT INTO log
-                            (date, type, context_id, user_id, queue_id, message_id, worker_id, command, message, stacktrace, tele_userid, tele_chatid, caller_name, caller_filepath, caller_linenumber, exception_json) 
-                            VALUES 
-                            (@date, @type, @context_id, @user_id, @queue_id, @message_id, @worker_id, @command, @message, @stacktrace, @tele_userid, @tele_chatid, @caller_name, @caller_filepath, @caller_linenumber, @exception_json)";
+                        using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+                        await SQL.OpenAsync();
 
-                        cmd.Parameters.AddWithValue("@date", DateTime.Now);
+                        using var cmd = new MySqlCommand
+                        {
+                            Connection = SQL,
+                            CommandText = @"
+                        INSERT INTO log
+                        (date, type, context_id, user_id, queue_id, message_id, worker_id, command, message, stacktrace, tele_userid, tele_chatid, caller_name, caller_filepath, caller_linenumber, exception_json) 
+                        VALUES 
+                        (@date, @type, @context_id, @user_id, @queue_id, @message_id, @worker_id, @command, @message, @stacktrace, @tele_userid, @tele_chatid, @caller_name, @caller_filepath, @caller_linenumber, @exception_json)"
+                        };
+
+                        cmd.Parameters.AddWithValue("@date", contextData.Date);
                         cmd.Parameters.AddWithValue("@type", level.ToString());
-                        cmd.Parameters.AddWithValue("@context_id", context.GetHashCode());
-                        cmd.Parameters.AddWithValue("@user_id", context.User?.UID);
-                        cmd.Parameters.AddWithValue("@queue_id", context.Queue?.ID);
-                        cmd.Parameters.AddWithValue("@message_id", context.Message?.ID);
-                        cmd.Parameters.AddWithValue("@worker_id", context.Worker?.ID);
-                        cmd.Parameters.AddWithValue("@command", context.Command?.Length > 254 ? context.Command.Substring(0, 254) : context.Command);
-                        cmd.Parameters.AddWithValue("@message", message);
-                        cmd.Parameters.AddWithValue("@stacktrace", ex?.StackTrace);
-                        cmd.Parameters.AddWithValue("@tele_userid", context.Telegram?.User.ID);
-                        cmd.Parameters.AddWithValue("@tele_chatid", context.Telegram?.Chat?.ID);
-                        cmd.Parameters.AddWithValue("@caller_name", callerName);
-                        cmd.Parameters.AddWithValue("@caller_filepath", callerFilePath);
-                        cmd.Parameters.AddWithValue("@caller_linenumber", lineNumber);
-                        cmd.Parameters.AddWithValue("@exception_json", ex is null ? null : SerializeExceptionToJson(ex));
-
+                        cmd.Parameters.AddWithValue("@context_id", contextData.ContextId);
+                        cmd.Parameters.AddWithValue("@user_id", contextData.UserId);
+                        cmd.Parameters.AddWithValue("@queue_id", contextData.QueueId);
+                        cmd.Parameters.AddWithValue("@message_id", contextData.MessageId);
+                        cmd.Parameters.AddWithValue("@worker_id", contextData.WorkerId);
+                        cmd.Parameters.AddWithValue("@command", contextData.Command);
+                        cmd.Parameters.AddWithValue("@message", contextData.Message);
+                        cmd.Parameters.AddWithValue("@stacktrace", contextData.StackTrace);
+                        cmd.Parameters.AddWithValue("@tele_userid", contextData.TelegramUserId);
+                        cmd.Parameters.AddWithValue("@tele_chatid", contextData.TelegramChatId);
+                        cmd.Parameters.AddWithValue("@caller_name", contextData.CallerName);
+                        cmd.Parameters.AddWithValue("@caller_filepath", contextData.CallerFilePath);
+                        cmd.Parameters.AddWithValue("@caller_linenumber", contextData.CallerLineNumber);
+                        cmd.Parameters.AddWithValue("@exception_json", contextData.ExceptionJson);
 
                         await cmd.ExecuteNonQueryAsync();
                     }
-                }
+                    catch (Exception e)
+                    {
+                        FoxLog.LogToFile($"Error logging to database: {e.Message}\n{e.StackTrace}");
+                    }
+                });
             }
             catch (Exception e)
             {
-                FoxLog.LogToFile($"Error logging exception to database.  Error: {e.Message}\r\n{e.StackTrace}\r\nOriginal Error: {message}\r\n{ex?.StackTrace}");
+                FoxLog.LogToFile($"Error preparing log to database: {e.Message}\n{e.StackTrace}");
             }
         }
 
+
         public static void LogException(Exception ex, string? customMessage = null, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
-            var context = FoxContextManager.Current; // Retrieve the current context
-
             var message = customMessage ?? ex.Message;
 
             FoxLog.LogToFile($"Error: {message}\r\n{ex.StackTrace}\r\n");
 
-            _= FoxLog.LogToDatabase(context, message, LogLevel.ERROR, ex, callerName, callerFilePath, lineNumber);
+            FoxLog.LogToDatabase(message, LogLevel.ERROR, ex, callerName, callerFilePath, lineNumber);
 
         }
 
@@ -132,9 +165,7 @@ namespace makefoxsrv
 
         public static void WriteLine(string message, LogLevel level = LogLevel.INFO, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
-            var context = FoxContextManager.Current; // Retrieve the current context
-
-            _ = FoxLog.LogToDatabase(context, message, level, null, callerName, callerFilePath, lineNumber);
+            FoxLog.LogToDatabase(message, level, null, callerName, callerFilePath, lineNumber);
 
             Write(message + "\r\n", level, callerName, callerFilePath, lineNumber);
         }
