@@ -223,8 +223,7 @@ namespace makefoxsrv
                     //FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
                     await queueSemaphore.WaitAsync(1000, cancellationToken);
 
-                    var context = new FoxContext();
-                    FoxContextManager.Current = context;
+                    FoxContextManager.Current = new FoxContext();
 
                     try
                     {
@@ -241,11 +240,11 @@ namespace makefoxsrv
                                 if (potentialItem is null)
                                     continue;
 
-                                context.Queue = potentialItem;
-                                context.User = potentialItem.User;
-                                context.Telegram = potentialItem.Telegram;
-                                context.Message = new Message { id = potentialItem.MessageID };
-                                context.Worker = null;
+                                FoxContextManager.Current.Queue = potentialItem;
+                                FoxContextManager.Current.User = potentialItem.User;
+                                FoxContextManager.Current.Telegram = potentialItem.Telegram;
+                                FoxContextManager.Current.Message = new Message { id = potentialItem.MessageID };
+                                FoxContextManager.Current.Worker = null;
 
                                 suitableWorker = FindSuitableWorkerForTask(potentialItem);
                                 if (suitableWorker != null)
