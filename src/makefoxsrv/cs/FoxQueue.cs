@@ -367,9 +367,15 @@ namespace makefoxsrv
                 }
             }
 
-            if (item.User is null)
+            // Check for available workers with no model loaded
+            var workersWithNoModel = suitableWorkers
+                .Where(worker => worker.LastUsedModel == null)
+                .ToList();
+
+            if (workersWithNoModel.Any())
             {
-                throw new Exception("User object is null for the task in queue.");
+                // Prefer workers with no model loaded
+                return workersWithNoModel.FirstOrDefault(worker => worker.qItem == null); // Prioritize available workers
             }
 
             // Check for workers with the requested model loaded
@@ -388,13 +394,22 @@ namespace makefoxsrv
                 return availableWorkersWithModel.First();
             }
 
+            // Check if the entire system is idle (all suitable workers are not busy)
+            var allIdle = workers.All(worker => worker.qItem == null);
+
+            if (allIdle)
+            {
+                // If all workers are idle, assign the task immediately to any suitable worker
+                return suitableWorkers.FirstOrDefault();
+            }
+
             // If all workers with the model loaded are busy, check how long the task has been waiting
             var modelWaitingTime = DateTime.Now - item.DateCreated;
 
-            if (modelWaitingTime.TotalSeconds < 10)
+            if (modelWaitingTime.TotalSeconds < 15)
             {
-                // If the task has been waiting for less than 10 seconds for a worker with the model, defer the task
-                FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}. (Waited {modelWaitingTime.TotalSeconds}s)", LogLevel.DEBUG);
+                // If the task has been waiting for less than the specified seconds for a worker with the model, defer the task
+                FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}. ({modelWaitingTime.TotalSeconds}s)", LogLevel.DEBUG);
                 return null;
             }
 
