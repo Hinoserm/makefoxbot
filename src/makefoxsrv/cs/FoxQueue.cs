@@ -170,7 +170,8 @@ namespace makefoxsrv
             {
                 lock (lockObj)
                 {
-                    int priorityLevel = item.Enhanced ? 1 : priorityMap[item.User.GetAccessLevel()];
+                    //int priorityLevel = item.Enhanced ? 1 : priorityMap[item.User.GetAccessLevel()];
+                    int priorityLevel = priorityMap[item.User.GetAccessLevel()];
                     taskList.Add((item, priorityLevel, item.DateCreated));
 
                     // Sort by priority, then by DateStarted as a secondary criteria
@@ -526,7 +527,7 @@ namespace makefoxsrv
 
         public static (int hypotheticalPosition, int totalItems) GetNextPosition(FoxUser user, bool Enhanced)
         {
-            int priorityLevel = Enhanced ? 0 : priorityMap[user.GetAccessLevel()];
+            int priorityLevel = priorityMap[user.GetAccessLevel()];
             DateTime dateStarted = DateTime.Now;
             int hypotheticalPosition = 1; // Start from 1 to match your existing indexing logic
 
