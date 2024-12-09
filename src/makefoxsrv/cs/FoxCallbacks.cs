@@ -321,7 +321,7 @@ namespace makefoxsrv
 
             if (q.Type == FoxQueue.QueueType.IMG2IMG)
             {
-                settings.variation_strength = 0.5M; //This seems to need a significant boost to make a difference w/IMG2IMG
+                settings.variation_strength = 0.3M; //This seems to need a significant boost to make a difference w/IMG2IMG
             }
             else
             {
@@ -717,7 +717,15 @@ namespace makefoxsrv
                 if (q.Type == FoxQueue.QueueType.IMG2IMG)
                     sb.AppendLine($"👂Denoising Strength: {q.Settings.denoising_strength}");
                 sb.AppendLine($"🧠Model: {q.Settings.model}");
-                sb.AppendLine($"🌱Seed: {q.Settings.seed}");
+
+                if (q.Settings.variation_seed is not null && q.Settings.variation_strength is not null)
+                {
+                    var variation_percent = (int)(q.Settings.variation_strength * 100);
+
+                    sb.AppendLine($"🌱Seed: {q.Settings.seed} ({q.Settings.variation_seed}@{variation_percent}%)");
+                }
+                else
+                    sb.AppendLine($"🌱Seed: {q.Settings.seed}");
 
                 if (q.WorkerID is not null)
                 {

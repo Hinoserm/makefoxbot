@@ -339,6 +339,23 @@ namespace makefoxsrv
                                  && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
                 .ToList();
 
+            // Special handling for Enhanced or variation_seed not null
+            if (item.Enhanced || item.Settings.variation_seed is not null)
+            {
+                // Attempt to find the previously used worker
+                var previousWorker = workers.FirstOrDefault(worker => worker.ID == item.WorkerID);
+
+                if (previousWorker != null
+                    && previousWorker.Online
+                    && (!previousWorker.MaxImageSize.HasValue || (width * height) <= previousWorker.MaxImageSize.Value)
+                    && (!previousWorker.MaxImageSteps.HasValue || item.Settings.steps <= previousWorker.MaxImageSteps.Value)
+                    && (!item.RegionalPrompting || previousWorker.SupportsRegionalPrompter)
+                    && model.GetWorkersRunningModel().Contains(previousWorker.ID))
+                {
+                    return previousWorker; // Use the previous worker if it's suitable
+                }
+            }
+
             // Prioritize workers who already have the model as their last used model (and still have it loaded)
             var preferredWorkers = suitableWorkers
                 .Where(worker => worker.LastUsedModel == item.Settings.model)  // Worker last used this model
@@ -348,8 +365,7 @@ namespace makefoxsrv
             // If there are any preferred workers, return the first one
             if (preferredWorkers.Any())
             {
-                var w = preferredWorkers.First();
-                return w;
+                return preferredWorkers.First();
             }
 
             // If no preferred workers are available, fall back to any suitable worker
@@ -359,6 +375,7 @@ namespace makefoxsrv
 
             return suitableWorker;
         }
+
 
 
 
