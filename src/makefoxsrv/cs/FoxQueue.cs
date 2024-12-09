@@ -220,15 +220,15 @@ namespace makefoxsrv
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    //FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
-                    await queueSemaphore.WaitAsync(1000, cancellationToken);
-
                     FoxContextManager.Current = new FoxContext();
 
                     try
                     {
                         FoxQueue? itemToAssign = null;
                         FoxWorker? suitableWorker = null;
+
+                        //FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
+                        await queueSemaphore.WaitAsync(1000, cancellationToken);
 
                         //FoxLog.WriteLine("Locking...", LogLevel.DEBUG);
                         lock (lockObj)
