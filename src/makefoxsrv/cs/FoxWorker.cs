@@ -1023,7 +1023,7 @@ namespace makefoxsrv
                 var settings = qItem.Settings.Copy();
 
                 if (LastUsedModel != settings.model)
-                    FoxLog.WriteLine($"Switching model from {LastUsedModel} to {settings.model}", LogLevel.DEBUG);
+                    FoxLog.WriteLine($"Switching model from {LastUsedModel ?? "None"} to {settings.model}", LogLevel.DEBUG);
 
                 this.LastUsedModel =  settings.model;
 
