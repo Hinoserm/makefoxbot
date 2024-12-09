@@ -267,7 +267,7 @@ namespace makefoxsrv
                 return; // User must agree to the terms before they can use this command.
             }
 
-            if (true || user.GetAccessLevel() < AccessLevel.PREMIUM)
+            if (user.GetAccessLevel() < AccessLevel.PREMIUM)
             {
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
