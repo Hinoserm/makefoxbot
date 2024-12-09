@@ -1081,7 +1081,7 @@ namespace makefoxsrv
             }
         }
 
-        private static int GetRandomInt32()
+        public static int GetRandomInt32()
         {
             Random random = new Random();
             int number;

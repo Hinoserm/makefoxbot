@@ -112,6 +112,12 @@ namespace makefoxsrv
         [DbColumn("hires_upscaler")]
         public string? hires_upscaler;
 
+        [DbColumn("variation_seed")]
+        public int? variation_seed = null;
+
+        [DbColumn("variation_strength")]
+        public decimal? variation_strength = null;
+
         public long TelegramUserID = 0;
         public long TelegramChatID = 0;
 
@@ -141,7 +147,9 @@ namespace makefoxsrv
                 hires_steps = this.hires_steps,
                 hires_denoising_strength = this.hires_denoising_strength,
                 hires_enabled = this.hires_enabled,
-                hires_upscaler = this.hires_upscaler
+                hires_upscaler = this.hires_upscaler,
+                variation_seed = this.variation_seed,
+                variation_strength = this.variation_strength
             };
         }
 

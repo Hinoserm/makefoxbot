@@ -1064,7 +1064,9 @@ namespace makefoxsrv
 
                         Seed = new()
                         {
-                            Seed = settings.seed
+                            Seed = settings.seed,
+                            SubSeed = settings.variation_seed,
+                            SubseedStrength = (double?)settings.variation_strength,
                         },
                         ResizeMode = qItem.Enhanced ? 0 : 2, //Testing this
                         InpaintingFill = MaskFillMode.LatentNoise,
@@ -1132,6 +1134,8 @@ namespace makefoxsrv
                         Seed = new()
                         {
                             Seed = settings.seed,
+                            SubSeed = settings.variation_seed,
+                            SubseedStrength = (double?)settings.variation_strength,
                         },
 
                         Width = width,

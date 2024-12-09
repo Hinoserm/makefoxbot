@@ -20,11 +20,6 @@ namespace makefoxsrv
         public Message? Message { get; set; } = null;
         public string? Command { get; set; } = null;
         public string? Argument { get; set; } = null;
-
-        public override string ToString()
-        {
-            return $"";
-        }
     }
 
     internal static class FoxContextManager

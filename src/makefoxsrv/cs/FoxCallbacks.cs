@@ -70,6 +70,9 @@ namespace makefoxsrv
                 case "/enhance":
                     await CallbackCmdEnhance(t, query, fUser, argument);
                     break;
+                case "/recycle":
+                    await CallbackCmdRecycle(t, query, fUser, argument);
+                    break;
                 case "/history":
                     await CallbackCmdHistory(t, query, fUser, argument);
                     break;
@@ -203,6 +206,116 @@ namespace makefoxsrv
                 throw new Exception("Invalid queue type");
 
             settings.regionalPrompting = q.RegionalPrompting; //Have to copy this over manually
+
+            if (FoxQueue.CheckWorkerAvailability(settings) is null)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ No workers available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
+                    replyToMessageId: query.msg_id
+                );
+
+                return;
+            }
+
+            (int position, int totalItems) = FoxQueue.GetNextPosition(user, true);
+
+            Message waitMsg = await t.SendMessageAsync(
+                text: $"⏳ Adding to queue ({position} of {totalItems})...",
+                replyToMessageId: query.msg_id
+            );
+
+            var newq = await FoxQueue.Add(t, user, settings, q.Type, waitMsg.ID, query.msg_id, true, q);
+            if (newq is null)
+                throw new Exception("Unable to add item to queue");
+
+            await FoxQueue.Enqueue(newq);
+        }
+
+        private static async Task CallbackCmdRecycle(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
+        {
+            if (argument is null || argument.Length <= 0 || !ulong.TryParse(argument, out ulong info_id))
+            {
+                throw new Exception("Malformed request");
+            }
+
+            var q = await FoxQueue.Get(info_id);
+            if (q is null)
+                throw new Exception("Unable to locate queue item");
+
+            if (q.Settings.variation_seed is not null)
+            {
+                if (q.OriginalID is null)
+                    throw new Exception("Missing original ID for variation request");
+
+                q = await FoxQueue.Get(q.OriginalID.Value);
+                if (q is null)
+                    throw new Exception("Unable to load original request data");
+            }
+
+            if (q.Telegram?.User.ID != t.User.ID)
+            {
+                await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
+                return; // Just silently return.
+            }
+
+            await t.SendCallbackAnswer(query.query_id, 0);
+
+            if (user.DateTermsAccepted is null)
+            {
+                await FoxMessages.SendTerms(t, user, query.msg_id);
+
+                return; // User must agree to the terms before they can use this command.
+            }
+
+            if (user.GetAccessLevel() < AccessLevel.PREMIUM)
+            {
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                {
+                    await SQL.OpenAsync();
+
+                    using (var cmd = new MySqlCommand())
+                    {
+                        cmd.Connection = SQL;
+                        cmd.CommandText = "SELECT COUNT(*) FROM queue WHERE uid = @uid AND status != 'CANCELLED' AND original_id = @original_id AND variation_seed IS NOT NULL AND date_finished > @now - INTERVAL 3 HOUR";
+                        cmd.Parameters.AddWithValue("uid", user.UID);
+                        cmd.Parameters.AddWithValue("original_id", q.ID);
+                        cmd.Parameters.AddWithValue("now", DateTime.Now);
+                        await using var reader = await cmd.ExecuteReaderAsync();
+
+                        if (reader.HasRows && await reader.ReadAsync())
+                        {
+                            var count = reader.GetInt32(0);
+
+                            if (count > 0)
+                            {
+                                await t.SendMessageAsync(
+                                    text: $"❌ Basic users are limited to 1 variation per image.\n\nPlease consider a membership to remove this limit: /membership",
+                                    replyToMessageId: query.msg_id
+                                );
+
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+            int q_limit = 1;
+
+            if (await FoxQueue.GetCount(user) >= q_limit)
+            {
+                await t.SendMessageAsync(
+                    text: $"❌Maximum of {q_limit} queued variation request per user.",
+                    replyToMessageId: query.msg_id
+                );
+
+                return;
+            }
+
+            FoxUserSettings settings = q.Settings.Copy();
+
+            settings.variation_seed = FoxQueue.GetRandomInt32();
+            settings.variation_strength = 0.01M;
 
             if (FoxQueue.CheckWorkerAvailability(settings) is null)
             {
@@ -570,28 +683,40 @@ namespace makefoxsrv
                     }
                 };
 
+                var sb = new StringBuilder();
+
                 System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
                 System.TimeSpan GPUTime = await q.GetGPUTime();
 
                 uint width = Math.Max(q.Settings.width, q.Settings.hires_width);
                 uint height = Math.Max(q.Settings.height, q.Settings.hires_height);
 
-                var sizeString = $"🖥️ Size: {width}x{height}" + (q.Settings.hires_enabled ? $" (upscaled from {q.Settings.width}x{q.Settings.height})" : "");
+                var sizeString = $"{width}x{height}" + (q.Settings.hires_enabled ? $" (upscaled from {q.Settings.width}x{q.Settings.height})" : "");
 
                 //if (q.Settings.UpscalerWidth is not null && q.Settings.UpscalerHeight is not null)
                 //    sizeString += $" (upscaled from {q.Settings.width}x{q.Settings.height})";
 
+                // Build the main message
+                sb.AppendLine($"🖤Prompt: {q.Settings.prompt}");
+                sb.AppendLine($"🐊Negative: {q.Settings.negative_prompt}");
+                sb.AppendLine($"🖥️ Size: {sizeString}");
+                sb.AppendLine($"🪜Sampler: {q.Settings.sampler} ({q.Settings.steps} steps)");
+                sb.AppendLine($"🧑‍🎨CFG Scale: {q.Settings.cfgscale}");
+                if (q.Type == FoxQueue.QueueType.IMG2IMG)
+                    sb.AppendLine($"👂Denoising Strength: {q.Settings.denoising_strength}");
+                sb.AppendLine($"🧠Model: {q.Settings.model}");
+                sb.AppendLine($"🌱Seed: {q.Settings.seed}");
+
+                if (q.WorkerID is not null)
+                {
+                    string workerName = await FoxWorker.GetWorkerName(q.WorkerID) ?? "(unknown)";
+                    sb.AppendLine($"👷Worker: {workerName}");
+                }
+
+                sb.AppendLine($"⏳Render Time: {GPUTime.ToPrettyFormat()}");
+
                 await t.EditMessageAsync(
-                    text: $"🖤Prompt: {q.Settings.prompt}\r\n" +
-                          $"🐊Negative: {q.Settings.negative_prompt}\r\n" +
-                          $"{sizeString}\r\n" +
-                          $"🪜Sampler: {q.Settings.sampler} ({q.Settings.steps} steps)\r\n" +
-                          $"🧑‍🎨CFG Scale: {q.Settings.cfgscale}\r\n" +
-                          $"👂Denoising Strength: {q.Settings.denoising_strength}\r\n" +
-                          $"🧠Model: {q.Settings.model}\r\n" +
-                          $"🌱Seed: {q.Settings.seed}\r\n" +
-                          (q.WorkerID is not null ? $"👷Worker: " + (await FoxWorker.GetWorkerName(q.WorkerID) ?? "(unknown)") + "\r\n" : "") +
-                          $"⏳Render Time: {GPUTime.ToPrettyFormat()}\r\n",
+                    text: sb.ToString(),
                     id: query.msg_id,
                     replyInlineMarkup: inlineKeyboardButtons
                 );
