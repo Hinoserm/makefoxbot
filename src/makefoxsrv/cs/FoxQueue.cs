@@ -330,17 +330,12 @@ namespace makefoxsrv
 
             if (item.Enhanced || item.Settings.variation_seed != null)
             {
-
-                FoxLog.WriteLine($"Enhanced task {item.ID} found, checking for suitable worker ({item.WorkerID})...", LogLevel.DEBUG);
-
                 // Calculate the age of the queue item
                 var timeInQueue = DateTime.Now - item.DateCreated;
 
                 // If the task has been waiting for less than 2 minutes and requires special handling
                 if (timeInQueue.TotalMinutes < 2)
                 {
-                    FoxLog.WriteLine($"Enhanced task {item.ID} is less than 2 minutes old...", LogLevel.DEBUG);
-
                     // Attempt to find the previously used worker
                     var previousWorker = workers.FirstOrDefault(worker => worker.ID == item.WorkerID);
 
@@ -355,11 +350,9 @@ namespace makefoxsrv
 
                         if (isSuitable)
                         {
-                            FoxLog.WriteLine($"Enhanced task {item.ID} - Previous worker is suitable.", LogLevel.DEBUG);
                             // If the worker is suitable but currently busy, return null to defer processing
                             if (previousWorker.qItem != null)
                             {
-                                FoxLog.WriteLine($"Enhanced task {item.ID} - Previous worker is busy.", LogLevel.DEBUG);
                                 return null;
                             }
 
