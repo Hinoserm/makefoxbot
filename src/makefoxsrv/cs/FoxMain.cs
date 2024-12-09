@@ -152,8 +152,8 @@ namespace makefoxsrv
             $"charset=utf8mb4;" +
             $"keepalive=60;" +
             $"pooling=true;" +
-            $"minpoolsize=3;" +
-            $"maxpoolsize=15;" +
+            $"minpoolsize=10;" +
+            $"maxpoolsize=150;" +
             $"default command timeout=180;";
 
         public static DateTime startTime = DateTime.Now;
