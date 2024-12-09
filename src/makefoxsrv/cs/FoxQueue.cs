@@ -331,7 +331,7 @@ namespace makefoxsrv
             if (item.Enhanced || item.Settings.variation_seed != null)
             {
 
-                FoxLog.WriteLine($"Enhanced task {item.ID} found, checking for suitable worker...", LogLevel.DEBUG);
+                FoxLog.WriteLine($"Enhanced task {item.ID} found, checking for suitable worker ({item.WorkerID})...", LogLevel.DEBUG);
 
                 // Calculate the age of the queue item
                 var timeInQueue = DateTime.Now - item.DateCreated;
@@ -668,6 +668,7 @@ namespace makefoxsrv
                 ReplyMessageID = replyMessageID,
                 Enhanced = enhanced,
                 OriginalID = originalTask?.ID,
+                WorkerID = originalTask?.WorkerID,
                 RetryDate = delay.HasValue ? DateTime.Now.Add(delay.Value) : null,
                 RegionalPrompting = settings.regionalPrompting
             };
