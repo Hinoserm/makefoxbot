@@ -345,29 +345,19 @@ namespace makefoxsrv
             // If the task has been waiting for less than 2 minutes and requires special handling
             if (timeInQueue.TotalMinutes < 2 && (item.Enhanced || item.Settings.variation_seed != null))
             {
-                // Attempt to find the previously used worker
-                var previousWorker = workers.FirstOrDefault(worker => worker.ID == item.WorkerID);
+                // Check if the previously used worker is among the suitable workers
+                var previousWorker = suitableWorkers.FirstOrDefault(worker => worker.ID == item.WorkerID);
 
                 if (previousWorker != null)
                 {
-                    // Check if the previously used worker is suitable for this task
-                    bool isSuitable = previousWorker.Online
-                        && (!previousWorker.MaxImageSize.HasValue || (width * height) <= previousWorker.MaxImageSize.Value)
-                        && (!previousWorker.MaxImageSteps.HasValue || item.Settings.steps <= previousWorker.MaxImageSteps.Value)
-                        && (!item.RegionalPrompting || previousWorker.SupportsRegionalPrompter)
-                        && model.GetWorkersRunningModel().Contains(previousWorker.ID);
-
-                    if (isSuitable)
+                    // If the worker is currently busy, return null to defer processing
+                    if (previousWorker.qItem != null)
                     {
-                        // If the worker is suitable but currently busy, return null to defer processing
-                        if (previousWorker.qItem is not null)
-                        {
-                            return null;
-                        }
-
-                        // Otherwise, return the suitable previous worker
-                        return previousWorker;
+                        return null;
                     }
+
+                    // Otherwise, return the suitable previous worker
+                    return previousWorker;
                 }
             }
 
