@@ -79,7 +79,7 @@ namespace makefoxsrv
             }
             catch (Exception e)
             {
-                FoxLog.LogToFile($"Error logging exception to database.  Error: {e.Message}\r\n{e.StackTrace}\r\n");
+                FoxLog.LogToFile($"Error logging exception to database.  Error: {e.Message}\r\n{e.StackTrace}\r\nOriginal Error: {message}\r\n{ex?.StackTrace}");
             }
         }
 
