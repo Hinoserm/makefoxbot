@@ -132,7 +132,9 @@ namespace makefoxsrv
 
         public static void WriteLine(string message, LogLevel level = LogLevel.INFO, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
-            _ = FoxLog.LogToDatabase(message, level, null, callerName, callerFilePath, lineNumber);
+            var context = FoxContextManager.Current; // Retrieve the current context
+
+            _ = FoxLog.LogToDatabase(context, message, level, null, callerName, callerFilePath, lineNumber);
 
             Write(message + "\r\n", level, callerName, callerFilePath, lineNumber);
         }
