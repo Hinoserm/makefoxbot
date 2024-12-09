@@ -337,7 +337,7 @@ namespace makefoxsrv
                 replyToMessageId: query.msg_id
             );
 
-            var newq = await FoxQueue.Add(t, user, settings, q.Type, waitMsg.ID, query.msg_id, true, q);
+            var newq = await FoxQueue.Add(t, user, settings, q.Type, waitMsg.ID, query.msg_id, false, q);
             if (newq is null)
                 throw new Exception("Unable to add item to queue");
 
