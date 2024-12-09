@@ -348,14 +348,26 @@ namespace makefoxsrv
                 // Attempt to find the previously used worker
                 var previousWorker = workers.FirstOrDefault(worker => worker.ID == item.WorkerID);
 
-                if (previousWorker != null
-                    && previousWorker.Online
-                    && (!previousWorker.MaxImageSize.HasValue || (width * height) <= previousWorker.MaxImageSize.Value)
-                    && (!previousWorker.MaxImageSteps.HasValue || item.Settings.steps <= previousWorker.MaxImageSteps.Value)
-                    && (!item.RegionalPrompting || previousWorker.SupportsRegionalPrompter)
-                    && model.GetWorkersRunningModel().Contains(previousWorker.ID))
+                if (previousWorker != null)
                 {
-                    return previousWorker; // Use the previous worker if it's suitable
+                    // Check if the previously used worker is suitable for this task
+                    bool isSuitable = previousWorker.Online
+                        && (!previousWorker.MaxImageSize.HasValue || (width * height) <= previousWorker.MaxImageSize.Value)
+                        && (!previousWorker.MaxImageSteps.HasValue || item.Settings.steps <= previousWorker.MaxImageSteps.Value)
+                        && (!item.RegionalPrompting || previousWorker.SupportsRegionalPrompter)
+                        && model.GetWorkersRunningModel().Contains(previousWorker.ID);
+
+                    if (isSuitable)
+                    {
+                        // If the worker is suitable but currently busy, return null to defer processing
+                        if (previousWorker.qItem is not null)
+                        {
+                            return null;
+                        }
+
+                        // Otherwise, return the suitable previous worker
+                        return previousWorker;
+                    }
                 }
             }
 
