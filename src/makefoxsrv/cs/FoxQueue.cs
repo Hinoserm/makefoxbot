@@ -244,6 +244,7 @@ namespace makefoxsrv
                                 FoxContextManager.Current.User = potentialItem.User;
                                 FoxContextManager.Current.Telegram = potentialItem.Telegram;
                                 FoxContextManager.Current.Message = new Message { id = potentialItem.MessageID };
+                                FoxContextManager.Current.Worker = null;
 
                                 suitableWorker = FindSuitableWorkerForTask(potentialItem);
                                 if (suitableWorker != null)
