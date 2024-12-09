@@ -321,11 +321,11 @@ namespace makefoxsrv
 
             if (q.Type == FoxQueue.QueueType.IMG2IMG)
             {
-                settings.variation_strength = 0.3M; //This seems to need a significant boost to make a difference w/IMG2IMG
+                settings.variation_strength = 0.5M; //This seems to need a significant boost to make a difference w/IMG2IMG
             }
             else
             {
-                settings.variation_strength = 0.02M;
+                settings.variation_strength = 0.01M;
             }
 
             if (FoxQueue.CheckWorkerAvailability(settings) is null)
