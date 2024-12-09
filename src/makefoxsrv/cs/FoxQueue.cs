@@ -360,11 +360,26 @@ namespace makefoxsrv
                     return previousWorker;
                 }
             }
+            
+            if (item.User is null)
+                throw new Exception("User is null");
+
+            var accessLevel = item.User.GetAccessLevel();
+
+            if (accessLevel == AccessLevel.BANNED)
+            {
+                _= item.Cancel();
+
+                return null; // No reason to process requests of banned users.
+            }
+
+            if (!priorityMap.ContainsKey(accessLevel))
+                throw new Exception("Access level not found in priority map");
 
             // Prioritize workers who already have the model as their last used model (and still have it loaded)
             var preferredWorkers = suitableWorkers
                 .Where(worker => worker.LastUsedModel == item.Settings.model)  // Worker last used this model
-                .OrderByDescending(worker => priorityMap[item.User.GetAccessLevel()]) // Sort by user access level priority
+                .OrderByDescending(worker => priorityMap[accessLevel]) // Sort by user access level priority
                 .ToList();
 
             // If there are any preferred workers, return the first one
@@ -375,7 +390,7 @@ namespace makefoxsrv
 
             // If no preferred workers are available, fall back to any suitable worker
             var suitableWorker = suitableWorkers
-                .OrderByDescending(worker => priorityMap[item.User.GetAccessLevel()]) // Sort by user access level priority
+                .OrderByDescending(worker => priorityMap[accessLevel]) // Sort by user access level priority
                 .FirstOrDefault();
 
             return suitableWorker;
