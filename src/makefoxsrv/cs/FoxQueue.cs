@@ -216,10 +216,13 @@ namespace makefoxsrv
 
         public static void StartTaskLoop(CancellationToken cancellationToken)
         {
-            _ = Task.Run(async () =>
+            Task.Run(async () =>
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
+                    //FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
+                    await queueSemaphore.WaitAsync(1000, cancellationToken);
+
                     var context = new FoxContext();
                     FoxContextManager.Current = context;
 
@@ -227,9 +230,6 @@ namespace makefoxsrv
                     {
                         FoxQueue? itemToAssign = null;
                         FoxWorker? suitableWorker = null;
-
-                        //FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
-                        await queueSemaphore.WaitAsync(5000, cancellationToken);
 
                         //FoxLog.WriteLine("Locking...", LogLevel.DEBUG);
                         lock (lockObj)
@@ -251,7 +251,7 @@ namespace makefoxsrv
                                 if (suitableWorker != null)
                                 {
                                     // Found a suitable worker for the task
-                                    context.Worker = suitableWorker;
+                                    FoxContextManager.Current.Worker = suitableWorker;
 
                                     itemToAssign = potentialItem;
                                     taskList.RemoveAt(i); // Remove the task from the list since it's being assigned
