@@ -260,9 +260,18 @@ namespace makefoxsrv
                         //FoxLog.WriteLine("Locking...", LogLevel.DEBUG);
                         lock (lockObj)
                         {
-                            for (int i = 0; i < taskList.Count; i++)
+                            DateTime now = DateTime.Now;
+
+                            // Separate tasks into prioritized (waiting > 3 minutes) and non-prioritized
+                            var prioritizedTasks = taskList.Where(t => t.task != null && (now - t.task.DateCreated).TotalMinutes > 3).ToList();
+                            var nonPrioritizedTasks = taskList.Where(t => t.task != null && (now - t.task.DateCreated).TotalMinutes <= 3).ToList();
+
+                            // Combine prioritized tasks first
+                            var orderedTasks = prioritizedTasks.Concat(nonPrioritizedTasks).ToList();
+
+                            for (int i = 0; i < orderedTasks.Count; i++)
                             {
-                                var potentialItem = taskList[i].task;
+                                var potentialItem = orderedTasks[i].task;
 
                                 if (potentialItem is null)
                                     continue;
@@ -275,7 +284,7 @@ namespace makefoxsrv
 
                                 if (potentialItem.OutputImageID is not null)
                                 {
-                                    // Item was previous generated, just needs to be resent.
+                                    // Item was previous generated, but failed during sending.  Resend.
                                     FoxLog.WriteLine($"Task {potentialItem.ID} was previously generated but not sent.  Resending.", LogLevel.DEBUG);
 
                                     taskList.RemoveAt(i); // Remove the task from the list since it's being assigned
