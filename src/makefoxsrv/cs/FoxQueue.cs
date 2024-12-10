@@ -287,7 +287,7 @@ namespace makefoxsrv
                                     // Item was previous generated, but failed during sending.  Resend.
                                     FoxLog.WriteLine($"Task {potentialItem.ID} was previously generated but not sent.  Resending.", LogLevel.DEBUG);
 
-                                    taskList.RemoveAt(i); // Remove the task from the list since it's being assigned
+                                    taskList = taskList.Where(t => t.task?.ID != potentialItem.ID).ToList();
                                     _ = FoxSendQueue.Send(potentialItem);
 
                                     continue;
@@ -300,7 +300,7 @@ namespace makefoxsrv
                                     FoxContextManager.Current.Worker = suitableWorker;
 
                                     itemToAssign = potentialItem;
-                                    taskList.RemoveAt(i); // Remove the task from the list since it's being assigned
+                                    taskList = taskList.Where(t => t.task?.ID != itemToAssign.ID).ToList();
                                     break; // Exit the loop as we've found a task to assign
                                 }
                             }
