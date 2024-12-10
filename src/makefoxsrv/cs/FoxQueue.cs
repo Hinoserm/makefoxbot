@@ -273,6 +273,17 @@ namespace makefoxsrv
                                 FoxContextManager.Current.Message = new Message { id = potentialItem.MessageID };
                                 FoxContextManager.Current.Worker = null;
 
+                                if (potentialItem.OutputImageID is not null)
+                                {
+                                    // Item was previous generated, just needs to be resent.
+                                    FoxLog.WriteLine($"Task {potentialItem.ID} was previously generated but not sent.  Resending.", LogLevel.DEBUG);
+
+                                    taskList.RemoveAt(i); // Remove the task from the list since it's being assigned
+                                    _ = FoxSendQueue.Send(potentialItem);
+
+                                    continue;
+                                }
+
                                 suitableWorker = FindSuitableWorkerForTask(potentialItem);
                                 if (suitableWorker != null)
                                 {
