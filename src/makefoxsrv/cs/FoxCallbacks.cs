@@ -183,8 +183,6 @@ namespace makefoxsrv
 
             FoxUserSettings settings = q.Settings.Copy();
 
-
-
             if (q.Type == FoxQueue.QueueType.IMG2IMG)
             {
                 if (q.OutputImageID is null)

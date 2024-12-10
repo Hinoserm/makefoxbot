@@ -85,7 +85,7 @@ namespace makefoxsrv
                         }
                         catch (Exception ex)
                         {
-                            FoxLog.WriteLine($"Connection still failing: {ex.Message}", LogLevel.ERROR);
+                            FoxLog.LogException(ex, $"Connection still failing: {ex.Message}");
                         }
                     }
                     break;
@@ -331,7 +331,7 @@ namespace makefoxsrv
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine($"SendCallbackAnswer error: {ex.Message}\r\n{ex.StackTrace}", LogLevel.ERROR);
+                FoxLog.LogException(ex, $"SendCallbackAnswer error: {ex.Message}\r\n{ex.StackTrace}");
                 if (!ignoreErrors)
                     throw;
             }
@@ -463,7 +463,7 @@ We are committed to using your membership fees to further develop and maintain t
                 }
                 catch (Exception ex)
                 {
-                    FoxLog.WriteLine("HandleMessageAsync error: " + ex.Message);
+                    FoxLog.LogException(ex, "HandleMessageAsync error: " + ex.Message);
                 }
             }
         }
@@ -514,7 +514,7 @@ We are committed to using your membership fees to further develop and maintain t
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine("Error in HandleDeleteMessagesAsync: " + ex.Message);
+                FoxLog.LogException(ex, "Error in HandleDeleteMessagesAsync: " + ex.Message);
             }
         }
 
@@ -638,8 +638,7 @@ We are committed to using your membership fees to further develop and maintain t
                     }
                     catch (Exception ex)
                     {
-                        FoxLog.WriteLine("Error in HandleUpdateAsync: " + ex.Message);
-                        FoxLog.WriteLine("Backtrace : " + ex.StackTrace);
+                        FoxLog.LogException(ex);
 
                         if (t is not null)
                         {
@@ -655,7 +654,7 @@ We are committed to using your membership fees to further develop and maintain t
                 }
                 catch (Exception ex)
                 {
-                    FoxLog.WriteLine("Error in HandleUpdateAsync: " + ex.Message);
+                    FoxLog.LogException(ex);
                 }
             }
         }
@@ -747,14 +746,14 @@ We are committed to using your membership fees to further develop and maintain t
 
                             if (ex is RpcException rex)
                             {
-                                FoxLog.WriteLine($"Error getting full user={user} x={rex.X} code={rex.Code} > {ex.Message}");
+                                FoxLog.LogException(ex, $"Error getting full user={user} x={rex.X} code={rex.Code} > {ex.Message}");
                             }
                             else
-                                FoxLog.WriteLine($"Error getting full user={user} {ex.Message}");
+                                FoxLog.LogException(ex, $"Error getting full user={user} {ex.Message}");
                         }
                         catch (Exception ex)
                         {
-                            FoxLog.WriteLine("Error getting full user={user}: " + ex.Message);
+                            FoxLog.LogException(ex, "Error getting full user={user}: " + ex.Message);
                         }
 
                         using (var cmd = new MySqlCommand())
@@ -809,7 +808,7 @@ We are committed to using your membership fees to further develop and maintain t
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine($"updateTelegramUser error: chat={user.ID} {ex.Message}\r\n{ex.StackTrace}");
+                FoxLog.LogException(ex, $"updateTelegramUser error: chat={user.ID} {ex.Message}\r\n{ex.StackTrace}");
             }
         }
 
@@ -907,7 +906,7 @@ We are committed to using your membership fees to further develop and maintain t
                         catch (Exception ex)
                         {
                             if (ex.Message != "CHANNEL_PRIVATE")
-                                FoxLog.WriteLine($"Error getting full chat: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
+                                FoxLog.LogException(ex, $"Error getting full chat: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
                         }
 
                         if (chat.IsChannel || chat.IsGroup)
@@ -1077,7 +1076,7 @@ We are committed to using your membership fees to further develop and maintain t
                             catch (Exception ex)
                             {
                                 if (ex.Message != "CHANNEL_PRIVATE" /*&& ex.Message != "CHAT_ADMIN_REQUIRED"*/)
-                                    FoxLog.WriteLine($"Error getting group admins: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
+                                    FoxLog.LogException(ex, $"Error getting group admins: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
                             }
                         }
 
@@ -1087,7 +1086,7 @@ We are committed to using your membership fees to further develop and maintain t
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine($"updateTelegramChat error: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
+                FoxLog.LogException(ex, $"updateTelegramChat error: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
             }
         }
 
@@ -1103,13 +1102,13 @@ We are committed to using your membership fees to further develop and maintain t
                     }
                     catch (Exception ex)
                     {
-                        FoxLog.WriteLine($"updateTelegramUsers error: chat={user.ID} {ex.Message}\r\n{ex.StackTrace}");
+                        FoxLog.LogException(ex, $"updateTelegramUsers error: chat={user.ID} {ex.Message}\r\n{ex.StackTrace}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine($"updateTelegramUsers error: {ex.Message}\r\n{ex.StackTrace}");
+                FoxLog.LogException(ex, $"updateTelegramUsers error: {ex.Message}\r\n{ex.StackTrace}");
             }
         }
 
@@ -1156,7 +1155,7 @@ We are committed to using your membership fees to further develop and maintain t
                 }
                 catch (Exception ex)
                 {
-                    FoxLog.WriteLine($"updateTelegramChats error: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
+                    FoxLog.LogException(ex, $"updateTelegramChats error: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
                 }
             }
         }
