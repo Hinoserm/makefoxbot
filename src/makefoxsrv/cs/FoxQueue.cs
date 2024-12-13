@@ -363,6 +363,12 @@ namespace makefoxsrv
                 return null;
             }
 
+            if (item.User is null)
+            {
+                FoxLog.WriteLine($"Task {item.ID} - Skipping because user is null.", LogLevel.DEBUG);
+                return null;
+            }
+
             // Get all workers
             var workers = FoxWorker.GetWorkers().Values;
 
@@ -380,7 +386,8 @@ namespace makefoxsrv
                 .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
                 .ToList();
 
-            if (userWorkers.Any())
+            // If the user is not premium and there are workers processing tasks for them, skip this task
+            if (!item.User.CheckAccessLevel(AccessLevel.PREMIUM) && userWorkers.Any())
             {
                 // If a worker is already processing a task for this user, skip this task
                 FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User?.UID} is already being processed by another worker.", LogLevel.DEBUG);
@@ -456,7 +463,8 @@ namespace makefoxsrv
             // If all workers with the model loaded are busy, check how long the task has been waiting
             var modelWaitingTime = DateTime.Now - item.DateCreated;
 
-            if (modelWaitingTime.TotalSeconds < 15)
+            // Check if the user is not premium and the task has been waiting for less than 15 seconds
+            if (!item.User.CheckAccessLevel(AccessLevel.PREMIUM) && modelWaitingTime.TotalSeconds < 15)
             {
                 // If the task has been waiting for less than the specified seconds for a worker with the model, defer the task
                 FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}. ({modelWaitingTime.TotalSeconds}s)", LogLevel.DEBUG);
