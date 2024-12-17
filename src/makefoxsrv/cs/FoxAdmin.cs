@@ -20,6 +20,47 @@ namespace makefoxsrv
 {
     internal class FoxAdmin
     {
+        public static async Task HandleLeaveGroup(FoxTelegram t, Message message, string? argument)
+        {
+            if (String.IsNullOrEmpty(argument))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must provide a group ID to leave.\r\n\r\nFormat:\r\n  /admin #leave <gid>",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+
+            if (args.Length < 1)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ You must specify a group ID.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
+            long groupID = long.Parse(args[0]);
+
+            var group = await FoxTelegram.GetChatFromID(groupID);
+            
+            if (group is null)
+            {
+                await t.SendMessageAsync(text: "❌ Unable to parse group ID.", replyToMessageId: message.ID);
+            }
+
+            await FoxTelegram.Client.LeaveChat(group);
+
+            await t.SendMessageAsync(
+                    text: $"✅ Okay.",
+                    replyToMessageId: message.ID
+                );
+        }
+
         public static async Task HandleUncache(FoxTelegram t, Message message, string? argument)
         {
             if (string.IsNullOrEmpty(argument) || argument.ToLower().Split(' ').Contains("all"))

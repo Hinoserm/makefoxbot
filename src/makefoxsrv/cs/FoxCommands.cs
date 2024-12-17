@@ -349,6 +349,9 @@ namespace makefoxsrv
 
             switch (command.ToLower())
             {
+                case "#leave":
+                    await FoxAdmin.HandleLeaveGroup(t, message, commandArgs);
+                    break;
                 case "#uncache":
                     await FoxAdmin.HandleUncache(t, message, commandArgs);
                     break;
