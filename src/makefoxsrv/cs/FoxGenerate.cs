@@ -209,13 +209,26 @@ namespace makefoxsrv
             //else
             //{
 
+            var inlineKeyboardButtons = new ReplyInlineMarkup()
+            {
+                rows = new TL.KeyboardButtonRow[] {
+                            new TL.KeyboardButtonRow {
+                                buttons = new TL.KeyboardButtonCallback[]
+                                {
+                                    new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes("/cancel") },
+                                }
+                            }
+                        }
+            };
+
             //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking next position...");
             (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
 
             //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Sending message...");
             waitMsg = await t.SendMessageAsync(
                 text: $"⏳ Adding to queue ({position} of {totalItems})...",
-                replyToMessageId: message.ID
+                replyToMessageId: message.ID,
+                replyInlineMarkup: inlineKeyboardButtons
             );
 
             FoxLog.WriteLine($"{message.ID}: CmdGenerate: Calculated complexity: {normalizedComplexity:F3}");
@@ -223,35 +236,6 @@ namespace makefoxsrv
             var q = await FoxQueue.Add(t, user, settings, imgType, waitMsg.ID, message.ID, delay: delay);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
-
-            // Don't add cancel button if it's a group chat
-            if (t.Chat is null)
-            {
-                try
-                {
-                    var inlineKeyboardButtons = new ReplyInlineMarkup()
-                    {
-                        rows = new TL.KeyboardButtonRow[] {
-                            new TL.KeyboardButtonRow {
-                                buttons = new TL.KeyboardButtonCallback[]
-                                {
-                                    new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes("/cancel " + q.ID) },
-                                }
-                            }
-                        }
-                    };
-
-                    await t.EditMessageAsync(
-                        id: waitMsg.ID,
-                        replyInlineMarkup: inlineKeyboardButtons
-                    );
-                }
-                catch (Exception ex)
-                {
-                    // Log the exception but don't throw it
-                    FoxLog.LogException(ex);
-                }
-            }
 
             FoxContextManager.Current.Queue = q;
 

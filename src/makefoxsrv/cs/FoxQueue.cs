@@ -989,6 +989,56 @@ namespace makefoxsrv
             return q;
         }
 
+        public static async Task<FoxQueue?> GetByMessage(FoxTelegram telegram, long msg_id)
+        {
+            long user_id = telegram.User.ID;
+            long? chat_id = telegram.Chat?.ID;
+
+            // Attempt to find the FoxQueue item in the fullQueue cache
+            var cachedItem = fullQueue.FindAll(fq =>
+                fq.ReplyMessageID == msg_id &&
+                fq.Telegram?.User.ID == user_id &&
+                fq.Telegram?.Chat?.ID == chat_id).FirstOrDefault();
+
+            if (cachedItem is not null)
+            {
+                // If found in cache, return the cached item
+                return cachedItem;
+            }
+
+            var parameters = new Dictionary<string, object?>
+            {
+                { "@msg_id", msg_id },
+                { "@tele_id", user_id },
+                { "@tele_chatid", chat_id }
+            };
+
+            string chatCondition = chat_id is null ? "tele_chatid IS NULL" : "tele_chatid = @tele_chatid";
+
+            string query = $"tele_id = @tele_id AND msg_id = @msg_id AND {chatCondition}";
+
+            var q = await FoxDB.LoadObjectAsync<FoxQueue>("queue", query, parameters, async (o, r) =>
+            {
+                long uid = Convert.ToInt64(r["uid"]);
+                o.User = await FoxUser.GetByUID(uid);
+
+                long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
+
+                var teleChat = teleChatId is not null ? await FoxTelegram.GetChatFromID(teleChatId.Value) : null;
+
+                var teleUser = await FoxTelegram.GetUserFromID(Convert.ToInt64(r["tele_id"]));
+
+                if (teleUser is not null)
+                    o.Telegram = new FoxTelegram(teleUser, teleChat);
+            });
+
+            // After loading, add the object to the fullQueue cache if it's not null
+            if (q is not null)
+                fullQueue.Enqueue(q);
+
+            return q;
+        }
+
         public static async Task<FoxQueue?> Get(ulong id)
         {
             // Attempt to find the FoxQueue item in the fullQueue cache
@@ -1297,6 +1347,9 @@ namespace makefoxsrv
 
         public async Task Cancel()
         {
+            await this.SetCancelled();
+            this.stopToken.Cancel();
+
             lock (lockObj)
             {
                 // Find the task index using its ID. Assuming 'task.ID' can uniquely identify each task.
@@ -1312,9 +1365,6 @@ namespace makefoxsrv
                     FoxLog.WriteLine($"Task {this.ID} not found for cancellation.", LogLevel.DEBUG);
                 }
             }
-
-            await this.SetCancelled();
-            this.stopToken.Cancel();
         }
 
         public async Task<FoxImage> GetInputImage()

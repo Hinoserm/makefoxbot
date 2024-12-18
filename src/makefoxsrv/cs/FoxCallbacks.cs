@@ -22,7 +22,7 @@ namespace makefoxsrv
             var a = data.Split(" ", 2);
             var command = a[0];
 
-            var argument = (a[1] is not null ? a[1] : "");
+            var argument = (a.Count() > 1 ? a[1] : "");
 
             var fUser = await FoxUser.GetByTelegramUser(t.User, false);
 
@@ -763,23 +763,41 @@ namespace makefoxsrv
 
             ulong info_id = 0;
 
+            FoxQueue? q = null;
+
             if (argument is null || argument.Length <= 0 || !ulong.TryParse(argument, out info_id))
             {
-                /* await botClient.EditMessageTextAsync(
-                    chatId: update.CallbackQuery.Message.Chat.Id,
-                    text: "Invalid request",
-                    messageId: update.CallbackQuery.Message.MessageId,
-                    cancellationToken: cancellationToken
-                ); */
+                //long? chat_id = query.peer is TL.PeerUser ? null : query.peer.ID;
 
-                return;
+                //TL.MessageBase? message = null;
+                
+                //if (t.Chat is TL.Channel ch)
+                //{
+                //    var msglist = await FoxTelegram.Client.Channels_GetMessages(new InputChannel(ch.ID, ch.access_hash), new InputMessageID { id = query.msg_id });
+
+                //    if (msglist.Count > 0)
+                //        message = msglist.Messages[0];
+                //}
+                //else
+                //{
+                //    var msglist = await FoxTelegram.Client.Messages_GetMessages(new InputMessageID { id = query.msg_id });
+
+                //    if (msglist.Count > 0)
+                //        message = msglist.Messages[0];
+                //}
+
+                q = await FoxQueue.GetByMessage(t, query.msg_id);
+            }
+            else
+            {
+                q = await FoxQueue.Get(info_id);
             }
 
-            var q = await FoxQueue.Get(info_id);
-
             if (q is null)
+            {
+                await t.SendCallbackAnswer(query.query_id, 0, "Unable to locate request or unauthorized user.");
                 return;
-
+            }
 
             if (q.Telegram?.User.ID != t.User.ID && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
