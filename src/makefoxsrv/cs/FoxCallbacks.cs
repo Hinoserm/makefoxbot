@@ -80,6 +80,9 @@ namespace makefoxsrv
                 case "/history":
                     await CallbackCmdHistory(t, query, fUser, argument);
                     break;
+                case "/cancel":
+                    await CallbackCmdCancel(t, query, fUser, argument);
+                    break;
             }
         }
 
@@ -108,7 +111,7 @@ namespace makefoxsrv
             if (q is null)
                 throw new Exception("Unable to locate queue item");
 
-            if (q.Telegram?.User.ID != t.User.ID && user.CheckAccessLevel(AccessLevel.ADMIN))
+            if (q.Telegram?.User.ID != t.User.ID && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
                 return; // Just silently return.
@@ -258,7 +261,7 @@ namespace makefoxsrv
                     throw new Exception("Unable to load original request data");
             }
 
-            if (q.Telegram?.User.ID != t.User.ID && user.CheckAccessLevel(AccessLevel.ADMIN))
+            if (q.Telegram?.User.ID != t.User.ID && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
                 return; // Just silently return.
@@ -675,7 +678,7 @@ namespace makefoxsrv
 
 
 
-            if (q.Telegram?.User.ID != t.User.ID && user.CheckAccessLevel(AccessLevel.ADMIN))
+            if (q.Telegram?.User.ID != t.User.ID && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator can click this button!");
             }
@@ -755,6 +758,38 @@ namespace makefoxsrv
             }
         }
 
+        private static async Task CallbackCmdCancel(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
+        {
+
+            ulong info_id = 0;
+
+            if (argument is null || argument.Length <= 0 || !ulong.TryParse(argument, out info_id))
+            {
+                /* await botClient.EditMessageTextAsync(
+                    chatId: update.CallbackQuery.Message.Chat.Id,
+                    text: "Invalid request",
+                    messageId: update.CallbackQuery.Message.MessageId,
+                    cancellationToken: cancellationToken
+                ); */
+
+                return;
+            }
+
+            var q = await FoxQueue.Get(info_id);
+
+            if (q is null)
+                return;
+
+
+            if (q.Telegram?.User.ID != t.User.ID && !user.CheckAccessLevel(AccessLevel.ADMIN))
+            {
+                await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator can click this button!");
+                return;
+            }
+
+            await q.Cancel();
+        }
+
         private static async Task CallbackCmdHelp(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
         {
 
@@ -809,7 +844,7 @@ namespace makefoxsrv
                 return;
             }
 
-            if (q.Telegram?.User.ID != t.User.ID && user.CheckAccessLevel(AccessLevel.ADMIN))
+            if (q.Telegram?.User.ID != t.User.ID && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
                 return;

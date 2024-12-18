@@ -789,15 +789,29 @@ namespace makefoxsrv
             {
                 if (this.Telegram is not null)
                 {
+                    var inlineKeyboardButtons = new ReplyInlineMarkup()
+                    {
+                        rows = new TL.KeyboardButtonRow[] {
+                                new TL.KeyboardButtonRow {
+                                    buttons = new TL.KeyboardButtonCallback[]
+                                    {
+                                        new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes("/cancel " + this.ID) },
+                                    }
+                                }
+                            }
+                    };
+
                     await this.Telegram.EditMessageAsync(
                         id: this.MessageID,
-                        text: $"⏳ Generating now on {worker.name}..."
+                        text: $"⏳ Generating now on {worker.name}...",
+                        replyInlineMarkup: inlineKeyboardButtons
                     );
                 }
             }
             catch (WTelegram.WTException ex) when (ex is RpcException rex && rex.Code == 400 && (rex.Message == "MESSAGE_NOT_MODIFIED" || rex.Message == "MESSAGE_ID_INVALID"))
             {
-                //Ignore these telegram errors.
+                // Ignore these telegram errors, but log them.
+                FoxLog.LogException(ex);
             }
         }
 
@@ -808,9 +822,23 @@ namespace makefoxsrv
                 if (this.UserNotifyTimer.ElapsedMilliseconds >= 2000 && this.Telegram is not null && this.Telegram.Chat is null)
                 {
                     //Due to the stricter rate limits on editing messages in groups, we only notify the user in private chats.
+
+                    var inlineKeyboardButtons = new ReplyInlineMarkup()
+                    {
+                        rows = new TL.KeyboardButtonRow[] {
+                                new TL.KeyboardButtonRow {
+                                    buttons = new TL.KeyboardButtonCallback[]
+                                    {
+                                        new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes("/cancel " + this.ID) },
+                                    }
+                                }
+                            }
+                    };
+
                     await this.Telegram.EditMessageAsync(
                         id: this.MessageID,
-                        text: $"⏳ Generating now on {worker.name} ({(int)progressPercent}%)..."
+                        text: $"⏳ Generating now on {worker.name} ({(int)progressPercent}%)...",
+                        replyInlineMarkup: inlineKeyboardButtons
                     );
 
                     this.UserNotifyTimer.Restart();
@@ -818,7 +846,8 @@ namespace makefoxsrv
             }
             catch (WTelegram.WTException ex) when (ex is RpcException rex && rex.Code == 400 && (rex.Message == "MESSAGE_NOT_MODIFIED" || rex.Message == "MESSAGE_ID_INVALID"))
             {
-                //Ignore these telegram errors.
+                //Ignore these telegram errors, but log them.
+                FoxLog.LogException(ex);
             }
         }
 
@@ -1184,13 +1213,40 @@ namespace makefoxsrv
                         messageBuilder.Append($"\n\n{ex.Message}");
                     }
 
-                    _ = Telegram.EditMessageAsync(
-                        id: MessageID,
-                        text: messageBuilder.ToString()
-                    );
+                    if (shouldRetry)
+                    {
+                        var inlineKeyboardButtons = new ReplyInlineMarkup()
+                        {
+                            rows = new TL.KeyboardButtonRow[] {
+                                new TL.KeyboardButtonRow {
+                                    buttons = new TL.KeyboardButtonCallback[]
+                                    {
+                                        new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes("/cancel " + this.ID) },
+                                    }
+                                }
+                            }
+                        };
+
+                        await Telegram.EditMessageAsync(
+                            id: MessageID,
+                            text: messageBuilder.ToString(),
+                            replyInlineMarkup: inlineKeyboardButtons
+                        );
+                    }
+                    else
+                    {
+                        _ = Telegram.EditMessageAsync(
+                            id: MessageID,
+                            text: messageBuilder.ToString()
+                        );
+                    }
                 }
             }
-            catch { }
+            catch (Exception ex2)
+            {
+                // Log the exception but ignore it
+                FoxLog.LogException(ex2);
+            }
 
             FoxLog.LogException(ex, null, callerName, callerFilePath, lineNumber);
 
