@@ -1172,6 +1172,12 @@ namespace makefoxsrv
                     progressCTS.Cancel();
 
                 try {
+                    if (qItem is null)
+                        throw new Exception("Task was null after processing.");
+
+                    if (qItem.stopToken.IsCancellationRequested)
+                        throw new OperationCanceledException("User cancelled request.");
+
                     await qItem.Send(outputImage);
                 }
                 catch (Exception ex)
@@ -1193,7 +1199,7 @@ namespace makefoxsrv
                 //We probably don't need to crash the whole worker for these.
                 try
                 {
-                    await qItem.SetError(ex, DateTime.Now.AddSeconds(10));
+                    await qItem.SetError(ex);
                     OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
                 }
                 catch (Exception ex2)
@@ -1219,7 +1225,7 @@ namespace makefoxsrv
                         {
                             try
                             {
-                                await qItem.SetError(ex, DateTime.Now.AddSeconds(retryAfterSeconds + 20));
+                                await qItem.SetError(ex);
                                 OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
                             } catch (Exception ex2)
                             {
@@ -1263,14 +1269,18 @@ namespace makefoxsrv
 
                     try
                     {
-                        OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
-
                         await qItem.SetCancelled();
 
                         using var httpClient = new HttpClient();
 
-                        var response = await httpClient.PostAsync(address + "/sdapi/v1/interrupt", null, cancellationToken);
+                        // Construct the final URL
+                        var finalUrl = new Uri(new Uri(address), "/sdapi/v1/interrupt");
+
+                        // Make the HTTP POST request
+                        var response = await httpClient.PostAsync(finalUrl, null, cancellationToken);
                         response.EnsureSuccessStatusCode();
+
+                        OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
                     }
                     catch (Exception ex2)
                     {

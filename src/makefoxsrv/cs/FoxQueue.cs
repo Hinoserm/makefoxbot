@@ -1158,10 +1158,17 @@ namespace makefoxsrv
             }
         }
 
-        
-
         public async Task SetError(Exception ex, DateTime? RetryWhen = null, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
+            if (this.status == QueueStatus.CANCELLED || this.stopToken.IsCancellationRequested)
+            {
+                FoxLog.LogException(ex, "Error occured after request was cancelled.", callerName, callerFilePath, lineNumber);
+
+                return;
+            }
+
+            FoxLog.LogException(ex, null, callerName, callerFilePath, lineNumber);
+
             this.status = QueueStatus.ERROR;
             this.DateLastFailed = DateTime.Now;
             this.LastException = ex;
@@ -1200,7 +1207,26 @@ namespace makefoxsrv
             }
             else
             {
-                this.RetryDate = RetryWhen ?? DateTime.Now.AddSeconds(5); // Use provided retry time for non-silent errors
+                var retrySeconds = 5;
+
+                if (ex is WTelegram.WTException tex) {
+                    if (tex is RpcException rex)
+                    {
+                        if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
+                        {
+                            // If the message matches, extract the number
+                            retrySeconds = rex.X;
+                        }
+                        else if (ex.Message == "USER_IS_BLOCKED")
+                        {
+                            await this.SetCancelled(true);
+
+                            return;
+                        }
+                    }
+                }
+
+                this.RetryDate = RetryWhen ?? DateTime.Now.AddSeconds(retrySeconds); // Use provided retry time for non-silent errors
                 this.RetryCount++;
             }
 
@@ -1297,8 +1323,6 @@ namespace makefoxsrv
                 // Log the exception but ignore it
                 FoxLog.LogException(ex2);
             }
-
-            FoxLog.LogException(ex, null, callerName, callerFilePath, lineNumber);
 
             if (shouldRetry)
             {
