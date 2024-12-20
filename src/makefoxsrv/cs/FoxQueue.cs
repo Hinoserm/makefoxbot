@@ -387,7 +387,7 @@ namespace makefoxsrv
                 .ToList();
 
             // If the user is not premium and there are workers processing tasks for them, skip this task
-            if (!item.User.CheckAccessLevel(AccessLevel.PREMIUM) && userWorkers.Any())
+            if (userWorkers.Any())
             {
                 // If a worker is already processing a task for this user, skip this task
                 FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User?.UID} is already being processed by another worker.", LogLevel.DEBUG);
@@ -464,7 +464,7 @@ namespace makefoxsrv
             var modelWaitingTime = DateTime.Now - item.DateCreated;
 
             // Check if the user is not premium and the task has been waiting for less than 15 seconds
-            if (!item.User.CheckAccessLevel(AccessLevel.PREMIUM) && modelWaitingTime.TotalSeconds < 15)
+            if (!item.User.CheckAccessLevel(AccessLevel.PREMIUM) && modelWaitingTime.TotalSeconds < 8)
             {
                 // If the task has been waiting for less than the specified seconds for a worker with the model, defer the task
                 FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}. ({modelWaitingTime.TotalSeconds}s)", LogLevel.DEBUG);
