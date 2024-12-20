@@ -168,20 +168,6 @@ namespace makefoxsrv
                         }
                     }
                 }
-
-                int q_limit = 1;
-
-                if (await FoxQueue.GetCount(user) >= q_limit)
-                {
-                    var plural = q_limit == 1 ? "" : "s";
-
-                    await t.SendMessageAsync(
-                        text: $"❌Maximum of {q_limit} queued request{plural} per user.",
-                        replyToMessageId: query.msg_id
-                    );
-
-                    return;
-                }
             }
 
             FoxUserSettings settings = q.Settings.Copy();
@@ -214,28 +200,7 @@ namespace makefoxsrv
 
             settings.regionalPrompting = q.RegionalPrompting; //Have to copy this over manually
 
-            if (FoxQueue.CheckWorkerAvailability(settings) is null)
-            {
-                await t.SendMessageAsync(
-                    text: "❌ No workers available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
-                    replyToMessageId: query.msg_id
-                );
-
-                return;
-            }
-
-            (int position, int totalItems) = FoxQueue.GetNextPosition(user, true);
-
-            Message waitMsg = await t.SendMessageAsync(
-                text: $"⏳ Adding to queue ({position} of {totalItems})...",
-                replyToMessageId: query.msg_id
-            );
-
-            var newq = await FoxQueue.Add(t, user, settings, q.Type, waitMsg.ID, query.msg_id, true, q);
-            if (newq is null)
-                throw new Exception("Unable to add item to queue");
-
-            await FoxQueue.Enqueue(newq);
+            await FoxGenerate.Generate(t, settings, query.msg_id, user, q.Type);
         }
 
         private static async Task CallbackCmdRecycle(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
@@ -312,23 +277,6 @@ namespace makefoxsrv
                 }
             }
 
-            if (user.GetAccessLevel() < AccessLevel.ADMIN)
-            {
-                int q_limit = (user.GetAccessLevel() >= AccessLevel.PREMIUM) ? 3 : 1;
-
-                if (await FoxQueue.GetCount(user) >= q_limit)
-                {
-                    var plural = q_limit == 1 ? "" : "s";
-
-                    await t.SendMessageAsync(
-                        text: $"❌Maximum of {q_limit} queued request{plural} per user.",
-                        replyToMessageId: query.msg_id
-                    );
-
-                    return;
-                }
-            }
-
             FoxUserSettings settings = q.Settings.Copy();
 
             settings.variation_seed = FoxQueue.GetRandomInt32();
@@ -342,28 +290,7 @@ namespace makefoxsrv
                 settings.variation_strength = 0.02M;
             }
 
-            if (FoxQueue.CheckWorkerAvailability(settings) is null)
-            {
-                await t.SendMessageAsync(
-                    text: "❌ No workers available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
-                    replyToMessageId: query.msg_id
-                );
-
-                return;
-            }
-
-            (int position, int totalItems) = FoxQueue.GetNextPosition(user, true);
-
-            Message waitMsg = await t.SendMessageAsync(
-                text: $"⏳ Adding to queue ({position} of {totalItems})...",
-                replyToMessageId: query.msg_id
-            );
-
-            var newq = await FoxQueue.Add(t, user, settings, q.Type, waitMsg.ID, query.msg_id, q.Enhanced, q);
-            if (newq is null)
-                throw new Exception("Unable to add item to queue");
-
-            await FoxQueue.Enqueue(newq);
+            await FoxGenerate.Generate(t, settings, query.msg_id, user, q.Type);
         }
 
         private static async Task CallbackCmdLanguage(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
@@ -767,24 +694,8 @@ namespace makefoxsrv
 
             if (argument is null || argument.Length <= 0 || !ulong.TryParse(argument, out info_id))
             {
-                //long? chat_id = query.peer is TL.PeerUser ? null : query.peer.ID;
-
-                //TL.MessageBase? message = null;
-                
-                //if (t.Chat is TL.Channel ch)
-                //{
-                //    var msglist = await FoxTelegram.Client.Channels_GetMessages(new InputChannel(ch.ID, ch.access_hash), new InputMessageID { id = query.msg_id });
-
-                //    if (msglist.Count > 0)
-                //        message = msglist.Messages[0];
-                //}
-                //else
-                //{
-                //    var msglist = await FoxTelegram.Client.Messages_GetMessages(new InputMessageID { id = query.msg_id });
-
-                //    if (msglist.Count > 0)
-                //        message = msglist.Messages[0];
-                //}
+                // There are a few cases where we don't know the queue ID prior to the keyboard button being built, so in
+                //  those cases we send the cancel callback without a parameter and hope we can find it with the message ID.
 
                 q = await FoxQueue.GetByMessage(t, query.msg_id);
             }

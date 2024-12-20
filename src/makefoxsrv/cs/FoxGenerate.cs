@@ -93,12 +93,18 @@ namespace makefoxsrv
                 return;
             }
 
+            await FoxGenerate.Generate(t, settings, message.ID, user, imgType);
+        }
+
+
+        public static async Task Generate(FoxTelegram t, FoxUserSettings settings, int messageId, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG)
+        { 
             settings.regionalPrompting = DetectRegionalPrompting(settings.prompt ?? "") || DetectRegionalPrompting(settings.negative_prompt ?? "");
 
             if (settings.regionalPrompting && !user.CheckAccessLevel(AccessLevel.PREMIUM)) {
                 await t.SendMessageAsync(
                     text: "❌ Regional prompting is a premium feature.\n\nPlease consider a paid /membership",
-                    replyToMessageId: message.ID
+                    replyToMessageId: messageId
                 );
 
                 return;
@@ -113,32 +119,21 @@ namespace makefoxsrv
 
             double normalizedComplexity = (double)(imageComplexity - defaultComplexity) / (maxComplexity - defaultComplexity);
 
-            int q_limit = 1;
-            switch (user.GetAccessLevel())
+            if (user.GetAccessLevel() < AccessLevel.ADMIN)
             {
-                case AccessLevel.ADMIN:
-                    q_limit = 20;
-                    break;
-                case AccessLevel.PREMIUM:
-                    if (normalizedComplexity > 1.0)
-                        q_limit = 1;
-                    else
-                        q_limit = 3;
-                    break;
-            }
+                int q_limit = (user.GetAccessLevel() >= AccessLevel.PREMIUM) ? 3 : 1;
 
-            // Force reduction of steps if complexity is too high.
-            //if (settings.steps > 20 && imageSize > (1024 * 1024))
-            //    settings.steps = 20;
+                if (await FoxQueue.GetCount(user) >= q_limit)
+                {
+                    var plural = q_limit == 1 ? "" : "s";
 
-            if (await FoxQueue.GetCount(user) >= q_limit)
-            {
-                await t.SendMessageAsync(
-                    text: $"❌ Maximum of {q_limit} queued requests per user.",
-                    replyToMessageId: message.ID
-                );
+                    await t.SendMessageAsync(
+                        text: $"❌ Maximum of {q_limit} queued request{plural}.",
+                        replyToMessageId: messageId
+                    );
 
-                return;
+                    return;
+                }
             }
 
             var model = FoxModel.GetModelByName(settings.model);
@@ -147,7 +142,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: $"❌ There are no workers available to handle your currently selected model ({settings.model}).  This can happen if the server was recently restarted or if a model was uninstalled.\r\n\r\nPlease try again in a moment or select a different /model.",
-                    replyToMessageId: message.ID
+                    replyToMessageId: messageId
                 );
 
                 return;
@@ -157,7 +152,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ No workers are available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
-                    replyToMessageId: message.ID
+                    replyToMessageId: messageId
                 );
 
                 return;
@@ -227,13 +222,13 @@ namespace makefoxsrv
             //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Sending message...");
             waitMsg = await t.SendMessageAsync(
                 text: $"⏳ Adding to queue ({position} of {totalItems})...",
-                replyToMessageId: message.ID,
+                replyToMessageId: messageId,
                 replyInlineMarkup: inlineKeyboardButtons
             );
 
-            FoxLog.WriteLine($"{message.ID}: CmdGenerate: Calculated complexity: {normalizedComplexity:F3}");
+            FoxLog.WriteLine($"{messageId}: CmdGenerate: Calculated complexity: {normalizedComplexity:F3}");
 
-            var q = await FoxQueue.Add(t, user, settings, imgType, waitMsg.ID, message.ID, delay: delay);
+            var q = await FoxQueue.Add(t, user, settings, imgType, waitMsg.ID, messageId, delay: delay);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
