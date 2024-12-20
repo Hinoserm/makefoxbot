@@ -97,9 +97,14 @@ namespace makefoxsrv
         }
 
 
-        public static async Task Generate(FoxTelegram t, FoxUserSettings settings, int messageId, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG)
-        { 
-            settings.regionalPrompting = DetectRegionalPrompting(settings.prompt ?? "") || DetectRegionalPrompting(settings.negative_prompt ?? "");
+        public static async Task Generate(FoxTelegram t, FoxUserSettings settings, int messageId, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG, bool enhanced = false, FoxQueue? originalTask = null)
+        {
+
+
+            if (originalTask is null)
+                settings.regionalPrompting = DetectRegionalPrompting(settings.prompt ?? "") || DetectRegionalPrompting(settings.negative_prompt ?? "");
+            else
+                settings.regionalPrompting = originalTask.Settings.regionalPrompting;
 
             if (settings.regionalPrompting && !user.CheckAccessLevel(AccessLevel.PREMIUM)) {
                 await t.SendMessageAsync(
@@ -228,7 +233,7 @@ namespace makefoxsrv
 
             FoxLog.WriteLine($"{messageId}: CmdGenerate: Calculated complexity: {normalizedComplexity:F3}");
 
-            var q = await FoxQueue.Add(t, user, settings, imgType, waitMsg.ID, messageId, delay: delay);
+            var q = await FoxQueue.Add(t, user, settings, imgType, waitMsg.ID, messageId, enhanced, originalTask, delay: delay);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
