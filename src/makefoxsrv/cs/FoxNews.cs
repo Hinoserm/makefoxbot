@@ -86,6 +86,8 @@ namespace makefoxsrv
                 var lastUpdate = DateTime.Now;
                 var errorCount = 0;
 
+                var totalStopwatch = Stopwatch.StartNew(); // Start tracking total time
+
                 await telegram.EditMessageAsync(replyMsg.ID, $"Sending news item {newsId} to {activeUsers.Count} active users.");
 
                 // Broadcast the news message to active users
@@ -160,16 +162,24 @@ namespace makefoxsrv
                             errorCount++;
                         }
 
-                        await Task.Delay(500); //Wait.
+                        await Task.Delay(300); //Wait.
 
                         try
                         {
-                            // Update the progress message every 5 seconds
+                            // Update the progress and ETA every 5 seconds
                             if ((DateTime.Now - lastUpdate).TotalSeconds >= 5)
                             {
                                 lastUpdate = DateTime.Now;
 
-                                var percentageComplete = (int)(((count + errorCount) / (double)totalUserCount) * 100);
+                                // Calculate average time per user
+                                var completedUsers = count + errorCount;
+                                var averageTimePerUser = totalStopwatch.Elapsed.TotalSeconds / completedUsers;
+
+                                // Calculate remaining time
+                                var remainingUsers = totalUserCount - completedUsers;
+                                var estimatedTimeRemaining = TimeSpan.FromSeconds(remainingUsers * averageTimePerUser);
+
+                                var percentageComplete = (int)((completedUsers / (double)totalUserCount) * 100);
                                 var statusMessage = $"Sent to {count}/{totalUserCount} users ({percentageComplete}% complete)";
 
                                 if (errorCount > 0)
@@ -177,7 +187,16 @@ namespace makefoxsrv
                                     statusMessage += $", {errorCount} errored.";
                                 }
 
-                                await telegram.EditMessageAsync(replyMsg.ID, statusMessage);
+                                statusMessage += $" ETA: {estimatedTimeRemaining:hh\\:mm\\:ss}";
+
+                                try
+                                {
+                                    await telegram.EditMessageAsync(replyMsg.ID, statusMessage);
+                                }
+                                catch (Exception ex)
+                                {
+                                    FoxLog.WriteLine($"Error updating progress message: {ex.Message}");
+                                }
                             }
                         }
                         catch (Exception ex)
@@ -187,12 +206,16 @@ namespace makefoxsrv
                     }
                 }
 
-                // Final edit with totals
+                // Stop the total stopwatch as broadcasting is complete
+                totalStopwatch.Stop();
+                // Final edit with totals and elapsed time
+                var totalElapsedTime = totalStopwatch.Elapsed;
                 var finalMessage = $"Broadcast complete. Sent to {count} users successfully.";
                 if (errorCount > 0)
                 {
                     finalMessage += $" {errorCount} users errored.";
                 }
+                finalMessage += $" Total time elapsed: {totalElapsedTime:hh\\:mm\\:ss}.";
 
                 await telegram.EditMessageAsync(replyMsg.ID, finalMessage);
 
