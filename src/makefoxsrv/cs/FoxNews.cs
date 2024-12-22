@@ -124,6 +124,15 @@ namespace makefoxsrv
                                 );
                             }
 
+                            try
+                            {
+                                await t.PinMessage(msg.ID);
+                            }
+                            catch (Exception ex)
+                            {
+                                FoxLog.WriteLine($"Error pinning message for user {uid}: {ex.Message}");
+                            }
+
                             string insertQuery = @"
                         REPLACE INTO user_news (uid, news_id, telegram_msg_id)
                         VALUES (@uid, @newsId, @telegramMsgId);";
