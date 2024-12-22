@@ -26,6 +26,8 @@ namespace makefoxsrv
     {
         public static async Task BroadcastNewsItem(FoxTelegram telegram, long newsId, TL.InputPhoto? photo)
         {
+            var replyMsg = await telegram.SendMessageAsync($"Thinking...");
+
             using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await connection.OpenAsync();
@@ -84,7 +86,7 @@ namespace makefoxsrv
                 var lastUpdate = DateTime.Now;
                 var errorCount = 0;
 
-                var replyMsg = await telegram.SendMessageAsync($"Sending news item {newsId} to {activeUsers.Count} active users.");
+                await telegram.EditMessageAsync(replyMsg.ID, $"Sending news item {newsId} to {activeUsers.Count} active users.");
 
                 // Broadcast the news message to active users
                 foreach (var uid in activeUsers)
@@ -155,6 +157,7 @@ namespace makefoxsrv
                             await transaction.RollbackAsync();
                             // Optionally, log the error or handle it as needed
                             FoxLog.WriteLine($"Error sending message to user {uid}: {ex.Message}");
+                            errorCount++;
                         }
 
                         await Task.Delay(500); //Wait.
