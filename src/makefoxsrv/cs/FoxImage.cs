@@ -657,40 +657,7 @@ namespace makefoxsrv
             if (message is null)
                 return null; //Nothing we can do.
 
-            Message? newMessage = null;
-
-            try
-            {
-                if (message.ReplyTo is not null && message.ReplyTo is MessageReplyHeader mrh)
-                {
-                    long userId = 0;
-
-                    switch (t.Peer)
-                    {
-                        case InputPeerChannel channel:
-                            var rmsg = await FoxTelegram.Client.Channels_GetMessages(channel, new InputMessage[] { mrh.reply_to_msg_id });
-
-                            if (rmsg is not null && rmsg.Messages is not null && rmsg.Messages.First() is not null && rmsg.Messages.First().From is not null)
-                                newMessage = (Message)rmsg.Messages.First();
-                            break;
-                        case InputPeerChat chat:
-                            var crmsg = await FoxTelegram.Client.Messages_GetMessages(new InputMessage[] { mrh.reply_to_msg_id });
-
-                            if (crmsg is not null && crmsg.Messages is not null && crmsg.Messages.First() is not null && crmsg.Messages.First().From is not null)
-                                newMessage = (Message)crmsg.Messages.First();
-                            break;
-                        case InputPeerUser user:
-                            var umsg = await FoxTelegram.Client.Messages_GetMessages(new InputMessage[] { mrh.reply_to_msg_id });
-
-                            if (umsg is not null && umsg.Messages is not null)
-                                newMessage = (Message)umsg.Messages.First();
-                            break;
-                    }
-                }
-            } catch (Exception ex)
-            {
-                FoxLog.WriteLine($"SaveImageFromReply() error: {ex.Message}\r\n{ex.StackTrace}");
-            }
+            TL.Message? newMessage = await t.GetReplyMessage(message);
 
             if (newMessage is not null && newMessage.media is MessageMediaPhoto { photo: Photo photo })
                 return await SaveImageFromTelegram(t, message, photo, true);

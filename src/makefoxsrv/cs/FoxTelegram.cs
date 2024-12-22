@@ -161,7 +161,6 @@ namespace makefoxsrv
 
             UpdatesBase? updates;
 
-
             if (media is not null)
             {
                 updates = await _client.Messages_SendMedia(
@@ -1158,6 +1157,47 @@ We are committed to using your membership fees to further develop and maintain t
                     FoxLog.LogException(ex, $"updateTelegramChats error: chat={chat.ID} {ex.Message}\r\n{ex.StackTrace}");
                 }
             }
+        }
+
+        public async Task<TL.Message?> GetReplyMessage(Message message)
+        {
+
+            if (message is null)
+                return null; //Nothing we can do.
+
+            try
+            {
+                if (message.ReplyTo is not null && message.ReplyTo is MessageReplyHeader mrh)
+                {
+                    switch (this.Peer)
+                    {
+                        case InputPeerChannel channel:
+                            var rmsg = await FoxTelegram.Client.Channels_GetMessages(channel, new InputMessage[] { mrh.reply_to_msg_id });
+
+                            if (rmsg is not null && rmsg.Messages is not null && rmsg.Messages.First() is not null && rmsg.Messages.First().From is not null)
+                                return (Message)rmsg.Messages.First();
+                            break;
+                        case InputPeerChat chat:
+                            var crmsg = await FoxTelegram.Client.Messages_GetMessages(new InputMessage[] { mrh.reply_to_msg_id });
+
+                            if (crmsg is not null && crmsg.Messages is not null && crmsg.Messages.First() is not null && crmsg.Messages.First().From is not null)
+                                return (Message)crmsg.Messages.First();
+                            break;
+                        case InputPeerUser user:
+                            var umsg = await FoxTelegram.Client.Messages_GetMessages(new InputMessage[] { mrh.reply_to_msg_id });
+
+                            if (umsg is not null && umsg.Messages is not null)
+                                return (Message)umsg.Messages.First();
+                            break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex);
+            }
+
+            return null;
         }
 
         internal static async Task Disconnect()

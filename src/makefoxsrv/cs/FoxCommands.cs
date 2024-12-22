@@ -855,7 +855,20 @@ namespace makefoxsrv
                 return;
             }
 
-            _= FoxNews.BroadcastNewsItem(news_id);
+            TL.Message? newMessage = await t.GetReplyMessage(message);
+            TL.InputPhoto? inputPhoto = null;
+
+            if (newMessage is not null && newMessage.media is MessageMediaPhoto { photo: Photo photo })
+            {
+                inputPhoto = new InputPhoto
+                {
+                    id = photo.ID,
+                    access_hash = photo.access_hash,
+                    file_reference = photo.file_reference
+                };
+            }
+
+            _ = FoxNews.BroadcastNewsItem(t, news_id, inputPhoto);
         }
 
         private static async Task CmdBan(FoxTelegram t, Message message, FoxUser user, String? argument)

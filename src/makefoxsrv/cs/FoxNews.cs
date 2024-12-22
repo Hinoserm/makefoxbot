@@ -24,7 +24,7 @@ namespace makefoxsrv
 {
     internal class FoxNews
     {
-        public static async Task BroadcastNewsItem(long newsId)
+        public static async Task BroadcastNewsItem(FoxTelegram telegram, long newsId, TL.InputPhoto? photo)
         {
             using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -78,8 +78,15 @@ namespace makefoxsrv
                 }
 
                 FoxLog.WriteLine($"Broadcasting news item {newsId} to {activeUsers.Count} active users.");
+                var replyMsg = await telegram.SendMessageAsync($"Sending news item {newsId} to {activeUsers.Count} active users.");
 
+                //Example of how to edit:
+                await telegram.EditMessageAsync(replyMsg.ID, "Broadcasting news item to active users.");
+
+                var totalUserCount = activeUsers.Count;
                 var count = 0;
+                var lastUpdate = DateTime.Now;
+                var errorCount = 0;
 
                 // Broadcast the news message to active users
                 foreach (var uid in activeUsers)
@@ -92,6 +99,8 @@ namespace makefoxsrv
                             var teleUser = user?.TelegramID is not null ? await FoxTelegram.GetUserFromID(user.TelegramID.Value) : null;
                             var t = teleUser is not null ? new FoxTelegram(teleUser, null) : null;
 
+                            TL.Message? msg = null;
+
                             if (t is null)
                                 continue; //Nothing we can do here.
 
@@ -99,12 +108,23 @@ namespace makefoxsrv
 
                             var entities = FoxTelegram.Client.HtmlToEntities(ref message);
 
-                            var msg = await t.SendMessageAsync(
-                                text: message,
-                                entities: entities,
-                                disableWebPagePreview: true
-                            );
-
+                            if (photo is null)
+                            {
+                                msg = await t.SendMessageAsync(
+                                    text: message,
+                                    entities: entities,
+                                    disableWebPagePreview: true
+                                );
+                            }
+                            else
+                            {
+                                msg = await t.SendMessageAsync(
+                                    text: message,
+                                    entities: entities,
+                                    media: photo,
+                                    disableWebPagePreview: true
+                                );
+                            }
 
                             string insertQuery = @"
                         REPLACE INTO user_news (uid, news_id, telegram_msg_id)
@@ -130,78 +150,32 @@ namespace makefoxsrv
                             FoxLog.WriteLine($"Error sending message to user {uid}: {ex.Message}");
                         }
 
-                        await Task.Delay(2000); //Wait.
-                    }
-                }
+                        await Task.Delay(500); //Wait.
 
-                FoxLog.WriteLine($"Broadcasted news item {newsId} to {count} active users.");
-            }
-        }
-
-        public async Task CheckAndSendUnseenMessages(long uid, Func<long, string, Task<long>> sendMessageToUserAsync)
-        {
-            string connectionString = "your_connection_string";
-
-            using (var connection = new MySqlConnection(connectionString))
-            {
-                await connection.OpenAsync();
-                using (var transaction = await connection.BeginTransactionAsync())
-                {
-                    try
-                    {
-                        string selectQuery = @"
-                    SELECT nm.news_id, nm.title, nm.message
-                    FROM news_messages nm
-                    LEFT JOIN user_news un ON nm.news_id = un.news_id AND un.uid = @uid
-                    WHERE un.news_id IS NULL
-                    ORDER BY nm.date_added;";
-
-                        using (var selectCommand = new MySqlCommand(selectQuery, connection, transaction))
+                        // Update the progress message every 5 seconds
+                        if ((DateTime.Now - lastUpdate).TotalSeconds >= 5)
                         {
-                            selectCommand.Parameters.AddWithValue("@uid", uid);
+                            var percentageComplete = (int)(((count + errorCount) / (double)totalUserCount) * 100);
+                            var statusMessage = $"Sent to {count}/{totalUserCount} users ({percentageComplete}% complete)";
 
-                            using (var reader = await selectCommand.ExecuteReaderAsync())
+                            if (errorCount > 0)
                             {
-                                var unseenMessages = new List<(long newsId, string title, string message)>();
-
-                                while (await reader.ReadAsync())
-                                {
-                                    long newsId = reader.GetInt64("news_id");
-                                    string title = reader.GetString("title");
-                                    string message = reader.GetString("message");
-                                    unseenMessages.Add((newsId, title, message));
-                                }
-
-                                await reader.CloseAsync();
-
-                                foreach (var (newsId, title, message) in unseenMessages)
-                                {
-                                    long telegramMsgId = await sendMessageToUserAsync(uid, $"{title}\n\n{message}");
-
-                                    string insertQuery = @"
-                                INSERT INTO user_news (uid, news_id, telegram_msg_id)
-                                VALUES (@uid, @newsId, @telegramMsgId);";
-
-                                    using (var insertCommand = new MySqlCommand(insertQuery, connection, transaction))
-                                    {
-                                        insertCommand.Parameters.AddWithValue("@uid", uid);
-                                        insertCommand.Parameters.AddWithValue("@newsId", newsId);
-                                        insertCommand.Parameters.AddWithValue("@telegramMsgId", telegramMsgId);
-
-                                        await insertCommand.ExecuteNonQueryAsync();
-                                    }
-                                }
+                                statusMessage += $", {errorCount} errored.";
                             }
                         }
-
-                        await transaction.CommitAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        await transaction.RollbackAsync();
-                        throw;
                     }
                 }
+
+                // Final edit with totals
+                var finalMessage = $"Broadcast complete. Sent to {count} users successfully.";
+                if (errorCount > 0)
+                {
+                    finalMessage += $" {errorCount} users errored.";
+                }
+
+                await telegram.EditMessageAsync(replyMsg.ID, finalMessage);
+
+                FoxLog.WriteLine($"Broadcasted news item {newsId} to {count} active users.");
             }
         }
     }
