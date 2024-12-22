@@ -155,6 +155,8 @@ namespace makefoxsrv
                             // Update the progress message every 5 seconds
                             if ((DateTime.Now - lastUpdate).TotalSeconds >= 5)
                             {
+                                lastUpdate = DateTime.Now;
+
                                 var percentageComplete = (int)(((count + errorCount) / (double)totalUserCount) * 100);
                                 var statusMessage = $"Sent to {count}/{totalUserCount} users ({percentageComplete}% complete)";
 
