@@ -150,18 +150,25 @@ namespace makefoxsrv
 
                         await Task.Delay(500); //Wait.
 
-                        // Update the progress message every 5 seconds
-                        if ((DateTime.Now - lastUpdate).TotalSeconds >= 5)
+                        try
                         {
-                            var percentageComplete = (int)(((count + errorCount) / (double)totalUserCount) * 100);
-                            var statusMessage = $"Sent to {count}/{totalUserCount} users ({percentageComplete}% complete)";
-
-                            if (errorCount > 0)
+                            // Update the progress message every 5 seconds
+                            if ((DateTime.Now - lastUpdate).TotalSeconds >= 5)
                             {
-                                statusMessage += $", {errorCount} errored.";
-                            }
+                                var percentageComplete = (int)(((count + errorCount) / (double)totalUserCount) * 100);
+                                var statusMessage = $"Sent to {count}/{totalUserCount} users ({percentageComplete}% complete)";
 
-                            await telegram.EditMessageAsync(replyMsg.ID, statusMessage);
+                                if (errorCount > 0)
+                                {
+                                    statusMessage += $", {errorCount} errored.";
+                                }
+
+                                await telegram.EditMessageAsync(replyMsg.ID, statusMessage);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            FoxLog.WriteLine($"Error updating progress message: {ex.Message}");
                         }
                     }
                 }
