@@ -78,15 +78,13 @@ namespace makefoxsrv
                 }
 
                 FoxLog.WriteLine($"Broadcasting news item {newsId} to {activeUsers.Count} active users.");
-                var replyMsg = await telegram.SendMessageAsync($"Sending news item {newsId} to {activeUsers.Count} active users.");
-
-                //Example of how to edit:
-                await telegram.EditMessageAsync(replyMsg.ID, "Broadcasting news item to active users.");
-
+                
                 var totalUserCount = activeUsers.Count;
                 var count = 0;
                 var lastUpdate = DateTime.Now;
                 var errorCount = 0;
+
+                var replyMsg = await telegram.SendMessageAsync($"Sending news item {newsId} to {activeUsers.Count} active users.");
 
                 // Broadcast the news message to active users
                 foreach (var uid in activeUsers)
@@ -162,6 +160,8 @@ namespace makefoxsrv
                             {
                                 statusMessage += $", {errorCount} errored.";
                             }
+
+                            await telegram.EditMessageAsync(replyMsg.ID, statusMessage);
                         }
                     }
                 }
