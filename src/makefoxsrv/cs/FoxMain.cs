@@ -290,6 +290,39 @@ namespace makefoxsrv
                 return;
             }
 
+            Console.CancelKeyPress += (sender, e) =>
+            {
+                Console.CancelKeyPress += (sender, e) =>
+                {
+                    // If we hit it again, be more aggressive.
+                    Environment.Exit(1);
+                };
+
+                // Initialize an empty FoxContext so logging can work
+                FoxContextManager.Current = new FoxContext();
+
+                FoxLog.WriteLine("CTRL+C detected. Initiating shutdown...");
+                // Signal the cancellation token
+                cts.Cancel();
+
+                // Prevent the application from terminating immediately,
+                // allowing cleanup code to run
+                e.Cancel = true;
+            };
+
+            AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+            {
+                // Initialize an empty FoxContext so logging can work
+                FoxContextManager.Current = new FoxContext();
+
+                if (!cts.IsCancellationRequested)
+                {
+                    FoxLog.WriteLine("System termination detected. Initiating shutdown...");
+
+                    cts.Cancel();
+                }
+            };
+
             //FoxWorker.OnTaskProgress += (sender, e) =>
             //{
             //    var w = (FoxWorker)sender!;
@@ -322,7 +355,7 @@ namespace makefoxsrv
                     }
                 }
 
-                await Task.Delay(3000); //Wait a bit for telegram to settle.
+                await Task.Delay(1000); //Wait a bit for telegram to settle.
 
                 await FoxWorker.StartWorkers();
 
@@ -348,34 +381,6 @@ namespace makefoxsrv
 
             //FoxUI.Start(cts);
 
-            Console.CancelKeyPress += (sender, e) =>
-            {
-                // Initialize an empty FoxContext so logging can work
-                FoxContextManager.Current = new FoxContext();
-
-                FoxLog.WriteLine("CTRL+C detected. Initiating shutdown...");
-                // Signal the cancellation token
-                cts.Cancel();
-
-                // Prevent the application from terminating immediately,
-                // allowing cleanup code to run
-                e.Cancel = true;
-            };
-
-            AppDomain.CurrentDomain.ProcessExit += (s, e) =>
-            {
-                // Initialize an empty FoxContext so logging can work
-                FoxContextManager.Current = new FoxContext();
-
-                if (!cts.IsCancellationRequested) {
-                    FoxLog.WriteLine("System termination detected. Initiating shutdown...");
-
-                    cts.Cancel();
-                }
-            };
-
-            _ = FoxImage.ConvertOldImages();
-
             FoxWeb.StartWebServer(cancellationToken: cts.Token);
 
             try
@@ -393,10 +398,10 @@ namespace makefoxsrv
                 cts.Cancel();
             }
 
+            //await FoxWorker.StopWorkers();
+
             var shutdownStart = DateTime.Now;
             var shutdownTimeout = TimeSpan.FromSeconds(3); // Adjust as needed
-
-            await FoxWorker.StopWorkers();
 
             while (!FoxWorker.GetWorkers().IsEmpty && DateTime.Now - shutdownStart < shutdownTimeout)
             {

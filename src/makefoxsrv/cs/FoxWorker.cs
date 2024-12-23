@@ -158,7 +158,6 @@ namespace makefoxsrv
         public string name;
 
         private static ConcurrentDictionary<int, FoxWorker> workers = new ConcurrentDictionary<int, FoxWorker>();
-        private static CancellationToken cancellationToken;
 
         public IProgress? Progress = null;
 
@@ -258,6 +257,7 @@ namespace makefoxsrv
         // Constructor to initialize the botClient and address
         private FoxWorker(int worker_id, string address, string name, CancellationToken cancellationToken)
         {
+            this.stopToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             this.address = address;
             this.ID = worker_id;
             this.name = name;
@@ -301,8 +301,6 @@ namespace makefoxsrv
         public static async Task LoadWorkers(CancellationToken cancellationToken)
         {
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
-            FoxWorker.cancellationToken = cancellationToken;
 
             await SQL.OpenAsync(cancellationToken);
 
@@ -419,7 +417,7 @@ namespace makefoxsrv
                     };
                 }
 
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(this.stopToken.Token);
 
                 await this.api.Ping(cts.Token);
 
@@ -443,7 +441,7 @@ namespace makefoxsrv
             if (api is null)
                 throw new Exception("Unable to connect to host.");
 
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(this.stopToken.Token);
 
             // Retrieve models from the worker's API
             var models = await api.StableDiffusionModels(cts.Token);
@@ -610,7 +608,7 @@ namespace makefoxsrv
             if (api is null)
                 throw new Exception("Unable to connect to host.");
 
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, this.stopToken.Token);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(this.stopToken.Token);
 
             var embeddings = await api.Embeddings(cts.Token); // Get embeddings instead of models
 
@@ -863,7 +861,7 @@ namespace makefoxsrv
 
         private async Task Start()
         {
-            var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stopToken.Token);
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(stopToken.Token);
 
             //var waitHandles = new WaitHandle[] { enabledEvent, cts.Token.WaitHandle };
 
@@ -1304,7 +1302,7 @@ namespace makefoxsrv
                         var finalUrl = new Uri(new Uri(address), "/sdapi/v1/interrupt");
 
                         // Make the HTTP POST request
-                        var response = await httpClient.PostAsync(finalUrl, null, cancellationToken);
+                        var response = await httpClient.PostAsync(finalUrl, null, stopToken.Token);
                         response.EnsureSuccessStatusCode();
 
                         OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));

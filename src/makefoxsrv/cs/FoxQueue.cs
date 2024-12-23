@@ -1234,7 +1234,7 @@ namespace makefoxsrv
             bool isSilentError = silentErrors.Any(silentError => ex.Message.Contains(silentError));
 
             // Check if the error message contains any silent error strings
-            bool isFatalRrror = fatalErrors.Any(fatalErrStr => ex.Message.Contains(fatalErrStr));
+            bool isFatalError = fatalErrors.Any(fatalErrStr => ex.Message.Contains(fatalErrStr));
 
             // Set retry date
             if (isSilentError)
@@ -1271,7 +1271,7 @@ namespace makefoxsrv
                 shouldRetry = false;
             }
 
-            if (isFatalRrror)
+            if (isFatalError)
                 shouldRetry = false;
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
@@ -1296,33 +1296,47 @@ namespace makefoxsrv
                 {
                     var messageBuilder = new StringBuilder();
 
-                    if (isFatalRrror)
+                    if (ex is OperationCanceledException)
                     {
-                        messageBuilder.Append($"❌ Encountered a fatal error.");
+                        shouldRetry = true;
+                        isFatalError = false;
+                        RetryDate = null;
+                        messageBuilder.Append($"⚠️ The server is restarting for maintenance.  This request will resume shortly.");
                     }
-                    else if (!shouldRetry)
+                    else
                     {
-                        messageBuilder.Append($"❌ Encountered an error.  Giving up after {this.RetryCount} attempts.");
-                    } else {
-                        messageBuilder.Append($"⏳ Encountered an error. ");
-                    }
 
-                    if (shouldRetry) {
-                        if (this.RetryDate is not null)
+                        if (isFatalError)
                         {
-                            TimeSpan delay = this.RetryDate.Value - DateTime.Now;
-
-                            messageBuilder.Append($"Retrying in {delay.TotalSeconds:F0} seconds. ({this.RetryCount}/{maxRetries})");
+                            messageBuilder.Append($"❌ Encountered a fatal error.");
+                        }
+                        else if (!shouldRetry)
+                        {
+                            messageBuilder.Append($"❌ Encountered an error.  Giving up after {this.RetryCount} attempts.");
                         }
                         else
                         {
-                            messageBuilder.Append($"Retrying... ({this.RetryCount}/{maxRetries})");
+                            messageBuilder.Append($"⏳ Encountered an error. ");
                         }
-                    }
 
-                    if (!isSilentError)
-                    {
-                        messageBuilder.Append($"\n\n{ex.Message}");
+                        if (shouldRetry)
+                        {
+                            if (this.RetryDate is not null)
+                            {
+                                TimeSpan delay = this.RetryDate.Value - DateTime.Now;
+
+                                messageBuilder.Append($"Retrying in {delay.TotalSeconds:F0} seconds. ({this.RetryCount}/{maxRetries})");
+                            }
+                            else
+                            {
+                                messageBuilder.Append($"Retrying... ({this.RetryCount}/{maxRetries})");
+                            }
+                        }
+
+                        if (!isSilentError)
+                        {
+                            messageBuilder.Append($"\n\n{ex.Message}");
+                        }
                     }
 
                     if (shouldRetry)
