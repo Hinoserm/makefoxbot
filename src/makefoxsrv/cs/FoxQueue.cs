@@ -363,9 +363,8 @@ namespace makefoxsrv
                 return null;
             }
 
-            var workers = FoxWorker.GetWorkers().Values;
-
             // 2. Filter out unsuitable workers first
+            var workers = FoxWorker.GetWorkers().Values;
             var suitableWorkers = workers
                 .Where(worker => worker.Online
                                  && (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
@@ -393,9 +392,11 @@ namespace makefoxsrv
                     var previousWorker = suitableWorkers.FirstOrDefault(worker => worker.ID == item.WorkerID);
                     if (previousWorker != null)
                     {
+                        // Worker’s busy? Defer.
                         if (previousWorker.qItem != null)
-                            return null; // Worker’s busy, so wait
-                        return previousWorker; // If available, use the same worker
+                            return null;
+                        // Otherwise use the same worker
+                        return previousWorker;
                     }
                     else
                     {
@@ -409,7 +410,7 @@ namespace makefoxsrv
                 .Select(t => t.task)
                 .Where(t => t != null
                             && t!.status == FoxQueue.QueueStatus.PENDING
-                            && t.ID != item.ID) // exclude the current task
+                            && t.ID != item.ID) // exclude current task
                 .ToList();
 
             bool ModelHasUpcomingTasks(string? modelName)
@@ -425,7 +426,7 @@ namespace makefoxsrv
                 .Where(w => workersRunningThisModel.Contains(w.ID))
                 .ToList();
 
-            // 7. Idle workers with the requested model
+            // 7. Idle workers already loaded with this model
             var idleWorkersWithModel = hasModelLoaded
                 .Where(w => w.LastUsedModel == item.Settings.model && w.qItem == null)
                 .ToList();
@@ -454,44 +455,51 @@ namespace makefoxsrv
                 return null;
             }
 
-            // 11. We need to pick someone to switch models. We want to avoid switching 
-            //     a worker whose current model is needed soon or only on a single worker, 
-            //     if possible.
+            // 11. If no idle worker has this model, we must switch a worker’s model. 
+            //     Avoid switching off a model that is needed soon or only on a single worker.
 
-            // Build a dictionary of how often each model appears in future tasks
+            // Build a dictionary of how often each model is in future tasks
             var modelDemand = futureTasks
                 .GroupBy(f => f.Settings.model)
                 .ToDictionary(g => g.Key!, g => g.Count());
 
-            // Group idle workers by their current model
+            // Group idle workers by their current model (coalesced to "<none>")
             var idleWorkers = suitableWorkers.Where(w => w.qItem == null).ToList();
             var groupedByModel = idleWorkers
                 .GroupBy(w => w.LastUsedModel ?? "<none>")
                 .ToDictionary(g => g.Key, g => g.ToList());
 
-            // Form a list of idle workers not already on the requested model
+            // Candidates: idle workers NOT on the requested model
             var switchCandidates = idleWorkers
                 .Where(w => w.LastUsedModel != item.Settings.model)
                 .ToList();
 
-            // 12. Sort switch candidates by:
-            //   - Having duplicates (means if a model is on multiple workers, we can free one up)
-            //   - Low future demand (use modelDemand for that)
-            //   - Not having upcoming tasks (ModelHasUpcomingTasks)
-            //   - Worker.LastActivity (least recently active first)
+            // 12. Sort the switch candidates
+            //  - duplicate model? (we can free one up)
+            //  - low future demand?
+            //  - not needed in upcoming tasks?
+            //  - least recently active?
             var candidateSorted = switchCandidates
                 .OrderByDescending(w =>
-                    groupedByModel.ContainsKey(w.LastUsedModel) &&
-                    groupedByModel[w.LastUsedModel].Count > 1)    // prefer switching workers with a duplicated model
-                .ThenBy(w => modelDemand.TryGetValue(w.LastUsedModel ?? "", out int demand) ? demand : 0)
-                .ThenBy(w => ModelHasUpcomingTasks(w.LastUsedModel))  // prefer workers whose model is NOT needed in future
+                    groupedByModel.ContainsKey((w.LastUsedModel ?? "<none>")) &&
+                    groupedByModel[(w.LastUsedModel ?? "<none>")].Count > 1)
+                .ThenBy(w =>
+                {
+                    var modelName = w.LastUsedModel ?? "";
+                    return modelDemand.TryGetValue(modelName, out int demand) ? demand : 0;
+                })
+                .ThenBy(w =>
+                {
+                    var modelName = w.LastUsedModel ?? "";
+                    return ModelHasUpcomingTasks(modelName);
+                })
                 .ThenBy(w => w.LastActivity)
                 .ToList();
 
             if (candidateSorted.Any())
                 return candidateSorted.First();
 
-            // 13. If no candidate is available, we fallback to any other idle worker
+            // 13. Fallback: any other idle worker
             var availableSuitableWorkers = suitableWorkers
                 .Where(worker => worker.qItem == null)
                 .OrderBy(w => w.LastActivity)
@@ -500,9 +508,10 @@ namespace makefoxsrv
             if (availableSuitableWorkers.Any())
                 return availableSuitableWorkers.First();
 
-            // 14. Last resort: no idle worker is available
+            // 14. Last resort: no idle workers
             return null;
         }
+
 
 
 
