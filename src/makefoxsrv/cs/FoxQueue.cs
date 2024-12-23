@@ -369,7 +369,8 @@ namespace makefoxsrv
                 .Where(worker => worker.Online
                                  && (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
                                  && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
-                                 && (!item.RegionalPrompting || worker.SupportsRegionalPrompter))
+                                 && (!item.RegionalPrompting || worker.SupportsRegionalPrompter)
+                                 && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
                 .ToList();
 
             // 3. Block if the same user is already being processed
