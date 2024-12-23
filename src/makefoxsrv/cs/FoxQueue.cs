@@ -373,15 +373,17 @@ namespace makefoxsrv
                                  && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
                 .ToList();
 
-            // 3. Block if the same user is already being processed
-            var userWorkers = suitableWorkers
-                .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
-                .ToList();
+            // 3. Block if the same user is already being processed, but only for non-premium users
+            if (!item.User.CheckAccessLevel(AccessLevel.PREMIUM)) {
+                var userWorkers = suitableWorkers
+                    .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
+                    .ToList();
 
-            if (userWorkers.Any())
-            {
-                //FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User?.UID} is already being processed by another worker.", LogLevel.DEBUG);
-                return null;
+                if (userWorkers.Any())
+                {
+                    //FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User?.UID} is already being processed by another worker.", LogLevel.DEBUG);
+                    return null;
+                }
             }
 
             // 4. Handle Enhanced/variation tasks that need the same worker, if possible
@@ -450,7 +452,9 @@ namespace makefoxsrv
 
             // 10. If user isn't premium and hasn't been waiting long, keep them waiting
             var modelWaitingTime = DateTime.Now - item.DateCreated;
-            if (!item.User.CheckAccessLevel(AccessLevel.PREMIUM) && modelWaitingTime.TotalSeconds < 8)
+            var waitTime = item.User.CheckAccessLevel(AccessLevel.PREMIUM) ? 4 : 12;
+
+            if (modelWaitingTime.TotalSeconds < waitTime)
             {
                 //FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}. ({modelWaitingTime.TotalSeconds}s)", LogLevel.DEBUG);
                 return null;
