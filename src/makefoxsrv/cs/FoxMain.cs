@@ -350,6 +350,9 @@ namespace makefoxsrv
 
             Console.CancelKeyPress += (sender, e) =>
             {
+                // Initialize an empty FoxContext so logging can work
+                FoxContextManager.Current = new FoxContext();
+
                 FoxLog.WriteLine("CTRL+C detected. Initiating shutdown...");
                 // Signal the cancellation token
                 cts.Cancel();
@@ -361,6 +364,9 @@ namespace makefoxsrv
 
             AppDomain.CurrentDomain.ProcessExit += (s, e) =>
             {
+                // Initialize an empty FoxContext so logging can work
+                FoxContextManager.Current = new FoxContext();
+
                 if (!cts.IsCancellationRequested) {
                     FoxLog.WriteLine("System termination detected. Initiating shutdown...");
 
@@ -387,10 +393,10 @@ namespace makefoxsrv
                 cts.Cancel();
             }
 
-            await FoxTelegram.Disconnect();
-
             var shutdownStart = DateTime.Now;
             var shutdownTimeout = TimeSpan.FromSeconds(3); // Adjust as needed
+
+            await FoxWorker.StopWorkers();
 
             while (!FoxWorker.GetWorkers().IsEmpty && DateTime.Now - shutdownStart < shutdownTimeout)
             {
@@ -398,6 +404,9 @@ namespace makefoxsrv
                 // This gives them a chance to finish storing their state if they were in the middle of a task.
                 await Task.Delay(100); 
             }
+
+            FoxWeb.StopWebServer();
+            await FoxTelegram.Disconnect();
 
             await FoxLog.StopLoggingThreadAsync();
         }

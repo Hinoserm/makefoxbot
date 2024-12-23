@@ -191,8 +191,10 @@ namespace makefoxsrv
         public static void LogException(Exception ex, string? customMessage = null, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
             var message = customMessage ?? ex.Message;
-
-            FoxLog.LogToFile($"Error: {message}\r\n{ex.StackTrace}\r\n");
+            
+            // Don't log cancellation exceptions to file
+            if (ex is not OperationCanceledException)
+                FoxLog.LogToFile($"Error: {message}\r\n{ex.StackTrace}\r\n");
 
             FoxLog.LogToDatabase(message, LogLevel.ERROR, ex, callerName, callerFilePath, lineNumber);
 

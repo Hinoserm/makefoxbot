@@ -367,6 +367,27 @@ namespace makefoxsrv
             }
         }
 
+        public static async Task StopWorkers()
+        {
+            foreach (var worker in workers.Values)
+            {
+                worker.Stop();
+            }
+
+            await Task.WhenAll(workers.Values.Select(w =>
+            {
+                var tcs = new TaskCompletionSource<bool>();
+                ThreadPool.RegisterWaitForSingleObject(
+                    w.stopToken.Token.WaitHandle,
+                    (state, timedOut) => ((TaskCompletionSource<bool>)state!).SetResult(true),
+                    tcs,
+                    Timeout.Infinite,
+                    true
+                );
+                return tcs.Task;
+            }));
+        }
+
         public static FoxWorker? Get(int workerId)
         {
             workers.TryGetValue(workerId, out FoxWorker? worker);
@@ -1030,7 +1051,7 @@ namespace makefoxsrv
                 if (LastUsedModel != settings.model)
                     FoxLog.WriteLine($"Switching model from {LastUsedModel ?? "(none)"} to {settings.model}", LogLevel.DEBUG);
 
-                this.LastUsedModel =  settings.model;
+                this.LastUsedModel = settings.model;
 
                 progressCTS = StartProgressMonitor(qItem, ctsLoop.Token);
 
@@ -1297,7 +1318,14 @@ namespace makefoxsrv
                         qItem = null;
                     }
                 }
-                else
+                else if (this.stopToken.IsCancellationRequested)
+                {
+                    // Graceful shutdown of the worker.
+                    if (qItem is not null)
+                        await qItem.SetError(ex);
+
+                    throw;
+                } else
                     await HandleError(ex);
             }
             finally

@@ -27,6 +27,8 @@ using JsonObject = System.Text.Json.Nodes.JsonObject;
 
 class FoxWeb
 {
+    private static WebServer? server = null;
+
     public static WebServer StartWebServer(string url = "http://*:5555/", CancellationToken cancellationToken = default)
     {
         try
@@ -35,7 +37,7 @@ class FoxWeb
 
             MethodLookup.BuildFunctionLookup();
 
-            var server = new WebServer(o => o
+            server = new WebServer(o => o
                         .WithUrlPrefix(url)
                         .WithMode(HttpListenerMode.EmbedIO))
                     .WithCors()
@@ -59,6 +61,14 @@ class FoxWeb
         }
 
         return null;
+    }
+
+    public static void StopWebServer ()
+    {
+        if (server is null)
+            throw new Exception("Server is not running");
+
+        server.Dispose();
     }
 
     // Define the dynamic controller that can handle all methods based on the lookup table
