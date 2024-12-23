@@ -10,6 +10,8 @@ using System.Threading.Tasks;
 using TL;
 
 using Newtonsoft.Json;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Collections.Concurrent;
 
 public enum LogLevel
 {
@@ -23,6 +25,10 @@ namespace makefoxsrv
 {
     internal class FoxLog
     {
+        private static readonly ConcurrentQueue<LogEntry> logQueue = new ConcurrentQueue<LogEntry>();
+        private static readonly SemaphoreSlim logSemaphore = new SemaphoreSlim(0, int.MaxValue);
+        private static volatile bool keepLogging = true;
+        private static Task? logWorkerTask;
         public static LogLevel CurrentLogLevel { get; set; } = LogLevel.INFO;
 
         private static readonly object fileLock = new object();
@@ -35,27 +41,87 @@ namespace makefoxsrv
             });
         }
 
-        private static void LogToDatabase(
-           string message,
-           LogLevel level = LogLevel.INFO,
-           Exception? ex = null,
-           [CallerMemberName] string callerName = "",
-           [CallerFilePath] string callerFilePath = "",
-           [CallerLineNumber] int lineNumber = 0)
+        // The log entry record used by our new approach
+        public class LogEntry
+        {
+            public DateTime Date { get; set; }
+            public LogLevel Level { get; set; }
+            public int ContextId { get; set; }
+            public ulong? UserId { get; set; }
+            public ulong? QueueId { get; set; }
+            public int? MessageId { get; set; }
+            public int? WorkerId { get; set; }
+            public string? Command { get; set; }
+            public string? Message { get; set; }
+            public string? StackTrace { get; set; }
+            public long? TelegramUserId { get; set; }
+            public long? TelegramChatId { get; set; }
+            public string? CallerName { get; set; }
+            public string? CallerFilePath { get; set; }
+            public int CallerLineNumber { get; set; }
+            public string? ExceptionJson { get; set; }
+        }
+
+        // Call this once at application startup
+        public static void StartLoggingThread()
+        {
+            // Spin up a background Task to handle all DB writes
+            logWorkerTask = Task.Run(async () =>
+            {
+                while (keepLogging)
+                {
+                    try
+                    {
+                        // Wait until there's at least one log to process
+                        await logSemaphore.WaitAsync();
+
+                        // Dequeue and process all available logs
+                        while (logQueue.TryDequeue(out var logEntry))
+                        {
+                            await WriteLogEntryAsync(logEntry);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // If something goes wrong, log it to file or console
+                        LogToFile("Error in logWorkerTask: " + ex);
+                    }
+                }
+            });
+        }
+
+        // Call this once at application shutdown (optional)
+        public static async Task StopLoggingThreadAsync()
+        {
+            keepLogging = false;
+            // Release the semaphore so it can exit
+            logSemaphore.Release();
+            if (logWorkerTask != null)
+                await logWorkerTask;
+        }
+
+        // The new log-writing method that enqueues a log entry
+        public static void LogToDatabase(
+            string message,
+            LogLevel level = LogLevel.INFO,
+            Exception? ex = null,
+            [System.Runtime.CompilerServices.CallerMemberName] string callerName = "",
+            [System.Runtime.CompilerServices.CallerFilePath] string callerFilePath = "",
+            [System.Runtime.CompilerServices.CallerLineNumber] int lineNumber = 0)
         {
             try
             {
-                // Capture context data upfront
                 var context = FoxContextManager.Current;
-                var contextData = new
+                var logEntry = new LogEntry
                 {
                     Date = DateTime.Now,
+                    Level = level,
                     ContextId = context.GetHashCode(),
                     UserId = context.User?.UID,
                     QueueId = context.Queue?.ID,
                     MessageId = context.Message?.ID,
                     WorkerId = context.Worker?.ID,
-                    Command = context.Command?.Length > 254 ? context.Command.Substring(0, 254) : context.Command,
+                    Command = (context.Command?.Length ?? 0) > 254 ? context.Command?.Substring(0, 254) : context.Command,
                     Message = message,
                     StackTrace = ex?.StackTrace,
                     TelegramUserId = context.Telegram?.User.ID,
@@ -63,55 +129,61 @@ namespace makefoxsrv
                     CallerName = callerName,
                     CallerFilePath = callerFilePath,
                     CallerLineNumber = lineNumber,
-                    ExceptionJson = ex is null ? null : SerializeExceptionToJson(ex)
+                    ExceptionJson = ex is null ? null : SerializeExceptionToJson(ex),
                 };
 
-                // Run the logging task in the background
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-                        await SQL.OpenAsync();
-
-                        using var cmd = new MySqlCommand
-                        {
-                            Connection = SQL,
-                            CommandText = @"
-                        INSERT INTO log
-                        (date, type, context_id, user_id, queue_id, message_id, worker_id, command, message, stacktrace, tele_userid, tele_chatid, caller_name, caller_filepath, caller_linenumber, exception_json) 
-                        VALUES 
-                        (@date, @type, @context_id, @user_id, @queue_id, @message_id, @worker_id, @command, @message, @stacktrace, @tele_userid, @tele_chatid, @caller_name, @caller_filepath, @caller_linenumber, @exception_json)"
-                        };
-
-                        cmd.Parameters.AddWithValue("@date", contextData.Date);
-                        cmd.Parameters.AddWithValue("@type", level.ToString());
-                        cmd.Parameters.AddWithValue("@context_id", contextData.ContextId);
-                        cmd.Parameters.AddWithValue("@user_id", contextData.UserId);
-                        cmd.Parameters.AddWithValue("@queue_id", contextData.QueueId);
-                        cmd.Parameters.AddWithValue("@message_id", contextData.MessageId);
-                        cmd.Parameters.AddWithValue("@worker_id", contextData.WorkerId);
-                        cmd.Parameters.AddWithValue("@command", contextData.Command);
-                        cmd.Parameters.AddWithValue("@message", contextData.Message);
-                        cmd.Parameters.AddWithValue("@stacktrace", contextData.StackTrace);
-                        cmd.Parameters.AddWithValue("@tele_userid", contextData.TelegramUserId);
-                        cmd.Parameters.AddWithValue("@tele_chatid", contextData.TelegramChatId);
-                        cmd.Parameters.AddWithValue("@caller_name", contextData.CallerName);
-                        cmd.Parameters.AddWithValue("@caller_filepath", contextData.CallerFilePath);
-                        cmd.Parameters.AddWithValue("@caller_linenumber", contextData.CallerLineNumber);
-                        cmd.Parameters.AddWithValue("@exception_json", contextData.ExceptionJson);
-
-                        await cmd.ExecuteNonQueryAsync();
-                    }
-                    catch (Exception e)
-                    {
-                        FoxLog.LogToFile($"Error logging to database: {e.Message}\n{e.StackTrace}");
-                    }
-                });
+                // Enqueue the log entry, signal the background thread
+                logQueue.Enqueue(logEntry);
+                logSemaphore.Release();
             }
             catch (Exception e)
             {
-                FoxLog.LogToFile($"Error preparing log to database: {e.Message}\n{e.StackTrace}");
+                LogToFile($"Error preparing log to database: {e.Message}\n{e.StackTrace}");
+            }
+        }
+
+        // The actual DB write (done in the background task, one at a time)
+        private static async Task WriteLogEntryAsync(LogEntry entry)
+        {
+            try
+            {
+                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+                await SQL.OpenAsync();
+
+                using var cmd = new MySqlCommand
+                {
+                    Connection = SQL,
+                    CommandText = @"
+                    INSERT INTO log
+                    (date, type, context_id, user_id, queue_id, message_id, worker_id, command, message, stacktrace, tele_userid, tele_chatid, caller_name, caller_filepath, caller_linenumber, exception_json) 
+                    VALUES 
+                    (@date, @type, @context_id, @user_id, @queue_id, @message_id, @worker_id, @command, @message, @stacktrace, @tele_userid, @tele_chatid, @caller_name, @caller_filepath, @caller_linenumber, @exception_json)
+                "
+                };
+
+                cmd.Parameters.AddWithValue("@date", entry.Date);
+                cmd.Parameters.AddWithValue("@type", entry.Level.ToString());
+                cmd.Parameters.AddWithValue("@context_id", entry.ContextId);
+                cmd.Parameters.AddWithValue("@user_id", entry.UserId);
+                cmd.Parameters.AddWithValue("@queue_id", entry.QueueId);
+                cmd.Parameters.AddWithValue("@message_id", entry.MessageId);
+                cmd.Parameters.AddWithValue("@worker_id", entry.WorkerId);
+                cmd.Parameters.AddWithValue("@command", entry.Command);
+                cmd.Parameters.AddWithValue("@message", entry.Message);
+                cmd.Parameters.AddWithValue("@stacktrace", entry.StackTrace);
+                cmd.Parameters.AddWithValue("@tele_userid", entry.TelegramUserId);
+                cmd.Parameters.AddWithValue("@tele_chatid", entry.TelegramChatId);
+                cmd.Parameters.AddWithValue("@caller_name", entry.CallerName);
+                cmd.Parameters.AddWithValue("@caller_filepath", entry.CallerFilePath);
+                cmd.Parameters.AddWithValue("@caller_linenumber", entry.CallerLineNumber);
+                cmd.Parameters.AddWithValue("@exception_json", entry.ExceptionJson);
+
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                // If the DB write fails, you might want to do some fallback logging
+                LogToFile($"Error logging to DB: {ex.Message}\n{ex.StackTrace}");
             }
         }
 

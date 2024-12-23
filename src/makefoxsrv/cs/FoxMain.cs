@@ -280,6 +280,8 @@ namespace makefoxsrv
             }
             FoxLog.WriteLine("done.");
 
+            FoxLog.StartLoggingThread();
+
             try
             {
                 await FoxSettings.LoadSettingsAsync();
@@ -396,6 +398,8 @@ namespace makefoxsrv
                 // This gives them a chance to finish storing their state if they were in the middle of a task.
                 await Task.Delay(100); 
             }
+
+            await FoxLog.StopLoggingThreadAsync();
         }
     }
 }
