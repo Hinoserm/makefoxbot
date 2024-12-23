@@ -380,7 +380,7 @@ namespace makefoxsrv
 
             if (userWorkers.Any())
             {
-                FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User?.UID} is already being processed by another worker.", LogLevel.DEBUG);
+                //FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User?.UID} is already being processed by another worker.", LogLevel.DEBUG);
                 return null;
             }
 
@@ -452,7 +452,7 @@ namespace makefoxsrv
             var modelWaitingTime = DateTime.Now - item.DateCreated;
             if (!item.User.CheckAccessLevel(AccessLevel.PREMIUM) && modelWaitingTime.TotalSeconds < 8)
             {
-                FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}. ({modelWaitingTime.TotalSeconds}s)", LogLevel.DEBUG);
+                //FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}. ({modelWaitingTime.TotalSeconds}s)", LogLevel.DEBUG);
                 return null;
             }
 
