@@ -251,11 +251,8 @@ namespace makefoxsrv
 
                     try
                     {
-                        FoxQueue? itemToAssign = null;
-                        FoxWorker? suitableWorker = null;
-
                         //FoxLog.WriteLine("Waiting for task...", LogLevel.DEBUG);
-                        await queueSemaphore.WaitAsync(1000, cancellationToken);
+                        await queueSemaphore.WaitAsync(500, cancellationToken);
 
                         //FoxLog.WriteLine("Locking...", LogLevel.DEBUG);
                         lock (lockObj)
@@ -271,66 +268,65 @@ namespace makefoxsrv
 
                             for (int i = 0; i < orderedTasks.Count; i++)
                             {
-                                var potentialItem = orderedTasks[i].task;
+                                var itemToAssign = orderedTasks[i].task;
 
-                                if (potentialItem is null)
-                                    continue;
+                                if (itemToAssign is null)
+                                    continue; // Shouldn't happen, but just in case.
 
-                                FoxContextManager.Current.Queue = potentialItem;
-                                FoxContextManager.Current.User = potentialItem.User;
-                                FoxContextManager.Current.Telegram = potentialItem.Telegram;
-                                FoxContextManager.Current.Message = new Message { id = potentialItem.MessageID };
+                                FoxContextManager.Current.Queue = itemToAssign;
+                                FoxContextManager.Current.User = itemToAssign.User;
+                                FoxContextManager.Current.Telegram = itemToAssign.Telegram;
+                                FoxContextManager.Current.Message = new Message { id = itemToAssign.MessageID };
                                 FoxContextManager.Current.Worker = null;
 
-                                if (potentialItem.OutputImageID is not null)
+                                if (itemToAssign.status == QueueStatus.CANCELLED)
                                 {
-                                    // Item was previous generated, but failed during sending.  Resend.
-                                    FoxLog.WriteLine($"Task {potentialItem.ID} was previously generated but not sent.  Resending.", LogLevel.DEBUG);
-
-                                    taskList = taskList.Where(t => t.task?.ID != potentialItem.ID).ToList();
-                                    _ = FoxSendQueue.Send(potentialItem);
-
-                                    continue;
+                                    // Remove the task from the queue if it was cancelled
+                                    FoxLog.WriteLine($"Task {itemToAssign.ID} was cancelled, skipping.", LogLevel.DEBUG);
+                                    taskList = taskList.Where(t => t.task?.ID != itemToAssign.ID).ToList();
+                                    break;
                                 }
 
-                                suitableWorker = FindSuitableWorkerForTask(potentialItem);
+                                if (itemToAssign.status == QueueStatus.FINISHED)
+                                {
+                                    // Remove the task from the queue if it was already marked as finished
+                                    FoxLog.WriteLine($"Task {itemToAssign.ID} was already marked finished.", LogLevel.ERROR);
+                                    taskList = taskList.Where(t => t.task?.ID != itemToAssign.ID).ToList();
+                                    break;
+                                }
+
+                                if (itemToAssign.OutputImageID is not null)
+                                {
+                                    // Item was previously generated, but failed during sending.  Resend.
+                                    FoxLog.WriteLine($"Task {itemToAssign.ID} was previously generated but not sent.  Resending.", LogLevel.DEBUG);
+
+                                    // Remove the task from the queue as it no longer needs to be processed
+                                    taskList = taskList.Where(t => t.task?.ID != itemToAssign.ID).ToList();
+                                    _ = FoxSendQueue.Send(itemToAssign);
+
+                                    break;
+                                }
+
+                                var suitableWorker = FindSuitableWorkerForTask(itemToAssign);
                                 if (suitableWorker != null)
                                 {
                                     // Found a suitable worker for the task
                                     FoxContextManager.Current.Worker = suitableWorker;
 
-                                    itemToAssign = potentialItem;
-                                    taskList = taskList.Where(t => t.task?.ID != itemToAssign.ID).ToList();
-                                    break; // Exit the loop as we've found a task to assign
+
+                                    if (suitableWorker.AssignTask(itemToAssign))
+                                    {
+                                        // Remove the task from the queue if it was successfully assigned
+                                        FoxLog.WriteLine($"Assigned task {itemToAssign.ID}  to {suitableWorker?.name}", LogLevel.DEBUG);
+                                        taskList = taskList.Where(t => t.task?.ID != itemToAssign.ID).ToList();
+                                        break;
+                                    }
                                 }
+
+                                // If no suitable worker was found, trigger the semaphore again
+                                queueSemaphore.Release();
                             }
                         }
-
-                        if (itemToAssign is not null)
-                        {
-                            if (itemToAssign.status == QueueStatus.CANCELLED)
-                            {
-                                FoxLog.WriteLine($"Task {itemToAssign.ID} was cancelled, skipping.", LogLevel.DEBUG);
-                                continue;
-                            }
-                            FoxLog.WriteLine($"Found {itemToAssign.ID} for worker {suitableWorker?.name ?? "None"}", LogLevel.DEBUG);
-                        }
-
-                        if (itemToAssign is not null && suitableWorker is not null)
-                        {
-                            if (!suitableWorker.AssignTask(itemToAssign))
-                            {
-                                FoxLog.WriteLine($"Failed to assign task {itemToAssign.ID} to {suitableWorker.name}", LogLevel.DEBUG);
-                                _ = Enqueue(itemToAssign); // Re-enqueue the task
-                            }
-                            else
-                            {
-                                FoxLog.WriteLine($"Assigned task {itemToAssign.ID}  to {suitableWorker?.name}", LogLevel.DEBUG);
-                            }
-                        }
-                        else if (itemToAssign is not null)
-                            _ = Enqueue(itemToAssign); // No suitable worker found, re-enqueue the task
-
                     }
                     catch (OperationCanceledException)
                     {
@@ -351,17 +347,15 @@ namespace makefoxsrv
 
         public static FoxWorker? FindSuitableWorkerForTask(FoxQueue item)
         {
-            // Get the model from the global FoxModel system
+            // 1. Fetch the requested model
             var model = FoxModel.GetModelByName(item.Settings.model);
 
             uint width = Math.Max(item.Settings.width, item.Settings.hires_width);
             uint height = Math.Max(item.Settings.height, item.Settings.hires_height);
 
-            // If the model does not exist or has no workers running it, return null (no suitable worker found)
+            // If no such model or no workers running it, return
             if (model == null || model.GetWorkersRunningModel().Count < 1)
-            {
                 return null;
-            }
 
             if (item.User is null)
             {
@@ -369,53 +363,39 @@ namespace makefoxsrv
                 return null;
             }
 
-            // Get all workers
             var workers = FoxWorker.GetWorkers().Values;
 
-            // Filter out unsuitable workers first
+            // 2. Filter out unsuitable workers first
             var suitableWorkers = workers
                 .Where(worker => worker.Online
                                  && (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
                                  && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
-                                 && (!item.RegionalPrompting || worker.SupportsRegionalPrompter)
-                                 && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
+                                 && (!item.RegionalPrompting || worker.SupportsRegionalPrompter))
                 .ToList();
 
-            // Check if any worker is currently processing a task for the same user
+            // 3. Block if the same user is already being processed
             var userWorkers = suitableWorkers
                 .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
                 .ToList();
 
-            // If the user is not premium and there are workers processing tasks for them, skip this task
             if (userWorkers.Any())
             {
-                // If a worker is already processing a task for this user, skip this task
                 FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User?.UID} is already being processed by another worker.", LogLevel.DEBUG);
                 return null;
             }
 
-            // Handle tasks requiring the same worker
+            // 4. Handle Enhanced/variation tasks that need the same worker, if possible
             if (item.Enhanced || item.Settings.variation_seed != null)
             {
-                // Calculate the age of the queue item
                 var timeInQueue = DateTime.Now - item.DateCreated;
-
-                // If the task has been waiting for less than 2 minutes and requires special handling
                 if (timeInQueue.TotalMinutes < 2)
                 {
-                    // Attempt to find the previously used worker among suitable workers
                     var previousWorker = suitableWorkers.FirstOrDefault(worker => worker.ID == item.WorkerID);
-
                     if (previousWorker != null)
                     {
-                        // If the worker is suitable but currently busy, return null to defer processing
                         if (previousWorker.qItem != null)
-                        {
-                            return null;
-                        }
-
-                        // Otherwise, return the suitable previous worker
-                        return previousWorker;
+                            return null; // Worker’s busy, so wait
+                        return previousWorker; // If available, use the same worker
                     }
                     else
                     {
@@ -424,61 +404,107 @@ namespace makefoxsrv
                 }
             }
 
-            // Check for available workers with no model loaded
-            var workersWithNoModel = suitableWorkers
-                .Where(worker => worker.LastUsedModel == null)
+            // 5. Gather pending tasks to look ahead for future model usage
+            var futureTasks = taskList
+                .Select(t => t.task)
+                .Where(t => t != null
+                            && t!.status == FoxQueue.QueueStatus.PENDING
+                            && t.ID != item.ID) // exclude the current task
                 .ToList();
 
-            if (workersWithNoModel.Any())
+            bool ModelHasUpcomingTasks(string? modelName)
             {
-                // Prefer workers with no model loaded
-                return workersWithNoModel.FirstOrDefault(worker => worker.qItem == null); // Prioritize available workers
+                if (string.IsNullOrEmpty(modelName))
+                    return false;
+                return futureTasks.Any(f => f.Settings.model == modelName);
             }
 
-            // Check for workers with the requested model loaded
-            var workersWithModel = suitableWorkers
-                .Where(worker => worker.LastUsedModel == item.Settings.model) // Filter to workers with the model actively loaded
+            // 6. Identify workers that already have the requested model loaded
+            var workersRunningThisModel = model.GetWorkersRunningModel();
+            var hasModelLoaded = suitableWorkers
+                .Where(w => workersRunningThisModel.Contains(w.ID))
                 .ToList();
 
-            // Check if there are workers with the model loaded and not busy
-            var availableWorkersWithModel = workersWithModel
-                .Where(worker => worker.qItem == null) // Worker is not busy
+            // 7. Idle workers with the requested model
+            var idleWorkersWithModel = hasModelLoaded
+                .Where(w => w.LastUsedModel == item.Settings.model && w.qItem == null)
                 .ToList();
 
-            if (availableWorkersWithModel.Any())
-            {
-                // If there are available workers with the model loaded, assign the task to one of them
-                return availableWorkersWithModel.First();
-            }
+            if (idleWorkersWithModel.Any())
+                return idleWorkersWithModel.First();
 
-            // Check if the entire system is idle (all suitable workers are not busy)
-            var allIdle = workers.All(worker => worker.qItem == null);
+            // 8. Idle workers with no model loaded
+            var idleWorkersWithNoModel = hasModelLoaded
+                .Where(w => w.LastUsedModel == null && w.qItem == null)
+                .ToList();
 
+            if (idleWorkersWithNoModel.Any())
+                return idleWorkersWithNoModel.First();
+
+            // 9. Check if all suitable workers are idle
+            var allIdle = suitableWorkers.All(w => w.qItem == null);
             if (allIdle)
-            {
-                // If all workers are idle, assign the task immediately to any suitable worker
                 return suitableWorkers.FirstOrDefault();
-            }
 
-            // If all workers with the model loaded are busy, check how long the task has been waiting
+            // 10. If user isn't premium and hasn't been waiting long, keep them waiting
             var modelWaitingTime = DateTime.Now - item.DateCreated;
-
-            // Check if the user is not premium and the task has been waiting for less than 15 seconds
             if (!item.User.CheckAccessLevel(AccessLevel.PREMIUM) && modelWaitingTime.TotalSeconds < 8)
             {
-                // If the task has been waiting for less than the specified seconds for a worker with the model, defer the task
                 FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}. ({modelWaitingTime.TotalSeconds}s)", LogLevel.DEBUG);
                 return null;
             }
 
-            // If no workers with the model loaded are available, fall back to any suitable worker
-            var availableSuitableWorkers = suitableWorkers
-                .Where(worker => worker.qItem == null) // Worker is not busy
+            // 11. We need to pick someone to switch models. We want to avoid switching 
+            //     a worker whose current model is needed soon or only on a single worker, 
+            //     if possible.
+
+            // Build a dictionary of how often each model appears in future tasks
+            var modelDemand = futureTasks
+                .GroupBy(f => f.Settings.model)
+                .ToDictionary(g => g.Key!, g => g.Count());
+
+            // Group idle workers by their current model
+            var idleWorkers = suitableWorkers.Where(w => w.qItem == null).ToList();
+            var groupedByModel = idleWorkers
+                .GroupBy(w => w.LastUsedModel ?? "<none>")
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            // Form a list of idle workers not already on the requested model
+            var switchCandidates = idleWorkers
+                .Where(w => w.LastUsedModel != item.Settings.model)
                 .ToList();
 
-            // If there are any suitable workers, assign the task to one of them
-            return availableSuitableWorkers.FirstOrDefault();
+            // 12. Sort switch candidates by:
+            //   - Having duplicates (means if a model is on multiple workers, we can free one up)
+            //   - Low future demand (use modelDemand for that)
+            //   - Not having upcoming tasks (ModelHasUpcomingTasks)
+            //   - Worker.LastActivity (least recently active first)
+            var candidateSorted = switchCandidates
+                .OrderByDescending(w =>
+                    groupedByModel.ContainsKey(w.LastUsedModel) &&
+                    groupedByModel[w.LastUsedModel].Count > 1)    // prefer switching workers with a duplicated model
+                .ThenBy(w => modelDemand.TryGetValue(w.LastUsedModel ?? "", out int demand) ? demand : 0)
+                .ThenBy(w => ModelHasUpcomingTasks(w.LastUsedModel))  // prefer workers whose model is NOT needed in future
+                .ThenBy(w => w.LastActivity)
+                .ToList();
+
+            if (candidateSorted.Any())
+                return candidateSorted.First();
+
+            // 13. If no candidate is available, we fallback to any other idle worker
+            var availableSuitableWorkers = suitableWorkers
+                .Where(worker => worker.qItem == null)
+                .OrderBy(w => w.LastActivity)
+                .ToList();
+
+            if (availableSuitableWorkers.Any())
+                return availableSuitableWorkers.First();
+
+            // 14. Last resort: no idle worker is available
+            return null;
         }
+
+
 
 
         public static async Task EnqueueOldItems()

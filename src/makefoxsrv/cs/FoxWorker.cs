@@ -96,6 +96,8 @@ namespace makefoxsrv
 
         public DateTime StartDate { get; private set; } //Worker start date
         public DateTime? TaskStartDate { get; private set; } = null;
+        public DateTime? TaskEndDate { get; private set; } = null;
+        public DateTime? LastActivity { get; private set; } = null;
 
         static public TimeSpan ProgressUpdateInterval { get; set; } = TimeSpan.FromMilliseconds(100);
 
@@ -755,6 +757,7 @@ namespace makefoxsrv
             {
                 qItem = null;
                 TaskStartDate = null;
+                TaskEndDate = null;
             }
         }
 
@@ -936,6 +939,7 @@ namespace makefoxsrv
                             if (Online && api is not null && qItem is not null && FoxTelegram.IsConnected)
                             {
                                 FoxLog.WriteLine($"Worker {ID} - Start processing task {qItem.ID}...", LogLevel.DEBUG);
+                                this.LastActivity = DateTime.Now;
                                 await ProcessTask(cts.Token);
                                 FoxLog.WriteLine($"Worker {ID} - Task completed.", LogLevel.DEBUG);
 
@@ -1010,6 +1014,7 @@ namespace makefoxsrv
                     throw new Exception("API not available (Should have been loaded before we got here)");
 
                 this.TaskStartDate = DateTime.Now;
+                this.TaskEndDate = null;
 
                 await qItem.SetWorker(this);
 
@@ -1178,6 +1183,7 @@ namespace makefoxsrv
                     if (qItem.stopToken.IsCancellationRequested)
                         throw new OperationCanceledException("User cancelled request.");
 
+                    this.TaskStartDate = DateTime.Now;
                     await qItem.Send(outputImage);
                 }
                 catch (Exception ex)
@@ -1289,7 +1295,6 @@ namespace makefoxsrv
                     finally
                     {
                         qItem = null;
-                        TaskStartDate = null;
                     }
                 }
                 else
