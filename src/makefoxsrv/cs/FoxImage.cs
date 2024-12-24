@@ -178,7 +178,7 @@ namespace makefoxsrv
                                             FROM images 
                                             WHERE
                                                 image_file IS NOT NULL 
-                                                AND date_added < NOW() - INTERVAL 30 DAY 
+                                                AND date_added < NOW() - INTERVAL 14 DAY 
                                                 AND image_file NOT LIKE 'archive/%' 
                                             ORDER BY date_added ASC
                                             LIMIT 2000";
@@ -218,8 +218,6 @@ namespace makefoxsrv
                                     File.Move(srcFile, destFile);
 
                                     await UpdatePath(id, newPath);
-
-                                    count++;
                                 }
                                 else if (!File.Exists(srcFile) && File.Exists(destFile))
                                 {
@@ -243,6 +241,7 @@ namespace makefoxsrv
                                     FoxLog.WriteLine($"File is missing in both source and destination for {id}: {imagePath}. Marking as missing in the database.");
                                     await UpdatePath(id, null); // Set the path to NULL in the database
                                 }
+                                count++;
                             }
                             catch (OperationCanceledException)
                             {
