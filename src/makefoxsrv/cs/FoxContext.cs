@@ -33,7 +33,24 @@ namespace makefoxsrv
             set => _context.Value = value ?? throw new ArgumentNullException(nameof(value), "Context cannot be null.");
         }
 
-        public static void Clear() => _context.Value = null;
+        public static void Clear()
+        {
+            if (_context.Value is not null)
+            {
+                _context.Value.Queue = null;
+                _context.Value.User = null;
+                _context.Value.Telegram = null;
+                _context.Value.Worker = null;
+                _context.Value.Message = null;
+                _context.Value.Command = null;
+                _context.Value.Argument = null;
+                _context.Value.Command = null;
+                _context.Value.Telegram = null;
+                _context.Value.User = null;
+            }
+
+            _context.Value = null;
+        }
     }
 
 
