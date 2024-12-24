@@ -111,7 +111,17 @@ namespace makefoxsrv
         {
             try
             {
+                int? teleMsgId = null;
                 var context = FoxContextManager.Current;
+
+                if (context.Message is TL.Message tlMsg)
+                {
+                    teleMsgId = tlMsg.ID;
+                } else if (context.Message is TL.UpdateBotCallbackQuery tlCallback)
+                {
+                    teleMsgId = tlCallback.msg_id;
+                }
+                
                 var logEntry = new LogEntry
                 {
                     Date = DateTime.Now,
@@ -119,7 +129,7 @@ namespace makefoxsrv
                     ContextId = context.GetHashCode(),
                     UserId = context.User?.UID,
                     QueueId = context.Queue?.ID,
-                    MessageId = context.Message?.ID,
+                    MessageId = teleMsgId,
                     WorkerId = context.Worker?.ID,
                     Command = (context.Command?.Length ?? 0) > 254 ? context.Command?.Substring(0, 254) : context.Command,
                     Message = message,

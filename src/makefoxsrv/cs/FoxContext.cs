@@ -18,7 +18,7 @@ namespace makefoxsrv
         public FoxUser? User { get; set; } = null;
         public FoxTelegram? Telegram { get; set; } = null;
         public FoxWorker? Worker { get; set; } = null;
-        public Message? Message { get; set; } = null;
+        public dynamic? Message { get; set; } = null;
         public string? Command { get; set; } = null;
         public string? Argument { get; set; } = null;
     }

@@ -24,7 +24,19 @@ namespace makefoxsrv
 
             var argument = (a.Count() > 1 ? a[1] : "");
 
+            FoxContextManager.Current = new FoxContext
+            {
+                Command = data,
+                Message = query,
+                Argument = argument,
+                Telegram = t
+            };
+
             var fUser = await FoxUser.GetByTelegramUser(t.User, false);
+
+            FoxContextManager.Current.User = fUser;
+
+            FoxLog.WriteLine($"Callback: {t.User}" + (t.Chat is not null ? $" in {t.Chat}" : "") + $"> {data}");
 
             if (fUser is null)
             {
@@ -42,47 +54,65 @@ namespace makefoxsrv
                 return;
             }
 
-            switch (command)
+            try
             {
-                case "/info":
-                    await CallbackCmdInfo(t, query, fUser, argument);
-                    break;
-                case "/download":
-                    await CallbackCmdDownload(t, query, fUser, argument);
-                    break;
-                case "/select":
-                    await CallbackCmdSelect(t, query, fUser, argument);
-                    break;
-                case "/model":
-                    await CallbackCmdModel(t, query, fUser, argument);
-                    break;
-                case "/sampler":
-                    await CallbackCmdSampler(t, query, fUser, argument);
-                    break;
-                case "/help":
-                    await CallbackCmdHelp(t, query, fUser, argument);
-                    break;
-                case "/donate":
-                    await CallbackCmdDonate(t, query, fUser, argument);
-                    break;
-                case "/lang":
-                    await CallbackCmdLanguage(t, query, fUser, argument);
-                    break;
-                case "/terms":
-                    await CallbackCmdTerms(t, query, fUser, argument);
-                    break;
-                case "/enhance":
-                    await CallbackCmdEnhance(t, query, fUser, argument);
-                    break;
-                case "/recycle":
-                    await CallbackCmdRecycle(t, query, fUser, argument);
-                    break;
-                case "/history":
-                    await CallbackCmdHistory(t, query, fUser, argument);
-                    break;
-                case "/cancel":
-                    await CallbackCmdCancel(t, query, fUser, argument);
-                    break;
+                await fUser.LockAsync();
+                switch (command)
+                {
+                    case "/info":
+                        await CallbackCmdInfo(t, query, fUser, argument);
+                        break;
+                    case "/download":
+                        await CallbackCmdDownload(t, query, fUser, argument);
+                        break;
+                    case "/select":
+                        await CallbackCmdSelect(t, query, fUser, argument);
+                        break;
+                    case "/model":
+                        await CallbackCmdModel(t, query, fUser, argument);
+                        break;
+                    case "/sampler":
+                        await CallbackCmdSampler(t, query, fUser, argument);
+                        break;
+                    case "/help":
+                        await CallbackCmdHelp(t, query, fUser, argument);
+                        break;
+                    case "/donate":
+                        await CallbackCmdDonate(t, query, fUser, argument);
+                        break;
+                    case "/lang":
+                        await CallbackCmdLanguage(t, query, fUser, argument);
+                        break;
+                    case "/terms":
+                        await CallbackCmdTerms(t, query, fUser, argument);
+                        break;
+                    case "/enhance":
+                        await CallbackCmdEnhance(t, query, fUser, argument);
+                        break;
+                    case "/recycle":
+                        await CallbackCmdRecycle(t, query, fUser, argument);
+                        break;
+                    case "/history":
+                        await CallbackCmdHistory(t, query, fUser, argument);
+                        break;
+                    case "/cancel":
+                        await CallbackCmdCancel(t, query, fUser, argument);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex);
+
+                await t.SendMessageAsync(
+                    text: $"❌ Error: {ex.Message}",
+                    replyToMessageId: query.msg_id
+                );
+            }
+            finally
+            {
+                fUser.Unlock();
+                FoxContextManager.Clear();
             }
         }
 

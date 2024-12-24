@@ -619,9 +619,7 @@ We are committed to using your membership fees to further develop and maintain t
 
                                 t = new FoxTelegram(user, chat);
 
-                                FoxLog.WriteLine($"Callback: {user}" + (chat is not null ? $" in {chat}" : "") + $"> {System.Text.Encoding.ASCII.GetString(ucbk.data)}");
-
-                                await FoxCallbacks.Handle(t, ucbk, System.Text.Encoding.ASCII.GetString(ucbk.data));
+                                _= FoxCallbacks.Handle(t, ucbk, System.Text.Encoding.ASCII.GetString(ucbk.data));
 
                                 break;
                             case UpdateBotPrecheckoutQuery upck:
