@@ -17,6 +17,8 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Linq;
 using System.ComponentModel.Design;
+using Stripe;
+using Stripe.FinancialConnections;
 
 namespace makefoxsrv
 {
@@ -445,9 +447,18 @@ namespace makefoxsrv
             // Add "Custom Amount" button
             buttonRows.Add(new TL.KeyboardButtonRow
             {
-                buttons = new TL.KeyboardButtonWebView[]
+                buttons = new TL.KeyboardButtonUrl[]
                 {
-                    new() { text = "Custom Amount", url = $"{FoxMain.settings.WebRootUrl}tgapp/membership.php?tg=1&id={pSession.UUID}" }
+                    new() { text = "🔗 Pay in Web Browser", url = $"{FoxMain.settings.WebRootUrl}tgapp/membership.php?id={pSession.UUID}" }
+                }
+            });
+
+            // Add Stars button
+            buttonRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonCallback[]
+                {
+                    new() { text = "⭐ Use Telegram Stars ⭐", data = System.Text.Encoding.UTF8.GetBytes("/donate stars") }
                 }
             });
 
@@ -459,6 +470,8 @@ namespace makefoxsrv
                     new() { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/donate cancel") }
                 }
             });
+
+
 
             var inlineKeyboard = new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() };
 

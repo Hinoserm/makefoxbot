@@ -509,7 +509,7 @@ namespace makefoxsrv
             FoxLog.WriteLine($"SetPremiumDate({this.UID}, {newExpiry})");
         }
 
-        public async Task<ulong> RecordPayment(PaymentTypes type, int amount, string currency, int days, string? invoice_payload = null, string? telegram_charge_id = null, string? provider_charge_id = null)
+        public async Task<ulong> RecordPayment(PaymentTypes type, int amount, string currency, int days, string? invoice_payload = null, string? telegram_charge_id = null, string? provider_charge_id = null, int replyMessageId = 0)
         {
             ulong payment_id = 0;
 
@@ -593,6 +593,7 @@ We are committed to using your membership fees to further develop and maintain t
 
             await t.SendMessageAsync(
                         text: msg,
+                        replyToMessageId: replyMessageId,
                         entities: entities,
                         disableWebPagePreview: true
                     );

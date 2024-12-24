@@ -517,98 +517,77 @@ namespace makefoxsrv
 
             await t.SendCallbackAnswer(query.query_id, 0);
 
-            if (argument == "cancel")
+            switch (argument)
             {
-                await t.EditMessageAsync(
-                        text: "✅ Operation cancelled.",
-                        id: query.msg_id
-                    );
-            }
-            else if (argument == "custom")
-            {
-                await t.EditMessageAsync(
-                        text: "🚧 Not Yet Implemented.",
-                        id: query.msg_id
-                    );
-            }
-            else
-            {
-                if (string.IsNullOrEmpty(FoxMain.settings?.TelegramPaymentToken))
-                    throw new Exception("Payments are currently disabled. (token not set)");
+                case "cancel":
+                    await t.EditMessageAsync(
+                            text: "✅ Operation cancelled.",
+                            id: query.msg_id
+                        );
+                    break;
+                case "remove":
+                    await t.DeleteMessage(query.msg_id);
+ 
+                    break;
+                case "custom":
+                    await t.EditMessageAsync(
+                            text: "🚧 Not Yet Implemented.",
+                            id: query.msg_id
+                        );
+                    break;
 
-                var parts = argument.Split(' ');
-                if (parts.Length != 2)
-                    throw new Exception("Invalid input format.");
+                case "stars":
 
-                if (!decimal.TryParse(parts[0], out decimal amount) || amount < 5)
-                    throw new Exception("Invalid amount.");
+                    List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
 
-                int days;
-                if (parts[1].ToLower() == "lifetime")
-                    days = -1;
-                else if (!int.TryParse(parts[1], out days))
-                    throw new Exception("Invalid days.");
-
-                var prices = new TL.LabeledPrice[] {
-                    new TL.LabeledPrice { label = days == -1 ? "Lifetime Membership" : $"{days} Day Membership", amount = (int)(amount * 100) },
-                };
-
-                var inputInvoice = new TL.InputMediaInvoice
-                {
-                    title = $"One-Time Payment for User ID {user.UID}",
-                    description = (days == -1 ? "Lifetime Membership" : $"{days} Day Membership") + " with MakeFox Group, Inc.",
-                    payload = System.Text.Encoding.UTF8.GetBytes($"PAY_{user.UID}_{days}"),
-                    provider = FoxMain.settings?.TelegramPaymentToken, // Make sure this is correctly obtained
-                    provider_data = new TL.DataJSON { data = "{\"items\":[{\"description\":\"MakeFox Group, Inc. Membership Fee\",\"quantity\":1.0}]}" },
-                    invoice = new TL.Invoice
+                    // Add "Stars" button
+                    buttonRows.Add(new TL.KeyboardButtonRow
                     {
-                        currency = "USD",
-                        prices = prices,
-                        flags = Invoice.Flags.test
-                    }
-                };
-
-                var replyMarkup = new TL.ReplyInlineMarkup
-                {
-                    rows = new TL.KeyboardButtonRow[] {
-                        new TL.KeyboardButtonRow {
-                            buttons = new TL.KeyboardButton[] {
-                                new TL.KeyboardButtonBuy { text = $"Pay ${amount}" }
-                            }
+                        buttons = new TL.KeyboardButtonBuy[]
+                        {
+                            new() { text = "⭐ 1000 Stars (30 Days)",  }
                         }
-                    }
-                };
+                    });
 
-                try
-                {
-                    await FoxTelegram.Client.Messages_SendMedia(
+                    // Add cancel button on its own row at the end
+                    buttonRows.Add(new TL.KeyboardButtonRow
+                    {
+                        buttons = new TL.KeyboardButtonCallback[]
+                        {
+                            new() { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/donate remove") }
+                        }
+                    });
+
+                    var prices = new TL.LabeledPrice[] {
+                        new TL.LabeledPrice { label = $"30 Day Membership", amount = 1000 },
+                    };
+
+                    var inputInvoice = new TL.InputMediaInvoice
+                    {
+                        title = $"One-Time Payment for User ID {user.UID}",
+                        description = $"MakeFox Membership",
+                        payload = System.Text.Encoding.UTF8.GetBytes($"PAY_{user.UID}_STARS"),
+                        provider_data = new TL.DataJSON { data = "{}" },
+                        invoice = new TL.Invoice
+                        {
+                            currency = "XTR",
+                            prices = prices,
+                            flags = TL.Invoice.Flags.test
+                        }
+                    };
+
+                    var inlineKeyboard = new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() };
+
+                    var sentMessage = await t.SendMessageAsync(
                         media: inputInvoice,
-                        peer: t.Peer,
-                        message: "Thank you!",
-                        random_id: Helpers.RandomLong(),
-                        reply_markup: replyMarkup
-                     );
-                }
-                catch ( Exception ex )
-                {
-                    FoxLog.WriteLine("PAYMENT ERROR: " + ex.Message);
-                }
-
-
-
-                /* try
-                {
-                    await botClient.EditMessageTextAsync(
-                        chatId: update.CallbackQuery.Message.Chat.Id,
-                        text: update.CallbackQuery.Message.Text,
-                        messageId: update.CallbackQuery.Message.MessageId,
-                        disableWebPagePreview: true,
-                        cancellationToken: cancellationToken,
-                        entities: update.CallbackQuery.Message.Entities
+                        text: "30 Days Membership",
+                        replyInlineMarkup: inlineKeyboard,
+                        disableWebPagePreview: true
                     );
-                }
-                catch { } // We don't care if editing fails */
 
+                    break;
+                default: 
+                    throw new Exception("Unsupported Payment Request");
             }
         }
 

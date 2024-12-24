@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Security.Policy;
 using System.Text;
@@ -12,6 +13,7 @@ using System.Transactions;
 using TL;
 using TL.Methods;
 using WTelegram;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace makefoxsrv
 {
@@ -341,44 +343,63 @@ namespace makefoxsrv
             var user = await FoxUser.GetByTelegramUser(t.User, true);
 
             if (user is not null)
-            {
+                await user.LockAsync();
 
-                string payload = System.Text.Encoding.ASCII.GetString(payment.payload);
-                string[] parts = payload.Split('_');
-                if (parts.Length != 3 || parts[0] != "PAY" || !long.TryParse(parts[1], out long recvUID) || !int.TryParse(parts[2], out int days))
+            FoxContextManager.Current = new FoxContext
+            {
+                Message = ms,
+                Telegram = t,
+                User = user
+            };
+
+            try
+            {
+                if (user is null)
+                    throw new Exception("Unknown user in payment request!");
+
+                if (user is not null)
                 {
-                    throw new System.Exception("Malformed payment request!  Contact /support");
+
+                    string payload = System.Text.Encoding.ASCII.GetString(payment.payload);
+                    string[] parts = payload.Split('_');
+                    if (parts.Length != 3 || parts[0] != "PAY" || !long.TryParse(parts[1], out long recvUID))
+                    {
+                        throw new System.Exception("Malformed payment request!");
+                    }
+
+                    var recvUser = await FoxUser.GetByUID(recvUID);
+
+                    if (recvUser is null)
+                        throw new Exception("Unknown UID in payment request!");
+
+                    var days = 30;
+
+                    await recvUser.RecordPayment(PaymentTypes.TELEGRAM, (int)payment.total_amount, payment.currency, days, payload, payment.charge.id, payment.charge.provider_charge_id, ms.id);
+                    FoxLog.WriteLine($"Payment recorded for user {recvUID} by {user.UID}: ({payment.total_amount}, {payment.currency}, {days}, {payload}, {payment.charge.id}, {payment.charge.provider_charge_id})");
+
+                    //await botClient.DeleteMessageAsync(message.Chat.Id, message.MessageId);
+                }
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    await FoxTelegram.Client.Payments_RefundStarsCharge(t.User, payment.charge.id);
+                }
+                catch (Exception ex2)
+                { 
+                    FoxLog.LogException(ex2, "HandlePayment refund error: " + ex2.Message);
                 }
 
-                var recvUser = await FoxUser.GetByUID(recvUID);
+                FoxLog.LogException(ex, "HandlePayment error: " + ex.Message);
+                await t.SendMessageAsync($"❌ Error: {ex.Message}\r\nContact @makefoxhelpbot for support.");
+            }
+            finally
+            {
+                if (user is not null)
+                    user.Unlock();
 
-                if (recvUser is null)
-                    throw new System.Exception("Unknown UID in payment request!  Contact /support");
-
-                await recvUser.RecordPayment(PaymentTypes.TELEGRAM, (int)payment.total_amount, payment.currency, days, payload, payment.charge.id, payment.charge.provider_charge_id);
-                FoxLog.WriteLine($"Payment recorded for user {recvUID} by {user.UID}: ({payment.total_amount}, {payment.currency}, {days}, {payload}, {payment.charge.id}, {payment.charge.provider_charge_id})");
-
-                var msg = @$"
-<b>Thank You for Your Generous Support!</b>
- 
-We are deeply grateful for your membership, which is vital for our platform's sustainability and growth. 
- 
-Your contribution has granted you <b>{(days == -1 ? "lifetime" : $"{days} days of")} enhanced access</b>, improving your experience with increased limits and features. 
- 
-We are committed to using your membership fees to further develop and maintain the service, supporting our mission to provide a creative and expansive platform for our users. Thank you for being an integral part of our journey and for empowering us to continue offering a high-quality service.
-
-<b>MakeFox Group, Inc.</b>
-";
-                var entities = _client.HtmlToEntities(ref msg);
-
-                await t.SendMessageAsync(
-                            text: msg,
-                            replyToMessageId: ms.id,
-                            entities: entities,
-                            disableWebPagePreview: true
-                        );
-
-                //await botClient.DeleteMessageAsync(message.Chat.Id, message.MessageId);
+                FoxContextManager.Clear();
             }
         }
 
@@ -586,7 +607,7 @@ We are committed to using your membership fees to further develop and maintain t
                                                 t = new FoxTelegram(user, chat);
                                                 msg_id = ms.ID;
 
-                                                await HandlePayment(t, ms, payment);
+                                                _= HandlePayment(t, ms, payment);
                                                 break;
                                             default:
                                                 FoxLog.WriteLine("Unexpected service message type: " + ms.action.GetType().Name);
