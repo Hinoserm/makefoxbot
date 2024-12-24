@@ -746,6 +746,9 @@ namespace makefoxsrv
 
         public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings, QueueType type, int messageID, int? replyMessageID = null, bool enhanced = false, FoxQueue? originalTask = null, TimeSpan? delay = null)
         {
+            if (FoxContextManager.Current.Queue is null)
+                FoxContextManager.Current.Queue = originalTask;
+
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
             await SQL.OpenAsync();
@@ -775,8 +778,6 @@ namespace makefoxsrv
 
             double normalizedComplexity = (double)(imageComplexity - defaultComplexity) / (maxComplexity - defaultComplexity);
 
-            FoxLog.WriteLine($"Complexity: {normalizedComplexity:F3}", LogLevel.INFO);
-
             var q = new FoxQueue
             {
                 Telegram = telegram,
@@ -794,10 +795,16 @@ namespace makefoxsrv
                 Complexity = (float)normalizedComplexity
             };
 
+            FoxContextManager.Current.Queue = q;
+
             if (type == QueueType.IMG2IMG && !(await FoxImage.IsImageValid(settings.selected_image)))
                 throw new Exception("Invalid input image");
 
             await FoxDB.SaveObjectAsync(q, "queue");
+
+            // Log this after saving the object so we have it's ID.
+
+            FoxLog.WriteLine($"Complexity: {normalizedComplexity:F3}", LogLevel.INFO);
 
             //using var cmd = new MySqlCommand();
 
@@ -833,7 +840,7 @@ namespace makefoxsrv
 
             //await cmd.ExecuteNonQueryAsync();
 
-            
+
 
             //q.ID = (ulong)cmd.LastInsertedId;
 

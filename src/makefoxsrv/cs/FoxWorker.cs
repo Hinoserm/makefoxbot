@@ -957,10 +957,9 @@ namespace makefoxsrv
 
                             if (Online && api is not null && qItem is not null && FoxTelegram.IsConnected)
                             {
-                                FoxLog.WriteLine($"Worker {ID} - Start processing task {qItem.ID}...", LogLevel.DEBUG);
+                                
                                 this.LastActivity = DateTime.Now;
                                 await ProcessTask(cts.Token);
-                                FoxLog.WriteLine($"Worker {ID} - Task completed.", LogLevel.DEBUG);
 
                                 if (qItem is not null)
                                 {
@@ -1016,6 +1015,8 @@ namespace makefoxsrv
             {
                 FoxContextManager.Current.Queue = qItem;
                 FoxContextManager.Current.Worker = this;
+
+                FoxLog.WriteLine($"Worker {ID} - Start processing task {qItem.ID}...", LogLevel.DEBUG);
 
                 if (qItem is null)
                     throw new Exception("Attempt to process task when no task was assigned");
@@ -1330,6 +1331,8 @@ namespace makefoxsrv
             {
                 if (progressCTS is not null)
                     progressCTS.Cancel();
+
+                FoxLog.WriteLine($"Worker {ID} - Task completed.", LogLevel.DEBUG);
             }
         }
 
