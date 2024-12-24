@@ -146,6 +146,8 @@ namespace makefoxsrv
             }
         }
 
+        private static readonly HashSet<long> _missingFiles = new HashSet<long>();
+
         [Cron(hours: 1)]
         public static async Task RunImageArchiver(CancellationToken cancellationToken)
         {
@@ -171,6 +173,10 @@ namespace makefoxsrv
                 var startTime = DateTime.Now;
 
                 while ((DateTime.Now - startTime).Minutes < 15 && !cancellationToken.IsCancellationRequested) {
+
+                    if (_missingFiles.Count() >= 2000)
+                        throw new Exception("Too many missing files, aborting.");
+
                     using (var cmd = new MySqlCommand())
                     {
                         cmd.Connection = SQL;
@@ -194,6 +200,9 @@ namespace makefoxsrv
                             {
                                 long id = System.Convert.ToInt64(r["id"]);
                                 string? imagePath = System.Convert.ToString(r["image_file"]);
+
+                                if (_missingFiles.Contains(id))
+                                    continue; // No point processing files we know are missing
 
                                 if (imagePath is null)
                                     throw new Exception($"Null image path for image #{id}");
@@ -238,8 +247,8 @@ namespace makefoxsrv
                                 }
                                 else
                                 {
-                                    FoxLog.WriteLine($"File is missing in both source and destination for {id}: {imagePath}. Marking as missing in the database.");
-                                    await UpdatePath(id, null); // Set the path to NULL in the database
+                                    FoxLog.WriteLine($"File is missing in both source and destination for {id}: {imagePath}.");
+                                    _missingFiles.Add(id); // Save the file as missing so we don't process it again later.
                                 }
                                 count++;
                             }
