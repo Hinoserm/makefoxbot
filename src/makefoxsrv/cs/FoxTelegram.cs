@@ -391,7 +391,7 @@ namespace makefoxsrv
                     FoxLog.LogException(ex2, "HandlePayment refund error: " + ex2.Message);
                 }
 
-                FoxLog.LogException(ex, "HandlePayment error: " + ex.Message);
+                FoxLog.LogException(ex);
                 await t.SendMessageAsync($"❌ Error: {ex.Message}\r\nContact @makefoxhelpbot for support.");
             }
             finally

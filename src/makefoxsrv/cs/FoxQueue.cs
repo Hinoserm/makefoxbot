@@ -325,9 +325,6 @@ namespace makefoxsrv
                                         break;
                                     }
                                 }
-
-                                // If no suitable worker was found, trigger the semaphore again
-                                queueSemaphore.Release();
                             }
                         }
                     }

@@ -100,7 +100,7 @@ namespace makefoxsrv
             FoxLog.WriteLine($"Finished converting {count} images.");
         }
 
-        private static async Task UpdatePath(long imageId, string imagePath)
+        private static async Task UpdatePath(long imageId, string? imagePath)
         {
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
@@ -146,97 +146,123 @@ namespace makefoxsrv
             }
         }
 
-        //bool archiverRunning = false;
-        public static async Task RunImageArchiver(CancellationToken cts)
+        [Cron(hours: 1)]
+        public static async Task RunImageArchiver(CancellationToken cancellationToken)
         {
-
             int count = 0;
 
-            var dataPath =  Path.GetFullPath("../data");
+            var dataPath = Path.GetFullPath("../data");
             var archivePath = Path.Combine(dataPath, "archive");
-
-            if (!Directory.Exists(archivePath))
-            {
-                FoxLog.WriteLine("Archive directory does not exist, aborting operation.");
-
-                return;
-            }
 
             try
             {
+                if (!Directory.Exists(archivePath))
+                {
+                    FoxLog.WriteLine("Archive directory does not exist.  Archiving disabled.");
+
+                    return;
+                }
+
                 using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
-                await SQL.OpenAsync(cts);
+                await SQL.OpenAsync(cancellationToken);
 
-                using (var cmd = new MySqlCommand())
-                {
-                    cmd.Connection = SQL;
-                    cmd.CommandText = @"
-                                        SELECT id,image_file
-                                        FROM images 
-                                        WHERE
-                                            image_file IS NOT NULL 
-                                            AND date_added < NOW() - INTERVAL 15 DAY 
-                                            AND image_file NOT LIKE 'archive/%' 
-                                        ORDER BY date_added ASC
-                                        LIMIT 20000";
+                // Record the start time
+                var startTime = DateTime.Now;
 
-                    using var r = await cmd.ExecuteReaderAsync(cts);
-
-                    while (await r.ReadAsync(cts))
+                while ((DateTime.Now - startTime).Minutes < 15 && !cancellationToken.IsCancellationRequested) {
+                    using (var cmd = new MySqlCommand())
                     {
-                        try
+                        cmd.Connection = SQL;
+                        cmd.CommandText = @"SELECT id,image_file
+                                            FROM images 
+                                            WHERE
+                                                image_file IS NOT NULL 
+                                                AND date_added < NOW() - INTERVAL 30 DAY 
+                                                AND image_file NOT LIKE 'archive/%' 
+                                            ORDER BY date_added ASC
+                                            LIMIT 2000";
+
+                        using var r = await cmd.ExecuteReaderAsync(cancellationToken);
+
+                        if (!r.HasRows)
+                            break; // Exit the loop early
+
+                        while (await r.ReadAsync(cancellationToken))
                         {
-                            long id = System.Convert.ToInt64(r["id"]);
-                            string imagePath = System.Convert.ToString(r["image_file"]);
-
-                            var newPath = Path.Combine("archive/", imagePath);
-
-                            var destFile = Path.Combine(dataPath, newPath);
-                            var srcFile = Path.Combine(dataPath, imagePath);
-
-                            if (File.Exists(srcFile) && !File.Exists(destFile))
+                            try
                             {
-                                string directoryPath = Path.GetDirectoryName(destFile);
-                                if (!Directory.Exists(directoryPath))
+                                long id = System.Convert.ToInt64(r["id"]);
+                                string? imagePath = System.Convert.ToString(r["image_file"]);
+
+                                if (imagePath is null)
+                                    throw new Exception($"Null image path for image #{id}");
+
+                                var newPath = Path.Combine("archive/", imagePath);
+
+                                var destFile = Path.Combine(dataPath, newPath);
+                                var srcFile = Path.Combine(dataPath, imagePath);
+
+                                if (File.Exists(srcFile) && !File.Exists(destFile))
                                 {
-                                    Directory.CreateDirectory(directoryPath);
+                                    string? directoryPath = Path.GetDirectoryName(destFile);
+
+                                    if (directoryPath is null)
+                                        throw new Exception($"Invalid directory path for image #{id}: {destFile}");
+
+                                    if (!Directory.Exists(directoryPath))
+                                    {
+                                        Directory.CreateDirectory(directoryPath);
+                                    }
+
+                                    File.Move(srcFile, destFile);
+
+                                    await UpdatePath(id, newPath);
+
+                                    count++;
                                 }
+                                else if (!File.Exists(srcFile) && File.Exists(destFile))
+                                {
+                                    // Assume it has an identical hash as a previous file, so just update path.
 
-                                File.Move(srcFile, destFile);
+                                    await UpdatePath(id, newPath);
 
-                                await UpdatePath(id, newPath);
+                                    FoxLog.WriteLine($"Reusing existing file for {id}: {imagePath}");
+                                }
+                                else if (File.Exists(srcFile) && File.Exists(destFile))
+                                {
+                                    // Assume it has an identical hash as a previous file, so just update path.
 
-                                count++;
-                            } else if (!File.Exists(srcFile) && File.Exists(destFile)) {
-                                // Assume it has an identical hash as a previous file, so just update path.
+                                    File.Delete(srcFile);
+                                    await UpdatePath(id, newPath);
 
-                                await UpdatePath(id, newPath);
-
-                                FoxLog.WriteLine($"Reusing existing file for {id}: {imagePath}");
-                            } else {
-                                FoxLog.WriteLine($"Image file does not exist for {id}: {imagePath}");
+                                    FoxLog.WriteLine($"Reusing existing file for, deleting original {id}: {imagePath}");
+                                }
+                                else
+                                {
+                                    FoxLog.WriteLine($"File is missing in both source and destination for {id}: {imagePath}. Marking as missing in the database.");
+                                    await UpdatePath(id, null); // Set the path to NULL in the database
+                                }
                             }
-
-                            if (count % 1000 == 0)
+                            catch (OperationCanceledException)
                             {
-                                FoxLog.WriteLine($"Moved {count} images to archive.");
+                                //End gracefully
                             }
-                        }
-                        catch (Exception ex)
-                        {
-                            FoxLog.WriteLine($"Error archiving image: {ex.Message}\r\n{ex.StackTrace}");
+                            catch (Exception ex)
+                            {
+                                FoxLog.WriteLine($"Error archiving image: {ex.Message}\r\n{ex.StackTrace}");
+                            }
                         }
                     }
                 }
-
-                FoxLog.WriteLine("Cleaning up empty directories...");
-
-                DeleteEmptyDirectories(Path.Combine(dataPath, "images"));
+            }
+            catch (OperationCanceledException)
+            {
+                //End gracefully
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine($"Error archiving images: {ex.Message}\r\n{ex.StackTrace}");
+                FoxLog.LogException(ex);
             }
 
             FoxLog.WriteLine($"Finished archiving {count} images.");
