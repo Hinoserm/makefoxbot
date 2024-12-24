@@ -115,15 +115,6 @@ namespace makefoxsrv
                 return;
             }
 
-            long imageSize = settings.width * settings.height;
-            long imageComplexity = imageSize * settings.steps;
-
-            // Default and maximum complexity
-            long defaultComplexity = 640 * 768 * 20;
-            long maxComplexity = 1536 * 1536 * 20;
-
-            double normalizedComplexity = (double)(imageComplexity - defaultComplexity) / (maxComplexity - defaultComplexity);
-
             if (user.GetAccessLevel() < AccessLevel.ADMIN)
             {
                 int q_limit = (user.GetAccessLevel() >= AccessLevel.PREMIUM) ? 3 : 1;
@@ -230,8 +221,6 @@ namespace makefoxsrv
                 replyToMessageId: messageId,
                 replyInlineMarkup: inlineKeyboardButtons
             );
-
-            FoxLog.WriteLine($"{messageId}: CmdGenerate: Calculated complexity: {normalizedComplexity:F3}");
 
             var q = await FoxQueue.Add(t, user, settings, imgType, waitMsg.ID, messageId, enhanced, originalTask, delay: delay);
             if (q is null)

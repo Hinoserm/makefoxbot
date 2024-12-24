@@ -156,6 +156,8 @@ namespace makefoxsrv
             $"maxpoolsize=150;" +
             $"default command timeout=180;";
 
+        public static CancellationToken sqlCancellationToken = new();
+
         public static DateTime startTime = DateTime.Now;
 
         static string sha1hash(byte[] input)
@@ -201,6 +203,8 @@ namespace makefoxsrv
         static async Task Main(string[] args)
         {
             using CancellationTokenSource cts = new();
+
+            sqlCancellationToken = cts.Token;
 
             FoxContextManager.Current = new FoxContext();
 
@@ -366,7 +370,7 @@ namespace makefoxsrv
                     FoxLog.WriteLine("Running hourly timer.");
 
                     // Fire and forget the async method
-                    var _ = FoxImage.RunImageArchiver();
+                    var _ = FoxImage.RunImageArchiver(cts.Token);
                 }, null, 0, 3600000);
 
                 FoxQueue.StartTaskLoop(cts.Token);

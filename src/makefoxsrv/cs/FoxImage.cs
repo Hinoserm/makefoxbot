@@ -147,7 +147,7 @@ namespace makefoxsrv
         }
 
         //bool archiverRunning = false;
-        public static async Task RunImageArchiver()
+        public static async Task RunImageArchiver(CancellationToken cts)
         {
 
             int count = 0;
@@ -166,7 +166,7 @@ namespace makefoxsrv
             {
                 using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
-                await SQL.OpenAsync();
+                await SQL.OpenAsync(cts);
 
                 using (var cmd = new MySqlCommand())
                 {
@@ -181,9 +181,9 @@ namespace makefoxsrv
                                         ORDER BY date_added ASC
                                         LIMIT 20000";
 
-                    using var r = await cmd.ExecuteReaderAsync();
+                    using var r = await cmd.ExecuteReaderAsync(cts);
 
-                    while (await r.ReadAsync())
+                    while (await r.ReadAsync(cts))
                     {
                         try
                         {

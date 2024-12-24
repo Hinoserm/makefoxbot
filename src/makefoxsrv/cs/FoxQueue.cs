@@ -107,6 +107,9 @@ namespace makefoxsrv
         [DbColumn("image_id")]
         public ulong? OutputImageID { get; set; }
 
+        [DbColumn("complexity")]
+        public float? Complexity { get; private set; } = null;
+
         private FoxImage? _outputImage;
         private FoxImage? _inputImage;
 
@@ -373,8 +376,20 @@ namespace makefoxsrv
                                  && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
                 .ToList();
 
+            // New code to check the total complexity of the user's queue
+            var userQueueComplexity = taskList
+                .Select(t => t.task)
+                .Where(queueItem => queueItem != null
+                                    && queueItem.User?.UID == item.User?.UID
+                                    && (
+                                        queueItem.status == FoxQueue.QueueStatus.PENDING ||
+                                        queueItem.status == FoxQueue.QueueStatus.PROCESSING ||
+                                        queueItem.status == FoxQueue.QueueStatus.ERROR
+                                    ))
+                .Sum(queueItem => queueItem!.Complexity ?? 0);
+
             // 3. Block if the same user is already being processed, but only for non-premium users
-            if (!item.User.CheckAccessLevel(AccessLevel.PREMIUM)) {
+            if (userQueueComplexity >= 1.0 || !item.User.CheckAccessLevel(AccessLevel.PREMIUM)) {
                 var userWorkers = suitableWorkers
                     .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
                     .ToList();
@@ -751,6 +766,17 @@ namespace makefoxsrv
             if (settings.seed == -1)
                 settings.seed = GetRandomInt32();
 
+            long imageSize = Math.Max(settings.width, settings.hires_width) * Math.Max(settings.height, settings.hires_height);
+            long imageComplexity = imageSize * (settings.steps + settings.hires_steps);
+
+            // Default and maximum complexity
+            long defaultComplexity = 640 * 768 * 20;
+            long maxComplexity = 1280 * 1536 * 35;
+
+            double normalizedComplexity = (double)(imageComplexity - defaultComplexity) / (maxComplexity - defaultComplexity);
+
+            FoxLog.WriteLine($"Complexity: {normalizedComplexity:F3}", LogLevel.INFO);
+
             var q = new FoxQueue
             {
                 Telegram = telegram,
@@ -764,7 +790,8 @@ namespace makefoxsrv
                 OriginalID = originalTask?.ID,
                 WorkerID = originalTask?.WorkerID,
                 RetryDate = delay.HasValue ? DateTime.Now.Add(delay.Value) : null,
-                RegionalPrompting = settings.regionalPrompting
+                RegionalPrompting = settings.regionalPrompting,
+                Complexity = (float)normalizedComplexity
             };
 
             if (type == QueueType.IMG2IMG && !(await FoxImage.IsImageValid(settings.selected_image)))
