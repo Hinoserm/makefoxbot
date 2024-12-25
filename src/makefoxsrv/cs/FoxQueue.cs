@@ -1537,7 +1537,7 @@ namespace makefoxsrv
             }
 
             _outputImage = value;
-            OutputImageID = value.ID; // Adjust as needed.
+            OutputImageID = value.ID;
         }
     }
 }

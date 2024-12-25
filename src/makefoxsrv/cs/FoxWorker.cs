@@ -1077,11 +1077,9 @@ namespace makefoxsrv
                     var img = inputImage.Image;
                     byte[]? maskImage = null;
 
-                    if (qItem.User.CheckAccessLevel(AccessLevel.PREMIUM))
-                    {
-                        (maskImage, img) = GenerateMask(inputImage, settings.width, settings.height);
+                    var maskSteps = qItem.User.CheckAccessLevel(AccessLevel.PREMIUM) ? 15 : 5;
 
-                    }
+                    (maskImage, img) = GenerateMask(inputImage, settings.width, settings.height);
 
                     progressCTS = StartProgressMonitor(
                         qItem: qItem, 
@@ -1092,13 +1090,13 @@ namespace makefoxsrv
 
                     if (maskImage is not null)
                     {
-                        FoxLog.WriteLine($"Using mask image.");
+                        FoxLog.WriteLine($"Using mask.");
 
                         img = await RunImg2Img(
                             qItem: qItem,
                             inputImage: img,
                             maskImage: maskImage,
-                            steps: 15,
+                            steps: maskSteps,
                             denoisingStrength: 0.70,
                             hiresEnabled: false,
                             invertMask: false,
@@ -1355,6 +1353,9 @@ namespace makefoxsrv
             if (denoisingStrength is null)
                 denoisingStrength = hiresEnabled.Value ? (double)settings.hires_denoising_strength : (double)settings.denoising_strength;
 
+            if (this.api is null)
+                throw new Exception("API not currently available");
+
             var model = await api.StableDiffusionModel(settings.model, cancellationToken);
             var sampler = await api.Sampler(settings.sampler);
 
@@ -1385,7 +1386,7 @@ namespace makefoxsrv
                     SubSeed = settings.variation_seed,
                     SubseedStrength = (double?)settings.variation_strength,
                 },
-                ResizeMode = 2, //Testing this
+                ResizeMode = 2,
                 InpaintingFill = MaskFillMode.Fill,
                 DenoisingStrength = denoisingStrength ?? (double)settings.denoising_strength,
 
