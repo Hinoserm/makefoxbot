@@ -112,7 +112,7 @@ namespace makefoxsrv
                 cmd.Connection = SQL;
                 cmd.CommandText = $"UPDATE images SET image_file = @imgpath WHERE id = @id";
                 cmd.Parameters.AddWithValue("id", imageId);
-                cmd.Parameters.AddWithValue("imgpath", imagePath);
+                cmd.Parameters.AddWithValue("imgpath", imagePath?.Replace('\\', '/'));
 
                 await cmd.ExecuteNonQueryAsync();
             }
@@ -293,37 +293,51 @@ namespace makefoxsrv
             int count = 0;
             var dataPath = Path.GetFullPath("../data");
             var imagesPath = Path.Combine(dataPath, "images");
+            var processedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var startTime = DateTime.UtcNow;
 
             try
             {
                 using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
                 await SQL.OpenAsync(cancellationToken);
 
-                var startTime = DateTime.UtcNow;
-
-                var processedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
                 // Run for up to 15 minutes
                 while ((DateTime.UtcNow - startTime).TotalMinutes < 15 && !cancellationToken.IsCancellationRequested)
                 {
                     try
                     {
-                        // Enumerate only the files older than the cutoff,
-                        // then sort them by their LastWriteTime (oldest first),
-                        // and take up to 2000 so you don't process a massive list all at once.
-                        var fileBatch = Directory.EnumerateFiles(imagesPath, "*.*", SearchOption.AllDirectories)
-                                                 .AsParallel()
-                                                 .WithDegreeOfParallelism(4) // Optional: tune degree of parallelism
-                                                 .Where(path =>
-                                                 {
-                                                     var relativePath = Path.GetRelativePath(dataPath, path)
-                                                                            .Replace('\\', '/'); // Normalize to forward slashes
-                                                     return !processedFiles.Contains(relativePath);
-                                                 })
-                                                 .Select(path => new FileInfo(path))
-                                                 .Where(info => info.LastWriteTime < cutoff)
-                                                 .Take(2000)
-                                                 .ToList();
+                        FoxLog.WriteLine("Enumerating image files...");
+                        var inputOutputDirectories = new[]
+                        {
+                            Path.Combine(imagesPath, "input"),
+                            Path.Combine(imagesPath, "output")
+                        }.Where(Directory.Exists);
+
+                        var dayDirectories = inputOutputDirectories.SelectMany(baseDir =>
+                            Directory.EnumerateDirectories(baseDir, "*", SearchOption.AllDirectories)
+                                     .Where(dir =>
+                                     {
+                                         var relativePath = Path.GetRelativePath(imagesPath, dir).Replace('\\', '/');
+                                         return relativePath.Split('/').Length >= 3; // Ensure it's "year/month/day" deep
+                                     }));
+
+                        var fileBatch = dayDirectories.AsParallel()
+                                                      .WithDegreeOfParallelism(4) // Adjust degree of parallelism
+                                                      .SelectMany(dayDir =>
+                                                          Directory.EnumerateFiles(dayDir, "*.*", SearchOption.AllDirectories)
+                                                                   .Where(path =>
+                                                                   {
+                                                                       // Filter by LastWriteTime early
+                                                                       if (File.GetLastWriteTime(path) >= cutoff)
+                                                                           return false;
+
+                                                                       // Normalize path and check against processed files
+                                                                       var relativePath = Path.GetRelativePath(imagesPath, path)
+                                                                                              .Replace('\\', '/');
+                                                                       return !processedFiles.Contains(relativePath);
+                                                                   }))
+                                                      .Take(2000) // Limit to 2000 files across all day groups
+                                                      .ToList();
 
                         FoxLog.WriteLine($"Processing batch of {fileBatch.Count} files.");
 
@@ -355,11 +369,11 @@ namespace makefoxsrv
                                     break;
 
                                 // Extract the hash and the relative path
-                                var hash = Path.GetFileNameWithoutExtension(fileFullPath.FullName);
+                                var hash = Path.GetFileNameWithoutExtension(fileFullPath);
                                 if (string.IsNullOrWhiteSpace(hash))
                                     continue;
 
-                                var relativePath = fileFullPath.FullName.Substring(dataPath.Length)
+                                var relativePath = fileFullPath.Substring(dataPath.Length)
                                                                .TrimStart(Path.DirectorySeparatorChar)
                                                                .Replace('\\', '/'); // Normalize to forward slashes
 
@@ -437,21 +451,19 @@ namespace makefoxsrv
                                 else
                                 {
                                     var archivePath = Path.Combine(dataPath, "archive", srcPath);
-                                    srcPath = Path.Combine(dataPath, "archive");
 
                                     if (!File.Exists(archivePath))
-                                        File.Move(srcPath, archivePath);
+                                        File.Move(Path.Combine(dataPath, srcPath), archivePath);
 
-                                    FoxLog.WriteLine($"Arching orphaned file for image #{imageId}: {srcPath} -> {archivePath}");
-                                    await UpdatePath(imageId, archivePath);
+                                    FoxLog.WriteLine($"Archiving file for image #{imageId}: {srcPath} -> {archivePath}");
+                                    await UpdatePath(imageId, Path.Combine("archive", srcPath));
                                 }
-                                count++;
                             }
                         }
 
                         foreach (var file in fileBatch)
                         {
-                            var relativePath = file.FullName.Substring(dataPath.Length)
+                            var relativePath = file.Substring(dataPath.Length)
                                                             .TrimStart(Path.DirectorySeparatorChar)
                                                             .Replace('\\', '/'); // Normalize to forward slashes
 
@@ -460,8 +472,7 @@ namespace makefoxsrv
                                 // This file was not found in the database
                                 FoxLog.WriteLine($"Deleting orphaned image file: {relativePath}");
                                 processedFiles.Add(relativePath);
-                                File.Delete(file.FullName);
-                                count++;
+                                File.Delete(file);
                             }
                         }
                     }
@@ -496,7 +507,7 @@ namespace makefoxsrv
                 FoxLog.LogException(ex);
             }
 
-            FoxLog.WriteLine($"Finished orphaned image file cleanup for {count} files.");
+            FoxLog.WriteLine($"Finished orphaned image file cleanup for {processedFiles.Count()} files.");
         }
 
         public static (int, int) NormalizeImageSize(int width, int height)
