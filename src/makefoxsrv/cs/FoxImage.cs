@@ -524,193 +524,211 @@ namespace makefoxsrv
             return processedFiles.Count();
         }
 
-        //[Cron(hours: 1)]
+        [Cron(hours: 1)]
         public static async Task CronDuplicateImageFinder(CancellationToken cancellationToken)
         {
-
             bool debugMode = true;
 
-            FoxLog.WriteLine(debugMode ? "Running CronDuplicateImageFinder in DEBUG mode." : "Starting CronDuplicateImageFinder...");
+            FoxLog.WriteLine(debugMode
+                ? "Running CronDuplicateImageFinder in DEBUG mode."
+                : "Starting CronDuplicateImageFinder...");
 
             var dataPath = Path.GetFullPath("../data");
             var archiveRoot = Path.Combine(dataPath, "archive"); // Root for all archived images
-            var duplicatesRoot = Path.Combine(archiveRoot, "images", "duplicates"); // We'll place duplicates here
+            var duplicatesRoot = Path.Combine(archiveRoot, "images", "duplicates"); // Directory for duplicates
 
             int deduplicatedFileCount = 0;
             long deduplicatedSpaceSaved = 0;
 
             try
             {
-                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-                await SQL.OpenAsync(cancellationToken);
+                // Open connection for reading duplicate hashes
+                using var readConn = new MySqlConnection(FoxMain.sqlConnectionString);
+                await readConn.OpenAsync(cancellationToken);
 
-                // Step 1: Identify duplicate sha1hashes
-                var duplicateHashes = new List<string>();
+                // Open separate connection for processing each hash
+                using var processConn = new MySqlConnection(FoxMain.sqlConnectionString);
+                await processConn.OpenAsync(cancellationToken);
+
+                // First Query: Retrieve duplicate sha1hashes
                 var duplicateHashesQuery = @"
                 SELECT sha1hash
                 FROM images
                 WHERE image_file LIKE 'archive/%'
                 GROUP BY sha1hash
                 HAVING COUNT(*) > 1
-                LIMIT 1000;"; // Adjust LIMIT based on performance and requirements
+                ORDER BY sha1hash
+                ";
 
-                using (var cmd = new MySqlCommand(duplicateHashesQuery, SQL))
-                using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
+                using (var hashCmd = new MySqlCommand(duplicateHashesQuery, readConn))
+                using (var hashReader = await hashCmd.ExecuteReaderAsync(cancellationToken))
                 {
-                    while (await reader.ReadAsync(cancellationToken))
+                    while (await hashReader.ReadAsync(cancellationToken))
                     {
-                        string sha1hash = reader.GetString("sha1hash");
-                        duplicateHashes.Add(sha1hash);
-                    }
-                }
+                        string sha1hash = hashReader.GetString("sha1hash");
 
-                if (duplicateHashes.Count == 0)
-                {
-                    FoxLog.WriteLine("No duplicates found among archived images.");
-                    return;
-                }
+                        // Second Query: Fetch image records for the current sha1hash
+                        var imagesQuery = @"
+                        SELECT id, image_file, date_added, filesize
+                        FROM images
+                        WHERE sha1hash = @hash
+                            AND image_file LIKE 'archive/%'
+                        ORDER BY date_added DESC;";
 
-                // Step 2: Fetch duplicate records based on identified sha1hashes
-                var duplicates = new List<(long Id, string Sha1, string ImageFile, DateTime DateAdded, long FileSize)>();
-                string inClause = string.Join(",", duplicateHashes.Select((_, index) => $"@hash{index}"));
-                string duplicatesQuery = $@"
-                SELECT id, sha1hash, image_file, date_added, filesize
-                FROM images
-                WHERE image_file LIKE 'archive/%' 
-                  AND sha1hash IN ({inClause})
-                ORDER BY sha1hash, date_added DESC
-                LIMIT 200;"; // Adjust LIMIT as needed
-
-                using (var duplicatesCmd = new MySqlCommand(duplicatesQuery, SQL))
-                {
-                    for (int i = 0; i < duplicateHashes.Count; i++)
-                    {
-                        duplicatesCmd.Parameters.AddWithValue($"@hash{i}", duplicateHashes[i]);
-                    }
-
-                    using (var duplicatesReader = await duplicatesCmd.ExecuteReaderAsync(cancellationToken))
-                    {
-                        while (await duplicatesReader.ReadAsync(cancellationToken))
+                        using (var imagesCmd = new MySqlCommand(imagesQuery, processConn))
                         {
-                            long id = duplicatesReader.GetInt64("id");
-                            string sha1hash = duplicatesReader.GetString("sha1hash");
-                            string imageFile = duplicatesReader.GetString("image_file");
-                            DateTime dateAdded = duplicatesReader.GetDateTime("date_added");
-                            long fileSize = duplicatesReader.GetInt64("filesize");
+                            imagesCmd.Parameters.AddWithValue("@hash", sha1hash);
 
-                            duplicates.Add((id, sha1hash, imageFile, dateAdded, fileSize));
-                        }
-                    }
-                }
-
-                // Step 3: Group duplicates by sha1hash
-                var groups = duplicates.GroupBy(d => d.Sha1);
-
-                foreach (var group in groups)
-                {
-                    string? sourceFileFound = null;
-
-                    // Attempt to find a valid source file that physically exists on disk
-                    foreach (var item in group)
-                    {
-                        string fullDiskPath = Path.Combine(dataPath, item.ImageFile);
-                        if (File.Exists(fullDiskPath))
-                        {
-                            sourceFileFound = fullDiskPath;
-                            break;
-                        }
-                    }
-
-                    if (sourceFileFound == null)
-                    {
-                        FoxLog.WriteLine($"Could not find a physical file for duplicates with hash={group.Key}. Skipping...");
-                        continue;
-                    }
-
-                    var newest = group.OrderByDescending(g => g.DateAdded).First();
-                    DateTime dateToUse = newest.DateAdded;
-                    string year = dateToUse.Year.ToString(CultureInfo.InvariantCulture);
-                    string month = dateToUse.ToString("MMMM", CultureInfo.InvariantCulture);
-                    string day = dateToUse.ToString("dd", CultureInfo.InvariantCulture);
-                    string fileExtension = Path.GetExtension(sourceFileFound);
-                    string newRelativePath = $"images/duplicates/{year}/{month}/{day}/{group.Key}{fileExtension}";
-                    string newFullPath = Path.Combine(archiveRoot, newRelativePath);
-
-                    var directoryPath = Path.GetDirectoryName(newFullPath);
-                    if (directoryPath == null)
-                    {
-                        FoxLog.WriteLine($"Invalid directory path for duplicates: {newFullPath}");
-                        continue;
-                    }
-
-                    if (!debugMode && !Directory.Exists(directoryPath))
-                    {
-                        Directory.CreateDirectory(directoryPath);
-                    }
-
-                    if (!debugMode)
-                    {
-                        try
-                        {
-                            // Step 4: Copy the file to the duplicates directory
-                            File.Copy(sourceFileFound, newFullPath, overwrite: true);
-
-                            // Step 5: Delete all old files for this group
-                            foreach (var item in group)
+                            using (var imagesReader = await imagesCmd.ExecuteReaderAsync(cancellationToken))
                             {
-                                string oldDiskPath = Path.Combine(dataPath, item.ImageFile);
-                                if (File.Exists(oldDiskPath))
+                                var imageRecords = new List<(long Id, string ImageFile, DateTime DateAdded, long FileSize)>();
+
+                                while (await imagesReader.ReadAsync(cancellationToken))
                                 {
-                                    File.Delete(oldDiskPath);
-                                }
-                            }
+                                    long id = imagesReader.GetInt64("id");
+                                    string imageFile = imagesReader.GetString("image_file");
+                                    DateTime dateAdded = imagesReader.GetDateTime("date_added");
+                                    long fileSize = imagesReader.GetInt64("filesize");
 
-                            // Step 6: Update the database to point to the new duplicates path
-                            string finalDbPath = $"archive/{newRelativePath.Replace('\\', '/')}";
-
-                            var allIds = group.Select(g => g.Id).ToList();
-                            if (allIds.Count == 0)
-                                continue;
-
-                            string paramList = string.Join(",", allIds.Select((_, i) => $"@p{i}")); // e.g., @p0,@p1,@p2
-                            string updateSql = $"UPDATE images SET image_file = @newFile WHERE id IN ({paramList})";
-
-                            using (var updateCmd = new MySqlCommand(updateSql, SQL))
-                            {
-                                updateCmd.Parameters.AddWithValue("@newFile", finalDbPath);
-                                for (int i = 0; i < allIds.Count; i++)
-                                {
-                                    updateCmd.Parameters.AddWithValue($"@p{i}", allIds[i]);
+                                    imageRecords.Add((id, imageFile, dateAdded, fileSize));
                                 }
 
-                                await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+                                imagesReader.Close(); // Close the reader before processing
+
+                                if (imageRecords.Count < 2)
+                                {
+                                    // Not duplicates, skip
+                                    continue;
+                                }
+
+                                // The first record is the newest
+                                var newestRecord = imageRecords[0];
+                                DateTime newestDate = newestRecord.DateAdded;
+
+                                // Determine the duplicates directory path based on the newest image's date
+                                string year = newestDate.Year.ToString(CultureInfo.InvariantCulture);
+                                string month = newestDate.ToString("MMMM", CultureInfo.InvariantCulture); // e.g., June
+                                string day = newestDate.ToString("dd", CultureInfo.InvariantCulture);     // e.g., 12
+
+                                // Preserve the file extension
+                                string fileExtension = Path.GetExtension(newestRecord.ImageFile);
+                                if (string.IsNullOrEmpty(fileExtension))
+                                {
+                                    FoxLog.WriteLine($"No file extension found for image ID {newestRecord.Id}. Skipping...");
+                                    continue;
+                                }
+
+                                // Build the new relative path
+                                string newRelativePath = $"images/duplicates/{year}/{month}/{day}/{sha1hash}{fileExtension}";
+                                string newFullPath = Path.Combine(duplicatesRoot, year, month, day, $"{sha1hash}{fileExtension}");
+
+                                string? directoryPath = Path.GetDirectoryName(newFullPath);
+                                if (directoryPath == null)
+                                {
+                                    FoxLog.WriteLine($"Invalid directory path for duplicates: {newFullPath}. Skipping...");
+                                    continue;
+                                }
+
+                                if (!debugMode && !Directory.Exists(directoryPath))
+                                {
+                                    Directory.CreateDirectory(directoryPath);
+                                    FoxLog.WriteLine($"Created directory: {directoryPath}");
+                                }
+
+                                if (!debugMode)
+                                {
+                                    try
+                                    {
+                                        // Copy the newest file to the duplicates directory
+                                        string sourceFullPath = Path.Combine(dataPath, newestRecord.ImageFile);
+
+                                        if (!File.Exists(sourceFullPath))
+                                        {
+                                            FoxLog.WriteLine($"Source file '{sourceFullPath}' does not exist. Skipping...");
+                                            continue;
+                                        }
+
+                                        if (!File.Exists(newFullPath))
+                                        {
+                                            File.Copy(sourceFullPath, newFullPath, overwrite: true);
+                                            FoxLog.WriteLine($"Copied '{sourceFullPath}' to '{newFullPath}'.");
+                                        }
+                                        else
+                                        {
+                                            File.Copy(sourceFullPath, newFullPath, overwrite: true);
+                                            FoxLog.WriteLine($"Copied '{sourceFullPath}' to '{newFullPath}' (overwritten existing file).");
+                                        }
+
+                                        // Delete all original duplicate files
+                                        foreach (var record in imageRecords)
+                                        {
+                                            string oldFullPath = Path.Combine(dataPath, record.ImageFile);
+                                            if (File.Exists(oldFullPath))
+                                            {
+                                                File.Delete(oldFullPath);
+                                                FoxLog.WriteLine($"Deleted original file: {oldFullPath}");
+                                            }
+                                        }
+
+                                        // Update database records to point to the new duplicate path
+                                        string finalDbPath = $"archive/{newRelativePath.Replace('\\', '/')}";
+
+                                        var allIds = imageRecords.Select(r => r.Id).ToList();
+
+                                        // Build parameter list
+                                        string paramList = string.Join(",", allIds.Select((_, idx) => $"@id{idx}"));
+
+                                        string updateQuery = $"UPDATE images SET image_file = @newFile WHERE id IN ({paramList})";
+
+                                        using (var updateCmd = new MySqlCommand(updateQuery, processConn))
+                                        {
+                                            updateCmd.Parameters.AddWithValue("@newFile", finalDbPath);
+                                            for (int i = 0; i < allIds.Count; i++)
+                                            {
+                                                updateCmd.Parameters.AddWithValue($"@id{i}", allIds[i]);
+                                            }
+
+                                            int rowsAffected = await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+                                            FoxLog.WriteLine($"Updated {rowsAffected} records to '{finalDbPath}'.");
+                                        }
+
+                                        // Update deduplication statistics
+                                        deduplicatedFileCount += imageRecords.Count;
+                                        deduplicatedSpaceSaved += imageRecords.Sum(r => r.FileSize);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        FoxLog.WriteLine($"Failed to process duplicates for hash={sha1hash}: {ex.Message}");
+                                        // Optionally, implement rollback or compensation logic here
+                                        continue;
+                                    }
+                                }
+                                else
+                                {
+                                    // Debug Mode: Log intended actions
+                                    FoxLog.WriteLine($"DEBUG: Would copy '{Path.Combine(dataPath, newestRecord.ImageFile)}' to '{newFullPath}'.");
+                                    FoxLog.WriteLine($"DEBUG: Would delete the following files:");
+                                    foreach (var record in imageRecords)
+                                    {
+                                        string oldFullPath = Path.Combine(dataPath, record.ImageFile);
+                                        FoxLog.WriteLine($"DEBUG: - {oldFullPath}");
+                                    }
+                                    FoxLog.WriteLine($"DEBUG: Would update {imageRecords.Count} records to '{newRelativePath}'.");
+
+                                    // Update deduplication statistics
+                                    deduplicatedFileCount += imageRecords.Count;
+                                    deduplicatedSpaceSaved += imageRecords.Sum(r => r.FileSize);
+                                }
                             }
-
-                            FoxLog.WriteLine($"Duplicate group {group.Key} updated successfully. {group.Count()} records moved to {finalDbPath}.");
-                        }
-                        catch (Exception ex)
-                        {
-                            FoxLog.WriteLine($"Failed to copy or finalize duplicates for hash={group.Key}: {ex.Message}");
-                            // TODO: Implement rollback or compensation logic as needed
                         }
                     }
-                    else
-                    {
-                        // Debug mode: Simulate actions without making changes
-                        FoxLog.WriteLine($"DEBUG: Would copy '{sourceFileFound}' to '{newFullPath}'.");
 
-                        // Calculate total space saved (sum of all duplicate file sizes minus the one being kept)
-                        long groupSize = group.Sum(g => g.FileSize);
-                        deduplicatedFileCount += group.Count();
-                        deduplicatedSpaceSaved += groupSize;
-
-                        FoxLog.WriteLine($"DEBUG: Would deduplicate {group.Count()} files ({groupSize} bytes) for hash {group.Key}. New path: {newRelativePath}");
-                    }
+                    FoxLog.WriteLine("Proceeding to the next duplicate hash...");
                 }
             }
             catch (OperationCanceledException)
             {
-                FoxLog.WriteLine("Operation was canceled.");
+                FoxLog.WriteLine("CronDuplicateImageFinder operation was canceled.");
             }
             catch (Exception ex)
             {
@@ -720,7 +738,6 @@ namespace makefoxsrv
             // Log deduplication statistics
             FoxLog.WriteLine($"Finished CronDuplicateImageFinder. Total deduplicated files: {deduplicatedFileCount}. Total space saved: {deduplicatedSpaceSaved} bytes.");
         }
-
 
         public static (int, int) NormalizeImageSize(int width, int height)
         {
