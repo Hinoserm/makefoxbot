@@ -163,8 +163,9 @@ namespace makefoxsrv
             var archivePath = Path.Combine(dataPath, "archive");
 
             // Find the cutoff date/time for what "old enough" means.
-            // For instance, 14 days ago:
-            var cutoff = DateTime.Now.AddDays(-15);
+            // For instance, 30 days ago:
+            int days = FoxSettings.Get<int?>("ImageArchiveDays") ?? 30;
+            var cutoff = DateTime.Now.AddDays(-days);
 
             try
             {
@@ -174,6 +175,8 @@ namespace makefoxsrv
 
                     return;
                 }
+
+                FoxLog.WriteLine($"Archiving images older than {cutoff} ({days} days)...");
 
                 using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
