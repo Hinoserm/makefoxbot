@@ -441,8 +441,8 @@ namespace makefoxsrv
                                     if (File.Exists(archivePath))
                                     {
                                         // If the file exists in the archive, delete the orphaned source file.
-                                        FoxLog.WriteLine($"Orphaned image #{imageId} was found in archive, deleting: {srcPath}");
-                                        File.Delete(srcPath);
+                                        FoxLog.WriteLine($"Orphaned image #{imageId} was found in archive: {srcPath}");
+                                        //File.Delete(srcPath);
                                     }
                                     else
                                     {
