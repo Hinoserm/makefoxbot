@@ -425,6 +425,10 @@ namespace makefoxsrv
                             selectCmd.Parameters.AddWithValue("@cutoff", cutoff);
 
                             using var reader = await selectCmd.ExecuteReaderAsync(cancellationToken);
+
+                            if (!reader.HasRows)
+                                break;
+
                             while (await reader.ReadAsync(cancellationToken))
                             {
                                 var imageId = reader.GetInt64("id");
