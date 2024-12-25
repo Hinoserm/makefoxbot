@@ -294,6 +294,9 @@ namespace makefoxsrv
             if (!cancellationToken.IsCancellationRequested)
                 count += await RunOrphanedImageFileCleanup(cutoff, cancellationToken);
 
+            if (!cancellationToken.IsCancellationRequested)
+                count += await RunDuplicateImageFinder(cutoff, cancellationToken);
+
             if (count > 0)
             {
                 FoxLog.WriteLine($"Removing empty directories...");
@@ -476,16 +479,37 @@ namespace makefoxsrv
 
                         foreach (var file in fileBatch)
                         {
-                            var relativePath = file.Substring(dataPath.Length)
+                            var orphanedFilePath = file.Substring(dataPath.Length)
                                                             .TrimStart(Path.DirectorySeparatorChar)
                                                             .Replace('\\', '/'); // Normalize to forward slashes
 
-                            if (!processedFiles.Contains(relativePath))
+                            if (!processedFiles.Contains(orphanedFilePath))
                             {
-                                // This file was not found in the database
-                                FoxLog.WriteLine($"Deleting orphaned image file: {relativePath}");
-                                processedFiles.Add(relativePath);
-                                File.Delete(file);
+                                processedFiles.Add(orphanedFilePath);
+
+                                // We need to double check the database for any files that weren't processed.
+
+                                using (var selectCmd = new MySqlCommand(@"
+                                    SELECT COUNT(*)
+                                    FROM images i
+                                    WHERE i.image_file LIKE CONCAT('%', @filepath)
+                                ", SQL))
+                                {
+                                    selectCmd.Parameters.AddWithValue("@filepath", orphanedFilePath);
+
+                                    var result = Convert.ToInt64(await selectCmd.ExecuteScalarAsync(cancellationToken) ?? 0);
+
+                                    if (result < 1)
+                                    {
+                                        // Not found anywhere in the database, delete the file.
+                                        FoxLog.WriteLine($"Deleting orphaned image file: {orphanedFilePath}");
+                                        //File.Delete(file);
+                                    }
+                                    else
+                                    {
+                                        FoxLog.WriteLine($"Orphaned image file found in database: {orphanedFilePath}");
+                                    }
+                                }
                             }
                         }
                     }
@@ -524,8 +548,7 @@ namespace makefoxsrv
             return processedFiles.Count();
         }
 
-        [Cron(hours: 1)]
-        public static async Task CronDuplicateImageFinder(CancellationToken cancellationToken)
+        public static async Task<int> RunDuplicateImageFinder(DateTime cutoff, CancellationToken cancellationToken)
         {
             bool debugMode = true;
 
@@ -557,12 +580,16 @@ namespace makefoxsrv
                 WHERE
                     image_file LIKE 'archive/%'
                     AND image_file NOT LIKE '%images/duplicates/%'
+                    AND date_added < @cutoff 
                 GROUP BY sha1hash
                 HAVING COUNT(*) > 1
                 ORDER BY sha1hash
                 ";
 
-                using (var hashCmd = new MySqlCommand(duplicateHashesQuery, readConn))
+                using var hashCmd = new MySqlCommand(duplicateHashesQuery, readConn);
+
+                hashCmd.Parameters.AddWithValue("@cutoff", cutoff);
+
                 using (var hashReader = await hashCmd.ExecuteReaderAsync(cancellationToken))
                 {
                     while (await hashReader.ReadAsync(cancellationToken))
@@ -573,13 +600,17 @@ namespace makefoxsrv
                         var imagesQuery = @"
                         SELECT id, image_file, date_added, filesize
                         FROM images
-                        WHERE sha1hash = @hash
+                        WHERE 
+                            sha1hash = @hash
                             AND image_file LIKE 'archive/%'
+                            AND date_added < @cutoff 
                         ORDER BY date_added DESC;";
 
                         using (var imagesCmd = new MySqlCommand(imagesQuery, processConn))
                         {
                             imagesCmd.Parameters.AddWithValue("@hash", sha1hash);
+                            imagesCmd.Parameters.AddWithValue("@cutoff", cutoff);
+
 
                             using (var imagesReader = await imagesCmd.ExecuteReaderAsync(cancellationToken))
                             {
@@ -654,11 +685,6 @@ namespace makefoxsrv
                                         {
                                             File.Copy(sourceFullPath, newFullPath, overwrite: true);
                                             FoxLog.WriteLine($"Copied '{sourceFullPath}' to '{newFullPath}'.");
-                                        }
-                                        else
-                                        {
-                                            File.Copy(sourceFullPath, newFullPath, overwrite: true);
-                                            FoxLog.WriteLine($"Copied '{sourceFullPath}' to '{newFullPath}' (overwritten existing file).");
                                         }
 
                                         // Delete all original duplicate files
@@ -739,6 +765,8 @@ namespace makefoxsrv
 
             // Log deduplication statistics
             FoxLog.WriteLine($"Finished CronDuplicateImageFinder. Total deduplicated files: {deduplicatedFileCount}. Total space saved: {deduplicatedSpaceSaved} bytes.");
+
+            return deduplicatedFileCount;
         }
 
         public static (int, int) NormalizeImageSize(int width, int height)
