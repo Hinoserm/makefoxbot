@@ -298,6 +298,8 @@ namespace makefoxsrv
                 // For instance, 14 days ago:
                 var cutoff = DateTime.Now.AddDays(-15);
 
+                var processedFiles = new HashSet<string>(); // Tracks files found in the database
+
                 // Run for up to 15 minutes
                 while ((DateTime.UtcNow - startTime).TotalMinutes < 15 && !cancellationToken.IsCancellationRequested)
                 {
@@ -388,6 +390,8 @@ namespace makefoxsrv
                                 if (oldPath is null || srcPath is null)
                                     continue; // Shouldn't be possible.
 
+                                processedFiles.Add(srcPath);
+
                                 if (oldPath.StartsWith("archive/", StringComparison.OrdinalIgnoreCase))
                                 {
                                     // Image is already archived.  Confirm the file exists.
@@ -430,6 +434,19 @@ namespace makefoxsrv
                                     await UpdatePath(imageId, archivePath);
                                 }
                                 count++;
+                            }
+                        }
+
+                        foreach (var file in fileBatch)
+                        {
+                            var relativePath = file.FullName.Substring(dataPath.Length)
+                                                            .TrimStart(Path.DirectorySeparatorChar)
+                                                            .Replace('\\', '/'); // Normalize to forward slashes
+
+                            if (!processedFiles.Contains(relativePath))
+                            {
+                                // This file was not found in the database
+                                FoxLog.WriteLine($"Orphaned file found: {relativePath}");
                             }
                         }
                     }
