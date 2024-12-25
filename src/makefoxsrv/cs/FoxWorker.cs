@@ -1077,7 +1077,7 @@ namespace makefoxsrv
                     var img = inputImage.Image;
                     byte[]? maskImage = null;
 
-                    if (true && qItem.User.CheckAccessLevel(AccessLevel.PREMIUM))
+                    if (qItem.User.CheckAccessLevel(AccessLevel.PREMIUM))
                     {
                         (maskImage, img) = GenerateMask(inputImage, settings.width, settings.height);
 
@@ -1098,7 +1098,7 @@ namespace makefoxsrv
                             qItem: qItem,
                             inputImage: img,
                             maskImage: maskImage,
-                            steps: 10,
+                            steps: 15,
                             denoisingStrength: 0.70,
                             hiresEnabled: false,
                             invertMask: false,
@@ -1449,9 +1449,9 @@ namespace makefoxsrv
                 if (scaledW == inputWidth && scaledH == inputHeight)
                     return (null, inputImage.Image); // No need to generate a mask if the dimensions match
 
-                FoxLog.WriteLine($"Requested size: {width}x{height}");
-                FoxLog.WriteLine($"Image size: {inputWidth}x{inputHeight}");
-                FoxLog.WriteLine($"Scaled size: {scaledW}x{scaledH}");
+                //FoxLog.WriteLine($"Requested size: {width}x{height}");
+                //FoxLog.WriteLine($"Image size: {inputWidth}x{inputHeight}");
+                //FoxLog.WriteLine($"Scaled size: {scaledW}x{scaledH}");
 
                 int offsetX = (scaledW - inputWidth) / 2;
                 int offsetY = (scaledH - inputHeight) / 2;
@@ -1471,7 +1471,7 @@ namespace makefoxsrv
                         );
                     });
 
-                    FoxLog.WriteLine($"Mask size: {maskImageSharp.Width}x{maskImageSharp.Height}");
+                    //FoxLog.WriteLine($"Mask size: {maskImageSharp.Width}x{maskImageSharp.Height}");
 
                     using var ms = new System.IO.MemoryStream();
                     maskImageSharp.SaveAsPng(ms);
