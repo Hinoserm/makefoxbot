@@ -184,7 +184,7 @@ namespace makefoxsrv
                                             FROM images 
                                             WHERE
                                                 image_file IS NOT NULL 
-                                                AND date_added < NOW() - INTERVAL 14 DAY 
+                                                AND date_added < NOW() - INTERVAL 15 DAY 
                                                 AND image_file NOT LIKE 'archive/%' 
                                             ORDER BY date_added ASC
                                             LIMIT 2000";
@@ -274,6 +274,191 @@ namespace makefoxsrv
             }
 
             FoxLog.WriteLine($"Finished archiving {count} images.");
+
+            DeleteEmptyDirectories(Path.Combine(dataPath, "images"));
+
+            if (!cancellationToken.IsCancellationRequested)
+                await RunOrphanedImageFileCleanup(cancellationToken);
+        }
+
+        public static async Task RunOrphanedImageFileCleanup(CancellationToken cancellationToken)
+        {
+            int count = 0;
+            var dataPath = Path.GetFullPath("../data");
+            var imagesPath = Path.Combine(dataPath, "images");
+
+            try
+            {
+                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+                await SQL.OpenAsync(cancellationToken);
+
+                var startTime = DateTime.UtcNow;
+
+                // Find the cutoff date/time for what "old enough" means.
+                // For instance, 14 days ago:
+                var cutoff = DateTime.Now.AddDays(-15);
+
+                // Run for up to 15 minutes
+                while ((DateTime.UtcNow - startTime).TotalMinutes < 15 && !cancellationToken.IsCancellationRequested)
+                {
+                    try
+                    {
+                        // Enumerate only the files older than the cutoff,
+                        // then sort them by their LastWriteTime (oldest first),
+                        // and take up to 2000 so you don't process a massive list all at once.
+                        var fileBatch = Directory.EnumerateFiles(imagesPath, "*.*", SearchOption.AllDirectories)
+                                                 .Select(path => new FileInfo(path))
+                                                 .Where(info => info.LastWriteTime < cutoff)
+                                                 .OrderBy(info => info.LastWriteTime)
+                                                 .Take(2000)
+                                                 .ToList();
+
+                        if (fileBatch.Count == 0)
+                            break; // No more files to process
+
+                        // 1) Create a temporary table (if not exists).
+                        //    We'll recreate it each iteration so we start with a clean slate.
+                        using (var cmd = new MySqlCommand(@"
+                            CREATE TEMPORARY TABLE IF NOT EXISTS TempFileBatch (
+                                sha1hash VARCHAR(255) NOT NULL,
+                                rel_path VARCHAR(1024) NOT NULL
+                            )", SQL))
+                        {
+                            await cmd.ExecuteNonQueryAsync(cancellationToken);
+                        }
+
+                        // 2) Insert the batch of files into the temporary table.
+                        //    We'll store the hash and the relative path for each file.
+                        using (var insertCmd = new MySqlCommand(@"
+                            INSERT INTO TempFileBatch (sha1hash, rel_path)
+                            VALUES (@hash, @relPath)", SQL))
+                        {
+                            foreach (var fileFullPath in fileBatch)
+                            {
+                                if (cancellationToken.IsCancellationRequested)
+                                    break;
+
+                                // Extract the hash and the relative path
+                                var hash = Path.GetFileNameWithoutExtension(fileFullPath.FullName);
+                                if (string.IsNullOrWhiteSpace(hash))
+                                    continue;
+
+                                var relativePath = fileFullPath.FullName.Substring(dataPath.Length)
+                                                               .TrimStart(Path.DirectorySeparatorChar)
+                                                               .Replace('\\', '/'); // Normalize to forward slashes
+
+                                // Insert into TempFileBatch
+                                insertCmd.Parameters.Clear();
+                                insertCmd.Parameters.AddWithValue("@hash", hash);
+                                insertCmd.Parameters.AddWithValue("@relPath", relativePath);
+                                await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+                            }
+                        }
+
+                        // 3) Query the images table by joining with TempFileBatch.
+                        //    This will return rows that match the hash AND whose image_file
+                        //    ends with the relative path (like '%rel_path').
+                        using (var selectCmd = new MySqlCommand(@"
+                            SELECT i.id,
+                                   i.date_added,
+                                   i.image_file,
+                                   t.rel_path
+                            FROM images i
+                            JOIN TempFileBatch t
+                              ON i.sha1hash = t.sha1hash
+                            WHERE i.date_added < NOW() - INTERVAL 15 DAY
+                              AND i.image_file IS NOT NULL
+                              AND i.image_file LIKE CONCAT('%', t.rel_path)
+                        ", SQL))
+                        {
+                            using var reader = await selectCmd.ExecuteReaderAsync(cancellationToken);
+                            while (await reader.ReadAsync(cancellationToken))
+                            {
+                                var imageId = reader.GetInt64("id");
+                                var dateAdded = reader.GetDateTime("date_added");
+                                var oldPath = reader["image_file"] as string;
+                                var srcPath = reader["rel_path"] as string;
+
+                                if (oldPath is null || srcPath is null)
+                                    continue; // Shouldn't be possible.
+
+                                if (oldPath.StartsWith("archive/", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // Image is already archived.  Confirm the file exists.
+
+                                    var archivePath = Path.Combine(dataPath, "archive", srcPath);
+                                    srcPath = Path.Combine(dataPath, srcPath);
+
+                                    if (File.Exists(archivePath))
+                                    {
+                                        // If the file exists in the archive, delete the orphaned source file.
+                                        FoxLog.WriteLine($"Orphaned image #{imageId} was found in archive, deleting: {srcPath}");
+                                        File.Delete(srcPath);
+                                    }
+                                    else
+                                    {
+                                        // If the file doesn't exist but should, copy it into the archive from the source file.
+                                        FoxLog.WriteLine($"File for image #{imageId} was missing in archive, copying: {srcPath} -> {archivePath}");
+
+                                        string? directoryPath = Path.GetDirectoryName(archivePath);
+
+                                        if (directoryPath is null)
+                                            throw new Exception($"Invalid directory path for image #{imageId}: {archivePath}");
+
+                                        if (!Directory.Exists(directoryPath))
+                                        {
+                                            Directory.CreateDirectory(directoryPath);
+                                        }
+                                        File.Move(srcPath, archivePath);
+                                    }
+                                }
+                                else
+                                {
+                                    var archivePath = Path.Combine(dataPath, "archive", srcPath);
+                                    srcPath = Path.Combine(dataPath, "archive");
+
+                                    if (!File.Exists(archivePath))
+                                        File.Move(srcPath, archivePath);
+
+                                    FoxLog.WriteLine($"Arching orphaned file for image #{imageId}: {srcPath} -> {archivePath}");
+                                    await UpdatePath(imageId, archivePath);
+                                }
+                                count++;
+                            }
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // End gracefully
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.LogException(ex);
+                    }
+                    finally
+                    {
+                        // 4) Drop the temp table to clean up. 
+                        //    (MySQL automatically drops temp tables on connection close, but let's be explicit here.)
+                        using (var dropCmd = new MySqlCommand("DROP TEMPORARY TABLE IF EXISTS TempFileBatch", SQL))
+                        {
+                            await dropCmd.ExecuteNonQueryAsync(cancellationToken);
+                        }
+                    }
+                }
+
+                DeleteEmptyDirectories(imagesPath);
+            }
+            catch (OperationCanceledException)
+            {
+                // End gracefully
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex);
+            }
+
+            FoxLog.WriteLine($"Finished orphaned image file cleanup for {count} files.");
         }
 
         public static (int, int) NormalizeImageSize(int width, int height)
