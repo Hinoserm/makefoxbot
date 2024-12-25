@@ -210,6 +210,8 @@ namespace makefoxsrv
                         if (!r.HasRows)
                             break; // Exit the loop early
 
+                        FoxLog.WriteLine($"Found {r.RecordsAffected} images to archive...");
+
                         while (await r.ReadAsync(cancellationToken))
                         {
                             try
