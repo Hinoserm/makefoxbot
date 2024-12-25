@@ -495,7 +495,9 @@ namespace makefoxsrv
                                 using (var selectCmd = new MySqlCommand(@"
                                     SELECT COUNT(*)
                                     FROM images i
-                                    WHERE i.image_file LIKE CONCAT('%', @filepath)
+                                    WHERE 
+                                        i.image_file = CONCAT('archive/', @filepath)
+                                        OR i.image_file = @filepath
                                 ", SQL))
                                 {
                                     selectCmd.Parameters.AddWithValue("@filepath", orphanedFilePath);
