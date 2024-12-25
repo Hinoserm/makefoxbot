@@ -38,7 +38,8 @@ namespace makefoxsrv
 
         private static readonly ConcurrentDictionary<ulong, SemaphoreSlim> UserSemaphores = new();
 
-        public DateTime? CachedTime { get; set; } = null;
+        public DateTime? cachedTime { get; set; } = null;
+        public DateTime lastAccessed { get; private set; } = DateTime.Now;
 
         public DateTime? datePremiumExpires { get; private set; } = null;          //Date premium subscription expires.
         private bool lifetimeSubscription = false;            //Do they have a lifetime sub?
@@ -72,7 +73,7 @@ namespace makefoxsrv
 
         private static FoxUser AddToCache(FoxUser user)
         {
-            user.CachedTime = DateTime.Now;
+            user.cachedTime = DateTime.Now;
 
             lock (cacheLock)
             {
@@ -100,7 +101,7 @@ namespace makefoxsrv
                 foreach (var entry in userCacheByUID)
                 {
                     var user = entry.Value;
-                    if (user.Username is not null && user.Username.ToLowerInvariant() == lowerUsername && user.CachedTime.HasValue)
+                    if (user.Username is not null && user.Username.ToLowerInvariant() == lowerUsername)
                         return user;
                 }
 
@@ -222,7 +223,7 @@ namespace makefoxsrv
             var cachedUser = GetFromCacheByUID((ulong)uid);
             if (cachedUser != null)
             {
-                //StackTrace stackTrace = new StackTrace(true);
+                cachedUser.lastAccessed = DateTime.Now;
 
                 return cachedUser;
             }
@@ -282,6 +283,8 @@ namespace makefoxsrv
                     }
                 }
 
+                cachedUser.lastAccessed = DateTime.Now;
+
                 return cachedUser;
             }
 
@@ -332,6 +335,7 @@ namespace makefoxsrv
             var cachedUser = GetFromCacheByTelegramID(tuserid);
             if (cachedUser is not null)
             {
+                cachedUser.lastAccessed = DateTime.Now;
 
                 return cachedUser;
             }
@@ -365,7 +369,7 @@ namespace makefoxsrv
             var cachedUser = GetFromCacheByUsername(username);
             if (cachedUser != null)
             {
-                //StackTrace stackTrace = new StackTrace(true);
+                cachedUser.lastAccessed = DateTime.Now;
 
                 return cachedUser;
             }

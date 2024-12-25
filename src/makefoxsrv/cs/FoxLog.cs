@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Diagnostics;
 using TL;
 
 using Newtonsoft.Json;
@@ -121,7 +122,14 @@ namespace makefoxsrv
                 {
                     teleMsgId = tlCallback.msg_id;
                 }
-                
+
+                //StackTrace stackTrace = new StackTrace(true);
+
+                var strStackTrace = ex?.StackTrace;
+
+                if (ex is null)
+                    strStackTrace = (new StackTrace(fNeedFileInfo: false, skipFrames: 2)).ToString();
+
                 var logEntry = new LogEntry
                 {
                     Date = DateTime.Now,
@@ -133,7 +141,7 @@ namespace makefoxsrv
                     WorkerId = context.Worker?.ID,
                     Command = (context.Command?.Length ?? 0) > 254 ? context.Command?.Substring(0, 254) : context.Command,
                     Message = message,
-                    StackTrace = ex?.StackTrace,
+                    StackTrace = strStackTrace,
                     TelegramUserId = context.Telegram?.User.ID,
                     TelegramChatId = context.Telegram?.Chat?.ID,
                     CallerName = callerName,

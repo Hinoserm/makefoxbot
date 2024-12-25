@@ -91,6 +91,8 @@ namespace makefoxsrv
             {
                 var task = Task.Run(async () =>
                 {
+                    FoxContextManager.Current = new FoxContext();
+
                     while (!token.IsCancellationRequested)
                     {
                         DateTime startTime = DateTime.Now;
@@ -171,6 +173,8 @@ namespace makefoxsrv
                             FoxLog.LogException(ex);
                         }
                     }
+
+                    FoxContextManager.Clear();
                 }, token);
 
                 _tasks[method] = task;
