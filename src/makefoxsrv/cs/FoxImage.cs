@@ -312,9 +312,16 @@ namespace makefoxsrv
                         // then sort them by their LastWriteTime (oldest first),
                         // and take up to 2000 so you don't process a massive list all at once.
                         var fileBatch = Directory.EnumerateFiles(imagesPath, "*.*", SearchOption.AllDirectories)
+                                                 .AsParallel()
+                                                 .WithDegreeOfParallelism(4) // Optional: tune degree of parallelism
+                                                 .Where(path =>
+                                                 {
+                                                     var relativePath = Path.GetRelativePath(dataPath, path)
+                                                                            .Replace('\\', '/'); // Normalize to forward slashes
+                                                     return !processedFiles.Contains(relativePath);
+                                                 })
                                                  .Select(path => new FileInfo(path))
                                                  .Where(info => info.LastWriteTime < cutoff)
-                                                 .OrderBy(info => info.LastWriteTime)
                                                  .Take(2000)
                                                  .ToList();
 
@@ -330,7 +337,7 @@ namespace makefoxsrv
                                 sha1hash VARCHAR(255) NOT NULL,
                                 rel_path VARCHAR(1024) NOT NULL
                             );
-                            CREATE INDEX idx_sha1hash_rel_path ON TempFileBatch (sha1hash);
+                            CREATE INDEX idx_sha1hash ON TempFileBatch (sha1hash);
                         ", SQL))
                         {
                             await cmd.ExecuteNonQueryAsync(cancellationToken);
