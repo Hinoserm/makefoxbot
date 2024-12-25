@@ -364,12 +364,15 @@ namespace makefoxsrv
             }
         }
 
-        public static async Task StopWorkers()
+        public static async Task StopWorkers(bool waitForStopped = false)
         {
             foreach (var worker in workers.Values)
             {
                 worker.Stop();
             }
+
+            if (!waitForStopped)
+                return;
 
             await Task.WhenAll(workers.Values.Select(w =>
             {

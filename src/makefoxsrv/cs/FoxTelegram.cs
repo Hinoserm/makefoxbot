@@ -1219,6 +1219,12 @@ namespace makefoxsrv
             return null;
         }
 
+        public static void StopUpdates()
+        {
+            if (_client is not null)
+                _client.OnUpdates -= HandleUpdateAsync;
+        }
+
         internal static async Task Disconnect()
         {
             //await Client.Auth_LogOut();

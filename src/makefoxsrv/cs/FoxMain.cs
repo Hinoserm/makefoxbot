@@ -383,7 +383,8 @@ namespace makefoxsrv
             {
                 //Wait forever, or until cancellation is requested.
                 await Task.Delay(Timeout.InfiniteTimeSpan, cts.Token);
-            } catch (TaskCanceledException)
+            }
+            catch (TaskCanceledException)
             {
                 //Don't need to do anything special here.
             }
@@ -394,7 +395,8 @@ namespace makefoxsrv
                 cts.Cancel();
             }
 
-            //await FoxWorker.StopWorkers();
+            FoxTelegram.StopUpdates();
+            await FoxWorker.StopWorkers();
             FoxCron.Stop();
 
             var shutdownStart = DateTime.Now;
