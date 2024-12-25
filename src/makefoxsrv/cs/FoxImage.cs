@@ -17,6 +17,7 @@ using SixLabors.ImageSharp.Formats;
 using System.Linq.Expressions;
 using SixLabors.Fonts.Unicode;
 using EmbedIO.Utilities;
+using System.Security.Policy;
 
 namespace makefoxsrv
 {
@@ -156,6 +157,10 @@ namespace makefoxsrv
             var dataPath = Path.GetFullPath("../data");
             var archivePath = Path.Combine(dataPath, "archive");
 
+            // Find the cutoff date/time for what "old enough" means.
+            // For instance, 14 days ago:
+            var cutoff = DateTime.Now.AddDays(-15);
+
             try
             {
                 if (!Directory.Exists(archivePath))
@@ -184,10 +189,12 @@ namespace makefoxsrv
                                             FROM images 
                                             WHERE
                                                 image_file IS NOT NULL 
-                                                AND date_added < NOW() - INTERVAL 15 DAY 
+                                                AND date_added < @cutoff 
                                                 AND image_file NOT LIKE 'archive/%' 
                                             ORDER BY date_added ASC
                                             LIMIT 2000";
+
+                        cmd.Parameters.AddWithValue("@cutoff", cutoff);
 
                         using var r = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -278,10 +285,10 @@ namespace makefoxsrv
             DeleteEmptyDirectories(Path.Combine(dataPath, "images"));
 
             if (!cancellationToken.IsCancellationRequested)
-                await RunOrphanedImageFileCleanup(cancellationToken);
+                await RunOrphanedImageFileCleanup(cutoff, cancellationToken);
         }
 
-        public static async Task RunOrphanedImageFileCleanup(CancellationToken cancellationToken)
+        public static async Task RunOrphanedImageFileCleanup(DateTime cutoff, CancellationToken cancellationToken)
         {
             int count = 0;
             var dataPath = Path.GetFullPath("../data");
@@ -293,10 +300,6 @@ namespace makefoxsrv
                 await SQL.OpenAsync(cancellationToken);
 
                 var startTime = DateTime.UtcNow;
-
-                // Find the cutoff date/time for what "old enough" means.
-                // For instance, 14 days ago:
-                var cutoff = DateTime.Now.AddDays(-15);
 
                 var processedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -380,11 +383,13 @@ namespace makefoxsrv
                             FROM images i
                             JOIN TempFileBatch t
                               ON i.sha1hash = t.sha1hash
-                            WHERE i.date_added < NOW() - INTERVAL 15 DAY
+                            WHERE i.date_added < @cutoff
                               AND i.image_file IS NOT NULL
                               AND i.image_file LIKE CONCAT('%', t.rel_path)
                         ", SQL))
                         {
+                            selectCmd.Parameters.AddWithValue("@cutoff", cutoff);
+
                             using var reader = await selectCmd.ExecuteReaderAsync(cancellationToken);
                             while (await reader.ReadAsync(cancellationToken))
                             {
@@ -454,6 +459,7 @@ namespace makefoxsrv
                                 // This file was not found in the database
                                 FoxLog.WriteLine($"Orphaned file found: {relativePath}");
                                 processedFiles.Add(relativePath);
+                                count++;
                             }
                         }
                     }
