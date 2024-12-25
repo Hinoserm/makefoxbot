@@ -1420,7 +1420,7 @@ namespace makefoxsrv
                 return;
             }
 
-            if (width < 512 || height < 512)
+            if ((width < 512 || height < 512) && !user.CheckAccessLevel(AccessLevel.PREMIUM))
             {
                 await t.SendMessageAsync(
                     text: "❌ Dimension should be at least 512 pixels.",

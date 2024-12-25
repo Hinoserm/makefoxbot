@@ -1064,11 +1064,9 @@ namespace makefoxsrv
 
                 if (generationType == FoxQueue.QueueType.IMG2IMG)
                 {
-                    progressCTS = StartProgressMonitor(qItem, ctsLoop.Token, 2, 0);
+                    
 
                     FoxImage? inputImage = await qItem.GetInputImage();
-
-
 
                     if (inputImage is null || inputImage.Image is null)
                         throw new Exception("Input image could not be loaded.");
@@ -1079,33 +1077,50 @@ namespace makefoxsrv
                     var img = inputImage.Image;
                     byte[]? maskImage = null;
 
-                    if (qItem.User.CheckAccessLevel(AccessLevel.PREMIUM))
+                    if (true && qItem.User.CheckAccessLevel(AccessLevel.PREMIUM))
+                    {
                         (maskImage, img) = GenerateMask(inputImage, settings.width, settings.height);
 
-                    outputImage = await RunImg2Img(
-                        qItem: qItem,
-                        inputImage: img,
-                        maskImage: maskImage,
-                        invertMask: false,
-                        cancellationToken: ctsLoop.Token
+                    }
+
+                    progressCTS = StartProgressMonitor(
+                        qItem: qItem, 
+                        cancellationToken: ctsLoop.Token,
+                        manualScale: maskImage is null ? 1 : 2,
+                        startScale: 0
                     );
 
                     if (maskImage is not null)
                     {
-                        // If we used a mask, we need to run the process again.
+                        FoxLog.WriteLine($"Using mask image.");
+
+                        img = await RunImg2Img(
+                            qItem: qItem,
+                            inputImage: img,
+                            maskImage: maskImage,
+                            steps: 10,
+                            denoisingStrength: 0.70,
+                            hiresEnabled: false,
+                            invertMask: false,
+                            cancellationToken: ctsLoop.Token
+                        );
 
                         if (progressCTS is not null)
                             progressCTS.Cancel();
 
-                        progressCTS = StartProgressMonitor(qItem, ctsLoop.Token, 2, 0.5);
-
-                        outputImage = await RunImg2Img(
+                        progressCTS = StartProgressMonitor(
                             qItem: qItem,
-                            inputImage: outputImage,
-                            cancellationToken: ctsLoop.Token
+                            cancellationToken: ctsLoop.Token,
+                            manualScale: 2,
+                            startScale: 0.5
                         );
                     }
 
+                    outputImage = await RunImg2Img(
+                        qItem: qItem,
+                        inputImage: img,
+                        cancellationToken: ctsLoop.Token
+                    );
                 }
                 else if (generationType == FoxQueue.QueueType.TXT2IMG)
                 {
@@ -1325,14 +1340,22 @@ namespace makefoxsrv
             }
         }
 
-        private async Task<byte[]> RunImg2Img(FoxQueue qItem, byte[] inputImage, CancellationToken cancellationToken, byte[]? maskImage = null, bool invertMask = false, int? stepsOverride = null)
-        {                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
-
+        private async Task<byte[]> RunImg2Img(FoxQueue qItem, byte[] inputImage, CancellationToken cancellationToken,
+                                              byte[]? maskImage = null, bool invertMask = false, int? steps = null,
+                                              double? denoisingStrength = null, int? seed = null, bool? hiresEnabled = null)
+        {
             var settings = qItem.Settings.Copy();
 
+            if (hiresEnabled is null)
+                hiresEnabled = settings.hires_enabled;
+
+            if (steps is null)
+                steps = hiresEnabled.Value ? (int)settings.hires_steps : settings.steps;
+
+            if (denoisingStrength is null)
+                denoisingStrength = hiresEnabled.Value ? (double)settings.hires_denoising_strength : (double)settings.denoising_strength;
+
             var model = await api.StableDiffusionModel(settings.model, cancellationToken);
-            //var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
-            //var sampler = await api.Sampler(settings.model == "redwater_703" ? "DPM++ 2M Karras" : "Euler A", ctsLoop.Token);
             var sampler = await api.Sampler(settings.sampler);
 
             var img = new Base64EncodedImage(inputImage);
@@ -1351,24 +1374,25 @@ namespace makefoxsrv
 
                 Mask = maskImage is null ? null : new Base64EncodedImage(maskImage),
                 InpaintingMaskInvert = invertMask,
+                MaskBlur = 0,
 
-                Width = settings.width,
-                Height = settings.height,
+                Width = hiresEnabled.Value ? settings.hires_width : settings.width,
+                Height = hiresEnabled.Value ? settings.hires_height : settings.height,
 
                 Seed = new()
                 {
-                    Seed = settings.seed,
+                    Seed = seed ?? settings.seed,
                     SubSeed = settings.variation_seed,
                     SubseedStrength = (double?)settings.variation_strength,
                 },
                 ResizeMode = 2, //Testing this
                 InpaintingFill = MaskFillMode.Fill,
-                DenoisingStrength = (double)settings.denoising_strength,
+                DenoisingStrength = denoisingStrength ?? (double)settings.denoising_strength,
 
                 Sampler = new()
                 {
                     Sampler = sampler,
-                    SamplingSteps = stepsOverride ?? settings.steps,
+                    SamplingSteps = steps ?? settings.steps,
                     CfgScale = (double)settings.cfgscale
                 }
             };
@@ -1425,6 +1449,10 @@ namespace makefoxsrv
                 if (scaledW == inputWidth && scaledH == inputHeight)
                     return (null, inputImage.Image); // No need to generate a mask if the dimensions match
 
+                FoxLog.WriteLine($"Requested size: {width}x{height}");
+                FoxLog.WriteLine($"Image size: {inputWidth}x{inputHeight}");
+                FoxLog.WriteLine($"Scaled size: {scaledW}x{scaledH}");
+
                 int offsetX = (scaledW - inputWidth) / 2;
                 int offsetY = (scaledH - inputHeight) / 2;
 
@@ -1442,6 +1470,8 @@ namespace makefoxsrv
                             new Rectangle(offsetX, offsetY, inputWidth, inputHeight)
                         );
                     });
+
+                    FoxLog.WriteLine($"Mask size: {maskImageSharp.Width}x{maskImageSharp.Height}");
 
                     using var ms = new System.IO.MemoryStream();
                     maskImageSharp.SaveAsPng(ms);
@@ -1466,6 +1496,8 @@ namespace makefoxsrv
 
                         ctx.DrawImage(originalImage, new Point(offsetX, offsetY), 1f); // Full opacity
                     });
+
+                    FoxLog.WriteLine($"Image size: {resizedImageSharp.Width}x{resizedImageSharp.Height}");
 
                     using var ms = new System.IO.MemoryStream();
                     resizedImageSharp.SaveAsPng(ms);
