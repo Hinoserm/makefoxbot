@@ -12,6 +12,7 @@ using System.Linq.Expressions;
 using System.Data;
 using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Collections.Concurrent;
 
 public enum AccessLevel
 {
@@ -32,9 +33,12 @@ namespace makefoxsrv
 
         private static Dictionary<ulong, FoxUser> userCacheByUID = new Dictionary<ulong, FoxUser>();
         private static Dictionary<long, FoxUser> userCacheByTelegramID = new Dictionary<long, FoxUser>();
+
         private static readonly object cacheLock = new object();
 
         private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(1);
+
+        private static readonly ConcurrentDictionary<long, SemaphoreSlim> UserSemaphores = new();
 
         public DateTime? CachedTime { get; set; } = null;
 
@@ -62,7 +66,7 @@ namespace makefoxsrv
         {
             lock (cacheLock)
             {
-                long count = Math.Max(userCacheByUID.Count,  userCacheByTelegramID.Count);
+                long count = Math.Max(userCacheByUID.Count, userCacheByTelegramID.Count);
 
                 userCacheByUID.Clear();
                 userCacheByTelegramID.Clear();
@@ -165,12 +169,34 @@ namespace makefoxsrv
 
         public async Task LockAsync()
         {
+            // Acquire user-specific semaphore first
+            if (this.TelegramID.HasValue)
+            {
+                await UserSemaphores.GetOrAdd(this.TelegramID.Value, _ => new SemaphoreSlim(1, 1)).WaitAsync();
+            }
+
+            // Then acquire the global semaphore
             await semaphore.WaitAsync();
         }
 
         public void Unlock()
         {
-            semaphore.Release();
+            try
+            {
+                // Release the global semaphore first (reverse order of locking)
+                semaphore.Release();
+            }
+            finally
+            {
+                // Then release the user-specific semaphore (if it was locked)
+                if (this.TelegramID.HasValue)
+                {
+                    if (UserSemaphores.TryGetValue(this.TelegramID.Value, out var userSemaphore))
+                    {
+                        userSemaphore.Release();
+                    }
+                }
+            }
         }
 
         public async Task SetPreferredLanguage(string language)
@@ -213,7 +239,7 @@ namespace makefoxsrv
             }
         }
 
-        private static FoxUser CreateFromRow(MySqlDataReader r)
+        private static async Task<FoxUser> CreateFromRow(MySqlDataReader r)
         {
             var user = new FoxUser(
                 ID: Convert.ToUInt64(r["id"]),
@@ -231,6 +257,8 @@ namespace makefoxsrv
             {
                 user.accessLevel = accessLevel;
             }
+
+            AddToCache(user);
 
             return user;
         }
@@ -261,7 +289,7 @@ namespace makefoxsrv
                         {
                             if (await r.ReadAsync())
                             {
-                                user = CreateFromRow(r);
+                                user = await CreateFromRow(r);
                             }
                         }
                     }
@@ -272,9 +300,6 @@ namespace makefoxsrv
                 // In case of any error, return null.
                 return null;
             }
-
-            if (user is not null)
-                AddToCache(user);
 
             return user;
         }
@@ -320,7 +345,7 @@ namespace makefoxsrv
                     {
                         if (await r.ReadAsync())
                         {
-                            user = CreateFromRow(r);
+                            user = await CreateFromRow(r);
                         }
                     }
                 }
@@ -344,8 +369,6 @@ namespace makefoxsrv
             // If the user was not found in the database, create a new FoxUser from the Telegram user
             if (user is null && autoCreateUser)
                 user = await CreateFromTelegramUser(tuser);
-            else if (user is not null)
-                AddToCache(user);
 
             return user;
         }
@@ -371,7 +394,7 @@ namespace makefoxsrv
                     {
                         if (await r.ReadAsync())
                         {
-                            return CreateFromRow(r);
+                            return await CreateFromRow(r);
                         }
                     }
                 }
@@ -384,7 +407,7 @@ namespace makefoxsrv
         {
             if (string.IsNullOrEmpty(username))
                 return null;
-
+             
             var cachedUser = GetFromCacheByUsername(username);
             if (cachedUser != null)
             {
@@ -405,7 +428,7 @@ namespace makefoxsrv
                     {
                         if (await r.ReadAsync())
                         {
-                            return CreateFromRow(r);
+                            return await CreateFromRow(r);
                         }
                     }
                 }

@@ -210,7 +210,7 @@ namespace makefoxsrv
                         if (!r.HasRows)
                             break; // Exit the loop early
 
-                        FoxLog.WriteLine($"Found  images to archive...");
+                        FoxLog.WriteLine($"Found images to archive...");
 
                         while (await r.ReadAsync(cancellationToken))
                         {
@@ -341,7 +341,7 @@ namespace makefoxsrv
                                      }));
 
                         var fileBatch = dayDirectories.AsParallel()
-                                                      .WithDegreeOfParallelism(4) // Adjust degree of parallelism
+                                                      .WithDegreeOfParallelism(6) // Adjust degree of parallelism
                                                       .SelectMany(dayDir =>
                                                           Directory.EnumerateFiles(dayDir, "*.*", SearchOption.AllDirectories)
                                                                    .Where(path =>
@@ -1203,11 +1203,13 @@ namespace makefoxsrv
         
         public static async Task<FoxImage?> SaveImageFromTelegram(FoxTelegram t, Message message, Photo photo, bool Silent = false)
         {
+            FoxLog.WriteLine($"Got a photo from {t.User} ({message.ID})!");
+
+            FoxUser? user = null;
+
             try
             {
-                FoxLog.WriteLine($"Got a photo from {t.User} ({message.ID})!");
-
-                var user = await FoxUser.GetByTelegramUser(t.User, true);
+                user = await FoxUser.GetByTelegramUser(t.User, true);
 
                 if (user is not null)
                 {

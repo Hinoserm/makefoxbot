@@ -86,7 +86,6 @@ namespace makefoxsrv
 
         private readonly string address;
         private SemaphoreSlim semaphore = new SemaphoreSlim(0, int.MaxValue);
-        private bool semaphoreAcquired = false;
         private StableDiffusion? api;
         public FoxQueue? qItem = null;   //If we're operating, this is the current queue item being processed.
 
