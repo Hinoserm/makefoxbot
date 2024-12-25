@@ -453,6 +453,7 @@ namespace makefoxsrv
                             {
                                 // This file was not found in the database
                                 FoxLog.WriteLine($"Orphaned file found: {relativePath}");
+                                processedFiles.Add(relativePath);
                             }
                         }
                     }
