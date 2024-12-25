@@ -395,6 +395,7 @@ namespace makefoxsrv
                 cts.Cancel();
             }
 
+            
             FoxTelegram.StopUpdates();
             await FoxWorker.StopWorkers();
             FoxCron.Stop();

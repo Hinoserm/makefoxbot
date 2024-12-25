@@ -68,6 +68,7 @@ class FoxWeb
         if (server is null)
             throw new Exception("Server is not running");
 
+        server.Listener.Stop();
         server.Dispose();
     }
 
