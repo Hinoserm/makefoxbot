@@ -32,21 +32,17 @@ namespace makefoxsrv
 
 
         private static Dictionary<ulong, FoxUser> userCacheByUID = new Dictionary<ulong, FoxUser>();
-        private static Dictionary<long, FoxUser> userCacheByTelegramID = new Dictionary<long, FoxUser>();
+        //private static Dictionary<long, FoxUser> userCacheByTelegramID = new Dictionary<long, FoxUser>();
 
         private static readonly object cacheLock = new object();
 
-        private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(1);
-
-        private static readonly ConcurrentDictionary<long, SemaphoreSlim> UserSemaphores = new();
+        private static readonly ConcurrentDictionary<ulong, SemaphoreSlim> UserSemaphores = new();
 
         public DateTime? CachedTime { get; set; } = null;
 
         public DateTime? datePremiumExpires { get; private set; } = null;          //Date premium subscription expires.
         private bool lifetimeSubscription = false;            //Do they have a lifetime sub?
         private AccessLevel accessLevel = AccessLevel.BANNED; //Default to BANNED, just in case.
-
-        private readonly SemaphoreSlim semaphore = new SemaphoreSlim(1, 1);
 
         public DateTime? DateTermsAccepted { get; set; } = null;
 
@@ -66,27 +62,33 @@ namespace makefoxsrv
         {
             lock (cacheLock)
             {
-                long count = Math.Max(userCacheByUID.Count, userCacheByTelegramID.Count);
+                long count = userCacheByUID.Count;
 
                 userCacheByUID.Clear();
-                userCacheByTelegramID.Clear();
 
                 return count;
             }
         }
 
-        private static void AddToCache(FoxUser user)
+        private static FoxUser AddToCache(FoxUser user)
         {
             user.CachedTime = DateTime.Now;
 
             lock (cacheLock)
             {
-                if (!userCacheByUID.TryAdd(user.UID, user))
-                    throw new InvalidOperationException($"User with UID {user.UID} already exists in cache.");
+                var cachedUser = GetFromCacheByUID(user.UID);
 
-                if (user.TelegramID != null && !userCacheByTelegramID.TryAdd(user.TelegramID.Value, user))
-                    throw new InvalidOperationException($"User with Telegram ID {user.TelegramID.Value} already exists in cache.");
+                if (cachedUser is not null)
+                {
+                    FoxLog.WriteLine($"User with UID {user.UID} already exists in cache.", LogLevel.DEBUG);
+                    return cachedUser;
+                }
+
+                if (!userCacheByUID.TryAdd(user.UID, user))
+                    throw new InvalidOperationException($"Failed to cache UID {user.UID}.");
             }
+
+            return user;
         }
 
 
@@ -99,23 +101,9 @@ namespace makefoxsrv
                 {
                     var user = entry.Value;
                     if (user.Username is not null && user.Username.ToLowerInvariant() == lowerUsername && user.CachedTime.HasValue)
-                    {
-                        if (DateTime.Now - user.CachedTime.Value < CacheDuration)
-                        {
-                            return user;
-                        }
-                        else
-                        {
-                            FoxLog.WriteLine($"GetUserFromCache({user.UID}): User has expired from cache, removing.", LogLevel.DEBUG);
-
-                            userCacheByUID.Remove(user.UID);
-                            if (user.TelegramID is not null)
-                            {
-                                userCacheByTelegramID.Remove(user.TelegramID.Value);
-                            }
-                        }
-                    }
+                        return user;
                 }
+
                 return null;
             }
         }
@@ -124,23 +112,9 @@ namespace makefoxsrv
         {
             lock (cacheLock)
             {
-                if (userCacheByUID.TryGetValue(uid, out var user) && user.CachedTime.HasValue)
-                {
-                    if (DateTime.Now - user.CachedTime.Value < CacheDuration)
-                    {
-                        return user;
-                    }
-                    else
-                    {
-                        FoxLog.WriteLine($"GetUserFromCache({user.UID}): User has expired from cache, removing.", LogLevel.DEBUG);
+                if (userCacheByUID.TryGetValue(uid, out var user))
+                    return user;
 
-                        userCacheByUID.Remove(uid);
-                        if (user.TelegramID is not null)
-                        {
-                            userCacheByTelegramID.Remove(user.TelegramID.Value);
-                        }
-                    }
-                }
                 return null;
             }
         }
@@ -149,53 +123,35 @@ namespace makefoxsrv
         {
             lock (cacheLock)
             {
-                if (userCacheByTelegramID.TryGetValue(telegramID, out var user) && user.CachedTime.HasValue)
-                {
-                    if (DateTime.Now - user.CachedTime.Value < CacheDuration)
-                    {
-                        return user;
-                    }
-                    else
-                    {
-                        FoxLog.WriteLine($"GetUserFromCache({user.UID}): User has expired from cache, removing.", LogLevel.DEBUG);
-
-                        userCacheByTelegramID.Remove(telegramID);
-                        userCacheByUID.Remove(user.UID);
-                    }
-                }
-                return null;
+                // Return the first user with a matching TelegramID
+                return userCacheByUID.Values
+                    .FirstOrDefault(u => u.TelegramID == telegramID);
             }
         }
 
+        //private static bool CheckIfCacheExpired(FoxUser user)
+        //{
+        //    // If the user is expired, remove it from the cache and return null
+        //    if (user.CachedTime is null || DateTime.Now - user.CachedTime.Value >= CacheDuration)
+        //    {
+        //        FoxLog.WriteLine($"GetUserFromCache({user.UID}): User has expired from cache, removing.", LogLevel.DEBUG);
+        //        userCacheByUID.Remove(user.UID);
+        //        return true;
+        //    }
+
+        //    return false;
+        //}
+
         public async Task LockAsync()
         {
-            // Acquire user-specific semaphore first
-            if (this.TelegramID.HasValue)
-            {
-                await UserSemaphores.GetOrAdd(this.TelegramID.Value, _ => new SemaphoreSlim(1, 1)).WaitAsync();
-            }
-
-            // Then acquire the global semaphore
-            await semaphore.WaitAsync();
+            await UserSemaphores.GetOrAdd(this.UID, _ => new SemaphoreSlim(1, 1)).WaitAsync();
         }
 
         public void Unlock()
         {
-            try
+            if (UserSemaphores.TryGetValue(this.UID, out var userSemaphore))
             {
-                // Release the global semaphore first (reverse order of locking)
-                semaphore.Release();
-            }
-            finally
-            {
-                // Then release the user-specific semaphore (if it was locked)
-                if (this.TelegramID.HasValue)
-                {
-                    if (UserSemaphores.TryGetValue(this.TelegramID.Value, out var userSemaphore))
-                    {
-                        userSemaphore.Release();
-                    }
-                }
+                userSemaphore.Release();
             }
         }
 
@@ -239,7 +195,7 @@ namespace makefoxsrv
             }
         }
 
-        private static async Task<FoxUser> CreateFromRow(MySqlDataReader r)
+        private static FoxUser CreateFromRow(MySqlDataReader r)
         {
             var user = new FoxUser(
                 ID: Convert.ToUInt64(r["id"]),
@@ -258,9 +214,7 @@ namespace makefoxsrv
                 user.accessLevel = accessLevel;
             }
 
-            AddToCache(user);
-
-            return user;
+            return AddToCache(user);
         }
 
         public static async Task<FoxUser?> GetByUID(long uid)
@@ -289,7 +243,7 @@ namespace makefoxsrv
                         {
                             if (await r.ReadAsync())
                             {
-                                user = await CreateFromRow(r);
+                                user = CreateFromRow(r);
                             }
                         }
                     }
@@ -345,7 +299,7 @@ namespace makefoxsrv
                     {
                         if (await r.ReadAsync())
                         {
-                            user = await CreateFromRow(r);
+                            user = CreateFromRow(r);
                         }
                     }
                 }
@@ -394,7 +348,7 @@ namespace makefoxsrv
                     {
                         if (await r.ReadAsync())
                         {
-                            return await CreateFromRow(r);
+                            return CreateFromRow(r);
                         }
                     }
                 }
@@ -428,7 +382,7 @@ namespace makefoxsrv
                     {
                         if (await r.ReadAsync())
                         {
-                            return await CreateFromRow(r);
+                            return CreateFromRow(r);
                         }
                     }
                 }

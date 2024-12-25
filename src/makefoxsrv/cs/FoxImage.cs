@@ -297,8 +297,9 @@ namespace makefoxsrv
             if (!cancellationToken.IsCancellationRequested)
                 count += await RunOrphanedImageFileCleanup(cutoff, cancellationToken);
 
-            if (!cancellationToken.IsCancellationRequested)
-                count += await RunDuplicateImageFinder(cutoff, cancellationToken);
+            // Leave this off for now
+            //if (!cancellationToken.IsCancellationRequested)
+            //    count += await RunDuplicateImageFinder(cutoff, cancellationToken);
 
             if (count > 0)
             {
