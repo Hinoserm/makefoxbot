@@ -210,7 +210,7 @@ namespace makefoxsrv
                         if (!r.HasRows)
                             break; // Exit the loop early
 
-                        FoxLog.WriteLine($"Found {r.RecordsAffected} images to archive...");
+                        FoxLog.WriteLine($"Found  images to archive...");
 
                         while (await r.ReadAsync(cancellationToken))
                         {
@@ -267,6 +267,7 @@ namespace makefoxsrv
                                 {
                                     FoxLog.WriteLine($"File is missing in both source and destination for {id}: {imagePath}.");
                                     _missingFiles.Add(id); // Save the file as missing so we don't process it again later.
+                                    await UpdatePath(id, null);
                                 }
                                 count++;
                             }
