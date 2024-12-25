@@ -118,31 +118,36 @@ namespace makefoxsrv
             }
         }
 
-        private static void DeleteEmptyDirectories(string startDirectory)
+        private static void DeleteEmptyDirectories(string startDirectory, string? rootDirectory = null)
         {
-            // Recursively delete empty directories
+            // If we're at the top-level call, rootDirectory is null. Set it.
+            if (rootDirectory == null)
+                rootDirectory = startDirectory;
+
+            // Recurse into subdirectories first
             foreach (var directory in Directory.GetDirectories(startDirectory))
             {
-                DeleteEmptyDirectories(directory);
+                DeleteEmptyDirectories(directory, rootDirectory);
             }
 
-            // After the loop to check and potentially remove subdirectories,
-            // we check if the current directory is empty.
+            // Check if empty
             var entries = Directory.GetFileSystemEntries(startDirectory);
-            if (entries.Length == 0)
+            // If empty AND it's not our original root, delete it
+            if (entries.Length == 0 &&
+                !string.Equals(startDirectory, rootDirectory, StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
                     Directory.Delete(startDirectory);
                     Console.WriteLine($"Deleted empty directory: {startDirectory}");
                 }
-                catch (IOException e)
+                catch (IOException ex)
                 {
-                    Console.WriteLine($"Failed to delete {startDirectory}: {e.Message}");
+                    Console.WriteLine($"Failed to delete {startDirectory}: {ex.Message}");
                 }
-                catch (UnauthorizedAccessException e)
+                catch (UnauthorizedAccessException ex)
                 {
-                    Console.WriteLine($"No permission to delete {startDirectory}: {e.Message}");
+                    Console.WriteLine($"No permission to delete {startDirectory}: {ex.Message}");
                 }
             }
         }
@@ -150,7 +155,7 @@ namespace makefoxsrv
         private static readonly HashSet<long> _missingFiles = new HashSet<long>();
 
         [Cron(hours: 1)]
-        public static async Task RunImageArchiver(CancellationToken cancellationToken)
+        public static async Task CronImageArchiver(CancellationToken cancellationToken)
         {
             int count = 0;
 
@@ -177,7 +182,8 @@ namespace makefoxsrv
                 // Record the start time
                 var startTime = DateTime.Now;
 
-                while ((DateTime.Now - startTime).Minutes < 15 && !cancellationToken.IsCancellationRequested) {
+                while ((DateTime.Now - startTime).Minutes < 15 && !cancellationToken.IsCancellationRequested)
+                {
 
                     if (_missingFiles.Count() >= 2000)
                         throw new Exception("Too many missing files, aborting.");
@@ -282,15 +288,19 @@ namespace makefoxsrv
 
             FoxLog.WriteLine($"Finished archiving {count} images.");
 
-            DeleteEmptyDirectories(Path.Combine(dataPath, "images"));
-
             if (!cancellationToken.IsCancellationRequested)
-                await RunOrphanedImageFileCleanup(cutoff, cancellationToken);
+                count += await RunOrphanedImageFileCleanup(cutoff, cancellationToken);
+
+            if (count > 0)
+            {
+                FoxLog.WriteLine($"Removing empty directories...");
+                DeleteEmptyDirectories(Path.Combine(dataPath, "images", "input"));
+                DeleteEmptyDirectories(Path.Combine(dataPath, "images", "output"));
+            }
         }
 
-        public static async Task RunOrphanedImageFileCleanup(DateTime cutoff, CancellationToken cancellationToken)
+        public static async Task<int> RunOrphanedImageFileCleanup(DateTime cutoff, CancellationToken cancellationToken)
         {
-            int count = 0;
             var dataPath = Path.GetFullPath("../data");
             var imagesPath = Path.Combine(dataPath, "images");
             var processedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -496,7 +506,6 @@ namespace makefoxsrv
                     }
                 }
 
-                DeleteEmptyDirectories(imagesPath);
             }
             catch (OperationCanceledException)
             {
@@ -508,6 +517,8 @@ namespace makefoxsrv
             }
 
             FoxLog.WriteLine($"Finished orphaned image file cleanup for {processedFiles.Count()} files.");
+
+            return processedFiles.Count();
         }
 
         public static (int, int) NormalizeImageSize(int width, int height)
