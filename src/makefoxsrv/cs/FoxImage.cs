@@ -310,7 +310,11 @@ namespace makefoxsrv
                         // and take up to 2000 so you don't process a massive list all at once.
                         var fileBatch = Directory.EnumerateFiles(imagesPath, "*.*", SearchOption.AllDirectories)
                                                  .Select(path => new FileInfo(path))
-                                                 .Where(info => info.LastWriteTime < cutoff)
+                                                 .Where(info => info.LastWriteTime < cutoff &&
+                                                                !processedFiles.Contains(
+                                                                    info.FullName.Substring(dataPath.Length)
+                                                                        .TrimStart(Path.DirectorySeparatorChar)
+                                                                        .Replace('\\', '/'))) // Normalize to relative path
                                                  .OrderBy(info => info.LastWriteTime)
                                                  .Take(2000)
                                                  .ToList();
