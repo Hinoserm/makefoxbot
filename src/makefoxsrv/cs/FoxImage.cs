@@ -313,6 +313,8 @@ namespace makefoxsrv
                                                  .Take(2000)
                                                  .ToList();
 
+                        FoxLog.WriteLine($"Processing batch of {fileBatch.Count} files.");
+
                         if (fileBatch.Count == 0)
                             break; // No more files to process
 
@@ -354,6 +356,8 @@ namespace makefoxsrv
                                 await insertCmd.ExecuteNonQueryAsync(cancellationToken);
                             }
                         }
+
+                        FoxLog.WriteLine($"Table created, checking image database...");
 
                         // 3) Query the images table by joining with TempFileBatch.
                         //    This will return rows that match the hash AND whose image_file
