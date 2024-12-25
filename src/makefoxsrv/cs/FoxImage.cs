@@ -324,7 +324,9 @@ namespace makefoxsrv
                             CREATE TEMPORARY TABLE IF NOT EXISTS TempFileBatch (
                                 sha1hash VARCHAR(255) NOT NULL,
                                 rel_path VARCHAR(1024) NOT NULL
-                            )", SQL))
+                            );
+                            CREATE INDEX idx_sha1hash_rel_path ON TempFileBatch (sha1hash);
+                        ", SQL))
                         {
                             await cmd.ExecuteNonQueryAsync(cancellationToken);
                         }
