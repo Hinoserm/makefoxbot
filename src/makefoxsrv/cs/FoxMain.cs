@@ -336,6 +336,8 @@ namespace makefoxsrv
             //{
             try
             {
+                FoxWeb.StartWebServer(cancellationToken: cts.Token);
+
                 //Load workers BEFORE processing input from telegram.
                 //This is important in order to handle queued messages properly, otherwise users will be told the workers are offline.
                 await FoxWorker.LoadWorkers(cts.Token);
@@ -376,8 +378,6 @@ namespace makefoxsrv
             //});
 
             //FoxUI.Start(cts);
-
-            FoxWeb.StartWebServer(cancellationToken: cts.Token);
 
             try
             {
