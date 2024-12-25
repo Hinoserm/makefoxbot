@@ -29,7 +29,7 @@ class FoxWeb
 {
     private static WebServer? server = null;
 
-    public static WebServer StartWebServer(string url = "http://*:5555/", CancellationToken cancellationToken = default)
+    public static WebServer? StartWebServer(string url = "http://*:5555/", CancellationToken cancellationToken = default)
     {
         try
         {
@@ -50,7 +50,6 @@ class FoxWeb
 
 
             server.StateChanged += (s, e) => Console.WriteLine($"WebServer New State - {e.NewState}");
-            server.Listener.IgnoreWriteExceptions = true;
 
             server.Start(cancellationToken);
 
@@ -69,7 +68,6 @@ class FoxWeb
         if (server is null)
             throw new Exception("Server is not running");
 
-        server.Listener.Stop();
         server.Dispose();
     }
 

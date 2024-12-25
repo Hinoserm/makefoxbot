@@ -1498,7 +1498,7 @@ namespace makefoxsrv
                         ctx.DrawImage(originalImage, new Point(offsetX, offsetY), 1f); // Full opacity
                     });
 
-                    FoxLog.WriteLine($"Image size: {resizedImageSharp.Width}x{resizedImageSharp.Height}");
+                    //FoxLog.WriteLine($"Image size: {resizedImageSharp.Width}x{resizedImageSharp.Height}");
 
                     using var ms = new System.IO.MemoryStream();
                     resizedImageSharp.SaveAsPng(ms);

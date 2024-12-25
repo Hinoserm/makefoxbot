@@ -395,12 +395,10 @@ namespace makefoxsrv
                 cts.Cancel();
             }
 
-            
+            FoxWeb.StopWebServer();
             FoxTelegram.StopUpdates();
             await FoxWorker.StopWorkers();
             FoxCron.Stop();
-
-            await Task.Delay(10000);
 
             var shutdownStart = DateTime.Now;
             var shutdownTimeout = TimeSpan.FromSeconds(3); // Adjust as needed
@@ -412,7 +410,6 @@ namespace makefoxsrv
                 await Task.Delay(100); 
             }
 
-            FoxWeb.StopWebServer();
             await FoxTelegram.Disconnect();
 
             await FoxLog.StopLoggingThreadAsync();

@@ -1,28 +1,8 @@
-﻿using EmbedIO;
-using EmbedIO.WebSockets;
-using MySqlConnector;
+﻿using MySqlConnector;
 using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
-using TL;
-using System.Text.Json.Nodes;
-using Stripe;
 
 using JsonObject = System.Text.Json.Nodes.JsonObject;
 using JsonArray = System.Text.Json.Nodes.JsonArray;
-using System.CodeDom;
-using Stripe.FinancialConnections;
-using WTelegram;
-
-using PayPalCheckoutSdk.Core;
-using PayPalCheckoutSdk.Orders;
-using PayPalHttp;
-using Stripe.Forwarding;
-using PayPalCheckoutSdk.Payments;
 
 namespace makefoxsrv
 {
