@@ -313,13 +313,7 @@ namespace makefoxsrv
                         // and take up to 2000 so you don't process a massive list all at once.
                         var fileBatch = Directory.EnumerateFiles(imagesPath, "*.*", SearchOption.AllDirectories)
                                                  .Select(path => new FileInfo(path))
-                                                 .Where(info =>
-                                                 {
-                                                     var relativePath = info.FullName.Substring(dataPath.Length)
-                                                                            .TrimStart(Path.DirectorySeparatorChar)
-                                                                            .Replace('\\', '/'); // Normalize to relative path
-                                                     return info.LastWriteTime < cutoff && !processedFiles.Contains(relativePath);
-                                                 })
+                                                 .Where(info => info.LastWriteTime < cutoff)
                                                  .OrderBy(info => info.LastWriteTime)
                                                  .Take(2000)
                                                  .ToList();
@@ -457,8 +451,9 @@ namespace makefoxsrv
                             if (!processedFiles.Contains(relativePath))
                             {
                                 // This file was not found in the database
-                                FoxLog.WriteLine($"Orphaned file found: {relativePath}");
+                                FoxLog.WriteLine($"Deleting orphaned image file: {relativePath}");
                                 processedFiles.Add(relativePath);
+                                File.Delete(file.FullName);
                                 count++;
                             }
                         }
