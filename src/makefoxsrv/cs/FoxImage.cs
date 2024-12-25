@@ -298,7 +298,7 @@ namespace makefoxsrv
                 // For instance, 14 days ago:
                 var cutoff = DateTime.Now.AddDays(-15);
 
-                var processedFiles = new HashSet<string>(); // Tracks files found in the database
+                var processedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 // Run for up to 15 minutes
                 while ((DateTime.UtcNow - startTime).TotalMinutes < 15 && !cancellationToken.IsCancellationRequested)
@@ -310,11 +310,13 @@ namespace makefoxsrv
                         // and take up to 2000 so you don't process a massive list all at once.
                         var fileBatch = Directory.EnumerateFiles(imagesPath, "*.*", SearchOption.AllDirectories)
                                                  .Select(path => new FileInfo(path))
-                                                 .Where(info => info.LastWriteTime < cutoff &&
-                                                                !processedFiles.Contains(
-                                                                    info.FullName.Substring(dataPath.Length)
-                                                                        .TrimStart(Path.DirectorySeparatorChar)
-                                                                        .Replace('\\', '/'))) // Normalize to relative path
+                                                 .Where(info =>
+                                                 {
+                                                     var relativePath = info.FullName.Substring(dataPath.Length)
+                                                                            .TrimStart(Path.DirectorySeparatorChar)
+                                                                            .Replace('\\', '/'); // Normalize to relative path
+                                                     return info.LastWriteTime < cutoff && !processedFiles.Contains(relativePath);
+                                                 })
                                                  .OrderBy(info => info.LastWriteTime)
                                                  .Take(2000)
                                                  .ToList();
