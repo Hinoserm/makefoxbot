@@ -554,7 +554,9 @@ namespace makefoxsrv
                 var duplicateHashesQuery = @"
                 SELECT sha1hash
                 FROM images
-                WHERE image_file LIKE 'archive/%'
+                WHERE
+                    image_file LIKE 'archive/%'
+                    AND image_file NOT LIKE '%images/duplicates/%'
                 GROUP BY sha1hash
                 HAVING COUNT(*) > 1
                 ORDER BY sha1hash
