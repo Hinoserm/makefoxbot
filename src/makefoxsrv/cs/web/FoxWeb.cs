@@ -50,6 +50,7 @@ class FoxWeb
 
 
             server.StateChanged += (s, e) => Console.WriteLine($"WebServer New State - {e.NewState}");
+            server.Listener.IgnoreWriteExceptions = true;
 
             server.Start(cancellationToken);
 
