@@ -18,6 +18,7 @@ using System.Linq.Expressions;
 using SixLabors.Fonts.Unicode;
 using EmbedIO.Utilities;
 using System.Security.Policy;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace makefoxsrv
 {
@@ -45,7 +46,49 @@ namespace makefoxsrv
         public long? TelegramMessageID = null;
         public DateTime DateAdded = DateTime.MinValue;
 
+        private int? _width = null;
+        private int? _height = null;
+
+        public int Width
+        {
+            get
+            {
+                if (_width == null || _height == null)
+                {
+                    PopulateDimensions();
+                }
+                return _width ?? 0; // Default to 0 if somehow still null (should not happen).
+            }
+        }
+
+        public int Height
+        {
+            get
+            {
+                if (_width == null || _height == null)
+                {
+                    PopulateDimensions();
+                }
+                return _height ?? 0; // Default to 0 if somehow still null (should not happen).
+            }
+        }
+
+
         public byte[]? Image = null;
+
+        private void PopulateDimensions()
+        {
+            if (Image == null || Image.Length == 0)
+            {
+                throw new InvalidOperationException("Image data is null or empty.");
+            }
+
+            using (var image = SixLabors.ImageSharp.Image.Load<Rgba32>(Image))
+            {
+                _width = image.Width;
+                _height = image.Height;
+            }
+        }
 
         public static async Task ConvertOldImages()
         {

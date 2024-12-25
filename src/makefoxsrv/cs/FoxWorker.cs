@@ -19,6 +19,10 @@ using TL;
 using System.Linq.Expressions;
 using Autofocus.Scripts;
 using System.Configuration;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Drawing.Processing;
 
 namespace makefoxsrv
 {
@@ -796,7 +800,7 @@ namespace makefoxsrv
             return true;
         }
 
-        private CancellationTokenSource StartProgressMonitor(FoxQueue qItem, CancellationToken cancellationToken)
+        private CancellationTokenSource StartProgressMonitor(FoxQueue qItem, CancellationToken cancellationToken, double manualScale = 1, double startScale = 0)
         {   
             CancellationTokenSource progressCTS = new CancellationTokenSource();
 
@@ -815,7 +819,9 @@ namespace makefoxsrv
                     {
                         IProgress p = await api.Progress(true, cts.Token);
 
-                        if (p.Progress > lastProgress)
+                        double progress = (p.Progress / manualScale) + startScale;
+
+                        if (progress > lastProgress)
                         {
                             if (!Online)
                                 break;
@@ -823,19 +829,17 @@ namespace makefoxsrv
                             if (qItem is null)
                                 break;
 
-                            lastProgress = p.Progress;
+                            lastProgress = progress;
 
-                            float progressPercent = (float)Math.Round(p.Progress * 100, 2);
-
-                            this.Progress = p;
+                            float progressPercent = (float)Math.Round(progress * 100, 2);
 
                             if (qItem is not null)
                             {
                                 if (qItem.IsFinished()) // Cancelled or finished prematurely, shut down.
                                     break;
 
-                                OnTaskProgress?.Invoke(this, new ProgressUpdateEventArgs(qItem, p));
-                                _= qItem.Progress(this, p, progressPercent);
+                                OnTaskProgress?.Invoke(this, new ProgressUpdateEventArgs(qItem, progress));
+                                _= qItem.Progress(this, progressPercent);
                             }
                             else
                                 break;
@@ -1054,76 +1058,59 @@ namespace makefoxsrv
 
                 this.LastUsedModel = settings.model;
 
-                progressCTS = StartProgressMonitor(qItem, ctsLoop.Token);
-
                 Byte[] outputImage;
 
                 FoxQueue.QueueType generationType = qItem.Type;
 
                 if (generationType == FoxQueue.QueueType.IMG2IMG)
                 {
-                    //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
-
-                    var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
-                    //var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
-                    //var sampler = await api.Sampler(settings.model == "redwater_703" ? "DPM++ 2M Karras" : "Euler A", ctsLoop.Token);
-                    var sampler = await api.Sampler(settings.sampler);
+                    progressCTS = StartProgressMonitor(qItem, ctsLoop.Token, 2, 0);
 
                     FoxImage? inputImage = await qItem.GetInputImage();
+
+
 
                     if (inputImage is null || inputImage.Image is null)
                         throw new Exception("Input image could not be loaded.");
 
-                    var img = new Base64EncodedImage(inputImage.Image);
+                    if (qItem.User is null)
+                        throw new Exception("User is null.");
 
+                    var img = inputImage.Image;
+                    byte[]? maskImage = null;
 
-                    var config = new ImageToImageConfig()
+                    if (qItem.User.CheckAccessLevel(AccessLevel.PREMIUM))
+                        (maskImage, img) = GenerateMask(inputImage, settings.width, settings.height);
+
+                    outputImage = await RunImg2Img(
+                        qItem: qItem,
+                        inputImage: img,
+                        maskImage: maskImage,
+                        invertMask: false,
+                        cancellationToken: ctsLoop.Token
+                    );
+
+                    if (maskImage is not null)
                     {
-                        Images = { img },
+                        // If we used a mask, we need to run the process again.
 
-                        Model = model,
+                        if (progressCTS is not null)
+                            progressCTS.Cancel();
 
-                        Prompt = new()
-                        {
-                            Positive = settings.prompt,
-                            Negative = settings.negative_prompt,
-                        },
+                        progressCTS = StartProgressMonitor(qItem, ctsLoop.Token, 2, 0.5);
 
-                        Width = settings.width,
-                        Height = settings.height,
-
-                        Seed = new()
-                        {
-                            Seed = settings.seed,
-                            SubSeed = settings.variation_seed,
-                            SubseedStrength = (double?)settings.variation_strength,
-                        },
-                        ResizeMode = qItem.Enhanced ? 0 : 2, //Testing this
-                        InpaintingFill = MaskFillMode.LatentNoise,
-                        DenoisingStrength = (double)settings.denoising_strength,
-
-                        Sampler = new()
-                        {
-                            Sampler = sampler,
-                            SamplingSteps = settings.steps,
-                            CfgScale = (double)settings.cfgscale
-                        }
-                    };
-
-                    if (qItem.RegionalPrompting)
-                    {
-                        FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Using regional prompting extension.", LogLevel.DEBUG);
-
-                        // Add Regional Prompter configuration
-                        config.AdditionalScripts.Add(new RegionalPrompter()); // Use default options.;
+                        outputImage = await RunImg2Img(
+                            qItem: qItem,
+                            inputImage: outputImage,
+                            cancellationToken: ctsLoop.Token
+                        );
                     }
 
-                    var img2img = await api.Image2Image(config, ctsLoop.Token);
-
-                    outputImage = img2img.Images.Last().Data.ToArray();
                 }
                 else if (generationType == FoxQueue.QueueType.TXT2IMG)
                 {
+                    progressCTS = StartProgressMonitor(qItem, ctsLoop.Token);
+
                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
                     //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
@@ -1190,7 +1177,7 @@ namespace makefoxsrv
 
                     var txt2img = await api.TextToImage(config, ctsLoop.Token);
 
-                    outputImage = txt2img.Images.Last().Data.ToArray();
+                    outputImage = txt2img.Images.First().Data.ToArray();
                 }
                 else
                     throw new NotImplementedException("Request type not implemented.");
@@ -1338,6 +1325,156 @@ namespace makefoxsrv
             }
         }
 
+        private async Task<byte[]> RunImg2Img(FoxQueue qItem, byte[] inputImage, CancellationToken cancellationToken, byte[]? maskImage = null, bool invertMask = false, int? stepsOverride = null)
+        {                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
+
+            var settings = qItem.Settings.Copy();
+
+            var model = await api.StableDiffusionModel(settings.model, cancellationToken);
+            //var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
+            //var sampler = await api.Sampler(settings.model == "redwater_703" ? "DPM++ 2M Karras" : "Euler A", ctsLoop.Token);
+            var sampler = await api.Sampler(settings.sampler);
+
+            var img = new Base64EncodedImage(inputImage);
+
+            var config = new ImageToImageConfig()
+            {
+                Images = { img },
+
+                Model = model,
+
+                Prompt = new()
+                {
+                    Positive = settings.prompt ?? "",
+                    Negative = settings.negative_prompt ?? "",
+                },
+
+                Mask = maskImage is null ? null : new Base64EncodedImage(maskImage),
+                InpaintingMaskInvert = invertMask,
+
+                Width = settings.width,
+                Height = settings.height,
+
+                Seed = new()
+                {
+                    Seed = settings.seed,
+                    SubSeed = settings.variation_seed,
+                    SubseedStrength = (double?)settings.variation_strength,
+                },
+                ResizeMode = 2, //Testing this
+                InpaintingFill = MaskFillMode.Fill,
+                DenoisingStrength = (double)settings.denoising_strength,
+
+                Sampler = new()
+                {
+                    Sampler = sampler,
+                    SamplingSteps = stepsOverride ?? settings.steps,
+                    CfgScale = (double)settings.cfgscale
+                }
+            };
+
+            if (qItem.RegionalPrompting)
+            {
+                FoxLog.WriteLine($"Worker {ID} (Task {qItem?.ID.ToString() ?? "[unknown]"}) - Using regional prompting extension.", LogLevel.DEBUG);
+
+                // Add Regional Prompter configuration
+                config.AdditionalScripts.Add(new RegionalPrompter()); // Use default options.;
+            }
+
+            var img2img = await api.Image2Image(config, cancellationToken);
+
+            return img2img.Images.First().Data.ToArray();
+        
+        }
+
+        private (byte[]?, byte[]) GenerateMask(FoxImage inputImage, uint width, uint height)
+        {
+            if (inputImage is null || inputImage.Image is null)
+                throw new ArgumentNullException("Input image is NULL.");
+
+            byte[]? maskImage = null;
+            byte[] resizedInputImage = inputImage.Image;
+
+            int inputWidth = inputImage.Width;
+            int inputHeight = inputImage.Height;
+
+            if (width == inputWidth && height == inputHeight)
+                return (null, inputImage.Image); // No need to generate a mask if the dimensions match
+
+            if (inputImage != null)
+            {
+                var requestedAspect = (float)width / (float)height;
+                var inputAspect = (float)inputWidth / (float)inputHeight;
+
+                int scaledW, scaledH;
+
+                // Determine scaled dimensions based on the input image size
+                if (inputAspect > requestedAspect)
+                {
+                    // Input image is wider than requested aspect
+                    scaledW = inputWidth;
+                    scaledH = (int)Math.Round(scaledW / requestedAspect);
+                }
+                else
+                {
+                    // Input image is taller than requested aspect
+                    scaledH = inputHeight;
+                    scaledW = (int)Math.Round(scaledH * requestedAspect);
+                }
+
+                if (scaledW == inputWidth && scaledH == inputHeight)
+                    return (null, inputImage.Image); // No need to generate a mask if the dimensions match
+
+                int offsetX = (scaledW - inputWidth) / 2;
+                int offsetY = (scaledH - inputHeight) / 2;
+
+                // Create mask
+                using (var maskImageSharp = new Image<Rgba32>(scaledW, scaledH))
+                {
+                    maskImageSharp.Mutate(ctx =>
+                    {
+                        // Fill the entire mask with black (padding)
+                        ctx.Fill(SixLabors.ImageSharp.Color.White);
+
+                        // Add a white rectangle for the resized content area
+                        ctx.Fill(
+                            SixLabors.ImageSharp.Color.Black,
+                            new Rectangle(offsetX, offsetY, inputWidth, inputHeight)
+                        );
+                    });
+
+                    using var ms = new System.IO.MemoryStream();
+                    maskImageSharp.SaveAsPng(ms);
+                    maskImage = ms.ToArray();
+                }
+
+                // Resize and center the input image based on the calculated dimensions
+                using (var originalImage = Image.Load<Rgba32>(inputImage.Image))
+                using (var resizedImageSharp = new Image<Rgba32>(scaledW, scaledH))
+                {
+                    resizedImageSharp.Mutate(ctx =>
+                    {
+                        // Fill the background with black padding
+                        ctx.Fill(SixLabors.ImageSharp.Color.White);
+
+                        // Resize and draw the original image in the calculated scaled dimensions
+                        //var resized = originalImage.Clone(x => x.Resize(new ResizeOptions
+                        //{
+                        //    Size = new Size(scaledW, scaledH),
+                        //    Mode = ResizeMode.Max // Maintain aspect ratio, no distortion
+                        //}));
+
+                        ctx.DrawImage(originalImage, new Point(offsetX, offsetY), 1f); // Full opacity
+                    });
+
+                    using var ms = new System.IO.MemoryStream();
+                    resizedImageSharp.SaveAsPng(ms);
+                    resizedInputImage = ms.ToArray();
+                }
+            }
+
+            return (maskImage, resizedInputImage);
+        }
 
         public class WorkerEventArgs : EventArgs
         {
@@ -1378,13 +1515,13 @@ namespace makefoxsrv
         {
             public FoxQueue qItem { get; }
             public double Percent { get; }
-            public IProgress Progress { get; }
+            public double Progress { get; }
 
-            public ProgressUpdateEventArgs(FoxQueue queueItem, IProgress progress)
+            public ProgressUpdateEventArgs(FoxQueue queueItem, double progress)
             {
                 qItem = queueItem;
                 Progress = progress;
-                Percent = Math.Round(progress.Progress * 100, 2);
+                Percent = Math.Round(progress * 100, 2);
             }
         }
     }

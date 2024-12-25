@@ -882,7 +882,7 @@ namespace makefoxsrv
             }
         }
 
-        public async Task Progress(FoxWorker worker, IProgress p, double progressPercent)
+        public async Task Progress(FoxWorker worker, double progressPercent)
         {
             try
             {
