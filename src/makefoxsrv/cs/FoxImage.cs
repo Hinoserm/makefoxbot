@@ -338,7 +338,7 @@ namespace makefoxsrv
             FoxLog.WriteLine($"Finished archiving {count} images.");
 
             if (!cancellationToken.IsCancellationRequested)
-                count += await RunOrphanedImageFileCleanup(cutoff, cancellationToken);
+                count += await RunOrphanedImageFileCleanup(cutoff - TimeSpan.FromHours(1), cancellationToken);
 
             // Leave this off for now
             //if (!cancellationToken.IsCancellationRequested)
