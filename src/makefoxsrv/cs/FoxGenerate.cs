@@ -160,6 +160,8 @@ namespace makefoxsrv
             var q = await FoxQueue.Add(t, user, settings, imgType, 0, messageId, enhanced, originalTask, status: FoxQueue.QueueStatus.PAUSED);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
+            if (q.User is null)
+                throw new Exception("Queue item has no user");
 
             FoxContextManager.Current.Queue = q;
 
@@ -208,7 +210,7 @@ namespace makefoxsrv
                     }
                 };
 
-                (int position, int totalItems) = q.GetPosition();
+                (int position, int totalItems) = FoxQueue.GetNextPosition(q.User);
 
                 var waitMsg = await t.SendMessageAsync(
                     text: $"⏳ Adding to queue ({position} of {totalItems})...",

@@ -718,7 +718,7 @@ namespace makefoxsrv
             FoxLog.WriteLine($"Task {this.ID} status set to {status}", LogLevel.DEBUG);
         }
 
-        public static (int hypotheticalPosition, int totalItems) GetNextPosition(FoxUser user, bool Enhanced)
+        public static (int hypotheticalPosition, int totalItems) GetNextPosition(FoxUser user, bool Enhanced = false)
         {
             int priorityLevel = priorityMap[user.GetAccessLevel()];
             DateTime dateStarted = DateTime.Now;
@@ -755,16 +755,14 @@ namespace makefoxsrv
                 {
                     if (task.ID == this.ID)
                     {
-                        break; // Found the item, break the loop
+                        return (position, totalItems); // Return the position and total items
                     }
                     position++;
                 }
 
-                // If the task is not found, reset position to indicate it's not in the list
-                if (position > totalItems) position = -1;
+                // If the task is not found, return -1
+                return (-1, totalItems);
             }
-
-            return (position, totalItems);
         }
 
         public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings,
@@ -1172,7 +1170,19 @@ namespace makefoxsrv
 
                     await using var r = await cmd.ExecuteReaderAsync();
                     if (r.HasRows && await r.ReadAsync())
-                        return Convert.ToDateTime(r["date_sent"]).Subtract(Convert.ToDateTime(r["date_worker_start"]));
+                    {
+                        var dateSent = r["date_sent"];
+                        var dateWorkerStart = r["date_worker_start"];
+
+                        if (dateSent is null || dateWorkerStart is null)
+                        {
+                            FoxLog.WriteLine($"Task {this.ID} - dateSent or dateWorkerStart is null", LogLevel.WARNING);
+
+                            return TimeSpan.Zero;
+                        }
+
+                        return Convert.ToDateTime(dateSent).Subtract(Convert.ToDateTime(dateWorkerStart));
+                    }
                 }
             }
 

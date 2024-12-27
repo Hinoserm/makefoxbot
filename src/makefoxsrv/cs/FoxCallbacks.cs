@@ -130,6 +130,9 @@ namespace makefoxsrv
             if (q is null)
                 throw new Exception("Unable to locate item");
 
+            if (q.User is null)
+                throw new Exception("Invalid user object");
+
             if (q.Telegram?.User.ID != t.User.ID && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
@@ -157,7 +160,7 @@ namespace makefoxsrv
                     }
             };
 
-            (int position, int totalItems) = q.GetPosition();
+            (int position, int totalItems) = FoxQueue.GetNextPosition(q.User);
 
             var waitMsg = await t.EditMessageAsync(
                 text: $"⏳ Adding to queue ({position} of {totalItems})...",
