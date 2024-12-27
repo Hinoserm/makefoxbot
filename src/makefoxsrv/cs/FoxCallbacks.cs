@@ -151,7 +151,7 @@ namespace makefoxsrv
                         new TL.KeyboardButtonRow {
                             buttons = new TL.KeyboardButtonCallback[]
                             {
-                                new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes("/cancel {q.ID}") },
+                                new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes($"/cancel {q.ID}") },
                             }
                         }
                     }
