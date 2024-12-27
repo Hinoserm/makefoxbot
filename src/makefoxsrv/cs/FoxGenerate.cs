@@ -155,80 +155,70 @@ namespace makefoxsrv
             }
 
             // Check if the user is premium
-            bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM);
+            //bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM);
 
-            // Get the total count and recently generated count for the user
-            //int totalCount = await FoxQueue.GetTotalCount(user);
-            //int recentCount = await FoxQueue.GetRecentCount(user, TimeSpan.FromHours(3));
-
-            TimeSpan? delay = null;
-
-            Message? waitMsg;
-
-            // Apply delay for non-premium users after 100 generations
-            //if (false && (!isPremium && totalCount > 100) || normalizedComplexity > 1.0)
-            //{
-
-            //    double complexityDelay = Math.Round(0.2 + normalizedComplexity * (5.0 - 0.2), 1);
-
-            //    // Calculate additional delay based on recent count
-            //    double delaySeconds = Math.Round(Math.Min(recentCount * complexityDelay, 30), 1);
-
-            //    if (normalizedComplexity > 1.0)
-            //        delaySeconds = Math.Max(delaySeconds, 30);
-
-            //    delay = TimeSpan.FromSeconds(delaySeconds);
-
-            //    var msgString = $"⏳ Adding to queue...";
-
-            //    // Nag non-premium users every 5th image or if the delay is substantial
-            //    //if (totalCount % 5 == 0 || delaySeconds > 15)
-            //    //{
-            //    //    msgString += "\n\n✨ Consider a /membership for faster processing and other benefits!";
-            //    //}
-
-            //    waitMsg = await t.SendMessageAsync(
-            //        text: msgString,
-            //        replyToMessageId: message.ID
-            //    );
-
-            //    if (normalizedComplexity > 1.0)
-            //        FoxLog.WriteLine($"Delaying generation for premium user {user.UID} for {delaySeconds:F2} seconds due to image complexity of {normalizedComplexity}");
-            //    else
-            //        FoxLog.WriteLine($"Delaying generation for non-premium user {user.UID} for {delaySeconds:F2} seconds ({recentCount} * {complexityDelay}).");
-            //}
-            //else
-            //{
-
-            var inlineKeyboardButtons = new ReplyInlineMarkup()
-            {
-                rows = new TL.KeyboardButtonRow[] {
-                            new TL.KeyboardButtonRow {
-                                buttons = new TL.KeyboardButtonCallback[]
-                                {
-                                    new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes("/cancel") },
-                                }
-                            }
-                        }
-            };
-
-            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Checking next position...");
-            (int position, int totalItems) = FoxQueue.GetNextPosition(user, false);
-
-            //FoxLog.WriteLine($"{message.ID}: CmdGenerate: Sending message...");
-            waitMsg = await t.SendMessageAsync(
-                text: $"⏳ Adding to queue ({position} of {totalItems})...",
-                replyToMessageId: messageId,
-                replyInlineMarkup: inlineKeyboardButtons
-            );
-
-            var q = await FoxQueue.Add(t, user, settings, imgType, waitMsg.ID, messageId, enhanced, originalTask, delay: delay);
+            var q = await FoxQueue.Add(t, user, settings, imgType, 0, messageId, enhanced, originalTask, status: FoxQueue.QueueStatus.PAUSED);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
 
             FoxContextManager.Current.Queue = q;
 
-            await FoxQueue.Enqueue(q);
+            if (settings?.prompt?.IndexOf("fiddlesticks", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                var inlineKeyboardButtons = new ReplyInlineMarkup()
+                {
+                    rows = new TL.KeyboardButtonRow[] {
+                        new TL.KeyboardButtonRow {
+                            buttons = new TL.KeyboardButtonCallback[]
+                            {
+                                new TL.KeyboardButtonCallback { text = "⚠️ Continue", data = System.Text.Encoding.ASCII.GetBytes($"/continue {q.ID}") },
+                                new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes($"/cancel {q.ID}") },
+                            }
+                        }
+                    }
+                };
+
+                StringBuilder msgStr = new StringBuilder();
+
+                msgStr.AppendLine("⚠️ Our automated system has detected that your request might violate our content policy.\r\n");
+                msgStr.AppendLine("You are responsible for ensuring compliance with our policies.  Violations may result in account restrictions including a permanent ban.\r\n");
+                msgStr.AppendLine("Please review our <link>content policy</link> before continuing.\r\n");
+                msgStr.AppendLine("Be aware that if you choose to continue, this request may be flagged for moderator review.");
+
+                var warningMsg = await t.SendMessageAsync(
+                    text: msgStr.ToString(),
+                    replyToMessageId: messageId,
+                    replyInlineMarkup: inlineKeyboardButtons
+                );
+
+                // Do this to set the message ID, even though it's already paused.
+                await q.SetStatus(FoxQueue.QueueStatus.PAUSED, warningMsg.ID);
+            }
+            else
+            {
+                var inlineKeyboardButtons = new ReplyInlineMarkup()
+                {
+                    rows = new TL.KeyboardButtonRow[] {
+                        new TL.KeyboardButtonRow {
+                            buttons = new TL.KeyboardButtonCallback[]
+                            {
+                                new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes("/cancel {q.ID}") },
+                            }
+                        }
+                    }
+                };
+
+                (int position, int totalItems) = q.GetPosition();
+
+                var waitMsg = await t.SendMessageAsync(
+                    text: $"⏳ Adding to queue ({position} of {totalItems})...",
+                    replyToMessageId: messageId,
+                    replyInlineMarkup: inlineKeyboardButtons
+                );
+
+                await q.SetStatus(FoxQueue.QueueStatus.PENDING, waitMsg.ID);
+                await FoxQueue.Enqueue(q);
+            } 
         }
     }
 }

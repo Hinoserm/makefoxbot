@@ -29,6 +29,7 @@ namespace makefoxsrv
     {
         public enum QueueStatus
         {
+            PAUSED,
             PENDING,
             PROCESSING,
             SENDING,
@@ -52,6 +53,9 @@ namespace makefoxsrv
 
         [DbColumn("date_failed")]
         public DateTime? DateLastFailed { get; private set; } = null;
+
+        [DbColumn("date_cancelled")]
+        public DateTime? DateCancelled { get; private set; } = null;
 
         [DbColumn("retry_count")]
         public int RetryCount { get; private set; } = 0;
@@ -78,6 +82,9 @@ namespace makefoxsrv
 
         [DbColumn("date_added")]
         public DateTime DateCreated { get; private set; }
+
+        [DbColumn("date_queued")]
+        public DateTime? DateQueued { get; private set; } = null;
 
         [DbColumn("date_worker_start")]
         public DateTime? DateStarted { get; private set; } = null;
@@ -153,7 +160,7 @@ namespace makefoxsrv
 
         public static async Task Enqueue(FoxQueue item)
         {
-            fullQueue.Enqueue(item);
+            item.DateQueued = DateTime.Now;
 
             if (item.RetryDate.HasValue && item.RetryDate.Value > DateTime.Now)
             {
@@ -641,52 +648,71 @@ namespace makefoxsrv
             this.status = status;
 
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
             await SQL.OpenAsync();
 
             using var cmd = new MySqlCommand();
+            cmd.Connection = SQL;
 
             if (newMessageID is not null)
-                MessageID = newMessageID.Value;
+                this.MessageID = newMessageID.Value;
 
-            cmd.Connection = SQL;
+            DateTime now = DateTime.Now;
+            string? additionalSetClause = null;
 
             switch (status)
             {
                 case QueueStatus.PENDING:
-                    cmd.CommandText = "UPDATE queue SET status = 'PENDING' WHERE id = @id";
+                    DateQueued = now;
+                    additionalSetClause = "date_queued = @now";
                     break;
+
                 case QueueStatus.FINISHED:
-                    DateFinished = DateTime.Now;
-                    cmd.CommandText = "UPDATE queue SET status = 'FINISHED', date_finished = @now WHERE id = @id";
-                    cmd.Parameters.AddWithValue("now", DateFinished);
+                    DateFinished = now;
+                    additionalSetClause = "date_finished = @now";
                     break;
+
                 case QueueStatus.PROCESSING:
-                    DateStarted = DateTime.Now;
-                    cmd.CommandText = "UPDATE queue SET status = 'PROCESSING', date_worker_start = @now WHERE id = @id";
-                    cmd.Parameters.AddWithValue("now", DateStarted);
+                    DateStarted = now;
+                    additionalSetClause = "date_worker_start = @now";
                     break;
+
                 case QueueStatus.SENDING:
-                    DateSent = DateTime.Now;
-                    cmd.CommandText = "UPDATE queue SET status = 'SENDING', date_sent = @now, msg_id = @msg_id WHERE id = @id";
-                    cmd.Parameters.AddWithValue("now", DateSent);
-                    cmd.Parameters.AddWithValue("msg_id", newMessageID);
+                    DateSent = now;
+                    additionalSetClause = "date_sent = @now";
                     break;
+
                 case QueueStatus.CANCELLED:
-                    DateLastFailed = DateTime.Now;
-                    cmd.CommandText = "UPDATE queue SET status = 'CANCELLED', date_failed = @now WHERE id = @id";
-                    cmd.Parameters.AddWithValue("now", DateLastFailed);
+                    DateCancelled = now;
+                    additionalSetClause = "date_cancelled = @now";
                     break;
+                case QueueStatus.PAUSED:
+                    //Nothing special required here.
+                    break;
+
                 case QueueStatus.ERROR:
                     throw new Exception("Use SetError() to set error status");
+
                 default:
-                    cmd.CommandText = "UPDATE queue SET status = @status WHERE id = @id";
-                    cmd.Parameters.AddWithValue("status", status.ToString());
+                    FoxLog.WriteLine($"Unexpected status '{status}' encountered in SetStatus", LogLevel.WARNING);
                     break;
             }
 
+            cmd.CommandText = $@"
+                UPDATE queue 
+                SET status = @status 
+                    {(!string.IsNullOrEmpty(additionalSetClause) ? $", {additionalSetClause}" : "")}
+                    {(newMessageID.HasValue ? ", msg_id = @msg_id" : "")}
+                WHERE id = @id";
+
+            cmd.Parameters.AddWithValue("status", status.ToString());
             cmd.Parameters.AddWithValue("id", this.ID);
-            
+
+            if (additionalSetClause is not null)
+                cmd.Parameters.AddWithValue("now", now);
+
+            if (newMessageID.HasValue)
+                cmd.Parameters.AddWithValue("msg_id", newMessageID.Value);
+
             await cmd.ExecuteNonQueryAsync();
 
             FoxLog.WriteLine($"Task {this.ID} status set to {status}", LogLevel.DEBUG);
@@ -741,7 +767,9 @@ namespace makefoxsrv
             return (position, totalItems);
         }
 
-        public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings, QueueType type, int messageID, int? replyMessageID = null, bool enhanced = false, FoxQueue? originalTask = null, TimeSpan? delay = null)
+        public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings,
+                                                QueueType type, int messageID, int? replyMessageID = null, bool enhanced = false,
+                                                FoxQueue? originalTask = null, TimeSpan? delay = null, QueueStatus status = QueueStatus.PENDING)
         {
             if (FoxContextManager.Current.Queue is null)
                 FoxContextManager.Current.Queue = originalTask;
@@ -771,12 +799,13 @@ namespace makefoxsrv
 
             // Default and maximum complexity
             long defaultComplexity = 640 * 768 * 20;
-            long maxComplexity = 1280 * 1536 * 35;
+            long maxComplexity = 1280 * 1536 * 20;
 
             double normalizedComplexity = (double)(imageComplexity - defaultComplexity) / (maxComplexity - defaultComplexity);
 
             var q = new FoxQueue
             {
+                status = status,
                 Telegram = telegram,
                 User = user,
                 DateCreated = DateTime.Now,
@@ -799,47 +828,11 @@ namespace makefoxsrv
 
             await FoxDB.SaveObjectAsync(q, "queue");
 
+            fullQueue.Enqueue(q);
+
             // Log this after saving the object so we have it's ID.
 
             FoxLog.WriteLine($"Complexity: {normalizedComplexity:F3}", LogLevel.INFO);
-
-            //using var cmd = new MySqlCommand();
-
-            //cmd.Connection = SQL;
-            //cmd.CommandText = @"
-            //    INSERT INTO queue (status, type, uid, tele_id, tele_chatid, steps, cfgscale, prompt, negative_prompt, selected_image, width, height, denoising_strength, seed, enhanced, reply_msg, msg_id, date_added, model, upscaler_name, upscaler_denoise, upscaler_width, upscaler_height, upscaler_steps)
-            //    VALUES ('PENDING', @type, @uid, @tele_id, @tele_chatid, @steps, @cfgscale, @prompt, @negative_prompt, @selected_image, @width, @height, @denoising_strength, @seed, @enhanced, @reply_msg, @msg_id, @now, @model, @upscaler_name, @upscaler_denoise, @upscaler_width, @upscaler_height, @upscaler_steps)
-            //";
-
-            //cmd.Parameters.AddWithValue("uid", user.UID);
-            //cmd.Parameters.AddWithValue("type", q.Type.ToString());
-            //cmd.Parameters.AddWithValue("tele_id", telegram.User.ID);
-            //cmd.Parameters.AddWithValue("tele_chatid", telegram.Chat?.ID);
-            //cmd.Parameters.AddWithValue("steps", settings.steps);
-            //cmd.Parameters.AddWithValue("cfgscale", settings.cfgscale);
-            //cmd.Parameters.AddWithValue("prompt", settings.prompt);
-            //cmd.Parameters.AddWithValue("negative_prompt", settings.negative_prompt);
-            //cmd.Parameters.AddWithValue("selected_image", type == QueueType.IMG2IMG ? settings.selected_image : null);
-            //cmd.Parameters.AddWithValue("width", settings.width);
-            //cmd.Parameters.AddWithValue("height", settings.height);
-            //cmd.Parameters.AddWithValue("denoising_strength", type == QueueType.IMG2IMG ? settings.denoising_strength : null);
-            //cmd.Parameters.AddWithValue("seed", settings.seed);
-            //cmd.Parameters.AddWithValue("reply_msg", replyMessageID);
-            //cmd.Parameters.AddWithValue("msg_id", messageID);
-            //cmd.Parameters.AddWithValue("now", q.DateCreated);
-            //cmd.Parameters.AddWithValue("model", settings.model);
-            //cmd.Parameters.AddWithValue("enhanced", settings.Enhance);
-            //cmd.Parameters.AddWithValue("upscaler_name", settings.UpscalerName);
-            //cmd.Parameters.AddWithValue("upscaler_denoise", settings.UpscalerDenoiseStrength);
-            //cmd.Parameters.AddWithValue("upscaler_width", settings.UpscalerWidth);
-            //cmd.Parameters.AddWithValue("upscaler_height", settings.UpscalerHeight);
-            //cmd.Parameters.AddWithValue("upscaler_steps", settings.UpscalerSteps);
-
-            //await cmd.ExecuteNonQueryAsync();
-
-
-
-            //q.ID = (ulong)cmd.LastInsertedId;
 
             return q;
         }

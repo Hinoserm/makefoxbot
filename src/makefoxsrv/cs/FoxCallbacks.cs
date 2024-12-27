@@ -98,6 +98,9 @@ namespace makefoxsrv
                     case "/cancel":
                         await CallbackCmdCancel(t, query, fUser, argument);
                         break;
+                    case "/continue":
+                        await CallbackCmdContinue(t, query, fUser, argument);
+                        break;
                 }
             }
             catch (Exception ex)
@@ -114,6 +117,56 @@ namespace makefoxsrv
                 fUser.Unlock();
                 FoxContextManager.Clear();
             }
+        }
+
+        private static async Task CallbackCmdContinue(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
+        {
+            if (argument is null || argument.Length <= 0 || !ulong.TryParse(argument, out ulong info_id))
+            {
+                throw new Exception("Malformed request");
+            }
+
+            var q = await FoxQueue.Get(info_id);
+            if (q is null)
+                throw new Exception("Unable to locate item");
+
+            if (q.Telegram?.User.ID != t.User.ID && !user.CheckAccessLevel(AccessLevel.ADMIN))
+            {
+                await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
+                return; // Just silently return.
+            }
+
+            await t.SendCallbackAnswer(query.query_id, 0);
+
+            if (user.DateTermsAccepted is null)
+            {
+                await FoxMessages.SendTerms(t, user, query.msg_id);
+
+                return; // User must agree to the terms before they can use this command.
+            }
+
+            var inlineKeyboardButtons = new ReplyInlineMarkup()
+            {
+                rows = new TL.KeyboardButtonRow[] {
+                        new TL.KeyboardButtonRow {
+                            buttons = new TL.KeyboardButtonCallback[]
+                            {
+                                new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes("/cancel {q.ID}") },
+                            }
+                        }
+                    }
+            };
+
+            (int position, int totalItems) = q.GetPosition();
+
+            var waitMsg = await t.EditMessageAsync(
+                text: $"⏳ Adding to queue ({position} of {totalItems})...",
+                id: query.msg_id,
+                replyInlineMarkup: inlineKeyboardButtons
+            );
+
+            await q.SetStatus(FoxQueue.QueueStatus.PENDING, query.msg_id);
+            await FoxQueue.Enqueue(q);
         }
 
         private static async Task CallbackCmdHistory(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
