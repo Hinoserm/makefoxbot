@@ -407,6 +407,7 @@ namespace makefoxsrv
                 .Select(t => t.task)
                 .Where(queueItem => queueItem != null
                                     && queueItem.User?.UID == item.User?.UID
+                                    && queueItem.RetryDate <= DateTime.Now
                                     && (
                                         queueItem.status == FoxQueue.QueueStatus.PENDING ||
                                         queueItem.status == FoxQueue.QueueStatus.PROCESSING ||
@@ -414,7 +415,7 @@ namespace makefoxsrv
                                     ))
                 .Sum(queueItem => queueItem!.Complexity ?? 0);
 
-            // 3. Block if the same user is already being processed, but only for non-premium users
+            // 3. Block if the same user is already being processed, or if complexity is too high
             if (userQueueComplexity >= 1.0 || !item.User.CheckAccessLevel(AccessLevel.PREMIUM)) {
                 var userWorkers = suitableWorkers
                     .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)

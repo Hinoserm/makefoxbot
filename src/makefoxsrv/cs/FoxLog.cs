@@ -181,6 +181,7 @@ namespace makefoxsrv
 
                 // Enqueue the log entry, signal the background thread
                 logQueue.Enqueue(logEntry);
+
                 logSemaphore.Release();
             }
             catch (Exception e)
