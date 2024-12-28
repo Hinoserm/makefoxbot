@@ -283,11 +283,17 @@ namespace makefoxsrv
                                 if (itemToAssign is null)
                                     continue; // Shouldn't happen, but just in case.
 
+                                if (!FoxTelegram.IsConnected)
+                                    continue; // Skip if Telegram is not connected
+
                                 FoxContextManager.Current.Queue = itemToAssign;
                                 FoxContextManager.Current.User = itemToAssign.User;
                                 FoxContextManager.Current.Telegram = itemToAssign.Telegram;
                                 FoxContextManager.Current.Message = new Message { id = itemToAssign.MessageID };
                                 FoxContextManager.Current.Worker = null;
+
+                                if (itemToAssign.status == QueueStatus.PAUSED)
+                                    continue;
 
                                 if (itemToAssign.status == QueueStatus.CANCELLED)
                                 {
@@ -307,6 +313,9 @@ namespace makefoxsrv
 
                                 if (itemToAssign.OutputImageID is not null)
                                 {
+                                    if (itemToAssign.RetryDate is not null && itemToAssign.RetryDate.Value >= DateTime.Now)
+                                        continue;
+
                                     // Item was previously generated, but failed during sending.  Resend.
                                     FoxLog.WriteLine($"Task {itemToAssign.ID} was previously generated but not sent.  Resending.", LogLevel.DEBUG);
 

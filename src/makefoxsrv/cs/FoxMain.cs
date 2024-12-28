@@ -344,22 +344,7 @@ namespace makefoxsrv
 
                 await FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
 
-                await FoxCommandHandler.SetBotCommands(FoxTelegram.Client);
-
-                using (var sql = new MySqlConnection(FoxMain.sqlConnectionString))
-                {
-                    await sql.OpenAsync(cts.Token);
-
-                    using (var cmd = new MySqlCommand($"UPDATE queue SET status = 'PENDING' WHERE status in ('PROCESSING', 'SENDING')", sql))
-                    {
-                        long stuck_count = cmd.ExecuteNonQuery();
-
-                        if (stuck_count > 0)
-                            FoxLog.WriteLine($"Unstuck {stuck_count} queue items.");
-                    }
-                }
-
-                await Task.Delay(1000); //Wait a bit for telegram to settle.
+                //await Task.Delay(1000); //Wait a bit for telegram to settle.
 
                 await FoxWorker.StartWorkers();
 
