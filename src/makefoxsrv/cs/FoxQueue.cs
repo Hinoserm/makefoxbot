@@ -289,16 +289,9 @@ namespace makefoxsrv
                         {
                             DateTime now = DateTime.Now;
 
-                            // Separate tasks into prioritized (waiting > 3 minutes) and non-prioritized
-                            var prioritizedTasks = taskList.Where(t => t.task != null && (now - t.task.DateCreated).TotalMinutes > 3).ToList();
-                            var nonPrioritizedTasks = taskList.Where(t => t.task != null && (now - t.task.DateCreated).TotalMinutes <= 3).ToList();
-
-                            // Combine prioritized tasks first
-                            var orderedTasks = prioritizedTasks.Concat(nonPrioritizedTasks).ToList();
-
-                            for (int i = 0; i < orderedTasks.Count; i++)
+                            for (int i = 0; i < taskList.Count; i++)
                             {
-                                var itemToAssign = orderedTasks[i].task;
+                                var itemToAssign = taskList[i].task;
 
                                 if (itemToAssign is null)
                                     continue; // Shouldn't happen, but just in case.
@@ -936,8 +929,7 @@ namespace makefoxsrv
             }
             catch (WTelegram.WTException ex) when (ex is RpcException rex && rex.Code == 400 && (rex.Message == "MESSAGE_NOT_MODIFIED" || rex.Message == "MESSAGE_ID_INVALID"))
             {
-                //Ignore these telegram errors, but log them.
-                FoxLog.LogException(ex);
+                //Ignore these errors.
             }
         }
 
@@ -1064,7 +1056,7 @@ namespace makefoxsrv
                 if (item.Telegram.Chat is not null)
                     continue; // Skip updating in groups.
 
-                if (DateTime.Now - dateStarted < TimeSpan.FromSeconds(5))
+                if (DateTime.Now - dateStarted < TimeSpan.FromSeconds(10))
                     continue; // Skip updating if the task was started less than 5 seconds ago.
 
                 if (item.status == QueueStatus.PENDING)
