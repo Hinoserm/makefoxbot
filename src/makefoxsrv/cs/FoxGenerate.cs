@@ -165,7 +165,7 @@ namespace makefoxsrv
 
             FoxContextManager.Current.Queue = q;
 
-            if (settings?.prompt?.IndexOf("fiddlesticks", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (settings?.prompt?.IndexOf("crabcakes", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 var inlineKeyboardButtons = new ReplyInlineMarkup()
                 {
