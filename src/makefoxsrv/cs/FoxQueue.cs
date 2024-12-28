@@ -131,14 +131,14 @@ namespace makefoxsrv
         private static readonly object lockObj = new object();
         private static List<(FoxQueue task, int priority, DateTime dateStarted)> taskList = new List<(FoxQueue task, int priority, DateTime dateStarted)>();
 
-        public static LimitedMemoryQueue<FoxQueue> fullQueue { get; private set; } = new(400); //Store the last 400 queue items.
+        public static BoundedDictionary<ulong, FoxQueue> fullQueue { get; private set; } = new(1000); //Store the last 1000 queue items.
 
         private static Dictionary<AccessLevel, int> priorityMap = new Dictionary<AccessLevel, int>
             {
-                { AccessLevel.ADMIN, 4 },  // Highest priority
+                { AccessLevel.ADMIN,   4 },  // Highest priority
                 { AccessLevel.PREMIUM, 3 },
-                { AccessLevel.BASIC, 2 },
-                { AccessLevel.BANNED, 1 }   // Lowest priority
+                { AccessLevel.BASIC,   2 },
+                { AccessLevel.BANNED,  1 }   // Lowest priority
             };
         private static SemaphoreSlim queueSemaphore = new SemaphoreSlim(0, int.MaxValue);
 
@@ -151,6 +151,26 @@ namespace makefoxsrv
             FoxWorker.OnTaskCompleted += (sender, args) => _ = queueSemaphore.Release();
             FoxWorker.OnWorkerStart += (sender, args) => _ = queueSemaphore.Release();
             FoxWorker.OnWorkerOnline += (sender, args) => _ = queueSemaphore.Release();
+
+            // Custom dequeue strategy for queue cache
+            fullQueue.RemovalStrategy = items =>
+            {
+                // Sort items by removal priority:
+                // 1. Use DateCompleted if available (oldest first)
+                // 2. Fallback to DateAdded if DateCompleted is null
+                var sortedItems = items.OrderBy(kvp =>
+                    kvp.Value.DateFinished ?? kvp.Value.DateCreated);
+
+                // Build a complete list of removable items based on type priority
+                var removableItems = sortedItems
+                    .Where(kvp => kvp.Value.status == QueueStatus.CANCELLED) // First priority: CANCELLED
+                    .Concat(sortedItems.Where(kvp => kvp.Value.status == QueueStatus.PAUSED)) // Second priority: PAUSED
+                    .Concat(sortedItems.Where(kvp => kvp.Value.status == QueueStatus.FINISHED)) // Third priority: FINISHED
+                    .Select(kvp => kvp.Key) // Select only the keys
+                    .ToList();
+
+                return removableItems;
+            };
         }
 
         public static long ClearCache()
@@ -588,7 +608,10 @@ namespace makefoxsrv
 
                     q.Telegram = new FoxTelegram(teleUser, teleChat);
 
+                    fullQueue.Add(q.ID, q); // Add to queue cache
+
                     count++;
+                    
                     await Enqueue(q);
                 }
             }
@@ -835,7 +858,7 @@ namespace makefoxsrv
 
             await FoxDB.SaveObjectAsync(q, "queue");
 
-            fullQueue.Enqueue(q);
+            fullQueue.Add(q.ID, q); // Add to queue cache
 
             // Log this after saving the object so we have it's ID.
 
@@ -974,46 +997,6 @@ namespace makefoxsrv
 
             return;
         }
-        //public async Task<long> CheckPosition()
-        //{
-        //    using (var SQL = new MySqlConnection(FoxMain.MySqlConnectionString))
-        //    {
-        //        await SQL.OpenAsync();
-
-        //        using (var cmd = new MySqlCommand())
-        //        {
-        //            cmd.Connection = SQL;
-        //            cmd.CommandText = cmd.CommandText = @"
-        //                SELECT
-        //                    q1.position_in_queue,
-        //                    q1.total_pending
-        //                FROM
-        //                    (SELECT
-        //                            id,
-        //                            ROW_NUMBER() OVER(ORDER BY date_added ASC) AS position_in_queue,
-        //                            COUNT(*) OVER() AS total_pending
-        //                        FROM
-        //                            queue
-        //                        WHERE
-        //                            status = 'PENDING') AS q1
-        //                WHERE
-        //                    q1.id = @id;
-        //                ";
-        //            cmd.Parameters.AddWithValue("id", this.ID);
-
-        //            await using var r = await cmd.ExecuteReaderAsync();
-        //            if (r.HasRows && await r.ReadAsync())
-        //            {
-        //                this.position = Convert.ToInt64(r["position_in_queue"]);
-        //                this.total    = Convert.ToInt64(r["total_pending"]);
-
-        //                return this.position;
-        //            }
-        //        }
-        //    }
-
-        //    return (long)this.ID;
-        //}
 
         public static async Task<FoxQueue?> GetNewestFromUser(FoxUser user, long? tgChatId = null)
         {
@@ -1051,9 +1034,52 @@ namespace makefoxsrv
 
             // After loading, add the object to the fullQueue cache if it's not null
             if (q is not null)
-                fullQueue.Enqueue(q);
+                fullQueue.Add(q.ID, q); // Add to queue cache
 
             return q;
+        }
+
+        [Cron(seconds: 10)]
+        private async Task CronUpdateQueueMessages(CancellationToken cancellationToken)
+        {
+            foreach ((var item, _, DateTime dateStarted) in taskList)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    return;
+
+                if (item.Telegram is null || item.Telegram.Chat is not null)
+                    continue;
+
+                if (item.status == QueueStatus.PENDING)
+                {
+                    try
+                    {
+                        var inlineKeyboardButtons = new ReplyInlineMarkup()
+                        {
+                            rows = new TL.KeyboardButtonRow[] {
+                                new TL.KeyboardButtonRow {
+                                    buttons = new TL.KeyboardButtonCallback[]
+                                    {
+                                        new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes($"/cancel {item.ID}") },
+                                    }
+                                }
+                            }
+                        };
+
+                        (int position, int totalItems) = item.GetPosition();
+
+                        await item.Telegram.EditMessageAsync(
+                            id: item.MessageID,
+                            text: $"⏳ In queue ({position} of {totalItems})...",
+                            replyInlineMarkup: inlineKeyboardButtons
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.LogException(ex);
+                    }
+                }
+            }
         }
 
         public static async Task<FoxQueue?> GetByMessage(FoxTelegram telegram, long msg_id)
@@ -1101,7 +1127,7 @@ namespace makefoxsrv
 
             // After loading, add the object to the fullQueue cache if it's not null
             if (q is not null)
-                fullQueue.Enqueue(q);
+                fullQueue.Add(q.ID, q); // Add to queue cache
 
             return q;
         }
@@ -1109,7 +1135,7 @@ namespace makefoxsrv
         public static async Task<FoxQueue?> Get(ulong id)
         {
             // Attempt to find the FoxQueue item in the fullQueue cache
-            var cachedItem = fullQueue.FindAll(fq => fq.ID == id).FirstOrDefault();
+            var cachedItem = fullQueue[id];
 
             if (cachedItem is not null)
             {
@@ -1139,7 +1165,7 @@ namespace makefoxsrv
 
             // After loading, add the object to the fullQueue cache if it's not null
             if (q is not null)
-                fullQueue.Enqueue(q);
+                fullQueue.Add(q.ID, q); // Add to queue cache
 
             return q;
         }
