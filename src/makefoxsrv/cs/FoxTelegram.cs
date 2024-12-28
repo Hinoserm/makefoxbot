@@ -165,6 +165,9 @@ namespace makefoxsrv
 
             if (media is not null)
             {
+                if (text is not null && text.Count() > 1024)
+                    text = text.Substring(0, 1024);
+
                 updates = await _client.Messages_SendMedia(
                     peer: _peer,
                     random_id: random_id,
@@ -573,6 +576,9 @@ namespace makefoxsrv
                                     case Message m:
                                         updates.Users.TryGetValue(m.from_id ?? m.peer_id, out user);
                                         updates.Chats.TryGetValue(m.peer_id, out chat);
+
+                                        FoxLog.WriteLine(FoxStrings.SerializeToJson(m));
+                                        FoxLog.WriteLine(m.message.Count().ToString());
 
                                         if (user is null)
                                         {

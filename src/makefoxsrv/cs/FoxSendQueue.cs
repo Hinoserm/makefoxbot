@@ -116,7 +116,7 @@ namespace makefoxsrv
 
                     //var msg = await FoxTelegram.Client.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
 
-                    System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
+                    System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateQueued ?? DateTime.UnixEpoch);
                     System.TimeSpan GPUTime = await q.GetGPUTime();
                     string messageText = $"✅ Complete! (Took {diffResult.ToPrettyFormat()} - GPU: {GPUTime.ToPrettyFormat()}";
 

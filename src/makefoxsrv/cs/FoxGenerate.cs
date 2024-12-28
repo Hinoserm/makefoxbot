@@ -182,10 +182,13 @@ namespace makefoxsrv
 
                 StringBuilder msgStr = new StringBuilder();
 
+
+                msgStr.AppendLine("*** THIS IS A TEST MESSAGE.  DISREGARD IT AND CLICK CONTINUE ***\r\n\r\n");
                 msgStr.AppendLine("⚠️ Our automated system has detected that your request might violate our content policy.\r\n");
                 msgStr.AppendLine("You are responsible for ensuring compliance with our policies.  Violations may result in account restrictions including a permanent ban.\r\n");
                 msgStr.AppendLine("Please review our <link>content policy</link> before continuing.\r\n");
                 msgStr.AppendLine("Be aware that if you choose to continue, this request may be flagged for moderator review.");
+                msgStr.AppendLine("\r\n\r\n*** THIS IS A TEST MESSAGE.  DISREGARD IT AND CLICK CONTINUE ***");
 
                 var warningMsg = await t.SendMessageAsync(
                     text: msgStr.ToString(),

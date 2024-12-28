@@ -34,14 +34,6 @@ namespace makefoxsrv
 
         private static readonly object fileLock = new object();
 
-        public static string SerializeExceptionToJson(Exception ex)
-        {
-            return JsonConvert.SerializeObject(ex, Formatting.None, new JsonSerializerSettings
-            {
-                ReferenceLoopHandling = ReferenceLoopHandling.Ignore // Prevent loops during serialization
-            });
-        }
-
         // The log entry record used by our new approach
         public class LogEntry
         {
@@ -147,7 +139,7 @@ namespace makefoxsrv
                     CallerName = callerName,
                     CallerFilePath = callerFilePath,
                     CallerLineNumber = lineNumber,
-                    ExceptionJson = ex is null ? null : SerializeExceptionToJson(ex),
+                    ExceptionJson = ex is null ? null : FoxStrings.SerializeToJson(ex),
                 };
 
                 // Enqueue the log entry, signal the background thread
