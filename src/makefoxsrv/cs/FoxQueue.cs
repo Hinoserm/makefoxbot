@@ -201,7 +201,7 @@ namespace makefoxsrv
             {
                 if (delayedTasks.TryDequeue(out FoxQueue? task) && task.RetryDate.HasValue)
                 {
-                    if (DateTime.UtcNow >= task.RetryDate.Value)
+                    if (DateTime.Now >= task.RetryDate.Value)
                     {
                         // Task's retry time has passed; re-enqueue it for processing
                         FoxLog.WriteLine($"Enqueueing delayed task {task.ID}.", LogLevel.DEBUG);

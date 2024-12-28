@@ -627,7 +627,7 @@ We are committed to using your membership fees to further develop and maintain t
 
             // Check for premium upgrade conditions
             if ((this.accessLevel == AccessLevel.BASIC && this.lifetimeSubscription) ||
-                (this.accessLevel == AccessLevel.BASIC && this.datePremiumExpires.HasValue && this.datePremiumExpires.Value >= DateTime.UtcNow))
+                (this.accessLevel == AccessLevel.BASIC && this.datePremiumExpires.HasValue && this.datePremiumExpires.Value >= DateTime.Now))
             {
                 return AccessLevel.PREMIUM;
             } else
