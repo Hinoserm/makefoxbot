@@ -1041,11 +1041,8 @@ namespace makefoxsrv
 
         [Cron(seconds: 10)]
         private async Task CronUpdateQueueMessages(CancellationToken cancellationToken)
-        {
-            if (taskList.Count < 1)
-                return;
-            
-            foreach ((var item, _, DateTime dateStarted) in taskList)
+        {           
+            foreach ((var item, _, DateTime dateStarted) in taskList.ToList())
             {
                 if (cancellationToken.IsCancellationRequested)
                     return;
