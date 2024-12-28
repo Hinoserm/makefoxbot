@@ -1041,14 +1041,31 @@ namespace makefoxsrv
 
         [Cron(seconds: 10)]
         private async Task CronUpdateQueueMessages(CancellationToken cancellationToken)
-        {           
-            foreach ((var item, _, DateTime dateStarted) in taskList.ToList())
+        {
+            List<(FoxQueue item, int priority, DateTime dateStarted)> tasks;
+
+            lock (taskList)
+            {
+                if (taskList.Count < 1)
+                    return;
+
+                // Use ToList() to create a copy if taskList implements IEnumerable
+                tasks = taskList.ToList();
+            }
+
+            foreach ((var item, _, DateTime dateStarted) in tasks)
             {
                 if (cancellationToken.IsCancellationRequested)
                     return;
 
-                if (item.Telegram is null || item.Telegram.Chat is not null)
+                if (item.Telegram is null)
                     continue;
+
+                if (item.Telegram.Chat is not null)
+                    continue; // Skip updating in groups.
+
+                if (dateStarted - DateTime.Now < TimeSpan.FromSeconds(5))
+                    continue; // Skip updating if the task was started less than 5 seconds ago.
 
                 if (item.status == QueueStatus.PENDING)
                 {
