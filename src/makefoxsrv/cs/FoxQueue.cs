@@ -1042,6 +1042,9 @@ namespace makefoxsrv
         [Cron(seconds: 10)]
         private async Task CronUpdateQueueMessages(CancellationToken cancellationToken)
         {
+            if (taskList.Count < 1)
+                return;
+            
             foreach ((var item, _, DateTime dateStarted) in taskList)
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -1073,6 +1076,12 @@ namespace makefoxsrv
                             text: $"⏳ In queue ({position} of {totalItems})...",
                             replyInlineMarkup: inlineKeyboardButtons
                         );
+
+                        await Task.Delay(500);
+                    }
+                    catch (WTException ex) when (ex.Message == "MESSAGE_NOT_MODIFIED")
+                    {
+                        // Do nothing; ignore this error
                     }
                     catch (Exception ex)
                     {
