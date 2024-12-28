@@ -1064,7 +1064,7 @@ namespace makefoxsrv
                 if (item.Telegram.Chat is not null)
                     continue; // Skip updating in groups.
 
-                if (dateStarted - DateTime.Now < TimeSpan.FromSeconds(5))
+                if (DateTime.Now - dateStarted < TimeSpan.FromSeconds(5))
                     continue; // Skip updating if the task was started less than 5 seconds ago.
 
                 if (item.status == QueueStatus.PENDING)
