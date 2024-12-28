@@ -117,7 +117,7 @@ namespace makefoxsrv.lang {
         ///   Looks up a localized string similar to &lt;b&gt;Privacy Policy&lt;/b&gt;
         ///We collect and store all images sent or created using the bot, as well as your Telegram username, first name, last name, Telegram ID, and any other information generated through normal use of the service. We may have to share your data with 3rd party payment processors when you make a purchase or donation, but otherwise we don&apos;t share or sell your data. Your data is used solely to enhance and provide our services.
         ///
-        ///We will comply with all legally required requests to remove your per [rest of string was truncated]&quot;;.
+        ///We will comply with lawful requests to remove your personal informat [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string Terms_PrivacyPolicy {
             get {
