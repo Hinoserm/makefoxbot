@@ -152,11 +152,11 @@ namespace makefoxsrv
                                 var elapsed = endTime - startTime;
                                 if (elapsed > interval)
                                 {
-                                    throw new Exception($"Error: Task {method.Name} exceeded its interval duration of {interval} by {elapsed}.");
+                                    FoxLog.WriteLine($"Task {method.Name} exceeded its interval duration of {interval} - Elapsed: {elapsed}", LogLevel.WARNING);
                                 }
                                 else
                                 {
-                                    FoxLog.WriteLine($"Task {method.Name} completed in {elapsed}.");
+                                    FoxLog.WriteLine($"Task {method.Name} completed in {elapsed}.", LogLevel.DEBUG);
                                     await Task.Delay(interval - elapsed.Value, token);
                                 }
                             }
