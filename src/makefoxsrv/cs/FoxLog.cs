@@ -13,6 +13,8 @@ using TL;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Concurrent;
+using System.Globalization;
+using System.Threading;
 
 public enum LogLevel
 {
@@ -33,6 +35,9 @@ namespace makefoxsrv
         public static LogLevel CurrentLogLevel { get; set; } = LogLevel.INFO;
 
         private static readonly object fileLock = new object();
+        private static readonly object dbLock = new object();
+
+        private static CancellationTokenSource? cancellationTokenSource;
 
         // The log entry record used by our new approach
         public class LogEntry
@@ -56,17 +61,30 @@ namespace makefoxsrv
         }
 
         // Call this once at application startup
-        public static void StartLoggingThread()
+        public static void StartLoggingThread(CancellationToken? cancellationToken = null)
         {
+            if (logWorkerTask != null)
+                throw new InvalidOperationException("Logging thread is already running.");
+
+            // Create a new CancellationTokenSource for this task
+            cancellationTokenSource = new CancellationTokenSource();
+
+            // Combine the internal token with the external one, if provided
+            var linkedTokenSource = cancellationToken != null
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationTokenSource.Token, cancellationToken.Value)
+                : cancellationTokenSource;
+
             // Spin up a background Task to handle all DB writes
             logWorkerTask = Task.Run(async () =>
             {
+                WriteLine("Started logging task.");
+
                 while (keepLogging)
                 {
                     try
                     {
                         // Wait until there's at least one log to process
-                        await logSemaphore.WaitAsync();
+                        await logSemaphore.WaitAsync(linkedTokenSource.Token);
 
                         // Dequeue and process all available logs
                         while (logQueue.TryDequeue(out var logEntry))
@@ -74,23 +92,41 @@ namespace makefoxsrv
                             await WriteLogEntryAsync(logEntry);
                         }
                     }
+                    catch (OperationCanceledException)
+                    {
+                        // Handle cancellation gracefully
+                        Console.WriteLine("Log processing task was cancelled.");
+                        break; // Exit the loop when canceled
+                    }
                     catch (Exception ex)
                     {
                         // If something goes wrong, log it to file or console
                         LogToFile("Error in logWorkerTask: " + ex);
                     }
                 }
-            });
+            }, linkedTokenSource.Token);
         }
 
         // Call this once at application shutdown (optional)
         public static async Task StopLoggingThreadAsync()
         {
+            if (cancellationTokenSource is null || logWorkerTask is null)
+                return; // No task to stop
+
+            // Cancel the token to signal the task to stop
+            cancellationTokenSource.Cancel();
+
             keepLogging = false;
+
             // Release the semaphore so it can exit
             logSemaphore.Release();
+
             if (logWorkerTask != null)
                 await logWorkerTask;
+
+            logWorkerTask = null;
+
+            WriteLine("Stopped logging task.");
         }
 
         // The new log-writing method that enqueues a log entry
@@ -110,7 +146,8 @@ namespace makefoxsrv
                 if (context.Message is TL.Message tlMsg)
                 {
                     teleMsgId = tlMsg.ID;
-                } else if (context.Message is TL.UpdateBotCallbackQuery tlCallback)
+                }
+                else if (context.Message is TL.UpdateBotCallbackQuery tlCallback)
                 {
                     teleMsgId = tlCallback.msg_id;
                 }
@@ -201,7 +238,7 @@ namespace makefoxsrv
         public static void LogException(Exception ex, string? customMessage = null, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
             var message = customMessage ?? ex.Message;
-            
+
             // Don't log cancellation exceptions to file
             if (ex is not OperationCanceledException)
                 FoxLog.LogToFile($"Error: {message}\r\n{ex.StackTrace}\r\n");
@@ -258,6 +295,76 @@ namespace makefoxsrv
         public static void Write(string message, LogLevel level = LogLevel.INFO, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
             FoxLog.LogToFile(message, level, callerName, callerFilePath, lineNumber);
+        }
+
+        public static class LogRotator
+        {
+            public static async Task Rotate()
+            {
+                await StopLoggingThreadAsync();
+
+                using var connection = new MySqlConnection(FoxMain.sqlConnectionString);
+                await connection.OpenAsync();
+
+                using var transaction = await connection.BeginTransactionAsync();
+
+                try
+                {
+                    // Get the current date and calculate the base new table name
+                    var now = DateTime.Now;
+                    var month = now.ToString("MMMM").ToLower(); // e.g., "december"
+                    var weekNum = (int)Math.Ceiling(now.Day / 7.0);   // Week number within the current month
+                    var baseTableName = $"log_{month}_{weekNum}";
+                    var newTableName = GetUniqueTableName(connection, baseTableName, transaction);
+
+                    // Step 1: Rename the current "log" table to the new unique table name
+                    var renameTableQuery = $"RENAME TABLE `log` TO `{newTableName}`;";
+                    using (var renameCommand = new MySqlCommand(renameTableQuery, connection, transaction))
+                    {
+                        await renameCommand.ExecuteNonQueryAsync();
+                        Console.WriteLine($"Table `log` renamed to `{newTableName}`.");
+                    }
+
+                    // Step 2: Create the new "log" table by copying the schema from the old table
+                    var createTableQuery = $"CREATE TABLE `log` LIKE `{newTableName}`;";
+                    using (var createCommand = new MySqlCommand(createTableQuery, connection, transaction))
+                    {
+                        await createCommand.ExecuteNonQueryAsync();
+                        Console.WriteLine("New `log` table created using the schema of the old table.");
+                    }
+
+                    await transaction.CommitAsync();
+                    Console.WriteLine("Log rotation completed successfully.");
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    Console.WriteLine($"Error rotating logs: {ex.Message}");
+                }
+                StartLoggingThread();
+            }
+
+            private static string GetUniqueTableName(MySqlConnection connection, string baseName, MySqlTransaction transaction)
+            {
+                string tableName = baseName;
+                int suffix = 1;
+
+                while (TableExists(connection, tableName, transaction))
+                {
+                    suffix++;
+                    tableName = $"{baseName}_{suffix}";
+                }
+
+                return tableName;
+            }
+
+            private static bool TableExists(MySqlConnection connection, string tableName, MySqlTransaction transaction)
+            {
+                var query = $"SHOW TABLES LIKE '{tableName}';";
+                using var command = new MySqlCommand(query, connection, transaction);
+                using var reader = command.ExecuteReader();
+                return reader.HasRows;
+            }
         }
     }
 }

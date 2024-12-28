@@ -19,6 +19,7 @@ using System.Linq;
 using System.ComponentModel.Design;
 using Stripe;
 using Stripe.FinancialConnections;
+using static makefoxsrv.FoxLog;
 
 namespace makefoxsrv
 {
@@ -380,6 +381,10 @@ namespace makefoxsrv
                 case "#pay":
                     await FoxAdmin.HandleShowPayments(t, message, commandArgs);
                     break;
+                case "#rotate":
+                    await FoxLog.LogRotator.Rotate();
+                    break;
+
                 default:
                     await t.SendMessageAsync(
                         text: "❌ Unknown command.  Use one of these:\r\n  #uncache, #ban, #unban, #resetterms, #resettos",
