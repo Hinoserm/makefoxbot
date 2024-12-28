@@ -577,8 +577,8 @@ namespace makefoxsrv
                                         updates.Users.TryGetValue(m.from_id ?? m.peer_id, out user);
                                         updates.Chats.TryGetValue(m.peer_id, out chat);
 
-                                        FoxLog.WriteLine(FoxStrings.SerializeToJson(m));
-                                        FoxLog.WriteLine(m.message.Count().ToString());
+                                        //FoxLog.WriteLine(FoxStrings.SerializeToJson(m));
+                                        //FoxLog.WriteLine(m.message.Count().ToString());
 
                                         if (user is null)
                                         {
