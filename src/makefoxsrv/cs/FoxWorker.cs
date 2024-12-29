@@ -23,6 +23,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Drawing.Processing;
+using PayPalCheckoutSdk.Orders;
 
 namespace makefoxsrv
 {
@@ -1022,22 +1023,27 @@ namespace makefoxsrv
                 FoxContextManager.Current.Queue = qItem;
                 FoxContextManager.Current.Worker = this;
 
-                FoxLog.WriteLine($"Worker {ID} - Start processing task {qItem.ID}...", LogLevel.DEBUG);
-
                 if (qItem is null)
                     throw new Exception("Attempt to process task when no task was assigned");
 
-                FoxContextManager.Current.User = qItem?.User;
-                FoxContextManager.Current.Telegram = qItem?.Telegram;
+                if (qItem.User is null)
+                    throw new Exception("Task has no user assigned.");
+
+                FoxContextManager.Current.User = qItem.User;
+
+                if (qItem.Telegram is null)
+                    throw new Exception("Task has invalid Telegram object.");
+
+                FoxContextManager.Current.Telegram = qItem.Telegram;
                 FoxContextManager.Current.Message = new Message { id = qItem.MessageID };
 
                 if (!FoxTelegram.IsConnected)
                     throw new Exception("Telegram client is disconnected.");
 
-                FoxLog.WriteLine($"Worker {this.name} is now processing task {qItem.ID}", LogLevel.DEBUG);
-
                 if (api is null)
                     throw new Exception("API not available (Should have been loaded before we got here)");
+
+                FoxLog.WriteLine($"Worker {ID} - Start processing task {qItem.ID}...", LogLevel.DEBUG);
 
                 this.TaskStartDate = DateTime.Now;
                 this.TaskEndDate = null;

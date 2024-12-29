@@ -22,6 +22,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Primitives;
 using System.Runtime.CompilerServices;
 using PayPalCheckoutSdk.Orders;
+using System.Reflection.Metadata.Ecma335;
 
 namespace makefoxsrv
 {
@@ -1079,8 +1080,14 @@ namespace makefoxsrv
                 if (DateTime.Now - dateStarted < TimeSpan.FromSeconds(10))
                     continue; // Skip updating if the task was started less than 5 seconds ago.
 
+                if (item.User is null)
+                    continue;
+
                 if (item.status == QueueStatus.PENDING)
                 {
+                    if (await item.User.GetFloodWait() > DateTime.Now)
+                        continue; // User is rate limited.
+
                     try
                     {
                         var inlineKeyboardButtons = new ReplyInlineMarkup()
