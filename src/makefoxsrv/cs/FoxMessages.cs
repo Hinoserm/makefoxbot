@@ -296,7 +296,7 @@ namespace makefoxsrv
             var floodWait = await user.GetFloodWait();
 
             if (floodWait > DateTime.Now)
-                sb.AppendLine($"Flood Wait until {floodWait}");
+                sb.AppendLine($"FLOOD_WAIT until {floodWait}");
 
             return sb.ToString();
         }

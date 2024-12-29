@@ -86,7 +86,7 @@ namespace makefoxsrv
 
                 cmd.Connection = SQL;
                 // Make sure message contains "FLOOD_WAIT" and the user_id matches the current user
-                cmd.CommandText = "SELECT exception_json FROM log WHERE user_id = @uid AND tele_chatid IS NULL AND date >= @since AND message LIKE '%FLOOD_WAIT%'";
+                cmd.CommandText = "SELECT exception_json FROM log WHERE user_id = @uid AND tele_chatid IS NULL AND date >= @since AND message LIKE '%FLOOD_WAIT_X%'";
                 cmd.Parameters.AddWithValue("@uid", this.UID);
                 cmd.Parameters.AddWithValue("@since", since);
 

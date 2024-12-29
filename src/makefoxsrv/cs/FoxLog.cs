@@ -152,6 +152,9 @@ namespace makefoxsrv
                     teleMsgId = tlCallback.msg_id;
                 }
 
+                if (ex is Exception && context.User is not null && context.Telegram?.Chat is null)
+                    context.User.RecordError(ex);
+
                 //StackTrace stackTrace = new StackTrace(true);
 
                 var strStackTrace = ex?.StackTrace;
