@@ -983,6 +983,7 @@ namespace makefoxsrv
             long imageCount = 0;
             long imageBytes = 0;
             long userCount = 0;
+            DateOnly oldestImage = DateOnly.FromDateTime(DateTime.Now);
 
             // Only show global stats if no user was specified
             if (string.IsNullOrEmpty(argument))
@@ -996,7 +997,7 @@ namespace makefoxsrv
 
                     MySqlCommand sqlcmd;
 
-                    sqlcmd = new MySqlCommand("SELECT COUNT(id) as image_count, SUM(filesize) AS image_bytes FROM images WHERE type = 'OUTPUT'", connection);
+                    sqlcmd = new MySqlCommand("SELECT COUNT(id) as image_count, MIN(date_added) as oldest_image, SUM(filesize) AS image_bytes FROM images WHERE type = 'OUTPUT'", connection);
 
                     using (var reader = await sqlcmd.ExecuteReaderAsync())
                     {
@@ -1004,6 +1005,7 @@ namespace makefoxsrv
                         {
                             imageCount = reader.IsDBNull(reader.GetOrdinal("image_count")) ? 0 : reader.GetInt64("image_count");
                             imageBytes = reader.IsDBNull(reader.GetOrdinal("image_bytes")) ? 0 : reader.GetInt64("image_bytes");
+                            oldestImage = reader.IsDBNull(reader.GetOrdinal("oldest_image")) ? oldestImage : reader.GetDateOnly("oldest_image");
                         }
                     }
 
@@ -1018,7 +1020,9 @@ namespace makefoxsrv
                     }
                 }
 
-                sb.AppendLine($"Total Images: {imageCount} ({FoxMessages.FormatBytes(imageBytes)})"); // 
+                sb.AppendLine($"Oldest Image: {oldestImage.ToString("MMMM d yyyy")}");
+                sb.AppendLine();
+                sb.AppendLine($"Total Images: {imageCount} ({FoxMessages.FormatBytes(imageBytes)})");
                 sb.AppendLine($"Total Users: {userCount}");
             }
 
