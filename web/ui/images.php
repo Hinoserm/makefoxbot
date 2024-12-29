@@ -188,7 +188,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
 
                 // Inside DOMContentLoaded event
                 // Initialize the timer to check for new images at the top
-                setInterval(checkForNewImages, 800);
+                //setInterval(checkForNewImages, 800);
             });
         <?php } ?>
 
