@@ -65,12 +65,17 @@ namespace makefoxsrv
 
         public void RecordError(Exception ex)
         {
-            if (ex is RpcException rex && rex.Code == 429)
+            if (ex is RpcException rex && rex.Code == 420)
                 this.FloodWaitUntil = DateTime.Now.AddSeconds(rex.X);
         }
 
-        private async Task<DateTime?> GetFloodWaitFromDb()
+        public async Task<DateTime?> GetFloodWait()
         {
+
+            // If the cached FloodWait value hasn't expired yet, just use that.
+            if (this.FloodWaitUntil is not null && this.FloodWaitUntil > DateTime.Now)
+                return this.FloodWaitUntil;
+
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
             await SQL.OpenAsync();
             using (var cmd = new MySqlCommand())
@@ -85,31 +90,23 @@ namespace makefoxsrv
                 cmd.Parameters.AddWithValue("@uid", this.UID);
                 cmd.Parameters.AddWithValue("@since", since);
 
-                FoxLog.WriteLine(cmd.CommandText);
-
                 using (var r = await cmd.ExecuteReaderAsync())
                 {
                     if (await r.ReadAsync())
                     {
                         var exceptionJson = r.GetString("exception_json");
                         var exception = JsonConvert.DeserializeObject<RpcException>(exceptionJson);
-                        if (exception != null && exception.Code == 429)
+                        if (exception != null && exception.Code == 420)
                         {
-                            return DateTime.Now.AddSeconds(exception.X);
+                            this.FloodWaitUntil = DateTime.Now.AddSeconds(exception.X);
+
+                            return this.FloodWaitUntil;
                         }
                     }
                 }
             }
 
             return null;
-        }
-
-        public async Task<DateTime?> GetFloodWait()
-        {
-            if (FloodWaitUntil is null)
-                this.FloodWaitUntil = await this.GetFloodWaitFromDb();
-
-            return this.FloodWaitUntil;
         }
 
         public static long ClearCache()
