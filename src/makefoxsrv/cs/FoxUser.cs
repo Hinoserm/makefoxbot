@@ -13,6 +13,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Collections.Concurrent;
+using Newtonsoft.Json;
 
 public enum AccessLevel
 {
@@ -52,11 +53,61 @@ namespace makefoxsrv
 
         public FoxLocalization Strings { get; set; }
 
+
+        public DateTime? FloodWaitUntil { get; private set; } = null;
+
         public FoxUser(ulong ID, string language)
         {
             this.UID = ID;
             this.PreferredLanguage = language;
             this.Strings = new FoxLocalization(this, PreferredLanguage ?? "en");
+        }
+
+        public void RecordError(Exception ex)
+        {
+            if (ex is RpcException rex && rex.Code == 429)
+                this.FloodWaitUntil = DateTime.Now.AddSeconds(rex.X);
+        }
+
+        private async Task<DateTime?> GetFloodWaitFromDb()
+        {
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+            await SQL.OpenAsync();
+            using (var cmd = new MySqlCommand())
+            {
+                // Check if a flood wait error has been logged in the database in the last 48 hours.
+
+                var since = DateTime.Now.AddDays(-2);
+
+                cmd.Connection = SQL;
+                // Make sure message contains "FLOOD_WAIT" and the user_id matches the current user
+                cmd.CommandText = "SELECT exception_json FROM log WHERE user_id = @uid AND tele_chatid IS NULL AND date >= @since AND message LIKE '%FLOOD_WAIT%'";
+                cmd.Parameters.AddWithValue("@uid", this.UID);
+                cmd.Parameters.AddWithValue("@since", since);
+
+                using (var r = await cmd.ExecuteReaderAsync())
+                {
+                    if (await r.ReadAsync())
+                    {
+                        var exceptionJson = r.GetString("exception_json");
+                        var exception = JsonConvert.DeserializeObject<RpcException>(exceptionJson);
+                        if (exception != null && exception.Code == 429)
+                        {
+                            return DateTime.Now.AddSeconds(exception.X);
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        public async Task<DateTime?> GetFloodWait()
+        {
+            if (FloodWaitUntil is null)
+                this.FloodWaitUntil = await this.GetFloodWaitFromDb();
+
+            return this.FloodWaitUntil;
         }
 
         public static long ClearCache()

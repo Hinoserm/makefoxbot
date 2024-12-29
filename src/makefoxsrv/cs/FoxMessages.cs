@@ -293,6 +293,11 @@ namespace makefoxsrv
             if (totalPaid > 0)
                 sb.AppendLine($"Paid: ${totalPaid:F2}");
 
+            var floodWait = await user.GetFloodWait();
+
+            if (floodWait > DateTime.Now)
+                sb.AppendLine($"Flood Wait until {floodWait}");
+
             return sb.ToString();
         }
 
