@@ -450,20 +450,20 @@ namespace makefoxsrv
                 }
             }
 
-            //// 5. Gather pending tasks to look ahead for future model usage
-            //var futureTasks = taskList
-            //    .Select(t => t.task)
-            //    .Where(t => t != null
-            //                && t!.status == FoxQueue.QueueStatus.PENDING
-            //                && t.ID != item.ID) // exclude current task
-            //    .ToList();
+            // 5. Gather pending tasks to look ahead for future model usage
+            var futureTasks = taskList
+                .Select(t => t.task)
+                .Where(t => t != null
+                            && t!.status == FoxQueue.QueueStatus.PENDING
+                            && t.ID != item.ID) // exclude current task
+                .ToList();
 
-            //bool ModelHasUpcomingTasks(string? modelName)
-            //{
-            //    if (string.IsNullOrEmpty(modelName))
-            //        return false;
-            //    return futureTasks.Any(f => f.Settings.model == modelName);
-            //}
+            bool ModelHasUpcomingTasks(string? modelName)
+            {
+                if (string.IsNullOrEmpty(modelName))
+                    return false;
+                return futureTasks.Any(f => f.Settings.model == modelName);
+            }
 
             // 6. Identify workers that already have the requested model loaded
             var workersRunningThisModel = model.GetWorkersRunningModel();
@@ -494,8 +494,9 @@ namespace makefoxsrv
 
             // 10. If user isn't premium and hasn't been waiting long, keep them waiting
             var modelWaitingTime = DateTime.Now - item.DateCreated;
+            var waitTime = item.User.CheckAccessLevel(AccessLevel.PREMIUM) ? 4 : 12;
 
-            if (!item.User.CheckAccessLevel(AccessLevel.PREMIUM) && modelWaitingTime.TotalSeconds < 10)
+            if (modelWaitingTime.TotalSeconds < waitTime)
             {
                 //FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}. ({modelWaitingTime.TotalSeconds}s)", LogLevel.DEBUG);
                 return null;
@@ -505,45 +506,45 @@ namespace makefoxsrv
             //     Avoid switching off a model that is needed soon or only on a single worker.
 
             // Build a dictionary of how often each model is in future tasks
-            //var modelDemand = futureTasks
-            //    .GroupBy(f => f.Settings.model)
-            //    .ToDictionary(g => g.Key!, g => g.Count());
+            var modelDemand = futureTasks
+                .GroupBy(f => f.Settings.model)
+                .ToDictionary(g => g.Key!, g => g.Count());
 
-            //// Group idle workers by their current model (coalesced to "<none>")
-            //var idleWorkers = suitableWorkers.Where(w => w.qItem == null).ToList();
-            //var groupedByModel = idleWorkers
-            //    .GroupBy(w => w.LastUsedModel ?? "<none>")
-            //    .ToDictionary(g => g.Key, g => g.ToList());
+            // Group idle workers by their current model (coalesced to "<none>")
+            var idleWorkers = suitableWorkers.Where(w => w.qItem == null).ToList();
+            var groupedByModel = idleWorkers
+                .GroupBy(w => w.LastUsedModel ?? "<none>")
+                .ToDictionary(g => g.Key, g => g.ToList());
 
-            //// Candidates: idle workers NOT on the requested model
-            //var switchCandidates = idleWorkers
-            //    .Where(w => w.LastUsedModel != item.Settings.model)
-            //    .ToList();
+            // Candidates: idle workers NOT on the requested model
+            var switchCandidates = idleWorkers
+                .Where(w => w.LastUsedModel != item.Settings.model)
+                .ToList();
 
-            //// 12. Sort the switch candidates
-            ////  - duplicate model? (we can free one up)
-            ////  - low future demand?
-            ////  - not needed in upcoming tasks?
-            ////  - least recently active?
-            //var candidateSorted = switchCandidates
-            //    .OrderByDescending(w =>
-            //        groupedByModel.ContainsKey((w.LastUsedModel ?? "<none>")) &&
-            //        groupedByModel[(w.LastUsedModel ?? "<none>")].Count > 1)
-            //    .ThenBy(w =>
-            //    {
-            //        var modelName = w.LastUsedModel ?? "";
-            //        return modelDemand.TryGetValue(modelName, out int demand) ? demand : 0;
-            //    })
-            //    .ThenBy(w =>
-            //    {
-            //        var modelName = w.LastUsedModel ?? "";
-            //        return ModelHasUpcomingTasks(modelName);
-            //    })
-            //    .ThenBy(w => w.LastActivity)
-            //    .ToList();
+            // 12. Sort the switch candidates
+            //  - duplicate model? (we can free one up)
+            //  - low future demand?
+            //  - not needed in upcoming tasks?
+            //  - least recently active?
+            var candidateSorted = switchCandidates
+                .OrderByDescending(w =>
+                    groupedByModel.ContainsKey((w.LastUsedModel ?? "<none>")) &&
+                    groupedByModel[(w.LastUsedModel ?? "<none>")].Count > 1)
+                .ThenBy(w =>
+                {
+                    var modelName = w.LastUsedModel ?? "";
+                    return modelDemand.TryGetValue(modelName, out int demand) ? demand : 0;
+                })
+                .ThenBy(w =>
+                {
+                    var modelName = w.LastUsedModel ?? "";
+                    return ModelHasUpcomingTasks(modelName);
+                })
+                .ThenBy(w => w.LastActivity)
+                .ToList();
 
-            //if (candidateSorted.Any())
-            //    return candidateSorted.First();
+            if (candidateSorted.Any())
+                return candidateSorted.First();
 
             // 13. Fallback: any other idle worker
             var availableSuitableWorkers = suitableWorkers
