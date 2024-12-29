@@ -20,11 +20,6 @@ a, a:visited {
 	overflow: hidden;
 }
 
-.image-wrapper:hover {
-	transform: scale(1.05);
-	transition: transform 0.3s ease;
-}
-
 img {
 	display: block;
 	width: 100%;
