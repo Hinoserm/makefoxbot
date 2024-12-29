@@ -43,7 +43,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
     <title>Image Viewer</title>
     <link rel="stylesheet" href="/css/<?php echo $dark ? 'dark.css' : 'main.css'; ?>">
     <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
-    <script src="/js/websocket.js"></script> <!-- Ensure this path is correct -->
+    <script src="/js/websocket.js"></script>
     <style>
         /* Lightbox styles */
         #lightbox {
@@ -82,17 +82,21 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
         #imageContainer {
             display: flex;
             flex-wrap: wrap;
-            justify-content: flex-start; /* Align items to the start */
-            align-items: stretch; /* Stretch items vertically to match the tallest */
+            justify-content: flex-start;
+            align-items: stretch;
             padding: 10px;
-            gap: 10px; /* Space between items */
+            gap: 10px;
         }
 
         .image-wrapper {
-            width: 200px; /* Fixed column width */
+            width: 200px;
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
+            /* We'll store a height once the image loads,
+               and keep that height if we unload the image. */
+            overflow: hidden;
+            position: relative;
         }
 
         .image-wrapper img {
@@ -100,7 +104,12 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             height: auto;
             border-radius: 5px;
             transition: transform 0.2s;
-            flex-shrink: 0; /* Prevent shrinking */
+            flex-shrink: 0;
+            background-color: #f0f0f0;
+        }
+
+        .image-wrapper img.placeholder {
+            background-color: #e0e0e0;
         }
 
         .image-wrapper img:hover {
@@ -111,7 +120,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             padding: 5px 0;
             font-size: 0.9em;
             color: #333;
-            flex-grow: 1; /* Push caption to take available space */
+            flex-grow: 1;
         }
 
         .shorten {
@@ -129,7 +138,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             padding: 20px;
             font-size: 1.2em;
             color: #555;
-            display: none; /* Initially hidden */
+            display: none;
             width: 100%;
         }
         #error-message {
@@ -139,20 +148,19 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             width: 100%;
         }
 
-        /* Responsive Adjustments */
         @media (max-width: 1200px) {
             .image-wrapper {
-                width: 150px; /* Adjust column width for medium screens */
+                width: 150px;
             }
         }
         @media (max-width: 800px) {
             .image-wrapper {
-                width: 120px; /* Adjust column width for small screens */
+                width: 120px;
             }
         }
         @media (max-width: 500px) {
             .image-wrapper {
-                width: 100%; /* Single column on very small screens */
+                width: 100%;
             }
         }
     </style>
@@ -161,270 +169,259 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
     <div id="imageContainer"></div>
     <div id="loading">Loading more images...</div>
     <div id="error-message"></div>
-
     <div id="lightbox"></div>
 
     <script>
-        // Initialize variables
         let lastImageId = 0;
         let highestImageId = 0;
         let isLoading = false;
         let hasMoreOldImages = true;
         let totalImagesLoaded = 0;
-
         let imagesData = {};
+        let currentImageIdx = null;
 
-        let currentImageIdx = null; // Global variable to track the current image index
-
-        // Image Wrapper Dimensions (must match CSS)
-        const IMAGE_WRAPPER_WIDTH = 200; // in pixels
-        const IMAGE_WRAPPER_HEIGHT_ESTIMATE = 250; // estimated height in pixels (adjust as needed)
+        const IMAGE_WRAPPER_WIDTH = 200;
+        const IMAGE_WRAPPER_HEIGHT_ESTIMATE = 250;
 
         /**
-         * Calculate the number of images required based on the current window size.
-         * Aims to fill at least two screen-heights.
+         * We'll be aggressive and load for 4 screens total (2 above & 2 below).
          */
         function calculateRequiredImages() {
             const windowWidth = window.innerWidth;
             const windowHeight = window.innerHeight;
-            const gap = 10; // gap between images in CSS
+            const gap = 10;
 
-            // Calculate number of columns that fit in the window
-            const columns = Math.floor((windowWidth - 20) / (IMAGE_WRAPPER_WIDTH + gap)); // 20px padding
-            if (columns < 1) return 20; // Default to 20 images if not enough space
+            const columns = Math.floor((windowWidth - 20) / (IMAGE_WRAPPER_WIDTH + gap));
+            if (columns < 1) return 20;
 
-            // Estimate number of rows that fit in two screen-heights
-            const rows = Math.ceil((windowHeight * 2) / (IMAGE_WRAPPER_HEIGHT_ESTIMATE + gap)); // Two screen-heights
-
-            // Total images needed
+            // 4 screen heights total
+            const rows = Math.ceil((windowHeight * 4) / (IMAGE_WRAPPER_HEIGHT_ESTIMATE + gap));
             let totalImages = columns * rows;
-
-            // Ensure a minimum of 20 images per fetch
             totalImages = Math.max(20, totalImages);
-
             return totalImages;
         }
 
-        /**
-         * Adjust the required images when the window is resized or zoomed.
-         * Fetch additional images if necessary.
-         */
         function handleResize() {
-            console.log("Handling window resize.");
             const requiredImages = calculateRequiredImages();
             if (requiredImages > 0) {
-                console.log(`Additional images needed: ${requiredImages}`);
                 fetchAndRenderQueue('old', requiredImages).then(() => {
-                    // After fetching, check if more images are needed
                     checkAndLoadMoreImages();
+                    unloadDistantImages();
                 });
             }
         }
 
-        /**
-         * Check if the image container height is less than two screen-heights.
-         * If so, fetch additional images to fill the space.
-         */
         function checkAndLoadMoreImages() {
-            const imageContainer = document.getElementById('imageContainer');
-            const containerHeight = imageContainer.offsetHeight;
-            const requiredHeight = window.innerHeight * 2;
+            const container = document.getElementById('imageContainer');
+            const containerHeight = container.offsetHeight;
+            // We want at least 2 screens loaded
+            const needed = window.innerHeight * 2;
 
-            if (containerHeight < requiredHeight && hasMoreOldImages) {
-                console.log("Image container height less than two screen-heights. Loading more images.");
-                const additionalImages = calculateRequiredImages();
-                if (additionalImages > 0) {
-                    fetchAndRenderQueue('old', additionalImages).then(() => {
-                        // After fetching, check again
+            if (containerHeight < needed && hasMoreOldImages) {
+                const more = calculateRequiredImages();
+                if (more > 0) {
+                    fetchAndRenderQueue('old', more).then(() => {
                         checkAndLoadMoreImages();
                     });
                 }
             }
         }
 
-        <?php if (!$imageId) { ?>
-            document.addEventListener('DOMContentLoaded', () => {
-                console.log("DOM fully loaded and parsed.");
-
-                createLightbox(); // Initialize the lightbox
-                setupLightboxScroll(); // Setup lightbox navigation
-                setupInfiniteScroll(); // Setup infinite scrolling
-
-                // Initial fetch based on window size
-                const initialImages = calculateRequiredImages();
-                fetchAndRenderQueue('old', initialImages).then(() => {
-                    // After initial load, check if more images are needed
-                    checkAndLoadMoreImages();
-                });
-
-                // Add event listener for window resize
-                window.addEventListener('resize', debounce(handleResize, 500));
-            });
-        <?php } ?>
-
-        <?php if ($imageId) { ?>
-            document.addEventListener('DOMContentLoaded', () => {
-                console.log("DOM fully loaded and parsed with specific image ID.");
-                createLightbox(false); // Initialize the lightbox without close functionality
-                showOneImage(<?php echo $imageId; ?>); // Display the specific image
-            });
-        <?php } ?>
-
         /**
-         * Create the lightbox element
+         * We'll unload images that are more than 2 screens away in either direction.
+         * BUT we do NOT remove the wrapper, so the placeholder remains.
          */
-        function createLightbox(closeable = true) {
-            console.log("Creating lightbox. Closeable:", closeable);
-            const lightbox = document.getElementById('lightbox');
-            lightbox.innerHTML = ''; // Clear any existing content
+        function unloadDistantImages() {
+            const container = document.getElementById('imageContainer');
+            const wrappers = Array.from(container.children);
 
-            if (closeable) {
-                const closeButton = document.createElement('div');
-                closeButton.classList.add('close-btn');
-                closeButton.innerHTML = '&times;';
-                lightbox.appendChild(closeButton);
+            const screenHeight = window.innerHeight;
+            const bufferDistance = 2 * screenHeight; 
 
-                closeButton.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    lightbox.style.display = 'none';
-                    document.body.style.overflow = '';
-                    console.log("Lightbox closed.");
-                });
+            wrappers.forEach(wrapper => {
+                let rect = wrapper.getBoundingClientRect();
+                // distance above top => negative if it's above the viewport
+                // distance below bottom => negative if it's below
+                const distAbove = -rect.bottom; 
+                const distBelow = rect.top - window.innerHeight;
 
-                lightbox.addEventListener('click', () => {
-                    lightbox.style.display = 'none';
-                    document.body.style.overflow = '';
-                    console.log("Lightbox background clicked and closed.");
-                });
-            }
-        }
-
-        /**
-         * Setup Lightbox Scroll for navigation
-         */
-        function setupLightboxScroll() {
-            console.log("Setting up lightbox scroll navigation.");
-            const lightbox = document.getElementById('lightbox');
-
-            lightbox.addEventListener('wheel', (e) => {
-                e.preventDefault(); // Prevent the page from scrolling
-
-                if (e.deltaY < 0) {
-                    // Scrolling up, show next image
-                    console.log("Wheel scrolled up.");
-                    showNextImage();
-                } else if (e.deltaY > 0) {
-                    // Scrolling down, show previous image
-                    console.log("Wheel scrolled down.");
-                    showPreviousImage();
+                if (distAbove > bufferDistance || distBelow > bufferDistance) {
+                    // We'll only unload the image(s), not remove the wrapper
+                    const images = wrapper.querySelectorAll('img');
+                    images.forEach(img => {
+                        if (!img.dataset.storedHeight) {
+                            // First time it loads, store the natural size for placeholder
+                            // We'll do that in an onload for each image
+                        }
+                        if (!img.dataset.unloaded) {
+                            console.log(`Unloading image for ID: ${img.getAttribute('data-image-id')}`);
+                            // set data-unloaded, store the current src for reloading if you want
+                            img.dataset.origsrc = img.src;
+                            img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+                            img.classList.add('placeholder');
+                            img.dataset.unloaded = 'true';
+                        }
+                    });
                 }
             });
         }
 
         /**
-         * Fetch the image URL using PHP endpoint
+         * If an unloaded image scrolls back into ~2 screens range, reload it
          */
+        function reloadNearbyImages() {
+            const container = document.getElementById('imageContainer');
+            const wrappers = Array.from(container.children);
+            const screenHeight = window.innerHeight;
+            const bufferDistance = 2 * screenHeight;
+
+            wrappers.forEach(wrapper => {
+                const rect = wrapper.getBoundingClientRect();
+                const distAbove = -rect.bottom;
+                const distBelow = rect.top - window.innerHeight;
+
+                if (Math.abs(distAbove) < bufferDistance && Math.abs(distBelow) < bufferDistance) {
+                    // within 2 screens => reload if unloaded
+                    const images = wrapper.querySelectorAll('img');
+                    images.forEach(img => {
+                        if (img.dataset.unloaded === 'true' && img.dataset.origsrc) {
+                            console.log(`Reloading image for ID: ${img.getAttribute('data-image-id')}`);
+                            img.src = img.dataset.origsrc;
+                            img.classList.remove('placeholder');
+                            img.dataset.unloaded = '';
+                        }
+                    });
+                }
+            });
+        }
+
+        <?php if (!$imageId) { ?>
+        document.addEventListener('DOMContentLoaded', () => {
+            createLightbox();
+            setupLightboxScroll();
+            setupInfiniteScroll();
+
+            const initialImages = calculateRequiredImages();
+            fetchAndRenderQueue('old', initialImages).then(() => {
+                checkAndLoadMoreImages();
+            });
+
+            window.addEventListener('resize', debounce(handleResize, 500));
+        });
+        <?php } else { ?>
+        document.addEventListener('DOMContentLoaded', () => {
+            createLightbox(false);
+            setupLightboxScroll();
+            showOneImage(<?php echo $imageId; ?>);
+        });
+        <?php } ?>
+
+        function createLightbox(closeable = true) {
+            const lightbox = document.getElementById('lightbox');
+            lightbox.innerHTML = '';
+            if (closeable) {
+                const closeButton = document.createElement('div');
+                closeButton.classList.add('close-btn');
+                closeButton.innerHTML = '&times;';
+                closeButton.onclick = (e) => {
+                    e.stopPropagation();
+                    lightbox.style.display = 'none';
+                    document.body.style.overflow = '';
+                };
+                lightbox.appendChild(closeButton);
+
+                lightbox.onclick = () => {
+                    lightbox.style.display = 'none';
+                    document.body.style.overflow = '';
+                };
+            }
+        }
+
+        function setupLightboxScroll() {
+            const lightbox = document.getElementById('lightbox');
+            lightbox.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                if (e.deltaY < 0) showNextImage();
+                else if (e.deltaY > 0) showPreviousImage();
+            });
+        }
+
         function fetchImageUrl(imageId) {
-            console.log(`Fetching image URL for ID: ${imageId}`);
             return `/api/get-image.php?id=${imageId}`;
         }
 
-        /**
-         * Shorten text utility
-         */
         function shortenText(text, maxLength) {
             const isTextShortened = text.length > maxLength;
             const shortenedText = isTextShortened ? text.substring(0, maxLength - 3) + "..." : text;
             return { shortenedText, isTextShortened };
         }
 
-        /**
-         * Generate the caption HTML for an image
-         */
         function generateCaption(image, shortenChars = 100) {
-            let q = image;
+            const { shortenedText: promptShort, isTextShortened: pFlag } = shortenText(image.Prompt, shortenChars);
+            const { shortenedText: negShort, isTextShortened: nFlag } = shortenText(image.NegativePrompt, shortenChars);
 
-            let { shortenedText: promptShortened, isTextShortened: promptShortenedFlag } = shortenText(q.Prompt, shortenChars);
-            let { shortenedText: negativeShortened, isTextShortened: negativeShortenedFlag } = shortenText(q.NegativePrompt, shortenChars);
-
-            // Using Luxon to handle date formatting
             const { DateTime } = luxon;
-            const serverTime = DateTime.fromISO(q.DateCreated, { zone: 'America/Chicago' });
+            const serverTime = DateTime.fromISO(image.DateCreated, { zone: 'America/Chicago' });
             const dateAdded = serverTime.setZone(DateTime.local().zoneName);
 
             let caption =
-                `<div><strong>ID:</strong> <a href="?id=${q.ID}">${q.ID}</a><br></div>` +
-                `<?php if ($user['access_level'] == 'ADMIN'): ?>` +
-                `<div><strong>User:</strong> <a href="?uid=${q.UID}">${q.Username ? q.Username : '(' + (q.Firstname || '') + (q.Firstname && q.Lastname ? ' ' : '') + (q.Lastname || '') + ')'}</a><br></div>` +
-                `<?php endif; ?>` +
-                `<div>${q.TeleChatID == q.TeleID ? "" : '<strong>Chat:</strong> ' + q.TeleChatID + '<br>'}</div>` +
-                `${q.Prompt ? `<div><strong>Prompt:</strong> <span class="${promptShortenedFlag ? 'shorten' : ''}" ${promptShortenedFlag ? `data-fulltext="${escapeHTML(q.Prompt)}" data-shorttext="${escapeHTML(promptShortened)}"` : ''}>${escapeHTML(promptShortened)}</span><br></div>` : ''}` +
-                `${q.NegativePrompt ? `<div><strong>Negative:</strong> <span class="${negativeShortenedFlag ? 'shorten' : ''}" ${negativeShortenedFlag ? `data-fulltext="${escapeHTML(q.NegativePrompt)}" data-shorttext="${escapeHTML(negativeShortened)}"` : ''}>${escapeHTML(negativeShortened)}</span><br></div>` : ''}` +
-                `${q.HiresEnabled ? `<div><strong>Size:</strong> ${q.HiresWidth}x${q.HiresHeight} (from ${q.Width}x${q.Height}) <br></div>` : `<div><strong>Size:</strong> ${q.Width}x${q.Height}<br></div>`}` +
-                `<div><strong>Sampler Steps:</strong> ${q.Steps}<br></div>` +
-                `<div><strong>CFG Scale:</strong> ${q.CFGScale}<br></div>` +
-                `${q.Type === 'IMG2IMG' ? `<div><strong>Denoising Strength:</strong> ${q.DenoisingStrength}<br></div>` : ''}` +
-                `<div><strong>Model:</strong> <a href="?uid=<?php echo $uid; ?>&model=${encodeURIComponent(q.Model)}">${escapeHTML(q.Model)}</a><br></div>` +
-                `<div><strong>Seed:</strong> ${q.Seed}<br></div>` +
-                `<div><strong>Sampler:</strong> ${escapeHTML(q.Sampler)}<br></div>` +
-                `<?php if ($user['access_level'] == 'ADMIN'): ?>` +
-                `<div><strong>Worker:</strong> ${escapeHTML(q.WorkerName)}<br></div>` +
-                `<?php endif; ?>` +
-                `<div>${escapeHTML(dateAdded.toFormat('dd LLL yyyy hh:mm:ss a ZZZZ'))}</div>`; // Appending the formatted timestamp with timezone
+                `<div><strong>ID:</strong> <a href="?id=${image.ID}">${image.ID}</a><br></div>
+                <?php if ($user['access_level'] == 'ADMIN'): ?>
+                <div><strong>User:</strong> <a href="?uid=${image.UID}">${image.Username ? image.Username : '(' + (image.Firstname || '') + (image.Firstname && image.Lastname ? ' ' : '') + (image.Lastname || '') + ')'}</a><br></div>
+                <?php endif; ?>
+                <div>${image.TeleChatID == image.TeleID ? "" : '<strong>Chat:</strong> ' + image.TeleChatID + '<br>'}</div>
+                ${image.Prompt ? `<div><strong>Prompt:</strong> <span class="${pFlag ? 'shorten' : ''}" ${pFlag ? `data-fulltext="${escapeHTML(image.Prompt)}" data-shorttext="${escapeHTML(promptShort)}"` : ''}>${escapeHTML(promptShort)}</span><br></div>` : ''}
+                ${image.NegativePrompt ? `<div><strong>Negative:</strong> <span class="${nFlag ? 'shorten' : ''}" ${nFlag ? `data-fulltext="${escapeHTML(image.NegativePrompt)}" data-shorttext="${escapeHTML(negShort)}"` : ''}>${escapeHTML(negShort)}</span><br></div>` : ''}
+                ${image.HiresEnabled ? `<div><strong>Size:</strong> ${image.HiresWidth}x${image.HiresHeight} (from ${image.Width}x${image.Height}) <br></div>` : `<div><strong>Size:</strong> ${image.Width}x${image.Height}<br></div>`}
+                <div><strong>Sampler Steps:</strong> ${image.Steps}<br></div>
+                <div><strong>CFG Scale:</strong> ${image.CFGScale}<br></div>
+                ${image.Type === 'IMG2IMG' ? `<div><strong>Denoising Strength:</strong> ${image.DenoisingStrength}<br></div>` : ''}
+                <div><strong>Model:</strong> <a href="?uid=<?php echo $uid; ?>&model=${encodeURIComponent(image.Model)}">${escapeHTML(image.Model)}</a><br></div>
+                <div><strong>Seed:</strong> ${image.Seed}<br></div>
+                <div><strong>Sampler:</strong> ${escapeHTML(image.Sampler)}<br></div>
+                <?php if ($user['access_level'] == 'ADMIN'): ?>
+                <div><strong>Worker:</strong> ${escapeHTML(image.WorkerName)}</div>
+                <?php endif; ?>
+                <div>${escapeHTML(dateAdded.toFormat('dd LLL yyyy hh:mm:ss a ZZZZ'))}</div>`;
 
             return caption;
         }
 
-        /**
-         * Escape HTML to prevent XSS
-         */
         function escapeHTML(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
 
-        /**
-         * Setup click to expand shortened text
-         */
         function setupShortenForElement(element) {
             element.querySelectorAll('.shorten').forEach(span => {
-                // Only add click event if the text was shortened
                 if (span.dataset.shorttext && span.dataset.fulltext && span.dataset.shorttext !== span.dataset.fulltext) {
-                    span.classList.add('can-expand'); // Add a class to indicate it can be expanded
+                    span.classList.add('can-expand');
                     span.onclick = function() {
                         if (this.classList.contains('active')) {
                             this.classList.remove('active');
                             this.textContent = this.getAttribute('data-shorttext');
-                            console.log("Shortened text collapsed.");
                         } else {
                             this.classList.add('active');
                             this.textContent = this.getAttribute('data-fulltext');
-                            console.log("Shortened text expanded.");
                         }
                     };
                 }
             });
         }
 
-        /**
-         * Display images on the page
-         */
         function displayImages(images, action) {
             console.log(`Displaying images with action: ${action}`);
             const container = document.getElementById('imageContainer');
             let newImagesCount = 0;
 
-            images.forEach((image) => {
-                const idx = image.ID; // Assuming 'ID' is the unique identifier
-
-                // Avoid duplicates
+            images.forEach(image => {
+                const idx = image.ID;
                 if (imagesData[idx]) {
                     console.log(`Image ID ${idx} already exists. Skipping.`);
                     return;
                 }
-
-                imagesData[idx] = image; // Store the image data
+                imagesData[idx] = image;
                 totalImagesLoaded++;
                 newImagesCount++;
                 console.log(`Displaying Image ID: ${idx}`);
@@ -432,22 +429,46 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 const wrapper = document.createElement('div');
                 wrapper.classList.add('image-wrapper');
 
-                // Primary Image Element
+                // Store an "onload" so once the image loads, we fix the wrapper height
+                // so the placeholder remains the same size if we unload the image src later
+                // We'll do that in an onload event on the <img> itself
+
                 const primaryImgElement = document.createElement('img');
                 primaryImgElement.src = fetchImageUrl(image.ImageID);
-                primaryImgElement.loading = 'lazy'; // Enable lazy loading
-                primaryImgElement.setAttribute('data-image-id', idx); // Set the image ID as a data attribute
-                primaryImgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
+                primaryImgElement.loading = 'lazy';
+                primaryImgElement.setAttribute('data-image-id', idx);
+
+                // When the image finishes loading the first time,
+                // we set a data-stored-height on the wrapper so if we unload, we keep the same height
+                primaryImgElement.onload = function() {
+                    if (!wrapper.dataset.storedHeight) {
+                        const wrapperHeight = wrapper.offsetHeight;
+                        wrapper.style.height = wrapperHeight + 'px';
+                        wrapper.dataset.storedHeight = wrapperHeight;
+                        console.log(`Stored wrapper height for ID: ${idx} => ${wrapperHeight}px`);
+                    }
+                };
+
+                primaryImgElement.onclick = () => handleImageClick(idx);
                 wrapper.appendChild(primaryImgElement);
                 console.log(`Added primary image: ${image.ImageID}`);
 
-                // Secondary Image for IMG2IMG type
                 if (image.Type === "IMG2IMG" && image.SelectedImage) {
                     const secondaryImgElement = document.createElement('img');
                     secondaryImgElement.src = fetchImageUrl(image.SelectedImage);
-                    secondaryImgElement.setAttribute('data-image-id', idx); // Set the image ID as a data attribute
-                    secondaryImgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
-                    secondaryImgElement.loading = 'lazy'; // Enable lazy loading
+                    secondaryImgElement.setAttribute('data-image-id', idx);
+                    secondaryImgElement.loading = 'lazy';
+
+                    secondaryImgElement.onload = function() {
+                        if (!wrapper.dataset.storedHeight) {
+                            const wrapperHeight = wrapper.offsetHeight;
+                            wrapper.style.height = wrapperHeight + 'px';
+                            wrapper.dataset.storedHeight = wrapperHeight;
+                            console.log(`Stored wrapper height (secondary) for ID: ${idx} => ${wrapperHeight}px`);
+                        }
+                    };
+
+                    secondaryImgElement.onclick = () => handleImageClick(idx);
                     wrapper.appendChild(secondaryImgElement);
                     console.log(`Added secondary image for IMG2IMG type: ${image.SelectedImage}`);
                 }
@@ -455,7 +476,6 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 const textElement = document.createElement('div');
                 textElement.className = 'caption';
                 textElement.innerHTML = generateCaption(image, 400);
-
                 setupShortenForElement(textElement);
 
                 wrapper.appendChild(textElement);
@@ -463,21 +483,16 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 if (action === 'new') {
                     container.insertBefore(wrapper, container.firstChild);
                     console.log(`Prepended Image ID: ${idx}`);
-                } else if (action === 'old') {
+                } else {
                     container.appendChild(wrapper);
                     console.log(`Appended Image ID: ${idx}`);
                 }
             });
 
             updateImageIds(images, action);
-
-            // Return the number of new images added
             return newImagesCount;
         }
 
-        /**
-         * Update the last and highest image IDs for pagination
-         */
         function updateImageIds(images, action) {
             if (action === 'new') {
                 const maxID = Math.max(...images.map(img => img.ID));
@@ -485,230 +500,193 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                     highestImageId = maxID;
                     console.log(`Updated highestImageId to: ${highestImageId}`);
                 }
-            } else if (action === 'old') {
+            } else {
                 const minID = Math.min(...images.map(img => img.ID));
-                lastImageId = minID - 1; // Set to one less than the smallest ID fetched
+                lastImageId = minID - 1;
                 console.log(`Updated lastImageId to: ${lastImageId}`);
             }
         }
 
-        /**
-         * Handle image click to show in lightbox
-         */
         function handleImageClick(idx) {
-            console.log(`Image clicked: ${idx}`);
             const image = imagesData[idx];
-            if (!image) {
-                console.error("Image data not found for idx:", idx);
-                return;
-            }
-
-            showLightbox(idx); // Pass idx as well
+            if (!image) return;
+            showLightbox(idx);
         }
 
-        /**
-         * Show image in lightbox
-         */
         function showLightbox(idx) {
-            console.log(`Showing lightbox for Image ID: ${idx}`);
             const lightbox = document.getElementById('lightbox');
-            lightbox.innerHTML = ''; // Clear previous content
+            lightbox.innerHTML = '';
+            createLightbox();
 
-            createLightbox(); // Re-create lightbox with close functionality
-
-            currentImageIdx = idx; // Update the global variable with the current index
-
+            currentImageIdx = idx;
             const image = imagesData[idx];
-            if (!image) {
-                console.error("Image data not found for idx:", idx);
-                return;
-            }
+            if (!image) return;
 
             const captionHTML = generateCaption(image, 400);
 
-            const imageContainer = document.createElement('div');
-            imageContainer.classList.add('image-container'); // Use class for styling
+            const container = document.createElement('div');
+            container.classList.add('image-container');
 
             const img = document.createElement('img');
             img.src = fetchImageUrl(image.ImageID) + '&full=1';
-            img.alt = "Full size image";
-            img.loading = 'lazy'; // Enable lazy loading
-            imageContainer.appendChild(img);
+            img.loading = 'lazy';
+            container.appendChild(img);
 
             const captionDiv = document.createElement('div');
             captionDiv.innerHTML = captionHTML;
-            captionDiv.classList.add('caption'); // Use class for styling
-            captionDiv.addEventListener('click', (e) => e.stopPropagation());
-
+            captionDiv.classList.add('caption');
+            captionDiv.onclick = e => e.stopPropagation();
             setupShortenForElement(captionDiv);
 
-            img.onload = function () {
-                console.log(`Full-size image loaded: ${image.ImageID}`);
+            img.onload = function() {
                 if (this.naturalWidth < window.innerWidth && this.naturalHeight < window.innerHeight) {
                     this.style.width = Math.min(this.naturalWidth, window.innerWidth * 0.9) + 'px';
                     this.style.height = 'auto';
-                    console.log("Adjusted image size based on natural dimensions.");
                 }
-                let totalHeight = this.offsetHeight + captionDiv.offsetHeight;
+                const totalHeight = this.offsetHeight + captionDiv.offsetHeight;
                 if (window.innerHeight > totalHeight) {
-                    imageContainer.appendChild(captionDiv);
-                    console.log("Appended caption to image container based on height.");
+                    container.appendChild(captionDiv);
                 }
             };
 
-            imageContainer.appendChild(captionDiv);
-            lightbox.appendChild(imageContainer);
+            container.appendChild(captionDiv);
+            lightbox.appendChild(container);
             lightbox.style.display = 'flex';
             document.body.style.overflow = 'hidden';
-            console.log("Lightbox displayed.");
         }
 
-        /**
-         * Show Previous Image in Lightbox
-         */
         function showPreviousImage() {
             const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
             const currentIndex = keys.indexOf(Number(currentImageIdx));
             if (currentIndex > 0) {
                 const previousIndex = keys[currentIndex - 1];
-                const previousImage = imagesData[previousIndex];
-                if (previousImage) {
-                    showLightbox(previousIndex.toString());
-                }
+                if (imagesData[previousIndex]) showLightbox(previousIndex.toString());
             } else {
-                const requiredImages = calculateRequiredImages();
-                if (requiredImages > 0) {
-                    fetchAndRenderQueue('old', requiredImages).then(() => { // Fetch required images
+                const req = calculateRequiredImages();
+                if (req > 0) {
+                    fetchAndRenderQueue('old', req).then(() => {
                         const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-                        const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
-                        if (newCurrentIndex > 0) {
-                            showPreviousImage(); // Try showing the previous image again
-                        }
-                    }).catch(error => console.error(error));
+                        const newIndex = updatedKeys.indexOf(Number(currentImageIdx));
+                        if (newIndex > 0) showPreviousImage();
+                    });
                 }
             }
         }
 
-        /**
-         * Show Next Image in Lightbox
-         */
         function showNextImage() {
             const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
             const currentIndex = keys.indexOf(Number(currentImageIdx));
             if (currentIndex < keys.length - 1) {
                 const nextIndex = keys[currentIndex + 1];
-                const nextImage = imagesData[nextIndex];
-                if (nextImage) {
-                    showLightbox(nextIndex.toString());
-                }
+                if (imagesData[nextIndex]) showLightbox(nextIndex.toString());
             } else {
-                const requiredImages = calculateRequiredImages();
-                if (requiredImages > 0) {
-                    fetchAndRenderQueue('new', requiredImages).then(() => { // Fetch required images
+                const req = calculateRequiredImages();
+                if (req > 0) {
+                    fetchAndRenderQueue('new', req).then(() => {
                         const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-                        const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
-                        if (newCurrentIndex < updatedKeys.length - 1) {
-                            showNextImage(); // Try showing the next image again
-                        }
-                    }).catch(error => console.error(error));
+                        const newIndex = updatedKeys.indexOf(Number(currentImageIdx));
+                        if (newIndex < updatedKeys.length - 1) showNextImage();
+                    });
                 }
             }
         }
 
-        /**
-         * Show a single image (used when ?id is set)
-         */
         function showOneImage(idx) {
-            console.log(`Fetching single image with ID: ${idx}`);
             return ListQueue({
-                ID: parseInt(idx, 10), // Pass only the specific ID
-                PageSize: 1 // Fetch only one image
+                ID: parseInt(idx, 10),
+                PageSize: 1
             }).then(queueItems => {
-                console.log(`Received ${queueItems.length} queue items for single image.`);
                 if (queueItems.length > 0) {
-                    const image = queueItems[0]; // Since PageSize is 1
+                    const image = queueItems[0];
                     imagesData[image.ID] = image;
                     totalImagesLoaded++;
-                    displayImages([image], 'new'); // Pass as an array
+                    displayImages([image], 'new');
                     showLightbox(image.ID);
-                    console.log(`Single image fetched and displayed: ${image.ID}`);
                     return image;
                 } else {
-                    console.log('No images returned for the specific ID.');
                     throw 'No images returned';
                 }
-            }).catch(error => {
-                console.error('Error while fetching single image:', error);
-            });
+            }).catch(err => console.error(err));
         }
 
         /**
-         * Fetch and render queue data using WebSocket (from websocket.js)
-         * @param {string} action - 'new' or 'old'
-         * @param {number} [pageSize=20] - Number of images to fetch
-         * @returns {Promise<void>}
+         * We'll keep partial unloading: remove the actual image src if it's more than 2 screens away, keep wrapper size
          */
+        function unloadDistantImages() {
+            const container = document.getElementById('imageContainer');
+            const wrappers = Array.from(container.children);
+
+            const screenHeight = window.innerHeight;
+            const bufferDist = 2 * screenHeight;
+
+            wrappers.forEach(wrapper => {
+                const rect = wrapper.getBoundingClientRect();
+                const distAbove = -rect.bottom; 
+                const distBelow = rect.top - window.innerHeight;
+
+                if (distAbove > bufferDist || distBelow > bufferDist) {
+                    // Unload images, keep the wrapper so the scrollbar doesn't wiggle
+                    const images = wrapper.querySelectorAll('img');
+                    images.forEach(img => {
+                        if (!img.dataset.unloaded) {
+                            console.log(`Unloading image for ID: ${img.getAttribute('data-image-id')}`);
+                            img.dataset.origsrc = img.src;
+                            img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+                            img.classList.add('placeholder');
+                            img.dataset.unloaded = 'true';
+                        }
+                    });
+                } else {
+                    // If we scrolled back into within 2 screens, reload if unloaded
+                    const images = wrapper.querySelectorAll('img');
+                    images.forEach(img => {
+                        if (img.dataset.unloaded === 'true' && img.dataset.origsrc) {
+                            console.log(`Reloading image for ID: ${img.getAttribute('data-image-id')}`);
+                            img.src = img.dataset.origsrc;
+                            img.classList.remove('placeholder');
+                            img.dataset.unloaded = '';
+                        }
+                    });
+                }
+            });
+        }
+
         function fetchAndRenderQueue(action = 'old', pageSize = 20) {
             if (isLoading) {
                 console.log("Already loading. Skipping fetch.");
-                return Promise.resolve(); // Return a resolved promise to maintain chaining
+                return Promise.resolve();
             }
             isLoading = true;
             document.getElementById('loading').style.display = 'block';
             document.getElementById('error-message').style.display = 'none';
-            console.log(`Fetching and rendering queue with action: ${action}, PageSize: ${pageSize}`);
 
             let modelFilter = '<?php echo $imageModel; ?>';
-            let statusFilter = 'FINISHED'; // Adjust as needed
+            let statusFilter = 'FINISHED';
 
             let requestParams = {
                 UID: <?php echo $uid; ?>,
-                action: action, // 'new' or 'old'
+                action,
                 PageSize: pageSize,
                 Status: statusFilter,
                 Model: modelFilter
             };
-
             if (action === 'old' && lastImageId > 0) {
                 requestParams.lastImageId = lastImageId;
             } else if (action === 'new' && highestImageId > 0) {
                 requestParams.lastImageId = highestImageId;
             }
 
-            console.log("ListQueue request parameters:", requestParams);
-
-            // Assuming ListQueue is defined in websocket.js and returns a Promise
             return ListQueue(requestParams).then(queueItems => {
-                console.log(`Received ${queueItems.length} queue items.`);
                 if (queueItems.length > 0) {
-                    const newImagesCount = displayImages(queueItems, action); // Pass the array directly
-
-                    if (action === 'old') {
-                        // Set lastImageId to min ID - 1
-                        const minID = Math.min(...queueItems.map(img => img.ID));
-                        lastImageId = minID - 1;
-                        console.log(`Updated lastImageId to: ${lastImageId}`);
-                    } else if (action === 'new') {
-                        const maxID = Math.max(...queueItems.map(img => img.ID));
-                        highestImageId = maxID;
-                        console.log(`Updated highestImageId to: ${highestImageId}`);
-                    }
-
-                    // No limit on totalImagesLoaded
+                    displayImages(queueItems, action);
                 } else {
-                    console.log(`No more images to fetch for action: ${action}`);
-                    if (action === 'old') {
-                        hasMoreOldImages = false;
-                        console.log("No more old images available.");
-                    }
+                    if (action === 'old') hasMoreOldImages = false;
                 }
                 document.getElementById('loading').style.display = 'none';
                 isLoading = false;
-
-                // After fetching, check if more images are needed
-                checkAndLoadMoreImages();
-            }).catch(error => {
-                console.error('WebSocket error:', error);
+                checkAndLoadMoreImages(); 
+                unloadDistantImages(); 
+            }).catch(err => {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error-message').textContent = 'Failed to load queue data.';
                 document.getElementById('error-message').style.display = 'block';
@@ -716,45 +694,32 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             });
         }
 
-        /**
-         * Setup Infinite Scrolling
-         */
         function setupInfiniteScroll() {
-            console.log("Setting up infinite scroll.");
             window.addEventListener('scroll', debounce(handleScroll, 200));
-            console.log("Infinite scroll event listener added.");
         }
 
-        /**
-         * Handle scroll events for infinite scrolling
-         */
         function handleScroll() {
             const scrollTop = window.scrollY;
             const windowHeight = window.innerHeight;
-            const documentHeight = document.body.offsetHeight;
+            const docHeight = document.body.offsetHeight;
 
-            // When the user scrolls near the bottom (e.g., within 100px), load more 'old' images
-            if (scrollTop + windowHeight >= documentHeight - 100 && !isLoading && hasMoreOldImages) {
-                console.log("Near bottom of the page. Fetching more 'old' images...");
-                const requiredImages = calculateRequiredImages();
-                if (requiredImages > 0) {
-                    fetchAndRenderQueue('old', requiredImages);
-                }
+            const thresholdBottom = 2 * windowHeight;
+            if (scrollTop + windowHeight >= docHeight - thresholdBottom && !isLoading && hasMoreOldImages) {
+                console.log("AGGRESSIVE near bottom => fetching old images...");
+                const needed = calculateRequiredImages();
+                if (needed > 0) fetchAndRenderQueue('old', needed);
             }
 
-            // When the user scrolls near the top (e.g., within 100px), load 'new' images
-            if (scrollTop <= 100 && !isLoading) {
-                console.log("Near top of the page. Fetching 'new' images...");
-                const requiredImages = calculateRequiredImages();
-                if (requiredImages > 0) {
-                    fetchAndRenderQueue('new', requiredImages);
-                }
+            const thresholdTop = 2 * windowHeight;
+            if (scrollTop <= thresholdTop && !isLoading) {
+                console.log("AGGRESSIVE near top => fetching new images...");
+                const needed = calculateRequiredImages();
+                if (needed > 0) fetchAndRenderQueue('new', needed);
             }
+
+            unloadDistantImages(); // Re-check if we scrolled back up or down
         }
 
-        /**
-         * Debounce function to limit the rate of function calls
-         */
         function debounce(func, wait) {
             let timeout;
             return function(...args) {
@@ -762,7 +727,6 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 timeout = setTimeout(() => func.apply(this, args), wait);
             };
         }
-
     </script>
 </body>
 </html>
