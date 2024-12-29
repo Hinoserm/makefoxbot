@@ -43,13 +43,18 @@ namespace makefoxsrv
                     var t = q.Telegram;
 
                     if (t is null)
+                        throw new Exception("Telegram object not initalized!");
+
+                    // If the user already has queue items that are sending, we need to add a brief delay so they don't overlap.
+                    // Make sure we don't count this one.
+
+                    var sendingItemsCount = FoxQueue.fullQueue.FindAll(x => x.User == q.User && x.ID != q.ID && x.status == FoxQueue.QueueStatus.SENDING).Count();
+
+                    if (sendingItemsCount > 0)
                     {
-                        var ex = new Exception("Telegram object not initalized!");
-                        await q.SetError(ex);
+                        FoxLog.WriteLine($"Task {q.ID} - Found {sendingItemsCount} currently sending; adding delay.", LogLevel.DEBUG);
 
-                        FoxLog.WriteLine($"Failed to send image - {ex.Message}\r\n{ex.StackTrace}");
-
-                        throw ex;
+                        await Task.Delay(500 * sendingItemsCount);
                     }
 
                     try
