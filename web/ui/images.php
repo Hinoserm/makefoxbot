@@ -45,7 +45,6 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
     <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
     <script src="/js/websocket.js"></script>
     <style>
-        /* Lightbox styles */
         #lightbox {
             display: none;
             position: fixed;
@@ -78,7 +77,6 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             cursor: pointer;
         }
 
-        /* Container using Flexbox */
         #imageContainer {
             display: flex;
             flex-wrap: wrap;
@@ -93,8 +91,6 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
-            /* We'll store a height once the image loads,
-               and keep that height if we unload the image. */
             overflow: hidden;
             position: relative;
         }
@@ -132,7 +128,6 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             color: #0056b3;
         }
 
-        /* Loading and error message styles */
         #loading {
             text-align: center;
             padding: 20px;
@@ -184,7 +179,8 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
         const IMAGE_WRAPPER_HEIGHT_ESTIMATE = 250;
 
         /**
-         * We'll be aggressive and load for 4 screens total (2 above & 2 below).
+         * Now we load for "2 screens" total (1 above + 1 below).
+         * This is smaller than the "4" or "8-10 rows" you disliked.
          */
         function calculateRequiredImages() {
             const windowWidth = window.innerWidth;
@@ -194,8 +190,8 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             const columns = Math.floor((windowWidth - 20) / (IMAGE_WRAPPER_WIDTH + gap));
             if (columns < 1) return 20;
 
-            // 4 screen heights total
-            const rows = Math.ceil((windowHeight * 4) / (IMAGE_WRAPPER_HEIGHT_ESTIMATE + gap));
+            // We'll do 2 screen heights total
+            const rows = Math.ceil((windowHeight * 2) / (IMAGE_WRAPPER_HEIGHT_ESTIMATE + gap));
             let totalImages = columns * rows;
             totalImages = Math.max(20, totalImages);
             return totalImages;
@@ -214,9 +210,8 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
         function checkAndLoadMoreImages() {
             const container = document.getElementById('imageContainer');
             const containerHeight = container.offsetHeight;
-            // We want at least 2 screens loaded
-            const needed = window.innerHeight * 2;
-
+            // We'll keep 1 screen buffer
+            const needed = window.innerHeight;
             if (containerHeight < needed && hasMoreOldImages) {
                 const more = calculateRequiredImages();
                 if (more > 0) {
@@ -228,60 +223,34 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
         }
 
         /**
-         * We'll unload images that are more than 2 screens away in either direction.
-         * BUT we do NOT remove the wrapper, so the placeholder remains.
+         * We'll remove the actual image src if more than 1 screen away in either direction
          */
         function unloadDistantImages() {
             const container = document.getElementById('imageContainer');
             const wrappers = Array.from(container.children);
 
             const screenHeight = window.innerHeight;
-            const bufferDistance = 2 * screenHeight; 
+            const bufferDist = 1 * screenHeight; // keep 1 screen in either direction
 
             wrappers.forEach(wrapper => {
-                let rect = wrapper.getBoundingClientRect();
-                // distance above top => negative if it's above the viewport
-                // distance below bottom => negative if it's below
+                const rect = wrapper.getBoundingClientRect();
                 const distAbove = -rect.bottom; 
                 const distBelow = rect.top - window.innerHeight;
 
-                if (distAbove > bufferDistance || distBelow > bufferDistance) {
-                    // We'll only unload the image(s), not remove the wrapper
+                if (distAbove > bufferDist || distBelow > bufferDist) {
+                    // Unload images, keep wrapper
                     const images = wrapper.querySelectorAll('img');
                     images.forEach(img => {
-                        if (!img.dataset.storedHeight) {
-                            // First time it loads, store the natural size for placeholder
-                            // We'll do that in an onload for each image
-                        }
                         if (!img.dataset.unloaded) {
                             console.log(`Unloading image for ID: ${img.getAttribute('data-image-id')}`);
-                            // set data-unloaded, store the current src for reloading if you want
                             img.dataset.origsrc = img.src;
                             img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
                             img.classList.add('placeholder');
                             img.dataset.unloaded = 'true';
                         }
                     });
-                }
-            });
-        }
-
-        /**
-         * If an unloaded image scrolls back into ~2 screens range, reload it
-         */
-        function reloadNearbyImages() {
-            const container = document.getElementById('imageContainer');
-            const wrappers = Array.from(container.children);
-            const screenHeight = window.innerHeight;
-            const bufferDistance = 2 * screenHeight;
-
-            wrappers.forEach(wrapper => {
-                const rect = wrapper.getBoundingClientRect();
-                const distAbove = -rect.bottom;
-                const distBelow = rect.top - window.innerHeight;
-
-                if (Math.abs(distAbove) < bufferDistance && Math.abs(distBelow) < bufferDistance) {
-                    // within 2 screens => reload if unloaded
+                } else {
+                    // If we scrolled back, reload if unloaded
                     const images = wrapper.querySelectorAll('img');
                     images.forEach(img => {
                         if (img.dataset.unloaded === 'true' && img.dataset.origsrc) {
@@ -306,6 +275,9 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 checkAndLoadMoreImages();
             });
 
+            // This is the timer that periodically checks for new images.
+            setInterval(checkForNewImages, 5000); // every 5 seconds
+
             window.addEventListener('resize', debounce(handleResize, 500));
         });
         <?php } else { ?>
@@ -315,6 +287,17 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             showOneImage(<?php echo $imageId; ?>);
         });
         <?php } ?>
+
+        /**
+         * The 5-second timer calls this; if near top, we load new images.
+         */
+        function checkForNewImages() {
+            if (window.scrollY < 100 && highestImageId > 0 && !isLoading) {
+                console.log("Timer: at top, checking for new images...");
+                const needed = calculateRequiredImages();
+                if (needed > 0) fetchAndRenderQueue('new', needed);
+            }
+        }
 
         function createLightbox(closeable = true) {
             const lightbox = document.getElementById('lightbox');
@@ -429,18 +412,12 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 const wrapper = document.createElement('div');
                 wrapper.classList.add('image-wrapper');
 
-                // Store an "onload" so once the image loads, we fix the wrapper height
-                // so the placeholder remains the same size if we unload the image src later
-                // We'll do that in an onload event on the <img> itself
+                const primaryImg = document.createElement('img');
+                primaryImg.src = fetchImageUrl(image.ImageID);
+                primaryImg.loading = 'lazy';
+                primaryImg.setAttribute('data-image-id', idx);
 
-                const primaryImgElement = document.createElement('img');
-                primaryImgElement.src = fetchImageUrl(image.ImageID);
-                primaryImgElement.loading = 'lazy';
-                primaryImgElement.setAttribute('data-image-id', idx);
-
-                // When the image finishes loading the first time,
-                // we set a data-stored-height on the wrapper so if we unload, we keep the same height
-                primaryImgElement.onload = function() {
+                primaryImg.onload = function() {
                     if (!wrapper.dataset.storedHeight) {
                         const wrapperHeight = wrapper.offsetHeight;
                         wrapper.style.height = wrapperHeight + 'px';
@@ -449,17 +426,17 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                     }
                 };
 
-                primaryImgElement.onclick = () => handleImageClick(idx);
-                wrapper.appendChild(primaryImgElement);
+                primaryImg.onclick = () => handleImageClick(idx);
+                wrapper.appendChild(primaryImg);
                 console.log(`Added primary image: ${image.ImageID}`);
 
                 if (image.Type === "IMG2IMG" && image.SelectedImage) {
-                    const secondaryImgElement = document.createElement('img');
-                    secondaryImgElement.src = fetchImageUrl(image.SelectedImage);
-                    secondaryImgElement.setAttribute('data-image-id', idx);
-                    secondaryImgElement.loading = 'lazy';
+                    const secondaryImg = document.createElement('img');
+                    secondaryImg.src = fetchImageUrl(image.SelectedImage);
+                    secondaryImg.loading = 'lazy';
+                    secondaryImg.setAttribute('data-image-id', idx);
 
-                    secondaryImgElement.onload = function() {
+                    secondaryImg.onload = function() {
                         if (!wrapper.dataset.storedHeight) {
                             const wrapperHeight = wrapper.offsetHeight;
                             wrapper.style.height = wrapperHeight + 'px';
@@ -468,17 +445,16 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                         }
                     };
 
-                    secondaryImgElement.onclick = () => handleImageClick(idx);
-                    wrapper.appendChild(secondaryImgElement);
+                    secondaryImg.onclick = () => handleImageClick(idx);
+                    wrapper.appendChild(secondaryImg);
                     console.log(`Added secondary image for IMG2IMG type: ${image.SelectedImage}`);
                 }
 
-                const textElement = document.createElement('div');
-                textElement.className = 'caption';
-                textElement.innerHTML = generateCaption(image, 400);
-                setupShortenForElement(textElement);
-
-                wrapper.appendChild(textElement);
+                const textDiv = document.createElement('div');
+                textDiv.className = 'caption';
+                textDiv.innerHTML = generateCaption(image, 400);
+                setupShortenForElement(textDiv);
+                wrapper.appendChild(textDiv);
 
                 if (action === 'new') {
                     container.insertBefore(wrapper, container.firstChild);
@@ -557,16 +533,16 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
 
         function showPreviousImage() {
             const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-            const currentIndex = keys.indexOf(Number(currentImageIdx));
-            if (currentIndex > 0) {
-                const previousIndex = keys[currentIndex - 1];
-                if (imagesData[previousIndex]) showLightbox(previousIndex.toString());
+            const curIndex = keys.indexOf(Number(currentImageIdx));
+            if (curIndex > 0) {
+                const prevIndex = keys[curIndex - 1];
+                if (imagesData[prevIndex]) showLightbox(prevIndex.toString());
             } else {
                 const req = calculateRequiredImages();
                 if (req > 0) {
                     fetchAndRenderQueue('old', req).then(() => {
-                        const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-                        const newIndex = updatedKeys.indexOf(Number(currentImageIdx));
+                        const updated = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+                        const newIndex = updated.indexOf(Number(currentImageIdx));
                         if (newIndex > 0) showPreviousImage();
                     });
                 }
@@ -575,17 +551,17 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
 
         function showNextImage() {
             const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-            const currentIndex = keys.indexOf(Number(currentImageIdx));
-            if (currentIndex < keys.length - 1) {
-                const nextIndex = keys[currentIndex + 1];
+            const curIndex = keys.indexOf(Number(currentImageIdx));
+            if (curIndex < keys.length - 1) {
+                const nextIndex = keys[curIndex + 1];
                 if (imagesData[nextIndex]) showLightbox(nextIndex.toString());
             } else {
                 const req = calculateRequiredImages();
                 if (req > 0) {
                     fetchAndRenderQueue('new', req).then(() => {
-                        const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-                        const newIndex = updatedKeys.indexOf(Number(currentImageIdx));
-                        if (newIndex < updatedKeys.length - 1) showNextImage();
+                        const updated = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+                        const newIndex = updated.indexOf(Number(currentImageIdx));
+                        if (newIndex < updated.length - 1) showNextImage();
                     });
                 }
             }
@@ -607,48 +583,6 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                     throw 'No images returned';
                 }
             }).catch(err => console.error(err));
-        }
-
-        /**
-         * We'll keep partial unloading: remove the actual image src if it's more than 2 screens away, keep wrapper size
-         */
-        function unloadDistantImages() {
-            const container = document.getElementById('imageContainer');
-            const wrappers = Array.from(container.children);
-
-            const screenHeight = window.innerHeight;
-            const bufferDist = 2 * screenHeight;
-
-            wrappers.forEach(wrapper => {
-                const rect = wrapper.getBoundingClientRect();
-                const distAbove = -rect.bottom; 
-                const distBelow = rect.top - window.innerHeight;
-
-                if (distAbove > bufferDist || distBelow > bufferDist) {
-                    // Unload images, keep the wrapper so the scrollbar doesn't wiggle
-                    const images = wrapper.querySelectorAll('img');
-                    images.forEach(img => {
-                        if (!img.dataset.unloaded) {
-                            console.log(`Unloading image for ID: ${img.getAttribute('data-image-id')}`);
-                            img.dataset.origsrc = img.src;
-                            img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
-                            img.classList.add('placeholder');
-                            img.dataset.unloaded = 'true';
-                        }
-                    });
-                } else {
-                    // If we scrolled back into within 2 screens, reload if unloaded
-                    const images = wrapper.querySelectorAll('img');
-                    images.forEach(img => {
-                        if (img.dataset.unloaded === 'true' && img.dataset.origsrc) {
-                            console.log(`Reloading image for ID: ${img.getAttribute('data-image-id')}`);
-                            img.src = img.dataset.origsrc;
-                            img.classList.remove('placeholder');
-                            img.dataset.unloaded = '';
-                        }
-                    });
-                }
-            });
         }
 
         function fetchAndRenderQueue(action = 'old', pageSize = 20) {
@@ -684,8 +618,9 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 }
                 document.getElementById('loading').style.display = 'none';
                 isLoading = false;
-                checkAndLoadMoreImages(); 
-                unloadDistantImages(); 
+
+                checkAndLoadMoreImages();
+                unloadDistantImages();
             }).catch(err => {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error-message').textContent = 'Failed to load queue data.';
@@ -703,21 +638,21 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             const windowHeight = window.innerHeight;
             const docHeight = document.body.offsetHeight;
 
-            const thresholdBottom = 2 * windowHeight;
-            if (scrollTop + windowHeight >= docHeight - thresholdBottom && !isLoading && hasMoreOldImages) {
-                console.log("AGGRESSIVE near bottom => fetching old images...");
+            const thresholdBottom = windowHeight;
+            if ((scrollTop + windowHeight) >= (docHeight - thresholdBottom) && !isLoading && hasMoreOldImages) {
+                console.log("Less-bulk near bottom => fetching old images...");
                 const needed = calculateRequiredImages();
                 if (needed > 0) fetchAndRenderQueue('old', needed);
             }
 
-            const thresholdTop = 2 * windowHeight;
+            const thresholdTop = windowHeight;
             if (scrollTop <= thresholdTop && !isLoading) {
-                console.log("AGGRESSIVE near top => fetching new images...");
+                console.log("Less-bulk near top => fetching new images...");
                 const needed = calculateRequiredImages();
                 if (needed > 0) fetchAndRenderQueue('new', needed);
             }
 
-            unloadDistantImages(); // Re-check if we scrolled back up or down
+            unloadDistantImages();
         }
 
         function debounce(func, wait) {
