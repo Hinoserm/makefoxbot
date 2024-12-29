@@ -185,6 +185,10 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
 
                 // Initial fetch for 'old' images
                 fetchAndRenderQueue('old');
+
+                // Inside DOMContentLoaded event
+                // Initialize the timer to check for new images at the top
+                setInterval(checkForNewImages, 800);
             });
         <?php } ?>
 
@@ -673,6 +677,21 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 timeout = setTimeout(() => func.apply(this, args), wait);
             };
         }
+
+        /**
+         * Timer function to periodically check for new images at the top
+         */
+        function checkForNewImages() {
+            const scrollTop = window.scrollY;
+            if (scrollTop <= 100 && !isLoading) { // Check if scrolled to the very top or within 100px
+                console.log("Timer check: User is at the top. Fetching 'new' images...");
+                fetchAndRenderQueue('new');
+            } else {
+                console.log("Timer check: User is not at the top. No action taken.");
+            }
+        }
+
+
 
     </script>
 </body>
