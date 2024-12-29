@@ -85,6 +85,8 @@ namespace makefoxsrv
                 cmd.Parameters.AddWithValue("@uid", this.UID);
                 cmd.Parameters.AddWithValue("@since", since);
 
+                FoxLog.WriteLine(cmd.CommandText);
+
                 using (var r = await cmd.ExecuteReaderAsync())
                 {
                     if (await r.ReadAsync())
