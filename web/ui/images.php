@@ -170,10 +170,83 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
         let highestImageId = 0;
         let isLoading = false;
         let hasMoreOldImages = true;
+        let totalImagesLoaded = 0;
+        const MAX_IMAGES = 200;
+        const MIN_IMAGES = 5;
 
         let imagesData = {};
 
         let currentImageIdx = null; // Global variable to track the current image index
+
+        // Image Wrapper Dimensions (must match CSS)
+        const IMAGE_WRAPPER_WIDTH = 200; // in pixels
+        const IMAGE_WRAPPER_HEIGHT_ESTIMATE = 250; // estimated height in pixels (adjust as needed)
+
+        /**
+         * Calculate the number of images required based on the current window size.
+         * Ensures a minimum of 5 and a maximum of 200 images.
+         * Aims to fill at least two screen-heights.
+         */
+        function calculateRequiredImages() {
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            const gap = 10; // gap between images in CSS
+
+            // Calculate number of columns that fit in the window
+            const columns = Math.floor((windowWidth - 20) / (IMAGE_WRAPPER_WIDTH + gap)); // 20px padding
+            if (columns < 1) return MIN_IMAGES; // Ensure at least one column
+
+            // Estimate number of rows that fit in two screen-heights
+            const rows = Math.ceil((windowHeight * 2) / (IMAGE_WRAPPER_HEIGHT_ESTIMATE + gap)); // Two screen-heights
+
+            // Total images needed
+            let totalImages = columns * rows;
+
+            // Clamp the total images between MIN_IMAGES and MAX_IMAGES
+            totalImages = Math.max(MIN_IMAGES, totalImages);
+            totalImages = Math.min(MAX_IMAGES, totalImages);
+
+            // Subtract already loaded images
+            const imagesToLoad = totalImages - totalImagesLoaded;
+            return imagesToLoad > 0 ? imagesToLoad : 0;
+        }
+
+        /**
+         * Adjust the required images when the window is resized or zoomed.
+         * Fetch additional images if necessary.
+         */
+        function handleResize() {
+            console.log("Handling window resize.");
+            const requiredImages = calculateRequiredImages();
+            if (requiredImages > 0) {
+                console.log(`Additional images needed: ${requiredImages}`);
+                fetchAndRenderQueue('old', requiredImages).then(() => {
+                    // After fetching, check if more images are needed
+                    checkAndLoadMoreImages();
+                });
+            }
+        }
+
+        /**
+         * Check if the image container height is less than two screen-heights.
+         * If so, fetch additional images to fill the space.
+         */
+        function checkAndLoadMoreImages() {
+            const imageContainer = document.getElementById('imageContainer');
+            const containerHeight = imageContainer.offsetHeight;
+            const requiredHeight = window.innerHeight * 2;
+
+            if (containerHeight < requiredHeight && totalImagesLoaded < MAX_IMAGES) {
+                console.log("Image container height less than two screen-heights. Loading more images.");
+                const additionalImages = calculateRequiredImages();
+                if (additionalImages > 0) {
+                    fetchAndRenderQueue('old', additionalImages).then(() => {
+                        // After fetching, check again
+                        checkAndLoadMoreImages();
+                    });
+                }
+            }
+        }
 
         <?php if (!$imageId) { ?>
             document.addEventListener('DOMContentLoaded', () => {
@@ -183,8 +256,15 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 setupLightboxScroll(); // Setup lightbox navigation
                 setupInfiniteScroll(); // Setup infinite scrolling
 
-                // Initial fetch for 'old' images
-                fetchAndRenderQueue('old');
+                // Initial fetch based on window size
+                const initialImages = calculateRequiredImages();
+                fetchAndRenderQueue('old', initialImages).then(() => {
+                    // After initial load, check if more images are needed
+                    checkAndLoadMoreImages();
+                });
+
+                // Add event listener for window resize
+                window.addEventListener('resize', debounce(handleResize, 500));
             });
         <?php } ?>
 
@@ -351,6 +431,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 }
 
                 imagesData[idx] = image; // Store the image data
+                totalImagesLoaded++;
                 newImagesCount++;
                 console.log(`Displaying Image ID: ${idx}`);
 
@@ -501,13 +582,16 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                     showLightbox(previousIndex.toString());
                 }
             } else {
-                fetchAndRenderQueue('old').then(() => {
-                    const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-                    const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
-                    if (newCurrentIndex > 0) {
-                        showPreviousImage(); // Try showing the previous image again
-                    }
-                }).catch(error => console.error(error));
+                const requiredImages = calculateRequiredImages();
+                if (requiredImages > 0) {
+                    fetchAndRenderQueue('old', requiredImages).then(() => { // Fetch required images
+                        const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+                        const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
+                        if (newCurrentIndex > 0) {
+                            showPreviousImage(); // Try showing the previous image again
+                        }
+                    }).catch(error => console.error(error));
+                }
             }
         }
 
@@ -524,13 +608,16 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                     showLightbox(nextIndex.toString());
                 }
             } else {
-                fetchAndRenderQueue('new').then(() => {
-                    const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-                    const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
-                    if (newCurrentIndex < updatedKeys.length - 1) {
-                        showNextImage(); // Try showing the next image again
-                    }
-                }).catch(error => console.error(error));
+                const requiredImages = calculateRequiredImages();
+                if (requiredImages > 0) {
+                    fetchAndRenderQueue('new', requiredImages).then(() => { // Fetch required images
+                        const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+                        const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
+                        if (newCurrentIndex < updatedKeys.length - 1) {
+                            showNextImage(); // Try showing the next image again
+                        }
+                    }).catch(error => console.error(error));
+                }
             }
         }
 
@@ -547,6 +634,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 if (queueItems.length > 0) {
                     const image = queueItems[0]; // Since PageSize is 1
                     imagesData[image.ID] = image;
+                    totalImagesLoaded++;
                     displayImages([image], 'new'); // Pass as an array
                     showLightbox(image.ID);
                     console.log(`Single image fetched and displayed: ${image.ID}`);
@@ -563,16 +651,18 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
         /**
          * Fetch and render queue data using WebSocket (from websocket.js)
          * @param {string} action - 'new' or 'old'
+         * @param {number} [pageSize=20] - Number of images to fetch
+         * @returns {Promise<void>}
          */
-        function fetchAndRenderQueue(action = 'old') {
+        function fetchAndRenderQueue(action = 'old', pageSize = 20) {
             if (isLoading) {
                 console.log("Already loading. Skipping fetch.");
-                return;
+                return Promise.resolve(); // Return a resolved promise to maintain chaining
             }
             isLoading = true;
             document.getElementById('loading').style.display = 'block';
             document.getElementById('error-message').style.display = 'none';
-            console.log(`Fetching and rendering queue with action: ${action}`);
+            console.log(`Fetching and rendering queue with action: ${action}, PageSize: ${pageSize}`);
 
             let modelFilter = '<?php echo $imageModel; ?>';
             let statusFilter = 'FINISHED'; // Adjust as needed
@@ -580,7 +670,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             let requestParams = {
                 UID: <?php echo $uid; ?>,
                 action: action, // 'new' or 'old'
-                PageSize: 20,
+                PageSize: pageSize,
                 Status: statusFilter,
                 Model: modelFilter
             };
@@ -594,7 +684,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             console.log("ListQueue request parameters:", requestParams);
 
             // Assuming ListQueue is defined in websocket.js and returns a Promise
-            ListQueue(requestParams).then(queueItems => {
+            return ListQueue(requestParams).then(queueItems => {
                 console.log(`Received ${queueItems.length} queue items.`);
                 if (queueItems.length > 0) {
                     const newImagesCount = displayImages(queueItems, action); // Pass the array directly
@@ -610,11 +700,8 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                         console.log(`Updated highestImageId to: ${highestImageId}`);
                     }
 
-                    // If no new images were added, stop further fetching
-                    if (action === 'old' && newImagesCount === 0) {
-                        hasMoreOldImages = false;
-                        console.log("No more old images available.");
-                    }
+                    // Update totalImagesLoaded
+                    // Note: totalImagesLoaded is already incremented in displayImages
                 } else {
                     console.log(`No more images to fetch for action: ${action}`);
                     if (action === 'old') {
@@ -624,6 +711,9 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 }
                 document.getElementById('loading').style.display = 'none';
                 isLoading = false;
+
+                // After fetching, check if more images are needed
+                checkAndLoadMoreImages();
             }).catch(error => {
                 console.error('WebSocket error:', error);
                 document.getElementById('loading').style.display = 'none';
@@ -653,13 +743,19 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             // When the user scrolls near the bottom (e.g., within 100px), load more 'old' images
             if (scrollTop + windowHeight >= documentHeight - 100 && !isLoading && hasMoreOldImages) {
                 console.log("Near bottom of the page. Fetching more 'old' images...");
-                fetchAndRenderQueue('old');
+                const requiredImages = calculateRequiredImages();
+                if (requiredImages > 0) {
+                    fetchAndRenderQueue('old', requiredImages);
+                }
             }
 
             // When the user scrolls near the top (e.g., within 100px), load 'new' images
             if (scrollTop <= 100 && !isLoading) {
                 console.log("Near top of the page. Fetching 'new' images...");
-                fetchAndRenderQueue('new');
+                const requiredImages = calculateRequiredImages();
+                if (requiredImages > 0) {
+                    fetchAndRenderQueue('new', requiredImages);
+                }
             }
         }
 
