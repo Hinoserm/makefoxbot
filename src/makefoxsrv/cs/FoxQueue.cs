@@ -1304,6 +1304,7 @@ namespace makefoxsrv
 
             // List of silent error strings. If any of these are encountered, the task will be retried immediately.
             var silentErrors = new List<string> {
+                "llocation on device",
                 "out of memory",
                 "xpected all tensors to be on",
                 "onnection refused",
@@ -1328,7 +1329,7 @@ namespace makefoxsrv
             // Set retry date
             if (isSilentError)
             {
-                this.RetryDate = DateTime.Now.AddSeconds(3); // Retry in 3 seconds for silent errors
+                this.RetryDate = DateTime.Now.AddSeconds(1);
             }
             else
             {
@@ -1355,7 +1356,7 @@ namespace makefoxsrv
                 this.RetryCount++;
             }
 
-            if (this.RetryCount >= maxRetries) 
+            if (this.RetryCount >= maxRetries && !isSilentError) 
             {
                 shouldRetry = false;
             }
