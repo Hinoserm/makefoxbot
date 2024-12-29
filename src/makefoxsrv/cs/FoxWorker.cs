@@ -1224,11 +1224,20 @@ namespace makefoxsrv
             }
             catch (SDHttpException ex)
             {
-                //We probably don't need to crash the whole worker for these.
+                // We probably don't need to crash the whole worker for these.
+                // Unless it's a memory error.
                 try
                 {
-                    await qItem.SetError(ex);
-                    OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                    if (ex.Message.Contains("Allocation on device") || ex.Message.Contains("out of memory"))
+                    {
+                        await HandleError(ex);
+                    }
+                    else
+                    {
+                        await qItem.SetError(ex);
+
+                        OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                    }
                 }
                 catch (Exception ex2)
                 {

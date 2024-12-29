@@ -178,9 +178,24 @@ namespace makefoxsrv
             return 0; //Not yet implemented.
         }
 
-        public static async Task Enqueue(FoxQueue item)
+        public static async Task Enqueue(FoxQueue item, bool addToFront = false)
         {
             item.DateQueued = DateTime.Now;
+
+            if (addToFront)
+            {
+                lock (lockObj)
+                {
+                    // Insert the item at the front of the taskList, ignoring priority
+                    taskList.Insert(0, (item, int.MaxValue, item.DateCreated)); // Use int.MaxValue to ensure it's treated as highest priority
+
+                    // No need to sort as this item should remain at the front
+                }
+
+                queueSemaphore.Release();
+                FoxLog.WriteLine($"Enqueueing task {item.ID} to the front of the queue.", LogLevel.DEBUG);
+                return;
+            }
 
             if (item.RetryDate.HasValue && item.RetryDate.Value > DateTime.Now)
             {
@@ -1466,7 +1481,7 @@ namespace makefoxsrv
 
             if (shouldRetry)
             {
-                await Enqueue(this);
+                await Enqueue(this, isSilentError);
             } else {
                 await this.SetCancelled(true);
             }
