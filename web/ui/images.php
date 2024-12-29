@@ -161,116 +161,67 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
     <div id="imageContainer"></div>
     <div id="loading">Loading more images...</div>
     <div id="error-message"></div>
+
     <div id="lightbox"></div>
 
     <script>
-        // Original variables
+        // Initialize variables
         let lastImageId = 0;
         let highestImageId = 0;
         let isLoading = false;
         let hasMoreOldImages = true;
-        let totalImagesLoaded = 0;
+
         let imagesData = {};
-        let currentImageIdx = null; 
 
-        // Must match CSS
-        const IMAGE_WRAPPER_WIDTH = 200; 
-        const IMAGE_WRAPPER_HEIGHT_ESTIMATE = 250;
-
-        /**
-         * We load AGGRESSIVELY: 2 screens above/below
-         */
-        function calculateRequiredImages() {
-            const windowWidth = window.innerWidth;
-            const windowHeight = window.innerHeight;
-            const gap = 10;
-
-            // # of columns
-            const columns = Math.floor((windowWidth - 20) / (IMAGE_WRAPPER_WIDTH + gap));
-            if (columns < 1) return 20; // minimum
-
-            // We'll keep 2 additional screens in both directions => 4 screens total
-            const rowFactor = 4; // total screen-heights
-            const rows = Math.ceil((windowHeight * rowFactor) / (IMAGE_WRAPPER_HEIGHT_ESTIMATE + gap));
-
-            let totalImages = columns * rows;
-            totalImages = Math.max(20, totalImages);
-            return totalImages;
-        }
-
-        /**
-         * On resize, load more images if needed
-         */
-        function handleResize() {
-            const requiredImages = calculateRequiredImages();
-            if (requiredImages > 0) {
-                fetchAndRenderQueue('old', requiredImages).then(() => {
-                    checkAndLoadMoreImages();
-                });
-            }
-        }
-
-        /**
-         * checkAndLoadMoreImages => if container < 2 * windowHeight, load more
-         */
-        function checkAndLoadMoreImages() {
-            const imageContainer = document.getElementById('imageContainer');
-            const containerHeight = imageContainer.offsetHeight;
-            // We want at least 2 screens visible
-            const requiredHeight = window.innerHeight * 2;
-
-            if (containerHeight < requiredHeight && hasMoreOldImages) {
-                const additionalImages = calculateRequiredImages();
-                if (additionalImages > 0) {
-                    fetchAndRenderQueue('old', additionalImages).then(() => {
-                        checkAndLoadMoreImages();
-                    });
-                }
-            }
-        }
+        let currentImageIdx = null; // Global variable to track the current image index
 
         <?php if (!$imageId) { ?>
-        document.addEventListener('DOMContentLoaded', () => {
-            createLightbox();
-            setupLightboxScroll(); 
-            setupInfiniteScroll(); 
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log("DOM fully loaded and parsed.");
 
-            const initialImages = calculateRequiredImages();
-            fetchAndRenderQueue('old', initialImages).then(() => {
-                checkAndLoadMoreImages();
+                createLightbox(); // Initialize the lightbox
+                setupLightboxScroll(); // Setup lightbox navigation
+                setupInfiniteScroll(); // Setup infinite scrolling
+
+                // Initial fetch for 'old' images
+                fetchAndRenderQueue('old');
             });
+        <?php } ?>
 
-            window.addEventListener('resize', debounce(handleResize, 500));
-        });
-        <?php } else { ?>
-        document.addEventListener('DOMContentLoaded', () => {
-            createLightbox(false);
-            setupLightboxScroll();
-            showOneImage(<?php echo $imageId; ?>);
-        });
+        <?php if ($imageId) { ?>
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log("DOM fully loaded and parsed with specific image ID.");
+                createLightbox(false); // Initialize the lightbox without close functionality
+                showOneImage(<?php echo $imageId; ?>); // Display the specific image
+            });
         <?php } ?>
 
         /**
          * Create the lightbox element
          */
         function createLightbox(closeable = true) {
+            console.log("Creating lightbox. Closeable:", closeable);
             const lightbox = document.getElementById('lightbox');
-            lightbox.innerHTML = ''; 
+            lightbox.innerHTML = ''; // Clear any existing content
+
             if (closeable) {
                 const closeButton = document.createElement('div');
                 closeButton.classList.add('close-btn');
                 closeButton.innerHTML = '&times;';
                 lightbox.appendChild(closeButton);
 
-                closeButton.onclick = (e) => {
+                closeButton.addEventListener('click', (e) => {
                     e.stopPropagation();
                     lightbox.style.display = 'none';
                     document.body.style.overflow = '';
-                };
-                lightbox.onclick = () => {
+                    console.log("Lightbox closed.");
+                });
+
+                lightbox.addEventListener('click', () => {
                     lightbox.style.display = 'none';
                     document.body.style.overflow = '';
-                };
+                    console.log("Lightbox background clicked and closed.");
+                });
             }
         }
 
@@ -278,29 +229,51 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
          * Setup Lightbox Scroll for navigation
          */
         function setupLightboxScroll() {
+            console.log("Setting up lightbox scroll navigation.");
             const lightbox = document.getElementById('lightbox');
+
             lightbox.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                if (e.deltaY < 0) showNextImage();
-                else if (e.deltaY > 0) showPreviousImage();
+                e.preventDefault(); // Prevent the page from scrolling
+
+                if (e.deltaY < 0) {
+                    // Scrolling up, show next image
+                    console.log("Wheel scrolled up.");
+                    showNextImage();
+                } else if (e.deltaY > 0) {
+                    // Scrolling down, show previous image
+                    console.log("Wheel scrolled down.");
+                    showPreviousImage();
+                }
             });
         }
 
+        /**
+         * Fetch the image URL using PHP endpoint
+         */
         function fetchImageUrl(imageId) {
+            console.log(`Fetching image URL for ID: ${imageId}`);
             return `/api/get-image.php?id=${imageId}`;
         }
 
+        /**
+         * Shorten text utility
+         */
         function shortenText(text, maxLength) {
             const isTextShortened = text.length > maxLength;
             const shortenedText = isTextShortened ? text.substring(0, maxLength - 3) + "..." : text;
             return { shortenedText, isTextShortened };
         }
 
+        /**
+         * Generate the caption HTML for an image
+         */
         function generateCaption(image, shortenChars = 100) {
             let q = image;
-            const { shortenedText: promptShortened, isTextShortened: promptShortenedFlag } = shortenText(q.Prompt, shortenChars);
-            const { shortenedText: negativeShortened, isTextShortened: negativeShortenedFlag } = shortenText(q.NegativePrompt, shortenChars);
 
+            let { shortenedText: promptShortened, isTextShortened: promptShortenedFlag } = shortenText(q.Prompt, shortenChars);
+            let { shortenedText: negativeShortened, isTextShortened: negativeShortenedFlag } = shortenText(q.NegativePrompt, shortenChars);
+
+            // Using Luxon to handle date formatting
             const { DateTime } = luxon;
             const serverTime = DateTime.fromISO(q.DateCreated, { zone: 'America/Chicago' });
             const dateAdded = serverTime.setZone(DateTime.local().zoneName);
@@ -321,50 +294,63 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 `<div><strong>Seed:</strong> ${q.Seed}<br></div>` +
                 `<div><strong>Sampler:</strong> ${escapeHTML(q.Sampler)}<br></div>` +
                 `<?php if ($user['access_level'] == 'ADMIN'): ?>` +
-                `<div><strong>Worker:</strong> ${q.WorkerName}<br></div>` +
+                `<div><strong>Worker:</strong> ${escapeHTML(q.WorkerName)}<br></div>` +
                 `<?php endif; ?>` +
-                `<div>${escapeHTML(dateAdded.toFormat('dd LLL yyyy hh:mm:ss a ZZZZ'))}</div>`;
+                `<div>${escapeHTML(dateAdded.toFormat('dd LLL yyyy hh:mm:ss a ZZZZ'))}</div>`; // Appending the formatted timestamp with timezone
 
             return caption;
         }
 
+        /**
+         * Escape HTML to prevent XSS
+         */
         function escapeHTML(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
 
+        /**
+         * Setup click to expand shortened text
+         */
         function setupShortenForElement(element) {
             element.querySelectorAll('.shorten').forEach(span => {
+                // Only add click event if the text was shortened
                 if (span.dataset.shorttext && span.dataset.fulltext && span.dataset.shorttext !== span.dataset.fulltext) {
-                    span.classList.add('can-expand');
+                    span.classList.add('can-expand'); // Add a class to indicate it can be expanded
                     span.onclick = function() {
                         if (this.classList.contains('active')) {
                             this.classList.remove('active');
                             this.textContent = this.getAttribute('data-shorttext');
+                            console.log("Shortened text collapsed.");
                         } else {
                             this.classList.add('active');
                             this.textContent = this.getAttribute('data-fulltext');
+                            console.log("Shortened text expanded.");
                         }
                     };
                 }
             });
         }
 
+        /**
+         * Display images on the page
+         */
         function displayImages(images, action) {
             console.log(`Displaying images with action: ${action}`);
             const container = document.getElementById('imageContainer');
             let newImagesCount = 0;
 
             images.forEach((image) => {
-                const idx = image.ID; 
+                const idx = image.ID; // Assuming 'ID' is the unique identifier
+
+                // Avoid duplicates
                 if (imagesData[idx]) {
                     console.log(`Image ID ${idx} already exists. Skipping.`);
                     return;
                 }
 
-                imagesData[idx] = image; 
-                totalImagesLoaded++;
+                imagesData[idx] = image; // Store the image data
                 newImagesCount++;
                 console.log(`Displaying Image ID: ${idx}`);
 
@@ -374,19 +360,19 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 // Primary Image Element
                 const primaryImgElement = document.createElement('img');
                 primaryImgElement.src = fetchImageUrl(image.ImageID);
-                primaryImgElement.loading = 'lazy'; 
-                primaryImgElement.setAttribute('data-image-id', idx);
-                primaryImgElement.onclick = () => handleImageClick(idx);
+                primaryImgElement.loading = 'lazy'; // Enable lazy loading
+                primaryImgElement.setAttribute('data-image-id', idx); // Set the image ID as a data attribute
+                primaryImgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
                 wrapper.appendChild(primaryImgElement);
                 console.log(`Added primary image: ${image.ImageID}`);
 
-                // Secondary (IMG2IMG)
+                // Secondary Image for IMG2IMG type
                 if (image.Type === "IMG2IMG" && image.SelectedImage) {
                     const secondaryImgElement = document.createElement('img');
                     secondaryImgElement.src = fetchImageUrl(image.SelectedImage);
-                    secondaryImgElement.setAttribute('data-image-id', idx);
-                    secondaryImgElement.onclick = () => handleImageClick(idx);
-                    secondaryImgElement.loading = 'lazy';
+                    secondaryImgElement.setAttribute('data-image-id', idx); // Set the image ID as a data attribute
+                    secondaryImgElement.addEventListener('click', () => handleImageClick(idx)); // Add click listener
+                    secondaryImgElement.loading = 'lazy'; // Enable lazy loading
                     wrapper.appendChild(secondaryImgElement);
                     console.log(`Added secondary image for IMG2IMG type: ${image.SelectedImage}`);
                 }
@@ -394,6 +380,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 const textElement = document.createElement('div');
                 textElement.className = 'caption';
                 textElement.innerHTML = generateCaption(image, 400);
+
                 setupShortenForElement(textElement);
 
                 wrapper.appendChild(textElement);
@@ -401,16 +388,21 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 if (action === 'new') {
                     container.insertBefore(wrapper, container.firstChild);
                     console.log(`Prepended Image ID: ${idx}`);
-                } else {
+                } else if (action === 'old') {
                     container.appendChild(wrapper);
                     console.log(`Appended Image ID: ${idx}`);
                 }
             });
 
             updateImageIds(images, action);
+
+            // Return the number of new images added
             return newImagesCount;
         }
 
+        /**
+         * Update the last and highest image IDs for pagination
+         */
         function updateImageIds(images, action) {
             if (action === 'new') {
                 const maxID = Math.max(...images.map(img => img.ID));
@@ -418,13 +410,16 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                     highestImageId = maxID;
                     console.log(`Updated highestImageId to: ${highestImageId}`);
                 }
-            } else {
+            } else if (action === 'old') {
                 const minID = Math.min(...images.map(img => img.ID));
-                lastImageId = minID - 1; 
+                lastImageId = minID - 1; // Set to one less than the smallest ID fetched
                 console.log(`Updated lastImageId to: ${lastImageId}`);
             }
         }
 
+        /**
+         * Handle image click to show in lightbox
+         */
         function handleImageClick(idx) {
             console.log(`Image clicked: ${idx}`);
             const image = imagesData[idx];
@@ -432,17 +427,21 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 console.error("Image data not found for idx:", idx);
                 return;
             }
-            showLightbox(idx); 
+
+            showLightbox(idx); // Pass idx as well
         }
 
+        /**
+         * Show image in lightbox
+         */
         function showLightbox(idx) {
             console.log(`Showing lightbox for Image ID: ${idx}`);
             const lightbox = document.getElementById('lightbox');
-            lightbox.innerHTML = ''; 
+            lightbox.innerHTML = ''; // Clear previous content
 
-            createLightbox();
+            createLightbox(); // Re-create lightbox with close functionality
 
-            currentImageIdx = idx; 
+            currentImageIdx = idx; // Update the global variable with the current index
 
             const image = imagesData[idx];
             if (!image) {
@@ -453,18 +452,19 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             const captionHTML = generateCaption(image, 400);
 
             const imageContainer = document.createElement('div');
-            imageContainer.classList.add('image-container'); 
+            imageContainer.classList.add('image-container'); // Use class for styling
 
             const img = document.createElement('img');
             img.src = fetchImageUrl(image.ImageID) + '&full=1';
             img.alt = "Full size image";
-            img.loading = 'lazy'; 
+            img.loading = 'lazy'; // Enable lazy loading
             imageContainer.appendChild(img);
 
             const captionDiv = document.createElement('div');
             captionDiv.innerHTML = captionHTML;
-            captionDiv.classList.add('caption');
-            captionDiv.onclick = (e) => e.stopPropagation();
+            captionDiv.classList.add('caption'); // Use class for styling
+            captionDiv.addEventListener('click', (e) => e.stopPropagation());
+
             setupShortenForElement(captionDiv);
 
             img.onload = function () {
@@ -488,6 +488,9 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             console.log("Lightbox displayed.");
         }
 
+        /**
+         * Show Previous Image in Lightbox
+         */
         function showPreviousImage() {
             const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
             const currentIndex = keys.indexOf(Number(currentImageIdx));
@@ -498,19 +501,19 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                     showLightbox(previousIndex.toString());
                 }
             } else {
-                const requiredImages = calculateRequiredImages();
-                if (requiredImages > 0) {
-                    fetchAndRenderQueue('old', requiredImages).then(() => {
-                        const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-                        const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
-                        if (newCurrentIndex > 0) {
-                            showPreviousImage(); 
-                        }
-                    }).catch(error => console.error(error));
-                }
+                fetchAndRenderQueue('old').then(() => {
+                    const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+                    const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
+                    if (newCurrentIndex > 0) {
+                        showPreviousImage(); // Try showing the previous image again
+                    }
+                }).catch(error => console.error(error));
             }
         }
 
+        /**
+         * Show Next Image in Lightbox
+         */
         function showNextImage() {
             const keys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
             const currentIndex = keys.indexOf(Number(currentImageIdx));
@@ -521,31 +524,30 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                     showLightbox(nextIndex.toString());
                 }
             } else {
-                const requiredImages = calculateRequiredImages();
-                if (requiredImages > 0) {
-                    fetchAndRenderQueue('new', requiredImages).then(() => {
-                        const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
-                        const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
-                        if (newCurrentIndex < updatedKeys.length - 1) {
-                            showNextImage();
-                        }
-                    }).catch(error => console.error(error));
-                }
+                fetchAndRenderQueue('new').then(() => {
+                    const updatedKeys = Object.keys(imagesData).map(Number).sort((a, b) => a - b);
+                    const newCurrentIndex = updatedKeys.indexOf(Number(currentImageIdx));
+                    if (newCurrentIndex < updatedKeys.length - 1) {
+                        showNextImage(); // Try showing the next image again
+                    }
+                }).catch(error => console.error(error));
             }
         }
 
+        /**
+         * Show a single image (used when ?id is set)
+         */
         function showOneImage(idx) {
             console.log(`Fetching single image with ID: ${idx}`);
             return ListQueue({
-                ID: parseInt(idx, 10), 
-                PageSize: 1 
+                ID: parseInt(idx, 10), // Pass only the specific ID
+                PageSize: 1 // Fetch only one image
             }).then(queueItems => {
                 console.log(`Received ${queueItems.length} queue items for single image.`);
                 if (queueItems.length > 0) {
-                    const image = queueItems[0]; 
+                    const image = queueItems[0]; // Since PageSize is 1
                     imagesData[image.ID] = image;
-                    totalImagesLoaded++;
-                    displayImages([image], 'new'); 
+                    displayImages([image], 'new'); // Pass as an array
                     showLightbox(image.ID);
                     console.log(`Single image fetched and displayed: ${image.ID}`);
                     return image;
@@ -558,23 +560,27 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             });
         }
 
-        function fetchAndRenderQueue(action = 'old', pageSize = 20) {
+        /**
+         * Fetch and render queue data using WebSocket (from websocket.js)
+         * @param {string} action - 'new' or 'old'
+         */
+        function fetchAndRenderQueue(action = 'old') {
             if (isLoading) {
                 console.log("Already loading. Skipping fetch.");
-                return Promise.resolve(); 
+                return;
             }
             isLoading = true;
             document.getElementById('loading').style.display = 'block';
             document.getElementById('error-message').style.display = 'none';
-            console.log(`Fetching and rendering queue with action: ${action}, PageSize: ${pageSize}`);
+            console.log(`Fetching and rendering queue with action: ${action}`);
 
             let modelFilter = '<?php echo $imageModel; ?>';
-            let statusFilter = 'FINISHED'; 
+            let statusFilter = 'FINISHED'; // Adjust as needed
 
             let requestParams = {
                 UID: <?php echo $uid; ?>,
-                action: action,
-                PageSize: pageSize,
+                action: action, // 'new' or 'old'
+                PageSize: 20,
                 Status: statusFilter,
                 Model: modelFilter
             };
@@ -587,11 +593,14 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
 
             console.log("ListQueue request parameters:", requestParams);
 
-            return ListQueue(requestParams).then(queueItems => {
+            // Assuming ListQueue is defined in websocket.js and returns a Promise
+            ListQueue(requestParams).then(queueItems => {
                 console.log(`Received ${queueItems.length} queue items.`);
                 if (queueItems.length > 0) {
-                    const newImagesCount = displayImages(queueItems, action); 
+                    const newImagesCount = displayImages(queueItems, action); // Pass the array directly
+
                     if (action === 'old') {
+                        // Set lastImageId to min ID - 1
                         const minID = Math.min(...queueItems.map(img => img.ID));
                         lastImageId = minID - 1;
                         console.log(`Updated lastImageId to: ${lastImageId}`);
@@ -599,6 +608,12 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                         const maxID = Math.max(...queueItems.map(img => img.ID));
                         highestImageId = maxID;
                         console.log(`Updated highestImageId to: ${highestImageId}`);
+                    }
+
+                    // If no new images were added, stop further fetching
+                    if (action === 'old' && newImagesCount === 0) {
+                        hasMoreOldImages = false;
+                        console.log("No more old images available.");
                     }
                 } else {
                     console.log(`No more images to fetch for action: ${action}`);
@@ -609,7 +624,6 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                 }
                 document.getElementById('loading').style.display = 'none';
                 isLoading = false;
-                checkAndLoadMoreImages();
             }).catch(error => {
                 console.error('WebSocket error:', error);
                 document.getElementById('loading').style.display = 'none';
@@ -619,34 +633,39 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             });
         }
 
+        /**
+         * Setup Infinite Scrolling
+         */
         function setupInfiniteScroll() {
             console.log("Setting up infinite scroll.");
             window.addEventListener('scroll', debounce(handleScroll, 200));
             console.log("Infinite scroll event listener added.");
         }
 
+        /**
+         * Handle scroll events for infinite scrolling
+         */
         function handleScroll() {
             const scrollTop = window.scrollY;
             const windowHeight = window.innerHeight;
             const documentHeight = document.body.offsetHeight;
 
-            // We want to start loading old images 2 full screens before the bottom
-            const thresholdBottom = 2 * windowHeight; 
-            if ((scrollTop + windowHeight) >= (documentHeight - thresholdBottom) && !isLoading && hasMoreOldImages) {
-                console.log("AGGRESSIVE near bottom => fetching old images...");
-                const requiredImages = calculateRequiredImages();
-                if (requiredImages > 0) fetchAndRenderQueue('old', requiredImages);
+            // When the user scrolls near the bottom (e.g., within 100px), load more 'old' images
+            if (scrollTop + windowHeight >= documentHeight - 100 && !isLoading && hasMoreOldImages) {
+                console.log("Near bottom of the page. Fetching more 'old' images...");
+                fetchAndRenderQueue('old');
             }
 
-            // We want to start loading new images 2 full screens from the top
-            const thresholdTop = 2 * windowHeight;
-            if (scrollTop <= thresholdTop && !isLoading) {
-                console.log("AGGRESSIVE near top => fetching new images...");
-                const requiredImages = calculateRequiredImages();
-                if (requiredImages > 0) fetchAndRenderQueue('new', requiredImages);
+            // When the user scrolls near the top (e.g., within 100px), load 'new' images
+            if (scrollTop <= 100 && !isLoading) {
+                console.log("Near top of the page. Fetching 'new' images...");
+                fetchAndRenderQueue('new');
             }
         }
 
+        /**
+         * Debounce function to limit the rate of function calls
+         */
         function debounce(func, wait) {
             let timeout;
             return function(...args) {
