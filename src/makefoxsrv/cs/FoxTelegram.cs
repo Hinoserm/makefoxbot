@@ -260,6 +260,9 @@ namespace makefoxsrv
         public static async Task<TL.User?> GetUserFromID(long id)
         {
             long? accessHash = null;
+            string? firstName = null;
+            string? lastName = null;
+            string? userName = null;
 
             Users.TryGetValue(id, out User? user);
 
@@ -270,7 +273,7 @@ namespace makefoxsrv
             {
                 await SQL.OpenAsync();
 
-                using (var cmd = new MySqlCommand("SELECT access_hash FROM telegram_users WHERE id = @id", SQL))
+                using (var cmd = new MySqlCommand("SELECT access_hash, username, firstname, lastname FROM telegram_users WHERE id = @id", SQL))
                 {
                     cmd.Parameters.AddWithValue("@id", id);
 
@@ -279,6 +282,9 @@ namespace makefoxsrv
                         if (await r.ReadAsync())
                         {
                             accessHash =  r["access_hash"] != DBNull.Value ? Convert.ToInt64(r["access_hash"]) : null;
+                            firstName = r["firstname"] != DBNull.Value ? Convert.ToString(r["firstname"]) : null;
+                            lastName = r["lastname"] != DBNull.Value ? Convert.ToString(r["lastname"]) : null;
+                            userName = r["username"] != DBNull.Value ? Convert.ToString(r["username"]) : null;
                         }
                     }
                 }
@@ -287,7 +293,7 @@ namespace makefoxsrv
             if (accessHash is null)
                 return null;
 
-            return new() { id = id, access_hash = accessHash.Value };
+            return new() { id = id, access_hash = accessHash.Value, first_name = firstName, last_name = lastName, username = userName };
         }
 
         public static async Task<TL.ChatBase?> GetChatFromID(long id)

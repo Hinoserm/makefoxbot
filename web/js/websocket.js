@@ -163,6 +163,103 @@ function ProcessPayment(payment_uuid, provider, amount, charge_id) {
     });
 }
 
+/**
+ * Function to list queue items with optional filters.
+ * 
+ * @param {Object} [options={}] - The options for listing the queue.
+ * @param {number} [options.ID] - Specific image ID to fetch.
+ * @param {number} [options.UID] - The user ID to filter the queue. Optional for admins.
+ * @param {string} [options.Model] - The model filter for the queue items.
+ * @param {number} [options.PageSize=50] - The number of items per page.
+ * @param {string} [options.Status] - The status filter for the queue items.
+ * @param {string} [options.action] - 'new' or 'old' to determine fetch direction.
+ * @param {number} [options.lastImageId] - The reference image ID for pagination.
+ * @returns {Promise<Array>} - Resolves with the array of queue items.
+ */
+function ListQueue({ ID, UID, Model, PageSize, Status, action, lastImageId } = {}) {
+    return new Promise((resolve, reject) => {
+        const SeqID = getNextSeqID();
+        console.log(`ListQueue called with SeqID: ${SeqID} and parameters:`, { ID, UID, Model, PageSize, Status, action, lastImageId });
+
+        // Construct the message with only defined parameters
+        const message = {
+            Command: "Queue:List",
+            SeqID: SeqID
+        };
+
+        if (ID !== undefined) {
+            message.ID = ID;
+            console.log(`Added ID: ${ID} to message.`);
+        }
+
+        if (UID !== undefined) {
+            message.UID = UID;
+            console.log(`Added UID: ${UID} to message.`);
+        }
+
+        if (Model !== undefined) {
+            message.Model = Model;
+            console.log(`Added Model: ${Model} to message.`);
+        }
+
+        if (PageSize !== undefined) {
+            message.PageSize = PageSize;
+            console.log(`Added PageSize: ${PageSize} to message.`);
+        }
+
+        if (Status !== undefined) {
+            message.Status = Status;
+            console.log(`Added Status: ${Status} to message.`);
+        }
+
+        if (action !== undefined) {
+            message.action = action;
+            console.log(`Added action: ${action} to message.`);
+        }
+
+        if ((action === 'old' || action === 'new') && lastImageId !== undefined) {
+            message.lastImageId = lastImageId;
+            console.log(`Added lastImageId: ${lastImageId} to message.`);
+        }
+
+        // Store the promise resolve function and expected command
+        pendingRequests[SeqID] = {
+            command: "Queue:List",
+            resolve: (response) => {
+                console.log(`ListQueue received response for SeqID: ${SeqID}`, response);
+
+                // Ensure QueueItems is an array
+                if (Array.isArray(response.QueueItems)) {
+                    resolve(response.QueueItems);
+                } else if (response.QueueItems && typeof response.QueueItems === 'object') {
+                    // If QueueItems is an object, convert its values to an array
+                    const queueItemsArray = Object.values(response.QueueItems);
+                    console.warn(`QueueItems was an object. Converted to array:`, queueItemsArray);
+                    resolve(queueItemsArray);
+                } else {
+                    // If QueueItems is neither an array nor an object, reject the promise
+                    console.error(`QueueItems is not in a recognized format:`, response.QueueItems);
+                    reject(new TypeError('QueueItems is not an array or object.'));
+                }
+            },
+            reject: (error) => {
+                console.error(`ListQueue encountered error for SeqID: ${SeqID}:`, error);
+                reject(error);
+            }
+        };
+
+        // Send the message to the WebSocket
+        sendMessage(message);
+        console.log(`Message sent for SeqID: ${SeqID}`);
+    }).catch((error) => {
+        console.error('Error in ListQueue Promise:', error);
+        throw error; // Re-throw the error to be caught in the calling function
+    });
+}
+
+
+
+
 // Assign WebSocket event handlers
 websocket.onopen = websocketOnOpen;
 websocket.onmessage = websocketOnMessage;
