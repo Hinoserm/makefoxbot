@@ -206,8 +206,8 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             totalImages = Math.max(MIN_IMAGES, totalImages);
             totalImages = Math.min(MAX_IMAGES, totalImages);
 
-            // Subtract already loaded images
-            const imagesToLoad = totalImages - totalImagesLoaded;
+            // Calculate images to load without exceeding MAX_IMAGES
+            const imagesToLoad = Math.min(totalImages, MAX_IMAGES - totalImagesLoaded);
             return imagesToLoad > 0 ? imagesToLoad : 0;
         }
 
