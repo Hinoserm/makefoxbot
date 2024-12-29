@@ -642,7 +642,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
          */
         function setupInfiniteScroll() {
             console.log("Setting up infinite scroll.");
-            window.addEventListener('scroll', debounce(handleScroll, 200));
+            window.addEventListener('scroll', debounce(handleScroll, 100));
             console.log("Infinite scroll event listener added.");
         }
 

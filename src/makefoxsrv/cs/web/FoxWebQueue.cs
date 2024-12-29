@@ -11,7 +11,7 @@ namespace makefoxsrv
     {
         [WebFunctionName("List")]
         [WebLoginRequired(true)]
-        [WebAccessLevel(AccessLevel.ADMIN)]
+        [WebAccessLevel(AccessLevel.BASIC)]
         public static async Task<JsonObject?> List(FoxWebSession session, JsonObject jsonMessage)
         {
             long? id = FoxJsonHelper.GetLong(jsonMessage, "ID", true);
