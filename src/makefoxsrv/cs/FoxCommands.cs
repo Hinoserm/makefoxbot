@@ -778,65 +778,7 @@ namespace makefoxsrv
         [CommandArguments("")]
         private static async Task CmdModel(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            List<TL.KeyboardButtonRow> keyboardRows = new List<TL.KeyboardButtonRow>();
-
-            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-            var models = FoxModel.GetAvailableModels();
-
-            if (models.Count == 0)
-            {
-                throw new Exception("No models available.");
-            }
-
-            keyboardRows.Add(new TL.KeyboardButtonRow
-            {
-                buttons = new TL.KeyboardButtonCallback[]
-                {
-                    new TL.KeyboardButtonCallback { text = "Default", data = System.Text.Encoding.UTF8.GetBytes("/model default") }
-                }
-            });
-
-            // Sort the models dictionary by key (model name) alphabetically
-            foreach (var model in models.OrderBy(m => m.Key))
-            {
-                string modelName = model.Key;
-                int workerCount = model.Value.GetWorkersRunningModel().Count; // Assuming you want the count of workers per model
-
-                var buttonLabel = (model.Value.IsPremium ? "⭐" : "") + $"{modelName} ({workerCount})";
-                var buttonData = $"/model {modelName}"; // Or any unique data you need to pass
-
-                if (modelName == settings.model)
-                    buttonLabel += " ✅";
-
-                keyboardRows.Add(new TL.KeyboardButtonRow
-                {
-                    buttons = new TL.KeyboardButtonCallback[]
-                    {
-                        new TL.KeyboardButtonCallback { text = buttonLabel, data = System.Text.Encoding.UTF8.GetBytes(buttonData) }
-                    }
-                });
-            }
-
-            keyboardRows.Add(new TL.KeyboardButtonRow
-            {
-                buttons = new TL.KeyboardButtonCallback[]
-                {
-                    new TL.KeyboardButtonCallback { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/model cancel") }
-                }
-            });
-
-            var inlineKeyboard = new TL.ReplyInlineMarkup { rows = keyboardRows.ToArray() };
-
-            // Send the message with the inline keyboard
-
-            // Send the message with the inline keyboard
-
-            // Send the message with the inline keyboard
-            await t.SendMessageAsync(
-                text: "Select a model:\r\n\r\n (⭐ = Premium)",
-                replyInlineMarkup: inlineKeyboard
-            );
+            await FoxMessages.SendModelList(t, user, message.ID);
         }
 
         private static async Task CmdBroadcast(FoxTelegram t, Message message, FoxUser user, String? argument)
@@ -1039,7 +981,7 @@ namespace makefoxsrv
 
 
             long imageCount = 0;
-            //long imageBytes = 0;
+            long imageBytes = 0;
             long userCount = 0;
 
             // Only show global stats if no user was specified
@@ -1054,14 +996,14 @@ namespace makefoxsrv
 
                     MySqlCommand sqlcmd;
 
-                    sqlcmd = new MySqlCommand("SELECT COUNT(id) as image_count FROM images", connection);
+                    sqlcmd = new MySqlCommand("SELECT COUNT(id) as image_count, SUM(filesize) AS image_bytes FROM images WHERE type = 'OUTPUT'", connection);
 
                     using (var reader = await sqlcmd.ExecuteReaderAsync())
                     {
                         if (await reader.ReadAsync())
                         {
                             imageCount = reader.IsDBNull(reader.GetOrdinal("image_count")) ? 0 : reader.GetInt64("image_count");
-                            //imageBytes = reader.IsDBNull(reader.GetOrdinal("image_bytes")) ? 0 : reader.GetInt64("image_bytes");
+                            imageBytes = reader.IsDBNull(reader.GetOrdinal("image_bytes")) ? 0 : reader.GetInt64("image_bytes");
                         }
                     }
 
@@ -1076,7 +1018,7 @@ namespace makefoxsrv
                     }
                 }
 
-                sb.AppendLine($"Total Images: {imageCount}"); // ({FoxMessages.FormatBytes(imageBytes)})
+                sb.AppendLine($"Total Images: {imageCount} ({FoxMessages.FormatBytes(imageBytes)})"); // 
                 sb.AppendLine($"Total Users: {userCount}");
             }
 

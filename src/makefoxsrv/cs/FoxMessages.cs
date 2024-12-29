@@ -18,6 +18,92 @@ namespace makefoxsrv
 {
     internal class FoxMessages
     {
+
+        public static async Task<TL.Message?> SendModelList(FoxTelegram t, FoxUser user, int replyMessageID, int pageNumber = 1, int editMessageID = 0)
+        {
+            List<TL.KeyboardButtonRow> keyboardRows = new List<TL.KeyboardButtonRow>();
+
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+
+            var models = FoxModel.GetAvailableModels().Where(x => x.Value.PageNumber == pageNumber).ToList();
+
+            if (models.Count == 0)
+            {
+                throw new Exception("No models available.");
+            }
+
+            keyboardRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonCallback[]
+                {
+                    new TL.KeyboardButtonCallback { text = "Default", data = System.Text.Encoding.UTF8.GetBytes("/model default") }
+                }
+            });
+
+            // Sort the models dictionary by key (model name) alphabetically
+            foreach (var model in models.OrderBy(m => m.Key))
+            {
+                string modelName = model.Key;
+                int workerCount = model.Value.GetWorkersRunningModel().Count; // Assuming you want the count of workers per model
+
+                var buttonLabel = (model.Value.IsPremium ? "⭐" : "") + $"{modelName} ({workerCount})";
+                var buttonData = $"/model {modelName}"; // Or any unique data you need to pass
+
+                if (modelName == settings.model)
+                    buttonLabel += " ✅";
+
+                keyboardRows.Add(new TL.KeyboardButtonRow
+                {
+                    buttons = new TL.KeyboardButtonCallback[]
+                    {
+                        new TL.KeyboardButtonCallback { text = buttonLabel, data = System.Text.Encoding.UTF8.GetBytes(buttonData) }
+                    }
+                });
+            }
+
+            if (pageNumber == 1)
+            {
+                keyboardRows.Add(new TL.KeyboardButtonRow
+                {
+                    buttons = new TL.KeyboardButtonCallback[]
+                    {
+                        new TL.KeyboardButtonCallback { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/model cancel") },
+                        new TL.KeyboardButtonCallback { text = "More 🡪", data = System.Text.Encoding.UTF8.GetBytes("/model more") }
+                    }
+                });
+            }
+            else
+            {
+                keyboardRows.Add(new TL.KeyboardButtonRow
+                {
+                    buttons = new TL.KeyboardButtonCallback[]
+                    {
+                        new TL.KeyboardButtonCallback { text = "🡨 Back", data = System.Text.Encoding.UTF8.GetBytes("/model back") },
+                        new TL.KeyboardButtonCallback { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/model cancel") }
+                        
+                    }
+                });
+            }
+
+            var inlineKeyboard = new TL.ReplyInlineMarkup { rows = keyboardRows.ToArray() };
+
+            if (editMessageID == 0)
+            {
+                return await t.SendMessageAsync(
+                    text: "Select a model:\r\n\r\n (⭐ = Premium)",
+                    replyInlineMarkup: inlineKeyboard,
+                    replyToMessageId: replyMessageID
+                );
+            }
+            else
+            {
+                return await t.EditMessageAsync(
+                    id: editMessageID,
+                    text: "Select a model:\r\n\r\n (⭐ = Premium)",
+                    replyInlineMarkup: inlineKeyboard
+                );
+            }
+        }
         public static async Task SendHistory(FoxTelegram t, FoxUser user, string? argument = null, int messageId = 0, bool editMessage = false)
         {
 

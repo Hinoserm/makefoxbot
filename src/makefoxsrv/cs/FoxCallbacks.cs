@@ -445,6 +445,20 @@ namespace makefoxsrv
                 return;
             }
 
+            if (argument == "more")
+            {
+                await FoxMessages.SendModelList(t, user, 0, 2, query.msg_id);
+
+                return;
+            }
+
+            if (argument == "back")
+            {
+                await FoxMessages.SendModelList(t, user, 0, 1, query.msg_id);
+
+                return;
+            }
+
             if (argument == "default")
                 argument = null;
 

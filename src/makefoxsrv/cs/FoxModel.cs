@@ -24,6 +24,7 @@ namespace makefoxsrv
         public string? Notes { get; private set; }
         public string? Description { get; private set; }
         public String? InfoUrl { get; private set; }
+        public int PageNumber = 1;
 
         // Workers that are running this model
         private HashSet<int> workersRunningModel;
@@ -76,7 +77,7 @@ namespace makefoxsrv
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
             await SQL.OpenAsync();
 
-            string query = @"SELECT is_premium, notes, description, info_url
+            string query = @"SELECT is_premium, notes, description, info_url, page_number
                          FROM model_info 
                          WHERE model_name = @modelName";
             using var cmd = new MySqlCommand(query, SQL);
@@ -92,6 +93,8 @@ namespace makefoxsrv
                     Notes = reader.IsDBNull("notes") ? null : reader.GetString("notes");
                     Description = reader.IsDBNull("description") ? null : reader.GetString("description");
                     InfoUrl = reader.IsDBNull("info_url") ? null : reader.GetString("info_url");
+
+                    PageNumber = reader.IsDBNull("page_number") ? 1 : reader.GetInt16("page_number");
                 }
                 else
                 {
@@ -100,6 +103,7 @@ namespace makefoxsrv
                     Notes = null;            
                     Description = null;
                     InfoUrl = null;
+                    PageNumber = 1;
                 }
             }
         }
