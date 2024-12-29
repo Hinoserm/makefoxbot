@@ -171,8 +171,6 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
         let isLoading = false;
         let hasMoreOldImages = true;
         let totalImagesLoaded = 0;
-        const MAX_IMAGES = 200;
-        const MIN_IMAGES = 5;
 
         let imagesData = {};
 
@@ -184,7 +182,6 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
 
         /**
          * Calculate the number of images required based on the current window size.
-         * Ensures a minimum of 5 and a maximum of 200 images.
          * Aims to fill at least two screen-heights.
          */
         function calculateRequiredImages() {
@@ -194,7 +191,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
 
             // Calculate number of columns that fit in the window
             const columns = Math.floor((windowWidth - 20) / (IMAGE_WRAPPER_WIDTH + gap)); // 20px padding
-            if (columns < 1) return MIN_IMAGES; // Ensure at least one column
+            if (columns < 1) return 20; // Default to 20 images if not enough space
 
             // Estimate number of rows that fit in two screen-heights
             const rows = Math.ceil((windowHeight * 2) / (IMAGE_WRAPPER_HEIGHT_ESTIMATE + gap)); // Two screen-heights
@@ -202,13 +199,10 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             // Total images needed
             let totalImages = columns * rows;
 
-            // Clamp the total images between MIN_IMAGES and MAX_IMAGES
-            totalImages = Math.max(MIN_IMAGES, totalImages);
-            totalImages = Math.min(MAX_IMAGES, totalImages);
+            // Ensure a minimum of 20 images per fetch
+            totalImages = Math.max(20, totalImages);
 
-            // Calculate images to load without exceeding MAX_IMAGES
-            const imagesToLoad = Math.min(totalImages, MAX_IMAGES - totalImagesLoaded);
-            return imagesToLoad > 0 ? imagesToLoad : 0;
+            return totalImages;
         }
 
         /**
@@ -236,7 +230,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
             const containerHeight = imageContainer.offsetHeight;
             const requiredHeight = window.innerHeight * 2;
 
-            if (containerHeight < requiredHeight && totalImagesLoaded < MAX_IMAGES) {
+            if (containerHeight < requiredHeight && hasMoreOldImages) {
                 console.log("Image container height less than two screen-heights. Loading more images.");
                 const additionalImages = calculateRequiredImages();
                 if (additionalImages > 0) {
@@ -700,8 +694,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
                         console.log(`Updated highestImageId to: ${highestImageId}`);
                     }
 
-                    // Update totalImagesLoaded
-                    // Note: totalImagesLoaded is already incremented in displayImages
+                    // No limit on totalImagesLoaded
                 } else {
                     console.log(`No more images to fetch for action: ${action}`);
                     if (action === 'old') {
