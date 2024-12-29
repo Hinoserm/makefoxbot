@@ -402,29 +402,33 @@ namespace makefoxsrv
                                  && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
                 .ToList();
 
-            // New code to check the total complexity of the user's queue
-            var userQueueComplexity = taskList
-                .Select(t => t.task)
-                .Where(queueItem => queueItem != null
-                                    && queueItem.User?.UID == item.User?.UID
-                                    && queueItem.RetryDate <= DateTime.Now
-                                    && (
-                                        queueItem.status == FoxQueue.QueueStatus.PENDING ||
-                                        queueItem.status == FoxQueue.QueueStatus.PROCESSING ||
-                                        queueItem.status == FoxQueue.QueueStatus.ERROR
-                                    ))
-                .Sum(queueItem => queueItem!.Complexity ?? 0);
+            if (!item.User.CheckAccessLevel(AccessLevel.ADMIN))
+            {
+                // New code to check the total complexity of the user's queue
+                var userQueueComplexity = taskList
+                    .Select(t => t.task)
+                    .Where(queueItem => queueItem != null
+                                        && queueItem.User?.UID == item.User?.UID
+                                        && queueItem.RetryDate <= DateTime.Now
+                                        && (
+                                            queueItem.status == FoxQueue.QueueStatus.PENDING ||
+                                            queueItem.status == FoxQueue.QueueStatus.PROCESSING ||
+                                            queueItem.status == FoxQueue.QueueStatus.ERROR
+                                        ))
+                    .Sum(queueItem => queueItem!.Complexity ?? 0);
 
-            // 3. Block if the same user is already being processed, or if complexity is too high
-            if (userQueueComplexity >= 1.0 || !item.User.CheckAccessLevel(AccessLevel.PREMIUM)) {
-                var userWorkers = suitableWorkers
-                    .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
-                    .ToList();
-
-                if (userWorkers.Any())
+                // 3. Block if the same user is already being processed, or if complexity is too high
+                if (userQueueComplexity >= 1.0 || !item.User.CheckAccessLevel(AccessLevel.PREMIUM))
                 {
-                    //FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User?.UID} is already being processed by another worker.", LogLevel.DEBUG);
-                    return null;
+                    var userWorkers = suitableWorkers
+                        .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
+                        .ToList();
+
+                    if (userWorkers.Any())
+                    {
+                        //FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User?.UID} is already being processed by another worker.", LogLevel.DEBUG);
+                        return null;
+                    }
                 }
             }
 
