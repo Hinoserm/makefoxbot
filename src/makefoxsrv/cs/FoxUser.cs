@@ -81,28 +81,45 @@ namespace makefoxsrv
             using (var cmd = new MySqlCommand())
             {
                 // Check if a flood wait error has been logged in the database in the last 48 hours.
-
-                var since = DateTime.Now.AddDays(-2);
-
-                cmd.Connection = SQL;
-                // Make sure message contains "FLOOD_WAIT" and the user_id matches the current user
-                cmd.CommandText = "SELECT exception_json FROM log WHERE user_id = @uid AND tele_chatid IS NULL AND date >= @since AND message LIKE '%FLOOD_WAIT_X%'";
-                cmd.Parameters.AddWithValue("@uid", this.UID);
-                cmd.Parameters.AddWithValue("@since", since);
-
-                using (var r = await cmd.ExecuteReaderAsync())
+                try
                 {
-                    if (await r.ReadAsync())
-                    {
-                        var exceptionJson = r.GetString("exception_json");
-                        var exception = JsonConvert.DeserializeObject<RpcException>(exceptionJson);
-                        if (exception != null && exception.Code == 420)
-                        {
-                            this.FloodWaitUntil = DateTime.Now.AddSeconds(exception.X);
+                    var since = DateTime.Now.AddDays(-2);
 
-                            return this.FloodWaitUntil;
+                    cmd.Connection = SQL;
+                    // Make sure message contains "FLOOD_WAIT" and the user_id matches the current user
+                    cmd.CommandText = @"
+                        SELECT date,exception_json
+                        FROM log
+                        WHERE user_id = @uid
+                          AND tele_chatid IS NULL
+                          AND date >= @since
+                          AND message LIKE '%FLOOD_WAIT_X%'
+                        ORDER BY date DESC
+                        LIMIT 1";
+
+                    cmd.Parameters.AddWithValue("@uid", this.UID);
+                    cmd.Parameters.AddWithValue("@since", since);
+
+                    using (var r = await cmd.ExecuteReaderAsync())
+                    {
+                        if (await r.ReadAsync())
+                        {
+                            String exceptionJson = r.GetString("exception_json");
+                            DateTime exceptionDate = r.GetDateTime("date");
+
+                            var exception = JsonConvert.DeserializeObject<RpcException>(exceptionJson);
+                            if (exception != null && exception.Code == 420)
+                            {
+                                this.FloodWaitUntil = exceptionDate.AddSeconds(exception.X);
+
+                                return this.FloodWaitUntil;
+                            }
                         }
                     }
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.LogException(ex);
                 }
             }
 
