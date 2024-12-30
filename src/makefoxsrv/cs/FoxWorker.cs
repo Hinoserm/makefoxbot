@@ -989,7 +989,7 @@ namespace makefoxsrv
                                 }
                                 catch (Exception ex)
                                 {
-                                    FoxLog.LogException(ex);
+                                    //FoxLog.LogException(ex);
                                     if (lastUsedModel is not null)
                                         LoadedModels = new List<string>() { lastUsedModel };
                                 }
