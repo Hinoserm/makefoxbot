@@ -103,6 +103,8 @@ namespace makefoxsrv
         public DateTime? TaskEndDate { get; private set; } = null;
         public DateTime? LastActivity { get; private set; } = null;
 
+        public string? GPUType { get; private set; } = null;
+
         static public TimeSpan ProgressUpdateInterval { get; set; } = TimeSpan.FromMilliseconds(100);
 
         private ManualResetEvent enabledEvent = new ManualResetEvent(true); // Initially enabled
@@ -344,6 +346,9 @@ namespace makefoxsrv
 
                     if (!(reader["regional_prompting"] is DBNull))
                         worker.SupportsRegionalPrompter = reader.GetBoolean("regional_prompting");
+
+                    if (!(reader["gpu_type"] is DBNull))
+                        worker.GPUType = reader.GetString("gpu_type");
 
                     await worker.SetStartDate();
 

@@ -413,6 +413,7 @@ namespace makefoxsrv
             var workers = FoxWorker.GetWorkers().Values;
             var suitableWorkers = workers
                 .Where(worker => worker.Online
+                                 && (worker.qItem is null)
                                  && (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
                                  && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
                                  && (!item.RegionalPrompting || worker.SupportsRegionalPrompter)
@@ -453,20 +454,21 @@ namespace makefoxsrv
             if (item.Enhanced || item.Settings.variation_seed != null)
             {
                 var timeInQueue = DateTime.Now - item.DateCreated;
-                if (timeInQueue.TotalMinutes < 2)
+
+                // Wait up to 5 minutes to reuse a compatible worker.
+                // After that, take whatever we can get.
+
+                if (timeInQueue.TotalMinutes < 5)
                 {
-                    var previousWorker = suitableWorkers.FirstOrDefault(worker => worker.ID == item.WorkerID);
-                    if (previousWorker != null)
+                    var gpuType = item.Worker?.GPUType;
+
+                    if (gpuType is null)
                     {
-                        // Worker’s busy? Defer.
-                        if (previousWorker.qItem != null)
-                            return null;
-                        // Otherwise use the same worker
-                        return previousWorker;
+                        return suitableWorkers.FirstOrDefault(worker => worker.ID == item.WorkerID);
                     }
                     else
                     {
-                        FoxLog.WriteLine($"Enhanced task {item.ID} - Previous worker not found.", LogLevel.DEBUG);
+                        return suitableWorkers.FirstOrDefault(worker => worker.GPUType == gpuType);
                     }
                 }
             }
