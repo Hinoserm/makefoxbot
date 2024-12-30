@@ -93,6 +93,9 @@ namespace makefoxsrv
             if (message is null)
                 throw new ArgumentNullException();
 
+            if (FoxTelegram.Client is null)
+                throw new Exception("FoxTelegram.Client is null");
+
             if (message.message is null || message.message.Length < 2)
                 return;
 

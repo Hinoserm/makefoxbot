@@ -466,10 +466,10 @@ namespace makefoxsrv
                 );
 
                 // Check if the hashes match, if not log a warning
-                if (foxModel.Hash != modelData.Hash || foxModel.SHA256 != modelData.SHA256)
-                {
-                    FoxLog.WriteLine($"Warning: Model '{modelData.ModelName}' on worker {this.ID} has mismatched hashes.");
-                }
+                //if (foxModel.Hash != modelData.Hash || foxModel.SHA256 != modelData.SHA256)
+                //{
+                //    FoxLog.WriteLine($"Warning: Model '{modelData.ModelName}' on worker {this.ID} has mismatched hashes.");
+                //}
 
                 // Add this worker to the model in memory (whether or not the hashes match)
                 foxModel.AddWorker(this.ID);
