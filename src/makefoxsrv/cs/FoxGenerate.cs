@@ -50,6 +50,20 @@ namespace makefoxsrv
                 return; // User must agree to the terms before they can use this command.
             }
 
+            var floodWait = await user.GetFloodWait();
+
+            if (floodWait is not null && floodWait >= DateTime.Now)
+            {
+                TimeSpan waitTime = floodWait.Value - DateTime.Now;
+
+                await t.SendMessageAsync(
+                    text: $"❌ Telegram is currently reporting that you've exceeded the image upload rate limit.  This rate limit is outside of our control.\r\n\r\nPlease try again in {waitTime.ToPrettyFormat()}.",
+                    replyToMessageId: message.ID
+                );
+
+                return;
+            }
+
             if (imgType == FoxQueue.QueueType.IMG2IMG)
             {
                 var loadedImg = await FoxImage.SaveImageFromReply(t, message);
