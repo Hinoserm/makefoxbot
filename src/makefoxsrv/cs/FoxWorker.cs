@@ -1089,11 +1089,7 @@ namespace makefoxsrv
 
                 // Check if settings.model is in LoadedModels
                 if (!LoadedModels.Contains(settings.model))
-                {
                     FoxLog.WriteLine($"Switching model on {this.name} to {settings.model}", LogLevel.INFO);
-
-                    LoadedModels.Add(settings.model);
-                }
 
                 //this.LastUsedModel = settings.model;
 
