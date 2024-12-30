@@ -23,6 +23,7 @@ using Microsoft.Extensions.Primitives;
 using System.Runtime.CompilerServices;
 using PayPalCheckoutSdk.Orders;
 using System.Reflection.Metadata.Ecma335;
+using System.Numerics;
 
 namespace makefoxsrv
 {
@@ -1254,7 +1255,17 @@ namespace makefoxsrv
             }
         }
 
-        public async Task SetError(Exception ex, DateTime? RetryWhen = null, [CallerMemberName] string callerName = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
+        private enum errorType
+        {
+            SILENT,
+            FATAL,
+            FLOOD_WAIT,
+            SHUTDOWN,
+            OTHER
+        }
+
+        public async Task SetError(Exception ex, DateTime? retryWhen = null, [CallerMemberName] string callerName = "",
+                                   [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int lineNumber = 0)
         {
             if (this.status == QueueStatus.CANCELLED || this.stopToken.IsCancellationRequested)
             {
@@ -1263,17 +1274,20 @@ namespace makefoxsrv
                 return;
             }
 
+            //if (this.User is not null)
+            //    this.User.RecordError(ex);
+
             FoxLog.LogException(ex, null, callerName, callerFilePath, lineNumber);
 
             this.status = QueueStatus.ERROR;
             this.DateLastFailed = DateTime.Now;
             this.LastException = ex;
 
-            const int maxRetries = 4; // Set the max number of retries here
-
-            bool shouldRetry = true;
+            int maxRetries = FoxSettings.Get<int?>("MaxRetries") ?? 4;
+            int retryDelay = FoxSettings.Get<int?>("RetryDelaySec") ?? 5;
 
             // List of silent error strings. If any of these are encountered, the task will be retried immediately.
+
             var silentErrors = new List<string> {
                 "llocation on device",
                 "out of memory",
@@ -1281,7 +1295,7 @@ namespace makefoxsrv
                 "onnection refused",
                 "ould not connect to server",
                 "rror occurred while sending",
-                "rror while copying content to a stream"
+                "rror while copying content to a stream",
             };
 
             // List of fatal errors. If any of these are encountered, the task will not be retried.
@@ -1291,49 +1305,69 @@ namespace makefoxsrv
                 "CHAT_SEND_PHOTOS_FORBIDDEN"
             };
 
-            // Check if the error message contains any silent error strings
-            bool isSilentError = silentErrors.Any(silentError => ex.Message.Contains(silentError));
+            var messageBuilder = new StringBuilder();
+            errorType errorType = errorType.OTHER;
 
             // Check if the error message contains any silent error strings
-            bool isFatalError = fatalErrors.Any(fatalErrStr => ex.Message.Contains(fatalErrStr));
 
-            // Set retry date
-            if (isSilentError)
+            if (ex is OperationCanceledException)
             {
-                this.RetryDate = DateTime.Now.AddSeconds(1);
+                errorType = errorType.SHUTDOWN;
+                messageBuilder.Append($"⚠️ The server is restarting for maintenance.  This request will resume shortly.");
+            }
+            else if (ex is RpcException rex && rex.Code == 420)
+            {
+                var waitTime = TimeSpan.FromSeconds(rex.X);
+
+                this.RetryDate = DateTime.Now + waitTime;
+                errorType = errorType.FLOOD_WAIT;
+
+                messageBuilder.AppendLine($"❌ Telegram is currently reporting that you've exceeded the rate limit.  This rate limit is outside of our control.");
+                messageBuilder.AppendLine();
+                messageBuilder.AppendLine($"⏳ This request will resume in {waitTime.ToPrettyFormat()}.");
+            }
+            if (silentErrors.Any(silentError => ex.Message.Contains(silentError)))
+            {
+                errorType = errorType.SILENT;
+                messageBuilder.AppendLine("❌ This worker has experienced an error.");
+                messageBuilder.AppendLine();
+                messageBuilder.AppendLine("⏳ Your task is being reassigned and will resume soon.");
+            }
+            else if (fatalErrors.Any(fatalErrStr => ex.Message.Contains(fatalErrStr)))
+            {
+                errorType = errorType.FATAL;
+                this.status = QueueStatus.CANCELLED;
+
+                messageBuilder.AppendLine($"❌ Encountered a fatal error.  Task Cancelled.");
+                messageBuilder.AppendLine();
+                messageBuilder.AppendLine($"❌ Error: {ex.Message}");
             }
             else
             {
-                var retrySeconds = 5;
+                if (retryWhen is not null)
+                    this.RetryDate = retryWhen;
+                else
+                    this.RetryDate = DateTime.Now.AddSeconds(retryDelay);
 
-                if (ex is WTelegram.WTException tex) {
-                    if (tex is RpcException rex)
-                    {
-                        if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
-                        {
-                            // If the message matches, extract the number
-                            retrySeconds = rex.X;
-                        }
-                        else if (ex.Message == "USER_IS_BLOCKED")
-                        {
-                            await this.SetCancelled(true);
-
-                            return;
-                        }
-                    }
-                }
-
-                this.RetryDate = RetryWhen ?? DateTime.Now.AddSeconds(retrySeconds); // Use provided retry time for non-silent errors
                 this.RetryCount++;
             }
 
-            if (this.RetryCount >= maxRetries && !isSilentError) 
+            if (this.RetryCount > maxRetries && errorType != errorType.SILENT) 
             {
-                shouldRetry = false;
+                errorType = errorType.FATAL;
+                this.status = QueueStatus.CANCELLED;
+
+                messageBuilder.AppendLine($"❌ Maximum retries attempted.  Task Cancelled.");
+                messageBuilder.AppendLine();
+                messageBuilder.AppendLine("Error: {ex.Message}");
             }
 
-            if (isFatalError)
-                shouldRetry = false;
+            if (errorType == errorType.OTHER)
+            {
+                messageBuilder.AppendLine($"⏳ Encountered an error.  This request will retry shortly.");
+                messageBuilder.AppendLine();
+                messageBuilder.AppendLine("Error: {ex.Message}");
+            }
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -1341,77 +1375,35 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = $"UPDATE queue SET status = 'ERROR', error_str = @error, retry_date = @retry_date, retry_count = @retry_count, date_failed = @now WHERE id = @id";
+                    cmd.CommandText = $"UPDATE queue SET status = @status, error_str = @error, retry_date = @retry_date, retry_count = @retry_count, date_failed = @now WHERE id = @id";
                     cmd.Parameters.AddWithValue("id", this.ID);
-                    cmd.Parameters.AddWithValue("retry_date", RetryWhen);
+                    cmd.Parameters.AddWithValue("retry_date", RetryDate);
                     cmd.Parameters.AddWithValue("retry_count", RetryCount);
                     cmd.Parameters.AddWithValue("error", ex.Message);
                     cmd.Parameters.AddWithValue("now", this.DateLastFailed);
+                    cmd.Parameters.AddWithValue("status", this.status);
+
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
 
-            try
+            switch (errorType)
             {
-                if (Telegram is not null)
-                {
-                    var messageBuilder = new StringBuilder();
-
-                    if (ex is OperationCanceledException)
-                    {
-                        shouldRetry = true;
-                        isFatalError = false;
-                        RetryDate = null;
-                        messageBuilder.Append($"⚠️ The server is restarting for maintenance.  This request will resume shortly.");
-                    }
-                    else
-                    {
-
-                        if (isFatalError)
-                        {
-                            messageBuilder.Append($"❌ Encountered a fatal error.");
-                        }
-                        else if (!shouldRetry)
-                        {
-                            messageBuilder.Append($"❌ Encountered an error.  Giving up after {this.RetryCount} attempts.");
-                        }
-                        else
-                        {
-                            messageBuilder.Append($"⏳ Encountered an error. ");
-                        }
-
-                        if (shouldRetry)
-                        {
-                            if (this.RetryDate is not null)
-                            {
-                                TimeSpan delay = this.RetryDate.Value - DateTime.Now;
-
-                                messageBuilder.Append($"Retrying in {delay.TotalSeconds:F0} seconds. ({this.RetryCount}/{maxRetries})");
-                            }
-                            else
-                            {
-                                messageBuilder.Append($"Retrying... ({this.RetryCount}/{maxRetries})");
-                            }
-                        }
-
-                        if (!isSilentError)
-                        {
-                            messageBuilder.Append($"\n\n{ex.Message}");
-                        }
-                    }
-
-                    if (shouldRetry)
+                case errorType.SILENT:                
+                case errorType.FLOOD_WAIT:
+                case errorType.OTHER:
+                    try
                     {
                         var inlineKeyboardButtons = new ReplyInlineMarkup()
                         {
                             rows = new TL.KeyboardButtonRow[] {
-                                new TL.KeyboardButtonRow {
-                                    buttons = new TL.KeyboardButtonCallback[]
-                                    {
-                                        new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes("/cancel " + this.ID) },
+                                    new TL.KeyboardButtonRow {
+                                        buttons = new TL.KeyboardButtonCallback[]
+                                        {
+                                            new TL.KeyboardButtonCallback { text = "Cancel", data = System.Text.Encoding.ASCII.GetBytes("/cancel " + this.ID) },
+                                        }
                                     }
                                 }
-                            }
                         };
 
                         await Telegram.EditMessageAsync(
@@ -1420,26 +1412,29 @@ namespace makefoxsrv
                             replyInlineMarkup: inlineKeyboardButtons
                         );
                     }
-                    else
+                    catch when (ex.Message != "MESSAGE_NOT_MODIFIED")
                     {
-                        _ = Telegram.EditMessageAsync(
+                        FoxLog.LogException(ex);
+                    }
+                    
+                    await Enqueue(this, (errorType == errorType.SILENT));
+
+                    break;
+                case errorType.SHUTDOWN:
+                case errorType.FATAL:
+                    try
+                    {
+                        await Telegram.EditMessageAsync(
                             id: MessageID,
                             text: messageBuilder.ToString()
                         );
                     }
-                }
-            }
-            catch (Exception ex2)
-            {
-                // Log the exception but ignore it
-                FoxLog.LogException(ex2);
-            }
+                    catch when (ex.Message != "MESSAGE_NOT_MODIFIED")
+                    {
+                        FoxLog.LogException(ex);
+                    }
 
-            if (shouldRetry)
-            {
-                await Enqueue(this, isSilentError);
-            } else {
-                await this.SetCancelled(true);
+                    break;
             }
         }
 

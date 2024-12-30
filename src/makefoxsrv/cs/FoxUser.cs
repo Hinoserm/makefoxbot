@@ -91,8 +91,9 @@ namespace makefoxsrv
                         SELECT date,exception_json
                         FROM log
                         WHERE user_id = @uid
-                          AND tele_chatid IS NULL
                           AND date >= @since
+                          AND tele_chatid IS NULL
+                          AND type = 'ERROR'
                           AND message LIKE '%FLOOD_WAIT_X%'
                         ORDER BY date DESC
                         LIMIT 1";

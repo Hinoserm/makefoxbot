@@ -165,7 +165,7 @@ namespace makefoxsrv
 
         public IProgress? Progress = null;
 
-        //public string? LastUsedModel { get; private set; } = null;
+        public string? LastUsedModel { get; private set; } = null;
         public List<string> LoadedModels = new List<string>();
 
         //public Dictionary<string, int> availableModels { get; private set; } = new Dictionary<string, int>();
@@ -876,6 +876,34 @@ namespace makefoxsrv
             return progressCTS;
         }
 
+        public async Task<List<String>> UpdateLoadedModels()
+        {
+            if (Online && api is not null)
+            {
+                try
+                {
+                    string[] loadedModels = await api.LoadedModels();
+
+                    if (loadedModels is not null)
+                        LoadedModels = loadedModels.ToList();
+                }
+                catch
+                {
+                    // Use our best guess; the last used model.
+
+                    if (LastUsedModel is not null)
+                        LoadedModels = new List<string>() { LastUsedModel };
+                }
+            }
+
+            if (LoadedModels.Count() > 0)
+                FoxLog.WriteLine($"Worker {this.name} reports these models loaded: " + string.Join(", ", LoadedModels));
+            else
+                FoxLog.WriteLine($"Worker {this.name} reports no models loaded.");
+
+            return LoadedModels;
+        }
+
         private async Task Start()
         {
             var cts = CancellationTokenSource.CreateLinkedTokenSource(stopToken.Token);
@@ -904,6 +932,8 @@ namespace makefoxsrv
                 try
                 {
                     Online = await ConnectAPI(false) is not null;
+
+                    await this.UpdateLoadedModels();
 
                     while (!cts.IsCancellationRequested)
                     {
@@ -976,25 +1006,10 @@ namespace makefoxsrv
                             {
                                 
                                 this.LastActivity = DateTime.Now;
-                                string? lastUsedModel = qItem.Settings?.model;
 
                                 await ProcessTask(cts.Token);
 
-                                try
-                                {
-                                    string[] loadedModels = await api.LoadedModels();
-
-                                    if (loadedModels is not null)
-                                        LoadedModels = loadedModels.ToList();
-                                }
-                                catch (Exception ex)
-                                {
-                                    //FoxLog.LogException(ex);
-                                    if (lastUsedModel is not null)
-                                        LoadedModels = new List<string>() { lastUsedModel };
-                                }
-
-                                FoxLog.WriteLine($"Worker {this.name} reports these models loaded: " + string.Join(", ", LoadedModels));
+                                await this.UpdateLoadedModels();
 
                                 if (qItem is not null)
                                 {
@@ -1091,7 +1106,7 @@ namespace makefoxsrv
                 if (!LoadedModels.Contains(settings.model))
                     FoxLog.WriteLine($"Switching model on {this.name} to {settings.model}", LogLevel.INFO);
 
-                //this.LastUsedModel = settings.model;
+                this.LastUsedModel = settings.model;
 
                 Byte[] outputImage;
 
@@ -1115,7 +1130,7 @@ namespace makefoxsrv
                     (maskImage, img) = GenerateMask(inputImage, settings.width, settings.height);
 
                     progressCTS = StartProgressMonitor(
-                        qItem: qItem, 
+                        qItem: qItem,
                         cancellationToken: ctsLoop.Token,
                         manualScale: maskImage is null ? 1 : 2,
                         startScale: 0
@@ -1277,58 +1292,42 @@ namespace makefoxsrv
                     FoxLog.LogException(ex2, $"Error running OnTaskError: {ex2.Message}");
                 }
             }
-            catch (WTelegram.WTException ex)
+            catch (RpcException rex) when (rex.Code == 420)
             {
-                //If we can't edit, we probably hit a rate limit with this user.
-
-                if (ex is RpcException rex)
+                if (qItem is not null)
                 {
-                    if ((ex.Message.EndsWith("_WAIT_X") || ex.Message.EndsWith("_DELAY_X")))
+                    try
                     {
-                        // If the message matches, extract the number
-                        int retryAfterSeconds = rex.X;
-                        //FoxLog.WriteLine($"Worker {ID} - Queue ID {qItem?.ID} User {qItem?.User?.UID} - Rate limit exceeded. Trying again after {retryAfterSeconds} seconds.");
-
-                        FoxLog.LogException(ex, $"Rate limit exceeded (X={rex.X}): {ex.Message}");
-
-                        if (qItem is not null)
-                        {
-                            try
-                            {
-                                await qItem.SetError(ex);
-                                OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
-                            } catch (Exception ex2)
-                            {
-                                FoxLog.LogException(ex2, $"Error running OnTaskError: {ex2.Message}");
-                            }
-                            //_ = FoxQueue.Enqueue(qItem);
-                        }
+                        await qItem.SetError(rex);
+                        OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, rex));
                     }
-                    else if (ex.Message == "INPUT_USER_DEACTIVATED")
+                    catch (Exception ex2)
                     {
-                        //FoxLog.WriteLine($"Worker {ID} - User deactivated. Stopping task.");
-                        FoxLog.LogException(ex, $"User deactivated. Stopping task.  Error: {ex.Message}");
-
-                        if (qItem is not null)
-                        {
-                            try
-                            {
-                                await qItem.SetCancelled();
-                                OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
-                            } catch (Exception ex2)
-                            {
-                                FoxLog.LogException(ex2, $"Error running OnTaskCancelled: {ex2.Message}");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        FoxLog.LogException(ex, $"Telegram Error (X={rex.X}): {ex.Message}");
-                        await HandleError(ex);
+                        FoxLog.LogException(ex2, $"Error running OnTaskError: {ex2.Message}");
                     }
                 }
-                else //We don't care about other telegram errors, but log them for debugging purposes.
-                    FoxLog.LogException(ex, $"Telegram Error: {ex.Message}");
+            }
+            catch (WTelegram.WTException ex) when (ex.Message == "INPUT_USER_DEACTIVATED" || ex.Message == "USER_IS_BLOCKED")
+            {
+                FoxLog.LogException(ex, $"User blocked or deactivated.  Cancelling task.  Error: {ex.Message}");
+
+                if (qItem is not null)
+                {
+                    try
+                    {
+                        await qItem.SetCancelled();
+                        OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
+                    }
+                    catch (Exception ex2)
+                    {
+                        FoxLog.LogException(ex2, $"Error running OnTaskCancelled: {ex2.Message}");
+                    }
+                }
+            }
+            catch (RpcException ex)
+            {
+                FoxLog.LogException(ex);
+                await HandleError(ex);
             }
             catch (OperationCanceledException ex)
             {
