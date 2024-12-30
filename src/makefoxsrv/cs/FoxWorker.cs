@@ -165,7 +165,8 @@ namespace makefoxsrv
 
         public IProgress? Progress = null;
 
-        public string? LastUsedModel { get; private set; } = null;
+        //public string? LastUsedModel { get; private set; } = null;
+        public List<string> LoadedModels = new List<string>();
 
         //public Dictionary<string, int> availableModels { get; private set; } = new Dictionary<string, int>();
 
@@ -279,14 +280,18 @@ namespace makefoxsrv
         }
 
 
-        public static async Task<String?> GetWorkerName(int? worker_id)
+        public static async Task<String> GetWorkerName(int? worker_id)
         {
             if (worker_id is null)
-                return null;
+                return "Unknown Worker " + worker_id;
+
+            var findWorker = workers.FirstOrDefault(w => w.Key == worker_id);
+
+            if (findWorker.Value is not null)
+                return findWorker.Value.name;
 
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
             await SQL.OpenAsync();
-
 
             using (var cmd = new MySqlCommand())
             {
@@ -296,10 +301,15 @@ namespace makefoxsrv
                 var result = await cmd.ExecuteScalarAsync();
 
                 if (result is not null && result is not DBNull)
-                    return Convert.ToString(result);
+                {
+                    var workerName = Convert.ToString(result);
+
+                    if (!string.IsNullOrEmpty(workerName))
+                        return workerName;
+                }
             }
 
-            return null;
+            return "Unknown Worker " + worker_id;
         }
 
         public static async Task LoadWorkers(CancellationToken cancellationToken)
@@ -966,7 +976,25 @@ namespace makefoxsrv
                             {
                                 
                                 this.LastActivity = DateTime.Now;
+                                string? lastUsedModel = qItem.Settings?.model;
+
                                 await ProcessTask(cts.Token);
+
+                                try
+                                {
+                                    string[] loadedModels = await api.LoadedModels();
+
+                                    if (loadedModels is not null)
+                                        LoadedModels = loadedModels.ToList();
+                                }
+                                catch (Exception ex)
+                                {
+                                    FoxLog.LogException(ex);
+                                    if (lastUsedModel is not null)
+                                        LoadedModels = new List<string>() { lastUsedModel };
+                                }
+
+                                FoxLog.WriteLine($"Worker {this.name} reports these models loaded: " + string.Join(", ", LoadedModels));
 
                                 if (qItem is not null)
                                 {
@@ -1059,10 +1087,15 @@ namespace makefoxsrv
 
                 var settings = qItem.Settings.Copy();
 
-                if (LastUsedModel != settings.model)
-                    FoxLog.WriteLine($"Switching model on {this.name} from {LastUsedModel ?? "(none)"} to {settings.model}", LogLevel.DEBUG);
+                // Check if settings.model is in LoadedModels
+                if (!LoadedModels.Contains(settings.model))
+                {
+                    FoxLog.WriteLine($"Switching model on {this.name} to {settings.model}", LogLevel.INFO);
 
-                this.LastUsedModel = settings.model;
+                    LoadedModels.Add(settings.model);
+                }
+
+                //this.LastUsedModel = settings.model;
 
                 Byte[] outputImage;
 
@@ -1070,8 +1103,6 @@ namespace makefoxsrv
 
                 if (generationType == FoxQueue.QueueType.IMG2IMG)
                 {
-                    
-
                     FoxImage? inputImage = await qItem.GetInputImage();
 
                     if (inputImage is null || inputImage.Image is null)

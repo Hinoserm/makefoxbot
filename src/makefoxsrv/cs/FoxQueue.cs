@@ -478,13 +478,6 @@ namespace makefoxsrv
                             && t.ID != item.ID) // exclude current task
                 .ToList();
 
-            bool ModelHasUpcomingTasks(string? modelName)
-            {
-                if (string.IsNullOrEmpty(modelName))
-                    return false;
-                return futureTasks.Any(f => f.Settings.model == modelName);
-            }
-
             // 6. Identify workers that already have the requested model loaded
             var workersRunningThisModel = model.GetWorkersRunningModel();
             var hasModelLoaded = suitableWorkers
@@ -493,7 +486,7 @@ namespace makefoxsrv
 
             // 7. Idle workers already loaded with this model
             var idleWorkersWithModel = hasModelLoaded
-                .Where(w => w.LastUsedModel == item.Settings.model && w.qItem == null)
+                .Where(w => w.LoadedModels.Contains(item.Settings.model) && w.qItem == null)
                 .ToList();
 
             if (idleWorkersWithModel.Any())
@@ -501,7 +494,7 @@ namespace makefoxsrv
 
             // 8. Idle workers with no model loaded
             var idleWorkersWithNoModel = hasModelLoaded
-                .Where(w => w.LastUsedModel == null && w.qItem == null)
+                .Where(w => w.LoadedModels.Count() == 0 && w.qItem == null)
                 .ToList();
 
             if (idleWorkersWithNoModel.Any())
@@ -521,50 +514,6 @@ namespace makefoxsrv
                 //FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}. ({modelWaitingTime.TotalSeconds}s)", LogLevel.DEBUG);
                 return null;
             }
-
-            // 11. If no idle worker has this model, we must switch a worker’s model. 
-            //     Avoid switching off a model that is needed soon or only on a single worker.
-
-            // Build a dictionary of how often each model is in future tasks
-            var modelDemand = futureTasks
-                .GroupBy(f => f.Settings.model)
-                .ToDictionary(g => g.Key!, g => g.Count());
-
-            // Group idle workers by their current model (coalesced to "<none>")
-            var idleWorkers = suitableWorkers.Where(w => w.qItem == null).ToList();
-            var groupedByModel = idleWorkers
-                .GroupBy(w => w.LastUsedModel ?? "<none>")
-                .ToDictionary(g => g.Key, g => g.ToList());
-
-            // Candidates: idle workers NOT on the requested model
-            var switchCandidates = idleWorkers
-                .Where(w => w.LastUsedModel != item.Settings.model)
-                .ToList();
-
-            // 12. Sort the switch candidates
-            //  - duplicate model? (we can free one up)
-            //  - low future demand?
-            //  - not needed in upcoming tasks?
-            //  - least recently active?
-            var candidateSorted = switchCandidates
-                .OrderByDescending(w =>
-                    groupedByModel.ContainsKey((w.LastUsedModel ?? "<none>")) &&
-                    groupedByModel[(w.LastUsedModel ?? "<none>")].Count > 1)
-                .ThenBy(w =>
-                {
-                    var modelName = w.LastUsedModel ?? "";
-                    return modelDemand.TryGetValue(modelName, out int demand) ? demand : 0;
-                })
-                .ThenBy(w =>
-                {
-                    var modelName = w.LastUsedModel ?? "";
-                    return ModelHasUpcomingTasks(modelName);
-                })
-                .ThenBy(w => w.LastActivity)
-                .ToList();
-
-            if (candidateSorted.Any())
-                return candidateSorted.First();
 
             // 13. Fallback: any other idle worker
             var availableSuitableWorkers = suitableWorkers

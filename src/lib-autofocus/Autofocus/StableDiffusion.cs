@@ -148,6 +148,15 @@ public class StableDiffusion
         ))!;
     }
 
+    public async Task<string[]> LoadedModels(CancellationToken cancellationToken = default)
+    {
+        return (await FastHttpClient.GetFromJsonAsync<string[]>(
+            "/loaded-models",
+            SerializerOptions,
+            cancellationToken
+        ))!;
+    }
+
     public async Task<IReadOnlyList<string>> PendingTasks(CancellationToken cancellationToken = default)
     {
         return (await FastHttpClient.GetFromJsonAsync<PendingTaskListResponse>(

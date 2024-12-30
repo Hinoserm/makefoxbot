@@ -757,7 +757,7 @@ namespace makefoxsrv
 
                 if (q.WorkerID is not null)
                 {
-                    string workerName = await FoxWorker.GetWorkerName(q.WorkerID) ?? "(unknown)";
+                    string workerName = await FoxWorker.GetWorkerName(q.WorkerID);
                     sb.AppendLine($"👷Worker: {workerName}");
                 }
 
