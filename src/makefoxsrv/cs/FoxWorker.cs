@@ -902,9 +902,9 @@ namespace makefoxsrv
             }
 
             if (LoadedModels.Count() > 0)
-                FoxLog.WriteLine($"Worker {this.name} reports these models loaded: " + string.Join(", ", LoadedModels));
+                FoxLog.WriteLine($"Worker {this.name} reports these models loaded: " + string.Join(", ", LoadedModels), LogLevel.DEBUG);
             else
-                FoxLog.WriteLine($"Worker {this.name} reports no models loaded.");
+                FoxLog.WriteLine($"Worker {this.name} reports no models loaded.", LogLevel.DEBUG);
 
             return LoadedModels;
         }
@@ -1109,7 +1109,7 @@ namespace makefoxsrv
 
                 // Check if settings.model is in LoadedModels
                 if (!LoadedModels.Contains(settings.model))
-                    FoxLog.WriteLine($"Switching model on {this.name} to {settings.model}", LogLevel.INFO);
+                    FoxLog.WriteLine($"Switching model on {this.name} to {settings.model}", LogLevel.DEBUG);
 
                 this.LastUsedModel = settings.model;
 

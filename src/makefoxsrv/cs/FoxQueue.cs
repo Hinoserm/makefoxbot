@@ -29,14 +29,15 @@ namespace makefoxsrv
 {
     internal partial class FoxQueue
     {
-        public enum QueueStatus
+        public enum QueueStatus //'PAUSED','CANCELLED','PENDING','PROCESSING','PROCESSED','SENDING','FINISHED','ERROR'
         {
             PAUSED,
+            CANCELLED,
             PENDING,
             PROCESSING,
+            PROCESSED,
             SENDING,
             FINISHED,
-            CANCELLED,
             ERROR            
         }
         public enum QueueType
@@ -455,10 +456,10 @@ namespace makefoxsrv
             {
                 var timeInQueue = DateTime.Now - item.DateCreated;
 
-                // Wait up to 5 minutes to reuse a compatible worker.
+                // Wait up to 10 minutes to reuse a compatible worker.
                 // After that, take whatever we can get.
 
-                if (timeInQueue.TotalMinutes < 5)
+                if (timeInQueue.TotalMinutes < 10)
                 {
                     var gpuType = item.Worker?.GPUType;
 
@@ -550,7 +551,7 @@ namespace makefoxsrv
                         LEFT JOIN telegram_users tu ON tu.id = q.tele_id
                         LEFT JOIN telegram_chats tc ON tc.id = q.tele_chatid
                         WHERE 
-                            q.status IN ('PENDING', 'ERROR', 'PROCESSING', 'SENDING')
+                            q.status IN ('PENDING', 'ERROR', 'PROCESSING', 'PROCESSED', 'SENDING')
                         ORDER BY 
                             q.date_added ASC
                         ";
@@ -1383,7 +1384,7 @@ namespace makefoxsrv
                     cmd.Parameters.AddWithValue("retry_count", RetryCount);
                     cmd.Parameters.AddWithValue("error", ex.Message);
                     cmd.Parameters.AddWithValue("now", this.DateLastFailed);
-                    cmd.Parameters.AddWithValue("status", this.status);
+                    cmd.Parameters.AddWithValue("status", this.status.ToString());
 
                     await cmd.ExecuteNonQueryAsync();
                 }
