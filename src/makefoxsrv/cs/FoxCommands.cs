@@ -387,6 +387,9 @@ namespace makefoxsrv
                 case "#rotate":
                     await FoxLog.LogRotator.Rotate();
                     break;
+                case "#forward":
+                    await FoxAdmin.HandleForward(t, message, commandArgs);
+                    break;
 
                 default:
                     await t.SendMessageAsync(

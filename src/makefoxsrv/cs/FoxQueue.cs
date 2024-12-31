@@ -1328,6 +1328,8 @@ namespace makefoxsrv
                 messageBuilder.AppendLine($"❌ Telegram is currently reporting that you've exceeded the rate limit.  This rate limit is outside of our control.");
                 messageBuilder.AppendLine();
                 messageBuilder.AppendLine($"⏳ This request will resume in {waitTime.ToPrettyFormat()}.");
+
+                this.RetryCount++;
             }
             if (silentErrors.Any(silentError => ex.Message.Contains(silentError)))
             {
