@@ -587,10 +587,10 @@ namespace makefoxsrv
         public static async Task HandleForward(FoxTelegram telegram, Message message, string? argument)
         {
             // We need to turn the argument into an int number of days
-            if (String.IsNullOrEmpty(argument) || !int.TryParse(argument, out int days))
+            if (String.IsNullOrEmpty(argument))
             {
                 await telegram.SendMessageAsync(
-                    text: "❌ You must provide a number of days. Format:\r\n\r\n  /admin #forward <days>",
+                    text: "❌ You must provide a duration. Format:\r\n\r\n  /admin #forward <days> days",
                     replyToMessageId: message.ID
                 );
                 return;
@@ -605,6 +605,16 @@ namespace makefoxsrv
                 return;
             }
 
+            if (!FoxStrings.TryParseDuration(argument, out var duration))
+            {
+                await telegram.SendMessageAsync(
+                    text: "❌ Invalid duration. Format:\r\n\r\n  /admin #forward <days> days",
+                    replyToMessageId: message.ID
+                );
+                return;
+            }
+
+
             int forwardMsgId = message.ReplyHeader.reply_to_msg_id;
 
             var activeUsers = new List<long>();
@@ -618,12 +628,12 @@ namespace makefoxsrv
                     SELECT id
                     FROM users
                     WHERE
-                       date_last_seen >= NOW() - INTERVAL @days DAY
+                       date_last_seen >= @date
                        AND access_level != 'BANNED'";
 
                 using (var userCommand = new MySqlCommand(userQuery, connection))
                 {
-                    userCommand.Parameters.AddWithValue("@days", days);
+                    userCommand.Parameters.AddWithValue("@date", DateTime.Now - duration);
 
                     using (var reader = await userCommand.ExecuteReaderAsync())
                     {

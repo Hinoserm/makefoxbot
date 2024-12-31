@@ -18,6 +18,64 @@ namespace makefoxsrv
             });
         }
 
+        public static bool TryParseDuration(string argument, out TimeSpan timeSpan)
+        {
+            timeSpan = TimeSpan.Zero;
+
+            try
+            {
+                // Regex to handle formats like "1y5m1d4h33s", "1 day 45 minutes", "1d 4m", "1d4m", etc.
+                var matches = Regex.Matches(argument, @"(\d+)\s*(y|years?|mo|months?|d|days?|h|hours?|m|minutes?|s|seconds?)", RegexOptions.IgnoreCase);
+
+                foreach (Match match in matches)
+                {
+                    var value = int.Parse(match.Groups[1].Value);
+                    var unit = match.Groups[2].Value.ToLower();
+
+                    switch (unit)
+                    {
+                        case "y":
+                        case "year":
+                        case "years":
+                            timeSpan += TimeSpan.FromDays(value * 365); // Approximate year as 365 days
+                            break;
+                        case "mo":
+                        case "month":
+                        case "months":
+                            timeSpan += TimeSpan.FromDays(value * 30); // Approximate month as 30 days
+                            break;
+                        case "d":
+                        case "day":
+                        case "days":
+                            timeSpan += TimeSpan.FromDays(value);
+                            break;
+                        case "h":
+                        case "hour":
+                        case "hours":
+                            timeSpan += TimeSpan.FromHours(value);
+                            break;
+                        case "m":
+                        case "minute":
+                        case "minutes":
+                            timeSpan += TimeSpan.FromMinutes(value);
+                            break;
+                        case "s":
+                        case "second":
+                        case "seconds":
+                            timeSpan += TimeSpan.FromSeconds(value);
+                            break;
+                    }
+                }
+
+                return timeSpan > TimeSpan.Zero; // Ensure at least one valid match
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+
         public static string GenerateTestString(int length)
         {
             if (length < 0)
