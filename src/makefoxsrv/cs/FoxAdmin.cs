@@ -551,13 +551,15 @@ namespace makefoxsrv
                         {
                             long id = reader.GetInt64("id");
                             DateTime date = reader.GetDateTime("date");
-                            decimal amount = reader.GetInt32("amount") / 100m; // Convert cents to decimal format
-                            total += amount;
                             int days = reader.GetInt32("days");
                             string currency = reader.GetString("currency");
                             string provider = reader.GetString("type");
 
-                            payments.Add((id, date, amount, days, currency, provider));
+                            int inAmount = reader.GetInt32("amount");
+                            double amount = currency == "XTR" ? inAmount * 0.013 : inAmount / 100; // Convert cents to decimal format
+                            total += (decimal)amount;
+
+                            payments.Add((id, date, (decimal)amount, days, currency, provider));
                         }
                     }
                 }
