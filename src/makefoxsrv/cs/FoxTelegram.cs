@@ -290,8 +290,11 @@ namespace makefoxsrv
                 }
             }
 
-            if (accessHash is null)
+            if (accessHash is null || accessHash == 0)
+            {
+                FoxLog.WriteLine($"Telegram user {id} is missing access hash!", LogLevel.ERROR);
                 return null;
+            }
 
             return new() { id = id, access_hash = accessHash.Value, first_name = firstName, last_name = lastName, username = userName };
         }

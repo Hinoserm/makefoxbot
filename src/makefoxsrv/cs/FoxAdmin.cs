@@ -648,15 +648,16 @@ namespace makefoxsrv
                 try
                 {
                     var user = await FoxUser.GetByUID(uid);
+                    FoxContextManager.Current.User = user;
+
                     var teleUser = user?.TelegramID is not null ? await FoxTelegram.GetUserFromID(user.TelegramID.Value) : null;
                     var t = teleUser is not null ? new FoxTelegram(teleUser, null) : null;
 
-                    FoxContextManager.Current.User = user;
                     FoxContextManager.Current.Telegram = t;
 
                     TL.Message? msg = null;
 
-                    if (t is null)
+                    if (teleUser is null || t is null) 
                         continue; //Nothing we can do here.
 
                     TL.InputPeer inputPeer = telegram.Peer;
