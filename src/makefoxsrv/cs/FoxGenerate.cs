@@ -52,7 +52,7 @@ namespace makefoxsrv
 
             var floodWait = await user.GetFloodWait();
 
-            if (floodWait is not null && floodWait >= DateTime.Now)
+            if (t.Chat is null && floodWait is not null && floodWait >= DateTime.Now)
             {
                 TimeSpan waitTime = floodWait.Value - DateTime.Now;
 
