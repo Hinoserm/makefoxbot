@@ -876,7 +876,7 @@ namespace makefoxsrv
         {
             try
             {
-                if (this.UserNotifyTimer.ElapsedMilliseconds >= 6000 && this.Telegram is not null && this.Telegram.Chat is null)
+                if (this.UserNotifyTimer.ElapsedMilliseconds >= 8000 && this.Telegram is not null && this.Telegram.Chat is null)
                 {
                     //Due to the stricter rate limits on editing messages in groups, we only notify the user in private chats.
 
