@@ -30,11 +30,11 @@ namespace makefoxsrv
         }        
 
         public TL.ChatBase? Chat { get => _chat; }
-        public TL.InputPeer? Peer { get => _peer; }
+        public TL.InputPeer Peer { get => _peer; }
 
-        private TL.User? _user;
+        private TL.User _user;
         private TL.ChatBase? _chat;
-        private TL.InputPeer? _peer;
+        private TL.InputPeer _peer;
 
         private long _userId;
         private long? _chatId;

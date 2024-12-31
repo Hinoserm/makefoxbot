@@ -659,7 +659,9 @@ namespace makefoxsrv
                     if (t is null)
                         continue; //Nothing we can do here.
 
-                    await FoxTelegram.Client.ForwardMessagesAsync(telegram.User, new int[] { forwardMsgId }, teleUser, drop_author: true);
+                    TL.InputPeer inputPeer = telegram.Peer;
+
+                    await FoxTelegram.Client.ForwardMessagesAsync(inputPeer, new int[] { forwardMsgId }, teleUser, drop_author: true);
 
                     count++;
                 }
