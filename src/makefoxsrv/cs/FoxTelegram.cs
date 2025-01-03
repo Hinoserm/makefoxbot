@@ -626,7 +626,7 @@ namespace makefoxsrv
             }
         }
 
-        private static async Task UpdateTelegramUsername(TL.User user, UpdateUserName newUserInfo)
+        private static async Task HandleUpdateUsername(TL.User user, UpdateUserName newUserInfo)
         {
             try
             {
@@ -796,7 +796,7 @@ namespace makefoxsrv
                             case UpdateUserName uun:
                                 user = new TL.User { id = uun.user_id };
 
-                                _ = UpdateTelegramUsername(user, uun);
+                                _ = HandleUpdateUsername(user, uun);
                                 break;
                             default:
                                 FoxLog.WriteLine("Unexpected update type from Telegram: " + update.GetType().Name);
