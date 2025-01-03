@@ -226,7 +226,7 @@ namespace makefoxsrv
                     }));
                 }
 
-                using var image2 = addWatermark ? FoxWatermark.ApplyWatermark(image) : image.Clone();
+                using var image2 = image.Clone();
 
                 image2.SaveAsJpeg(outputStream, new JpegEncoder { Quality = quality });
                 outputStream.Position = 0;
