@@ -332,17 +332,22 @@ namespace makefoxsrv
 
         public async Task SetUsername(string newUsername)
         {
-            this.Username = newUsername;
+            // Don't bother updating if it didn't change.
 
-            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            if (this.Username is null || newUsername != this.Username)
             {
-                await SQL.OpenAsync();
+                this.Username = newUsername;
 
-                using (var updateCmd = new MySqlCommand("UPDATE users SET username = @username WHERE id = @uid", SQL))
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
-                    updateCmd.Parameters.AddWithValue("@username", newUsername);
-                    updateCmd.Parameters.AddWithValue("@uid", this.UID);
-                    await updateCmd.ExecuteNonQueryAsync();
+                    await SQL.OpenAsync();
+
+                    using (var updateCmd = new MySqlCommand("UPDATE users SET username = @username WHERE id = @uid", SQL))
+                    {
+                        updateCmd.Parameters.AddWithValue("@username", newUsername);
+                        updateCmd.Parameters.AddWithValue("@uid", this.UID);
+                        await updateCmd.ExecuteNonQueryAsync();
+                    }
                 }
             }
         }

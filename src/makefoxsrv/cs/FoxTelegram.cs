@@ -626,16 +626,24 @@ namespace makefoxsrv
             }
         }
 
-        private static async Task UpdateTelegramUsername(TL.User? user, UpdateUserName newUserInfo)
+        private static async Task UpdateTelegramUsername(TL.User user, UpdateUserName newUserInfo)
         {
             try
             {
-                var fUser = user is null ? null : await FoxUser.GetByTelegramUser(user, false);
-                var userName = newUserInfo.usernames.First().username;
+                var fUser = await FoxUser.GetByTelegramUser(user, false);
+
+                // Find the first active username.
+                TL.Username? activeUserName = newUserInfo.usernames.FirstOrDefault(u => u.flags.HasFlag(Username.Flags.active));
+                if (activeUserName is null)
+                    activeUserName = newUserInfo.usernames.FirstOrDefault();
+
+                string? userName = activeUserName?.username ?? null;
+                string? firstName = string.IsNullOrEmpty(newUserInfo.first_name) ? null : newUserInfo.first_name;
+                string? lastName = string.IsNullOrEmpty(newUserInfo.last_name) ? null : newUserInfo.last_name;
 
                 FoxContextManager.Current = new FoxContext
                 {
-                    Telegram = user is null ? null : new FoxTelegram(user, null),
+                    Telegram = new FoxTelegram(user, null),
                     User = fUser
                 };
 
@@ -657,7 +665,7 @@ namespace makefoxsrv
                 if (fUser is not null)
                     await fUser.SetUsername(userName);
 
-                FoxLog.WriteLine(ReplaceNonPrintableCharacters($"Updated username for {user.ID} to {userName}"));
+                FoxLog.WriteLine(ReplaceNonPrintableCharacters($"Updated username for {user.id} to {userName}"));
             }
             catch (Exception ex)
             {
@@ -786,7 +794,8 @@ namespace makefoxsrv
                                 //User has read our messages (and we're an admin in the channel)
                                 break;
                             case UpdateUserName uun:
-                                updates.Users.TryGetValue(uun.user_id, out user);
+                                user = new TL.User { id = uun.user_id };
+
                                 _ = UpdateTelegramUsername(user, uun);
                                 break;
                             default:
