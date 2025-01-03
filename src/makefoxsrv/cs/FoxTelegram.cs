@@ -563,6 +563,11 @@ namespace makefoxsrv
                         tlPeerID = unm.message?.Peer?.ID;
                         tlMsgID = unm.message?.ID;
                         break;
+                    case UpdateEditMessage uem:
+                        tlFromID = uem.message?.From?.ID;
+                        tlPeerID = uem.message?.Peer?.ID;
+                        tlMsgID = uem.message?.ID;
+                        break;
                     case UpdateBotMessageReaction ubmr:
                         tlFromID = ubmr.actor?.ID;
                         tlPeerID = ubmr.peer?.ID;
@@ -572,6 +577,10 @@ namespace makefoxsrv
                         tlFromID = ubcq.user_id;
                         tlPeerID = ubcq.peer.ID;
                         tlMsgID = ubcq.msg_id;
+                        break;
+                    case UpdateDeleteMessages udm:
+                        if (udm.messages.Count() == 1)
+                            tlMsgID = udm.messages.First();
                         break;
                 }
 
