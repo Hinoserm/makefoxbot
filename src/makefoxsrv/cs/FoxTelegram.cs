@@ -547,6 +547,60 @@ namespace makefoxsrv
             }
         }
 
+        private static async Task LogTelegramUpdate(TL.Update update)
+        {
+            try
+            {
+                long? tlFromID = null;
+                long? tlPeerID = null;
+                int? tlMsgID = null;
+
+
+                switch (update)
+                {
+                    case UpdateNewMessage unm:
+                        tlFromID = unm.message?.From?.ID;
+                        tlPeerID = unm.message?.Peer?.ID;
+                        tlMsgID = unm.message?.ID;
+                        break;
+                    case UpdateBotMessageReaction ubmr:
+                        tlFromID = ubmr.actor?.ID;
+                        tlPeerID = ubmr.peer?.ID;
+                        tlMsgID = ubmr.msg_id;
+                        break;
+                    case UpdateBotCallbackQuery ubcq:
+                        tlFromID = ubcq.user_id;
+                        tlPeerID = ubcq.peer.ID;
+                        tlMsgID = ubcq.msg_id;
+                        break;
+                }
+
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                {
+                    await SQL.OpenAsync();
+
+                    using (var cmd = new MySqlCommand())
+                    {
+                        cmd.Connection = SQL;
+                        cmd.CommandText = "INSERT INTO telegram_update_log (type, from_id, peer_id, message_id, update_json, date) VALUES (@type, @from_id, @peer_id, @msg_id, @json, @now)";
+                        cmd.Parameters.AddWithValue("type", update.GetType().Name);
+                        cmd.Parameters.AddWithValue("from_id", tlFromID);
+                        cmd.Parameters.AddWithValue("peer_id", tlPeerID);
+                        cmd.Parameters.AddWithValue("msg_id", tlMsgID);
+                        cmd.Parameters.AddWithValue("json", FoxStrings.SerializeToJson(update));
+                        cmd.Parameters.AddWithValue("now", DateTime.Now);
+
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex);
+            }
+        }
+
+
         private static async Task HandleUpdateAsync(UpdatesBase updates)
         {
             updates.CollectUsersChats(FoxTelegram.Users, FoxTelegram.Chats);
@@ -571,6 +625,8 @@ namespace makefoxsrv
 
                     try
                     {
+                        _= LogTelegramUpdate(update);
+
                         switch (update)
                         {
                             case UpdateNewAuthorization una:
