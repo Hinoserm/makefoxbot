@@ -582,6 +582,23 @@ namespace makefoxsrv
                         if (udm.messages.Count() == 1)
                             tlMsgID = udm.messages.First();
                         break;
+                    case UpdateUserName uun:
+                        tlFromID = uun.user_id;
+                        tlPeerID = uun.user_id;
+                        break;
+                    case UpdateUserEmojiStatus uues:
+                        tlFromID = uues.user_id;
+                        tlPeerID = uues.user_id;
+                        break;
+                    case UpdateUser uu:
+                        tlFromID = uu.user_id;
+                        tlPeerID = uu.user_id;
+                        break;
+                    case UpdateChannelMessageViews ucmv:
+                        tlPeerID = ucmv.channel_id;
+                        tlMsgID = ucmv.id;
+                        break;
+
                 }
 
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
