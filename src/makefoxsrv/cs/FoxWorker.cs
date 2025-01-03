@@ -370,7 +370,7 @@ namespace makefoxsrv
             }
         }
 
-        public static async Task StartWorkers()
+        public static void StartWorkers()
         {
             if (workers.Count() < 1)
                     throw new Exception("No workers available.");
@@ -378,7 +378,7 @@ namespace makefoxsrv
             foreach (var worker in workers.Values)
             {
 
-                _ = worker.Start();
+                worker.Start();
                 //_ = Task.Run(async () => await worker.Start());
 
                 FoxLog.WriteLine($"Worker {worker.ID} - Started.");
@@ -910,7 +910,7 @@ namespace makefoxsrv
             return LoadedModels;
         }
 
-        private async Task Start()
+        private void Start()
         {
             var cts = CancellationTokenSource.CreateLinkedTokenSource(stopToken.Token);
 
@@ -1109,10 +1109,10 @@ namespace makefoxsrv
                 var settings = qItem.Settings.Copy();
 
                 // Check if settings.model is in LoadedModels
-                if (!LoadedModels.Contains(settings.model))
-                    FoxLog.WriteLine($"Switching model on {this.name} to {settings.model}", LogLevel.DEBUG);
+                if (!LoadedModels.Contains(settings.Model))
+                    FoxLog.WriteLine($"Switching model on {this.name} to {settings.Model}", LogLevel.DEBUG);
 
-                this.LastUsedModel = settings.model;
+                this.LastUsedModel = settings.Model;
 
                 Byte[] outputImage;
 
@@ -1133,7 +1133,7 @@ namespace makefoxsrv
 
                     var maskSteps = qItem.User.CheckAccessLevel(AccessLevel.PREMIUM) ? 15 : 5;
 
-                    (maskImage, img) = GenerateMask(inputImage, settings.width, settings.height);
+                    (maskImage, img) = GenerateMask(inputImage, settings.Width, settings.Height);
 
                     progressCTS = StartProgressMonitor(
                         qItem: qItem,
@@ -1181,14 +1181,14 @@ namespace makefoxsrv
                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
                     //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
-                    var model = await api.StableDiffusionModel(settings.model, ctsLoop.Token);
+                    var model = await api.StableDiffusionModel(settings.Model, ctsLoop.Token);
                     //var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
                     //var sampler = await api.Sampler("Restart", ctsLoop.Token);
                     //var sampler = await api.Sampler(settings.model == "redwater_703" ? "DPM++ 2M Karras" : "Euler A", ctsLoop.Token);
-                    var sampler = await api.Sampler(settings.sampler);
+                    var sampler = await api.Sampler(settings.Sampler);
 
-                    var width = settings.width;
-                    var height = settings.height;
+                    var width = settings.Width;
+                    var height = settings.Height;
 
                     HighResConfig? hiResConfig = null;
 
@@ -1211,13 +1211,13 @@ namespace makefoxsrv
 
                         Prompt = new()
                         {
-                            Positive = settings.prompt,
-                            Negative = settings.negative_prompt,
+                            Positive = settings.Prompt ?? "",
+                            Negative = settings.NegativePrompt ?? "",
                         },
 
                         Seed = new()
                         {
-                            Seed = settings.seed,
+                            Seed = settings.Seed,
                             SubSeed = settings.variation_seed,
                             SubseedStrength = (double?)settings.variation_strength,
                         },
@@ -1229,7 +1229,7 @@ namespace makefoxsrv
                         {
                             Sampler = sampler,
                             SamplingSteps = settings.steps,
-                            CfgScale = (double)settings.cfgscale
+                            CfgScale = (double)settings.CFGScale
                         },
                         HighRes = hiResConfig
                     };
@@ -1269,7 +1269,8 @@ namespace makefoxsrv
 
                 try
                 {
-                    OnTaskCompleted?.Invoke(this, new TaskEventArgs(qItem));
+                    if (qItem is not null)
+                        OnTaskCompleted?.Invoke(this, new TaskEventArgs(qItem));
                 }
                 catch (Exception ex)
                 {
@@ -1288,9 +1289,14 @@ namespace makefoxsrv
                     }
                     else
                     {
-                        await qItem.SetError(ex);
+                        if (qItem is not null)
+                        {
+                            await qItem.SetError(ex);
 
-                        OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                            OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
+                        }
+
+
                     }
                 }
                 catch (Exception ex2)
@@ -1398,13 +1404,13 @@ namespace makefoxsrv
                 steps = hiresEnabled.Value ? (int)settings.hires_steps : settings.steps;
 
             if (denoisingStrength is null)
-                denoisingStrength = hiresEnabled.Value ? (double)settings.hires_denoising_strength : (double)settings.denoising_strength;
+                denoisingStrength = hiresEnabled.Value ? (double)settings.hires_denoising_strength : (double)settings.DenoisingStrength;
 
             if (this.api is null)
                 throw new Exception("API not currently available");
 
-            var model = await api.StableDiffusionModel(settings.model, cancellationToken);
-            var sampler = await api.Sampler(settings.sampler);
+            var model = await api.StableDiffusionModel(settings.Model, cancellationToken);
+            var sampler = await api.Sampler(settings.Sampler);
 
             var img = new Base64EncodedImage(inputImage);
 
@@ -1416,32 +1422,32 @@ namespace makefoxsrv
 
                 Prompt = new()
                 {
-                    Positive = settings.prompt ?? "",
-                    Negative = settings.negative_prompt ?? "",
+                    Positive = settings.Prompt ?? "",
+                    Negative = settings.NegativePrompt ?? "",
                 },
 
                 Mask = maskImage is null ? null : new Base64EncodedImage(maskImage),
                 InpaintingMaskInvert = invertMask,
                 MaskBlur = 0,
 
-                Width = hiresEnabled.Value ? settings.hires_width : settings.width,
-                Height = hiresEnabled.Value ? settings.hires_height : settings.height,
+                Width = hiresEnabled.Value ? settings.hires_width : settings.Width,
+                Height = hiresEnabled.Value ? settings.hires_height : settings.Height,
 
                 Seed = new()
                 {
-                    Seed = seed ?? settings.seed,
+                    Seed = seed ?? settings.Seed,
                     SubSeed = settings.variation_seed,
                     SubseedStrength = (double?)settings.variation_strength,
                 },
                 ResizeMode = 2,
                 InpaintingFill = MaskFillMode.Fill,
-                DenoisingStrength = denoisingStrength ?? (double)settings.denoising_strength,
+                DenoisingStrength = denoisingStrength ?? (double)settings.DenoisingStrength,
 
                 Sampler = new()
                 {
                     Sampler = sampler,
                     SamplingSteps = steps ?? settings.steps,
-                    CfgScale = (double)settings.cfgscale
+                    CfgScale = (double)settings.CFGScale
                 }
             };
 

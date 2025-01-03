@@ -34,7 +34,7 @@ namespace makefoxsrv
                 return;
             }
 
-            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+            var args = argument.Split(' ', 2);
 
             if (args.Length < 1)
             {
@@ -119,7 +119,7 @@ namespace makefoxsrv
                 return;
             }
 
-            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+            var args = argument.Split(' ', 2);
 
             if (args.Length < 1)
             {
@@ -185,7 +185,7 @@ namespace makefoxsrv
                 return;
             }
 
-            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+            var args = argument.Split(' ', 2);
 
             if (args.Length < 1)
             {
@@ -241,7 +241,7 @@ namespace makefoxsrv
                 return;
             }
 
-            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+            var args = argument.Split(' ', 2);
 
             if (args.Length < 1)
             {
@@ -286,7 +286,7 @@ namespace makefoxsrv
                 return;
             }
 
-            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+            var args = argument.Split(' ', 2);
 
             if (args.Length < 2)
             {
@@ -368,7 +368,7 @@ namespace makefoxsrv
                 return;
             }
 
-            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+            var args = argument.Split(' ', 2);
 
             if (args.Length < 1)
             {
@@ -504,7 +504,7 @@ namespace makefoxsrv
                 return;
             }
 
-            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+            var args = argument.Split(' ', 2);
 
             if (args.Length < 1)
             {
@@ -665,8 +665,6 @@ namespace makefoxsrv
                     var t = teleUser is not null ? new FoxTelegram(teleUser, null) : null;
 
                     FoxContextManager.Current.Telegram = t;
-
-                    TL.Message? msg = null;
 
                     if (teleUser is null || t is null) 
                         continue; //Nothing we can do here.

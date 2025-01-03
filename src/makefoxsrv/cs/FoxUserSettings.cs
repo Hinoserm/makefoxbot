@@ -1,25 +1,17 @@
 ﻿using MySqlConnector;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using WTelegram;
-using makefoxsrv;
 using TL;
-using Castle.Core;
 
 namespace makefoxsrv
 {
     internal class FoxUserSettings
     {
         private int? _steps;
-        private decimal? _cfgscale;
+        private decimal? _cfgScale;
         private string? _prompt;
-        private string? _negative_prompt;
+        private string? _negativePrompt;
         private uint? _width;
         private uint? _height;
-        private decimal? _denoising_strength;
+        private decimal? _denoisingStrength;
         private string? _model;
         private string? _sampler;
 
@@ -33,66 +25,66 @@ namespace makefoxsrv
         }
 
         [DbColumn("cfgscale")]
-        public decimal cfgscale
+        public decimal CFGScale
         {
-            get => _cfgscale ?? FoxSettings.Get<decimal>("DefaultCFGScale");
-            set => _cfgscale = value;
+            get => _cfgScale ?? FoxSettings.Get<decimal>("DefaultCFGScale");
+            set => _cfgScale = value;
         }
 
         [DbColumn("prompt")]
-        public string? prompt
+        public string Prompt
         {
-            get => _prompt ?? FoxSettings.Get<string?>("DefaultPrompt");
+            get => _prompt ?? FoxSettings.Get<string?>("DefaultPrompt") ?? "";
             set => _prompt = value;
         }
 
         [DbColumn("negative_prompt")]
-        public string? negative_prompt
+        public string NegativePrompt
         {
-            get => _negative_prompt ?? FoxSettings.Get<string?>("DefaultNegative");
-            set => _negative_prompt = value;
+            get => _negativePrompt ?? FoxSettings.Get<string?>("DefaultNegative") ?? "";
+            set => _negativePrompt = value;
         }
 
         [DbColumn("width")]
-        public uint width
+        public uint Width
         {
             get => _width ?? FoxSettings.Get<uint>("DefaultWidth");
             set => _width = value;
         }
 
         [DbColumn("height")]
-        public uint height
+        public uint Height
         {
             get => _height ?? FoxSettings.Get<uint>("DefaultHeight");
             set => _height = value;
         }
 
         [DbColumn("denoising_strength")]
-        public decimal denoising_strength
+        public decimal DenoisingStrength
         {
-            get => _denoising_strength ?? FoxSettings.Get<decimal>("DefaultDenoise");
-            set => _denoising_strength = value;
+            get => _denoisingStrength ?? FoxSettings.Get<decimal>("DefaultDenoise");
+            set => _denoisingStrength = value;
         }
 
         [DbColumn("model")]
-        public string model
+        public string Model
         {
-            get => _model ?? FoxSettings.Get<string>("DefaultModel");
+            get => _model ?? FoxSettings.Get<string>("DefaultModel")!;
             set => _model = value;
         }
 
         [DbColumn("sampler")]
-        public string sampler
+        public string Sampler
         {
-            get => _sampler ?? FoxSettings.Get<string>("DefaultSampler");
+            get => _sampler ?? FoxSettings.Get<string>("DefaultSampler")!;
             set => _sampler = value;
         }
 
         [DbColumn("seed")]
-        public int seed = -1;
+        public int Seed = -1;
 
         [DbColumn("selected_image")]
-        public ulong selected_image = 0;
+        public ulong SelectedImage = 0;
 
         [DbColumn("hires_width")]
         public uint hires_width;
@@ -128,16 +120,16 @@ namespace makefoxsrv
             return new FoxUserSettings
             {
                 _steps = this._steps,
-                _cfgscale = this._cfgscale,
+                _cfgScale = this._cfgScale,
                 _prompt = this._prompt,
-                _negative_prompt = this._negative_prompt,
+                _negativePrompt = this._negativePrompt,
                 _width = this._width,
                 _height = this._height,
-                _denoising_strength = this._denoising_strength,
+                _denoisingStrength = this._denoisingStrength,
                 _model = this._model,
                 _sampler = this._sampler,
-                seed = this.seed,
-                selected_image = this.selected_image,
+                Seed = this.Seed,
+                SelectedImage = this.SelectedImage,
                 TelegramUserID = this.TelegramUserID,
                 TelegramChatID = this.TelegramChatID,
                 User = this.User,
@@ -155,6 +147,9 @@ namespace makefoxsrv
 
         public async Task Save()
         {
+            if (User is null)
+                throw new Exception("Can't save with NULL user object.");
+
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
@@ -167,15 +162,15 @@ namespace makefoxsrv
                     cmd.Parameters.AddWithValue("tele_id", TelegramUserID);
                     cmd.Parameters.AddWithValue("tele_chatid", TelegramChatID);
                     cmd.Parameters.AddWithValue("steps", this._steps);
-                    cmd.Parameters.AddWithValue("cfgscale", this._cfgscale);
+                    cmd.Parameters.AddWithValue("cfgscale", this._cfgScale);
                     cmd.Parameters.AddWithValue("prompt", this._prompt);
                     cmd.Parameters.AddWithValue("sampler", this._sampler);
-                    cmd.Parameters.AddWithValue("negative_prompt", this._negative_prompt);
-                    cmd.Parameters.AddWithValue("selected_image", this.selected_image);
+                    cmd.Parameters.AddWithValue("negative_prompt", this._negativePrompt);
+                    cmd.Parameters.AddWithValue("selected_image", this.SelectedImage);
                     cmd.Parameters.AddWithValue("width", this._width);
                     cmd.Parameters.AddWithValue("height", this._height);
-                    cmd.Parameters.AddWithValue("denoising_strength", this._denoising_strength);
-                    cmd.Parameters.AddWithValue("seed", this.seed);
+                    cmd.Parameters.AddWithValue("denoising_strength", this._denoisingStrength);
+                    cmd.Parameters.AddWithValue("seed", this.Seed);
                     cmd.Parameters.AddWithValue("model", this._model);
 
                     await cmd.ExecuteNonQueryAsync();
@@ -212,21 +207,21 @@ namespace makefoxsrv
                             if (!(reader["steps"] is DBNull))
                                 settings._steps = Convert.ToInt16(reader["steps"]);
                             if (!(reader["cfgscale"] is DBNull))
-                                settings._cfgscale = Convert.ToDecimal(reader["cfgscale"]);
+                                settings._cfgScale = Convert.ToDecimal(reader["cfgscale"]);
                             if (!(reader["prompt"] is DBNull))
                                 settings._prompt = Convert.ToString(reader["prompt"]);
                             if (!(reader["negative_prompt"] is DBNull))
-                                settings._negative_prompt = Convert.ToString(reader["negative_prompt"]);
+                                settings._negativePrompt = Convert.ToString(reader["negative_prompt"]);
                             if (!(reader["selected_image"] is DBNull))
-                                settings.selected_image = Convert.ToUInt64(reader["selected_image"]);
+                                settings.SelectedImage = Convert.ToUInt64(reader["selected_image"]);
                             if (!(reader["width"] is DBNull))
                                 settings._width = Convert.ToUInt32(reader["width"]);
                             if (!(reader["height"] is DBNull))
                                 settings._height = Convert.ToUInt32(reader["height"]);
                             if (!(reader["denoising_strength"] is DBNull))
-                                settings._denoising_strength = Convert.ToDecimal(reader["denoising_strength"]);
+                                settings._denoisingStrength = Convert.ToDecimal(reader["denoising_strength"]);
                             if (!(reader["seed"] is DBNull))
-                                settings.seed = Convert.ToInt32(reader["seed"]);
+                                settings.Seed = Convert.ToInt32(reader["seed"]);
                             if (!(reader["model"] is DBNull))
                                 settings._model = Convert.ToString(reader["model"]);
                             if (!(reader["sampler"] is DBNull))
@@ -246,21 +241,21 @@ namespace makefoxsrv
                             if (!(reader["steps"] is DBNull))
                                 settings._steps = Convert.ToInt16(reader["steps"]);
                             if (!(reader["cfgscale"] is DBNull))
-                                settings._cfgscale = Convert.ToDecimal(reader["cfgscale"]);
+                                settings._cfgScale = Convert.ToDecimal(reader["cfgscale"]);
                             if (!(reader["prompt"] is DBNull))
                                 settings._prompt = Convert.ToString(reader["prompt"]);
                             if (!(reader["negative_prompt"] is DBNull))
-                                settings._negative_prompt = Convert.ToString(reader["negative_prompt"]);
+                                settings._negativePrompt = Convert.ToString(reader["negative_prompt"]);
                             if (!(reader["selected_image"] is DBNull))
-                                settings.selected_image = Convert.ToUInt64(reader["selected_image"]);
+                                settings.SelectedImage = Convert.ToUInt64(reader["selected_image"]);
                             if (!(reader["width"] is DBNull))
                                 settings._width = Convert.ToUInt32(reader["width"]);
                             if (!(reader["height"] is DBNull))
                                 settings._height = Convert.ToUInt32(reader["height"]);
                             if (!(reader["denoising_strength"] is DBNull))
-                                settings._denoising_strength = Convert.ToDecimal(reader["denoising_strength"]);
+                                settings._denoisingStrength = Convert.ToDecimal(reader["denoising_strength"]);
                             if (!(reader["seed"] is DBNull))
-                                settings.seed = Convert.ToInt32(reader["seed"]);
+                                settings.Seed = Convert.ToInt32(reader["seed"]);
                             if (!(reader["model"] is DBNull))
                                 settings._model = Convert.ToString(reader["model"]);
                             if (!(reader["sampler"] is DBNull))

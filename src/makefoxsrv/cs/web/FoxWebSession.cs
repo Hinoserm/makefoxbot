@@ -13,6 +13,8 @@ using System.Runtime.CompilerServices;
 using EmbedIO.Sessions;
 using static System.Collections.Specialized.BitVector32;
 
+#pragma warning disable CS1998
+
 namespace makefoxsrv
 {
     public class FoxWebSession
@@ -157,6 +159,7 @@ namespace makefoxsrv
                 return session;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "CS1998:Async method lacks 'await'", Justification = "Designed for potential asynchronous extension.")]
         public static async Task<FoxWebSession?> CreateNewSession()
         {
             var session = new FoxWebSession(GenerateSessionId());

@@ -13,10 +13,10 @@ namespace makefoxsrv
             // List to store premium features
             List<string> premiumFeatures = new List<string>();
 
-            if (settings.width > 1088)
+            if (settings.Width > 1088)
                 premiumFeatures.Add("width > 1088");
 
-            if (settings.height > 1088)
+            if (settings.Height > 1088)
                 premiumFeatures.Add("height > 1088");
 
             if (settings.steps > 20)

@@ -17,10 +17,10 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace makefoxsrv
 {
-    internal class FoxTelegram
+    public class FoxTelegram
     {
 
-        public static WTelegram.Client? Client
+        public static WTelegram.Client Client
         {
             get => _client ?? throw new InvalidOperationException("Client is null");
         }
@@ -42,8 +42,8 @@ namespace makefoxsrv
         public static bool IsConnected => _client is not null && !_client.Disconnected;
 
         private static int appID;
-        private static string apiHash;
-        private static string botToken;
+        private static string apiHash = "";
+        private static string botToken = "";
         private static string? sessionFile = null;
 
         private static readonly Dictionary<long, User> Users = [];
@@ -218,7 +218,8 @@ namespace makefoxsrv
                     case UpdateNewScheduledMessage { message: Message schedMsg } when schedMsg.id == msgId: return schedMsg;
                 }
             }
-            return null;
+
+            throw new Exception("Message not found in updates");
         }
 
         public async Task<Message?> EditMessageAsync(int id, string? text = null, ReplyInlineMarkup ? replyInlineMarkup = null, MessageEntity[]? entities = null, bool disableWebPagePreview = true)
@@ -248,7 +249,7 @@ namespace makefoxsrv
 
         public async Task DeleteMessage(int id)
         {
-            if (!IsConnected)
+            if (!IsConnected || _client is null)
                 throw new InvalidOperationException("Telegram is disconnected");
 
             await _client.DeleteMessages(

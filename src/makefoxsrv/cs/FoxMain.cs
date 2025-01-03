@@ -194,8 +194,8 @@ namespace makefoxsrv
         public static string GetVersion()
         {
             var assembly = Assembly.GetExecutingAssembly();
-            var attribute = (AssemblyInformationalVersionAttribute)Attribute.GetCustomAttribute(assembly, typeof(AssemblyInformationalVersionAttribute));
-            return attribute?.InformationalVersion; // This will include the version and Git revision
+            var attribute = (AssemblyInformationalVersionAttribute?)Attribute.GetCustomAttribute(assembly, typeof(AssemblyInformationalVersionAttribute));
+            return attribute?.InformationalVersion ?? "Unknown"; // This will include the version and Git revision
         }
 
         static async Task Main(string[] args)
@@ -346,7 +346,7 @@ namespace makefoxsrv
 
                 //await Task.Delay(1000); //Wait a bit for telegram to settle.
 
-                await FoxWorker.StartWorkers();
+                FoxWorker.StartWorkers();
 
                 await FoxQueue.EnqueueOldItems();
 

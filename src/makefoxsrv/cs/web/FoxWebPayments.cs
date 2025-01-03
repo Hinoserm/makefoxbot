@@ -21,6 +21,8 @@ using WTelegram;
 using PayPalCheckoutSdk.Core;
 using PayPalCheckoutSdk.Orders;
 
+#pragma warning disable CS1998
+
 namespace makefoxsrv
 {
     public class FoxWebPayments

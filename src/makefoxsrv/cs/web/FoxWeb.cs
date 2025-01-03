@@ -193,7 +193,7 @@ class FoxWeb
 
         public override bool IsFinalHandler => false;
 
-        protected override async Task OnRequestAsync(IHttpContext context)
+        protected override Task OnRequestAsync(IHttpContext context)
         {
             // Set headers to prevent caching
             context.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
@@ -201,6 +201,8 @@ class FoxWeb
             context.Response.Headers["Expires"] = "0";
 
             //await SendNextAsync(context); // Ensure the next handler in the pipeline is executed
+
+            return Task.CompletedTask;
         }
     }
 

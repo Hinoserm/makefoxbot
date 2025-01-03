@@ -60,6 +60,9 @@ namespace makefoxsrv
                     return;
                 }
 
+                if (obj is null)
+                    throw new ArgumentNullException(nameof(obj));
+
                 command.CommandText = $"INSERT INTO {tableName} ({string.Join(", ", insertColumns)}) VALUES ({string.Join(", ", insertValues)}) ON DUPLICATE KEY UPDATE {string.Join(", ", updateSets)};";
 
                 //Console.WriteLine($"Executing SQL: {command.CommandText}");
@@ -92,7 +95,7 @@ namespace makefoxsrv
 
                 void SetMemberValue(MemberInfo memberInfo, Type memberType, object targetObject, long lastInsertIdValue)
                 {
-                    object valueToSet = null;
+                    object? valueToSet = null;
 
                     if (memberType == typeof(long))
                     {
@@ -126,8 +129,11 @@ namespace makefoxsrv
             }
         }
 
-        private static async Task ProcessObject(object obj, MySqlCommand command, List<string> insertColumns, List<string> insertValues, List<string> updateSets, StringBuilder debugParameters, string basePath)
+        private static async Task ProcessObject(object? obj, MySqlCommand command, List<string> insertColumns, List<string> insertValues, List<string> updateSets, StringBuilder debugParameters, string basePath)
         {
+            if (obj is null)
+                throw new ArgumentNullException(nameof(obj));
+
             var members = obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                             .Cast<MemberInfo>()
                             .Concat(obj.GetType().GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
@@ -136,7 +142,7 @@ namespace makefoxsrv
             {
                 var dbColumnAttr = member.GetCustomAttribute<DbColumnAttribute>();
                 var dbIncludeAttr = member.GetCustomAttribute<DbIncludeAttribute>();
-                object memberValue = member.MemberType == MemberTypes.Property ? ((PropertyInfo)member).GetValue(obj) : ((FieldInfo)member).GetValue(obj);
+                object? memberValue = member.MemberType == MemberTypes.Property ? ((PropertyInfo)member).GetValue(obj) : ((FieldInfo)member).GetValue(obj);
 
                 if (dbColumnAttr != null)
                 {
@@ -168,16 +174,16 @@ namespace makefoxsrv
                 foreach (var mapping in mappingAttributes)
                 {
                     // Resolve nested property path to value
-                    object targetValue = ResolvePropertyPath(obj, mapping.PropertyPath);
+                    object? targetValue = ResolvePropertyPath(obj, mapping.PropertyPath);
                     PrepareForDatabase(mapping.ColumnName, targetValue, command, insertColumns, insertValues, updateSets, debugParameters);
                 }
             }
         }
 
-        private static object ResolvePropertyPath(object obj, string propertyPath)
+        private static object? ResolvePropertyPath(object obj, string propertyPath)
         {
             var parts = propertyPath.Split('.');
-            object current = obj;
+            object? current = obj;
             foreach (var part in parts)
             {
                 var prop = current.GetType().GetProperty(part, BindingFlags.Public | BindingFlags.Instance);
@@ -188,10 +194,12 @@ namespace makefoxsrv
             return current;
         }
 
-        private static void PrepareForDatabase(string columnName, object value, MySqlCommand command, List<string> insertColumns, List<string> insertValues, List<string> updateSets, StringBuilder debugParameters)
+        private static void PrepareForDatabase(string columnName, object? value, MySqlCommand command, List<string> insertColumns, List<string> insertValues, List<string> updateSets, StringBuilder debugParameters)
         {
-            if (value is bool boolVal) value = boolVal ? 1 : 0;
-            else if (value?.GetType().IsEnum == true) value = value.ToString();
+            if (value is bool boolVal)
+                value = boolVal ? 1 : 0;
+            else if (value?.GetType().IsEnum == true)
+                value = value.ToString();
 
             var paramName = $"@{columnName}";
             if (!command.Parameters.Contains(paramName))
@@ -218,7 +226,7 @@ namespace makefoxsrv
                     if (!reader.HasRows)
                         return default(T?);
 
-                    T loadedObject = await LoadObjectAsync<T>(reader);
+                    T loadedObject = LoadObject<T>(reader);
 
                     // Check if the action is provided and the loaded object is not null before invoking the action.
                     postLoadAction?.Invoke(loadedObject);
@@ -277,7 +285,7 @@ namespace makefoxsrv
                     if (!await reader.ReadAsync())
                         return default(T?);
 
-                    T loadedObject = await LoadObjectAsync<T>(reader);
+                    T loadedObject = LoadObject<T>(reader);
 
                     // If an action is provided, invoke it with both the loaded object and the reader
                     if (postLoadAction != null)
@@ -290,7 +298,7 @@ namespace makefoxsrv
             }
         }
 
-        public static async Task<T> LoadObjectAsync<T>(MySqlDataReader reader) where T : new()
+        public static T LoadObject<T>(MySqlDataReader reader) where T : new()
         {
             T obj = new T();
             var columnToPropertyMap = GenerateColumnPropertyMap(typeof(T));
@@ -305,9 +313,15 @@ namespace makefoxsrv
                     // Navigate to the correct target object based on the path
                     var targetObj = NavigatePath(obj, path[..^1]);
 
+                    if (targetObj is null)
+                        continue;
+
                     // Determine the correct MemberInfo (PropertyInfo or FieldInfo)
-                    var memberInfo = (MemberInfo)targetObj.GetType().GetProperty(path[^1], BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) ??
+                    var memberInfo = (MemberInfo?)targetObj.GetType().GetProperty(path[^1], BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) ??
                                         targetObj.GetType().GetField(path[^1], BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                    if (memberInfo is null)
+                        continue;
 
                     // Assign the value considering the correct type conversion
                     AssignValueToMember(targetObj, memberInfo, value);
@@ -317,9 +331,10 @@ namespace makefoxsrv
             return obj;
         }
 
-        private static object NavigatePath(object obj, string[] path)
+        private static object? NavigatePath(object obj, string[] path)
         {
-            object currentObj = obj;
+            object? currentObj = obj;
+
             foreach (var part in path)
             {
                 if (currentObj == null) break; // Safeguard against null references in the chain

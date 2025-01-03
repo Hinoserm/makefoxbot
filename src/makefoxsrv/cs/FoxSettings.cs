@@ -26,6 +26,7 @@ namespace makefoxsrv
             {"DefaultHeight",   768},      // Default image height for users
             {"DefaultDenoise",  0.75M},    // Default denoising strength for users
             {"DefaultCFGScale", 7.5M},     // Default CFG scale setting for users
+            {"DefaultSampler", "Euler A" },
             {"DefaultModel",    "indigoFurryMix_v105Hybrid" },
             {"GetFullUser",     false },
             {"GetUserPhoto",    false },
@@ -107,14 +108,14 @@ namespace makefoxsrv
 
                 _settings = newSettings; //Only save if everything was successful.
             }
-            catch (Exception ex)
+            catch
             {
                 // Consider logging the error
                 throw;
             }
         }
 
-        public static T Get<T>(string settingName)
+        public static T? Get<T>(string settingName)
         {
             if (_settings.TryGetValue(settingName, out var value))
             {

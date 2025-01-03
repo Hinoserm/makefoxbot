@@ -38,7 +38,7 @@ namespace makefoxsrv
 
                 var OutputImage = await q.GetOutputImage();
 
-                if (OutputImage is not null)
+                if (OutputImage is not null && OutputImage.Image is not null)
                 {
                     var t = q.Telegram;
 
@@ -82,7 +82,7 @@ namespace makefoxsrv
                             //We don't usually care if editing fails.
                         }
                     }
-                    catch (Exception ex)
+                    catch
                     {
                         //We don't usually care if editing fails.
                     }
@@ -132,7 +132,7 @@ namespace makefoxsrv
 
                     Regex regex = new Regex(@"<lora:[^>:]+(:\d+)?>", RegexOptions.IgnoreCase);
 
-                    if (q.RegionalPrompting && (regex.IsMatch(q.Settings.prompt ?? "") || regex.IsMatch(q.Settings.negative_prompt ?? "")))
+                    if (q.RegionalPrompting && (regex.IsMatch(q.Settings.Prompt ?? "") || regex.IsMatch(q.Settings.NegativePrompt ?? "")))
                     {
                         messageText += $"\n\n⚠️ LoRAs are known to behave strangely when using regional prompting.  If your image appears strange or corrupted, remove LoRAs from your prompts and try again.";
                     }

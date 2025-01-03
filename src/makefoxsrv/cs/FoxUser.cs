@@ -31,6 +31,20 @@ namespace makefoxsrv
         public string? Username;
         public long? TelegramID;
 
+        public FoxTelegram Telegram
+        {
+            get
+            {
+                if (TelegramID is null)
+                    throw new InvalidOperationException("TelegramID is null");
+
+                return new FoxTelegram(new TL.User { id = TelegramID.Value }, null);
+            }
+            set
+            {
+                TelegramID = value.User.ID;
+            }
+        }
 
         private static Dictionary<ulong, FoxUser> userCacheByUID = new Dictionary<ulong, FoxUser>();
         //private static Dictionary<long, FoxUser> userCacheByTelegramID = new Dictionary<long, FoxUser>();
@@ -330,7 +344,7 @@ namespace makefoxsrv
             return user;
         }
 
-        public async Task SetUsername(string newUsername)
+        public async Task SetUsername(string? newUsername)
         {
             // Don't bother updating if it didn't change.
 
@@ -638,23 +652,24 @@ namespace makefoxsrv
                 await this.SetPremiumDate(DateTime.Now.AddDays(days));
             }
 
-            var teleUser = TelegramID is not null ? await FoxTelegram.GetUserFromID(TelegramID.Value) : null;
-            var t = teleUser is not null ? new FoxTelegram(teleUser, null) : null;
+            //var teleUser = TelegramID is not null ? await FoxTelegram.GetUserFromID(TelegramID.Value) : null;
+            //var t = teleUser is not null ? new FoxTelegram(teleUser, null) : null;
 
-var msg = @$"
-<b>Thank You for Your Generous Support!</b>
+            var msg = @$"
+            <b>Thank You for Your Generous Support!</b>
 
-We are deeply grateful for your membership, which is vital for our platform's sustainability and growth. 
+            We are deeply grateful for your membership, which is vital for our platform's sustainability and growth. 
 
-Your contribution has granted you <b>{(days == -1 ? "lifetime" : $"{days} days of")} enhanced access</b>, improving your experience with increased limits and features. 
+            Your contribution has granted you <b>{(days == -1 ? "lifetime" : $"{days} days of")} enhanced access</b>, improving your experience with increased limits and features. 
 
-We are committed to using your membership fees to further develop and maintain the service, supporting our mission to provide a creative and expansive platform for our users. Thank you for being an integral part of our journey and for empowering us to continue offering a high-quality service.
+            We are committed to using your membership fees to further develop and maintain the service, supporting our mission to provide a creative and expansive platform for our users. Thank you for being an integral part of our journey and for empowering us to continue offering a high-quality service.
 
-<b>MakeFox Group, Inc.</b>
-";
+            <b>MakeFox Group, Inc.</b>
+            ";
+
             var entities = FoxTelegram.Client.HtmlToEntities(ref msg);
 
-            await t.SendMessageAsync(
+            await Telegram.SendMessageAsync(
                         text: msg,
                         replyToMessageId: replyMessageId,
                         entities: entities,

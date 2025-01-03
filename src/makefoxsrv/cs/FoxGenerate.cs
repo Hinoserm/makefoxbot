@@ -39,7 +39,7 @@ namespace makefoxsrv
 
             if (!string.IsNullOrEmpty(argument))
             {
-                settings.prompt = argument; //.Replace("\n", ", ");
+                settings.Prompt = argument; //.Replace("\n", ", ");
                 await settings.Save();
             }
 
@@ -70,10 +70,10 @@ namespace makefoxsrv
 
                 if (loadedImg is not null)
                 {
-                    settings.selected_image = loadedImg.ID;
+                    settings.SelectedImage = loadedImg.ID;
                     await settings.Save();
-                } else if (settings.selected_image > 0) {
-                    loadedImg = await FoxImage.Load(settings.selected_image);
+                } else if (settings.SelectedImage > 0) {
+                    loadedImg = await FoxImage.Load(settings.SelectedImage);
                 }
 
                 if (loadedImg is null)
@@ -97,7 +97,7 @@ namespace makefoxsrv
                 }
             }
 
-            if (String.IsNullOrEmpty(settings.prompt))
+            if (String.IsNullOrEmpty(settings.Prompt))
             {
                 await t.SendMessageAsync(
                     text: "❌You must specify a prompt!  Please seek /help",
@@ -114,7 +114,7 @@ namespace makefoxsrv
         public static async Task Generate(FoxTelegram t, FoxUserSettings settings, int messageId, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG, bool enhanced = false, FoxQueue? originalTask = null)
         {
             if (originalTask is null)
-                settings.regionalPrompting = DetectRegionalPrompting(settings.prompt ?? "") || DetectRegionalPrompting(settings.negative_prompt ?? "");
+                settings.regionalPrompting = DetectRegionalPrompting(settings.Prompt ?? "") || DetectRegionalPrompting(settings.NegativePrompt ?? "");
             else
                 settings.regionalPrompting = originalTask.Settings.regionalPrompting;
 
@@ -147,12 +147,12 @@ namespace makefoxsrv
                 }
             }
 
-            var model = FoxModel.GetModelByName(settings.model);
+            var model = FoxModel.GetModelByName(settings.Model);
 
             if (model is null || model.GetWorkersRunningModel().Count < 1)
             {
                 await t.SendMessageAsync(
-                    text: $"❌ There are no workers available to handle your currently selected model ({settings.model}).  This can happen if the server was recently restarted or if a model was uninstalled.\r\n\r\nPlease try again in a moment or select a different /model.",
+                    text: $"❌ There are no workers available to handle your currently selected model ({settings.Model}).  This can happen if the server was recently restarted or if a model was uninstalled.\r\n\r\nPlease try again in a moment or select a different /model.",
                     replyToMessageId: messageId
                 );
 
@@ -180,7 +180,7 @@ namespace makefoxsrv
 
             FoxContextManager.Current.Queue = q;
 
-            if (settings?.prompt?.IndexOf("crabcakes", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (settings?.Prompt?.IndexOf("crabcakes", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 var inlineKeyboardButtons = new ReplyInlineMarkup()
                 {
@@ -237,7 +237,7 @@ namespace makefoxsrv
                 );
 
                 await q.SetStatus(FoxQueue.QueueStatus.PENDING, waitMsg.ID);
-                await FoxQueue.Enqueue(q);
+                FoxQueue.Enqueue(q);
             } 
         }
     }

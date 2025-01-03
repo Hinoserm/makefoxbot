@@ -49,7 +49,7 @@ namespace makefoxsrv
                 var buttonLabel = (model.Value.IsPremium ? "⭐" : "") + $"{modelName} ({workerCount})";
                 var buttonData = $"/model {modelName}"; // Or any unique data you need to pass
 
-                if (modelName == settings.model)
+                if (modelName == settings.Model)
                     buttonLabel += " ✅";
 
                 keyboardRows.Add(new TL.KeyboardButtonRow
@@ -215,14 +215,14 @@ namespace makefoxsrv
 
             sb.AppendLine($"ID: {q.ID}");
 
-            sb.AppendLine($"🖤Prompt: {q.Settings.prompt}");
-            sb.AppendLine($"🐊Negative: {q.Settings.negative_prompt}");
-            sb.AppendLine($"🖥️ Size: {q.Settings.width}x{q.Settings.height}");
-            sb.AppendLine($"🪜Sampler: {q.Settings.sampler} ({q.Settings.steps} steps)");
-            sb.AppendLine($"🧑‍🎨CFG Scale: {q.Settings.cfgscale}");
-            sb.AppendLine($"👂Denoising Strength: {q.Settings.denoising_strength}");
-            sb.AppendLine($"🧠Model: {q.Settings.model}");
-            sb.AppendLine($"🌱Seed: {q.Settings.seed}");
+            sb.AppendLine($"🖤Prompt: {q.Settings.Prompt}");
+            sb.AppendLine($"🐊Negative: {q.Settings.NegativePrompt}");
+            sb.AppendLine($"🖥️ Size: {q.Settings.Width}x{q.Settings.Height}");
+            sb.AppendLine($"🪜Sampler: {q.Settings.Sampler} ({q.Settings.steps} steps)");
+            sb.AppendLine($"🧑‍🎨CFG Scale: {q.Settings.CFGScale}");
+            sb.AppendLine($"👂Denoising Strength: {q.Settings.DenoisingStrength}");
+            sb.AppendLine($"🧠Model: {q.Settings.Model}");
+            sb.AppendLine($"🌱Seed: {q.Settings.Seed}");
 
             if (q.WorkerID is not null)
             {

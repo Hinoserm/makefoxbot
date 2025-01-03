@@ -102,7 +102,7 @@ namespace makefoxsrv
             if (message.message[0] != '/')
                 return; // Not a command, skip it.
 
-            var args = message.message.Split(new char[] { ' ', '\n' }, 2);
+            var args = message.message.Split([' ', '\n'], 2);
             var command = args[0];
 
             var c = command.Split('@', 2);
@@ -216,13 +216,19 @@ namespace makefoxsrv
             return "";
         }
 
-        private static Func<FoxTelegram, Message, FoxUser, String?, Task>? FindBestMatch(string command)
+        private static Func<FoxTelegram, Message, FoxUser, string?, Task>? FindBestMatch(string command)
         {
-            List<string> potentialMatches = new List<string>();
+            // Ensure CommandMap and command are handled as non-null
+            if (string.IsNullOrWhiteSpace(command))
+            {
+                return null;
+            }
+
+            List<string> potentialMatches = new();
 
             foreach (var cmd in CommandMap.Keys)
             {
-                if (cmd.StartsWith(command))
+                if (cmd.StartsWith(command, StringComparison.OrdinalIgnoreCase))
                 {
                     potentialMatches.Add(cmd);
                 }
@@ -235,29 +241,33 @@ namespace makefoxsrv
             }
 
             // Check for an exact match first
-            if (CommandMap.ContainsKey(command))
+            if (CommandMap.TryGetValue(command, out var exactMatch))
             {
-                return CommandMap[command];
+                return exactMatch;
             }
 
             // Find the shortest command in potential matches
-            string shortestMatch = potentialMatches
+            string? shortestMatch = potentialMatches
                 .OrderBy(s => s.Length)
                 .FirstOrDefault();
 
-            // Check if the command is a unique prefix
-            bool isUniquePrefix = potentialMatches.All(s => !s.StartsWith(command) || s.Equals(shortestMatch));
-
-            if (isUniquePrefix)
+            if (shortestMatch == null)
             {
-                // Return the command if it's a unique prefix
-                return CommandMap[shortestMatch];
-            }
-            else
-            {
-                // Ambiguous command
+                // No valid shortest match
                 return null;
             }
+
+            // Check if the command is a unique prefix
+            bool isUniquePrefix = potentialMatches.All(s => !s.StartsWith(command, StringComparison.OrdinalIgnoreCase) || s.Equals(shortestMatch, StringComparison.OrdinalIgnoreCase));
+
+            if (isUniquePrefix && CommandMap.TryGetValue(shortestMatch, out var uniqueMatch))
+            {
+                // Return the command if it's a unique prefix
+                return uniqueMatch;
+            }
+
+            // Ambiguous command
+            return null;
         }
 
         public static async Task SetBotCommands(Client client)
@@ -309,7 +319,7 @@ namespace makefoxsrv
             List<TL.KeyboardButtonWebView> currentRowButtons = new List<TL.KeyboardButtonWebView>();
 
 
-            string webUrl = $"{FoxMain.settings.WebRootUrl}tgapp/styles.php";
+            string webUrl = $"{FoxMain.settings!.WebRootUrl}tgapp/styles.php";
 
             currentRowButtons.Add(new TL.KeyboardButtonWebView { text = "Edit Styles", url = webUrl });
 
@@ -562,13 +572,13 @@ namespace makefoxsrv
 
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-            settings.prompt = "cute male fox wearing (jeans), holding a (slice of pizza), happy, smiling, (excited), energetic, sitting, solo, vibrant and surreal background, (80's theme), masterpiece, perfect anatomy, shoes";
-            settings.negative_prompt = "(female), penis, nsfw, eating, boring_e621_fluffyrock_v4, deformityv6, easynegative, bad anatomy, multi limb, multi tail, ((human)), text, signature, watermark, logo, writing, words";
-            settings.cfgscale = 10M;
+            settings.Prompt = "cute male fox wearing (jeans), holding a (slice of pizza), happy, smiling, (excited), energetic, sitting, solo, vibrant and surreal background, (80's theme), masterpiece, perfect anatomy, shoes";
+            settings.NegativePrompt = "(female), penis, nsfw, eating, boring_e621_fluffyrock_v4, deformityv6, easynegative, bad anatomy, multi limb, multi tail, ((human)), text, signature, watermark, logo, writing, words";
+            settings.CFGScale = 10M;
             settings.steps = 20;
-            settings.width = 768;
-            settings.height = 768;
-            settings.seed = -1;
+            settings.Width = 768;
+            settings.Height = 768;
+            settings.Seed = -1;
 
             Message waitMsg = await t.SendMessageAsync(
                 text: $"⏳👖🍕🦊 Please wait...",
@@ -584,7 +594,7 @@ namespace makefoxsrv
 
                 FoxContextManager.Current.Queue = q;
 
-                await FoxQueue.Enqueue(q);
+                FoxQueue.Enqueue(q);
             }
             catch (Exception ex)
             {
@@ -609,7 +619,7 @@ namespace makefoxsrv
 
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-            settings.selected_image = img.ID;
+            settings.SelectedImage = img.ID;
 
             await settings.Save();
 
@@ -736,7 +746,7 @@ namespace makefoxsrv
                             buttonLabel = "⭐ " + buttonLabel;
                     }
 
-                    if (samplerName == settings.sampler)
+                    if (samplerName == settings.Sampler)
                     {
                         buttonLabel += " ✅";
                     }
@@ -858,7 +868,7 @@ namespace makefoxsrv
                 return;
             }
 
-            var args = argument.Split(new[] { ' ' }, 2, StringSplitOptions.None);
+            var args = argument.Split(' ', 2);
 
             if (args.Length < 1)
                 throw new ArgumentException("You must specify a username.");
@@ -915,14 +925,14 @@ namespace makefoxsrv
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
             if (!string.IsNullOrEmpty(argument))
-                settings.negative_prompt = argument; //.Replace("\n", ", ");
+                settings.NegativePrompt = argument; //.Replace("\n", ", ");
             else
-                settings.negative_prompt = "";
+                settings.NegativePrompt = "";
 
             await settings.Save();
 
             await t.SendMessageAsync(
-                text: (settings.negative_prompt.Length > 0 ? $"✅ Negative prompt set." : "✅ Negative prompt cleared."),
+                text: (settings.NegativePrompt.Length > 0 ? $"✅ Negative prompt set." : "✅ Negative prompt cleared."),
                 replyToMessageId: message.ID
             );
         }
@@ -1047,7 +1057,7 @@ namespace makefoxsrv
             if (!string.IsNullOrEmpty(argument))
             {
 
-                settings.prompt = argument; //.Replace("\n", ", ");
+                settings.Prompt = argument; //.Replace("\n", ", ");
 
                 await settings.Save();
 
@@ -1059,7 +1069,7 @@ namespace makefoxsrv
             else
             {
                 await t.SendMessageAsync(
-                    text: $"🖤Current prompt: " + settings.prompt,
+                    text: $"🖤Current prompt: " + settings.Prompt,
                     replyToMessageId: message.ID
                 );
             }
@@ -1077,7 +1087,7 @@ namespace makefoxsrv
             if (argument is null || argument.Length <= 0)
             {
                 await t.SendMessageAsync(
-                    text: "Current Seed: " + settings.seed,
+                    text: "Current Seed: " + settings.Seed,
                     replyToMessageId: message.ID
                 );
                 return;
@@ -1093,7 +1103,7 @@ namespace makefoxsrv
                 return;
             }
 
-            settings.seed = seed;
+            settings.Seed = seed;
 
             await settings.Save();
 
@@ -1115,7 +1125,7 @@ namespace makefoxsrv
             if (argument is null || argument.Length <= 0)
             {
                 await t.SendMessageAsync(
-                    text: "Current CFG Scale: " + settings.cfgscale,
+                    text: "Current CFG Scale: " + settings.CFGScale,
                     replyToMessageId: message.ID
                 );
                 return;
@@ -1143,7 +1153,7 @@ namespace makefoxsrv
                 return;
             }
 
-            settings.cfgscale = cfgscale;
+            settings.CFGScale = cfgscale;
 
             await settings.Save();
 
@@ -1167,7 +1177,7 @@ namespace makefoxsrv
             if (stepstr.Count() < 2)
             {
                 await t.SendMessageAsync(
-                    text: "Current Denoising Strength: " + settings.denoising_strength,
+                    text: "Current Denoising Strength: " + settings.DenoisingStrength,
                     replyToMessageId: message.ID
                 );
                 return;
@@ -1195,7 +1205,7 @@ namespace makefoxsrv
                 return;
             }
 
-            settings.denoising_strength = cfgscale;
+            settings.DenoisingStrength = cfgscale;
 
             await settings.Save();
 
@@ -1279,14 +1289,14 @@ namespace makefoxsrv
             await settings.Save(); // Save the settings just in case this is a new chat, to init the defaults so we don't look like a liar later.
 
             Message waitMsg = await t.SendMessageAsync(
-                text: $"🖤Prompt: {settings.prompt}\r\n" +
-                      $"🐊Negative: {settings.negative_prompt}\r\n" +
-                      $"🖥️Size: {settings.width}x{settings.height}\r\n" +
-                      $"🪜Sampler: {settings.sampler} ({settings.steps} steps)\r\n" +
-                      $"🧑‍🎨CFG Scale: {settings.cfgscale}\r\n" +
-                      $"👂Denoising Strength: {settings.denoising_strength}\r\n" +
-                      $"🧠Model: {settings.model}\r\n" +
-                      $"🌱Seed: {settings.seed}\r\n",
+                text: $"🖤Prompt: {settings.Prompt}\r\n" +
+                      $"🐊Negative: {settings.NegativePrompt}\r\n" +
+                      $"🖥️Size: {settings.Width}x{settings.Height}\r\n" +
+                      $"🪜Sampler: {settings.Sampler} ({settings.steps} steps)\r\n" +
+                      $"🧑‍🎨CFG Scale: {settings.CFGScale}\r\n" +
+                      $"👂Denoising Strength: {settings.DenoisingStrength}\r\n" +
+                      $"🧠Model: {settings.Model}\r\n" +
+                      $"🌱Seed: {settings.Seed}\r\n",
                 replyToMessageId: message.ID
             );
         }
@@ -1322,7 +1332,7 @@ namespace makefoxsrv
                 catch (Exception ex)
                 {
                     //Don't care about this failure.
-                    FoxLog.WriteLine("Failed to edit message: " + msg_id.ToString());
+                    FoxLog.LogException(ex, $"Failed to edit message {msg_id.ToString()}: {ex.Message}");
                 }
 
                 count++;
@@ -1359,7 +1369,7 @@ namespace makefoxsrv
             if (argument is null || argument.Length <= 0)
             {
                 await t.SendMessageAsync(
-                    text: "🖥️ Current size: " + settings.width + "x" + settings.height,
+                    text: "🖥️ Current size: " + settings.Width + "x" + settings.Height,
                     replyToMessageId: message.ID
                 );
                 return;
@@ -1419,8 +1429,8 @@ namespace makefoxsrv
 
             msgString += $"✅ Size set to: {width}x{height}";
 
-            settings.width = (uint)width;
-            settings.height = (uint)height;
+            settings.Width = (uint)width;
+            settings.Height = (uint)height;
 
             await settings.Save();
 

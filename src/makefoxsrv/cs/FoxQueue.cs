@@ -70,7 +70,13 @@ namespace makefoxsrv
         public FoxUserSettings Settings = new();
 
         [DbColumnMapping("User.UID", "uid")]
-        public FoxUser? User = null;
+        private FoxUser? _user = null;
+
+        public FoxUser User
+        {
+            get => _user ?? throw new InvalidOperationException("User is null");
+            set => _user = value;
+        }
 
         [DbColumn("id")]
         public ulong ID { get; private set; }
@@ -181,7 +187,7 @@ namespace makefoxsrv
             return 0; //Not yet implemented.
         }
 
-        public static async Task Enqueue(FoxQueue item, bool addToFront = false)
+        public static void Enqueue(FoxQueue item, bool addToFront = false)
         {
             item.DateQueued = DateTime.Now;
 
@@ -243,7 +249,7 @@ namespace makefoxsrv
                     {
                         // Task's retry time has passed; re-enqueue it for processing
                         FoxLog.WriteLine($"Enqueueing delayed task {task.ID}.", LogLevel.DEBUG);
-                        _ = Enqueue(task);
+                        Enqueue(task);
                     }
                     else
                     {
@@ -266,10 +272,10 @@ namespace makefoxsrv
             var workers = FoxWorker.GetWorkers().Values;
 
             // Fetch the model by name using the new FoxModel method
-            var model = FoxModel.GetModelByName(settings.model);
+            var model = FoxModel.GetModelByName(settings.Model);
 
-            uint width = Math.Max(settings.width, settings.hires_width);
-            uint height = Math.Max(settings.height, settings.hires_height);
+            uint width = Math.Max(settings.Width, settings.hires_width);
+            uint height = Math.Max(settings.Height, settings.hires_height);
 
             // If the model does not exist or has no workers, return null
             if (model is null || model.GetWorkersRunningModel().Count < 1)
@@ -395,10 +401,10 @@ namespace makefoxsrv
         public static FoxWorker? FindSuitableWorkerForTask(FoxQueue item)
         {
             // 1. Fetch the requested model
-            var model = FoxModel.GetModelByName(item.Settings.model);
+            var model = FoxModel.GetModelByName(item.Settings.Model);
 
-            uint width = Math.Max(item.Settings.width, item.Settings.hires_width);
-            uint height = Math.Max(item.Settings.height, item.Settings.hires_height);
+            uint width = Math.Max(item.Settings.Width, item.Settings.hires_width);
+            uint height = Math.Max(item.Settings.Height, item.Settings.hires_height);
 
             // If no such model or no workers running it, return
             if (model == null || model.GetWorkersRunningModel().Count < 1)
@@ -490,7 +496,7 @@ namespace makefoxsrv
 
             // 7. Idle workers already loaded with this model
             var idleWorkersWithModel = hasModelLoaded
-                .Where(w => w.LoadedModels.Contains(item.Settings.model) && w.qItem == null)
+                .Where(w => w.LoadedModels.Contains(item.Settings.Model) && w.qItem == null)
                 .ToList();
 
             if (idleWorkersWithModel.Any())
@@ -560,11 +566,21 @@ namespace makefoxsrv
 
                 while (await r.ReadAsync())
                 {
-                    var q = await FoxDB.LoadObjectAsync<FoxQueue>(r);
+                    var q = FoxDB.LoadObject<FoxQueue>(r);
 
-                    q.User = await FoxUser.GetByUID(Convert.ToInt64(r["uid"]));
+                    long? uid = r["uid"] is DBNull ? null : Convert.ToInt64(r["uid"]);
 
-                    long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
+                    if (uid is null)
+                        continue; //Something went wrong, skip this one.
+
+                    var user = await FoxUser.GetByUID(uid.Value);
+
+                    if (user is null)
+                        continue; //Something went wrong, skip this one.
+
+                    q.User = user;
+
+                    long? teleChatId = r["tele_chatid"] is DBNull ? null : Convert.ToInt64(r["tele_chatid"]);
 
                     var teleChat = teleChatId is not null ? await FoxTelegram.GetChatFromID(teleChatId.Value) : null;
 
@@ -579,7 +595,7 @@ namespace makefoxsrv
 
                     count++;
                     
-                    await Enqueue(q);
+                    Enqueue(q);
                 }
             }
 
@@ -764,7 +780,7 @@ namespace makefoxsrv
             }
         }
 
-        public static async Task<FoxQueue?> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings,
+        public static async Task<FoxQueue> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings,
                                                 QueueType type, int messageID, int? replyMessageID = null, bool enhanced = false,
                                                 FoxQueue? originalTask = null, TimeSpan? delay = null, QueueStatus status = QueueStatus.PENDING)
         {
@@ -777,21 +793,21 @@ namespace makefoxsrv
 
             FoxUserSettings settings = taskSettings.Copy();
 
-            if (type == QueueType.TXT2IMG && (settings.width > 1088 || settings.height > 1088))
+            if (type == QueueType.TXT2IMG && (settings.Width > 1088 || settings.Height > 1088))
             {
                 settings.hires_denoising_strength = 0.5M;
                 settings.hires_steps = 15;
-                settings.hires_width = settings.width;
-                settings.hires_height = settings.height;
+                settings.hires_width = settings.Width;
+                settings.hires_height = settings.Height;
                 settings.hires_enabled = true;
 
-                (settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width, settings.height, 1024);
+                (settings.Width, settings.Height) = FoxImage.CalculateLimitedDimensions(settings.Width, settings.Height, 1024);
             }
 
-            if (settings.seed == -1)
-                settings.seed = GetRandomInt32();
+            if (settings.Seed == -1)
+                settings.Seed = GetRandomInt32();
 
-            long imageSize = Math.Max(settings.width, settings.hires_width) * Math.Max(settings.height, settings.hires_height);
+            long imageSize = Math.Max(settings.Width, settings.hires_width) * Math.Max(settings.Height, settings.hires_height);
             long imageComplexity = imageSize * (settings.steps + settings.hires_steps);
 
             // Default and maximum complexity
@@ -820,7 +836,7 @@ namespace makefoxsrv
 
             FoxContextManager.Current.Queue = q;
 
-            if (type == QueueType.IMG2IMG && !(await FoxImage.IsImageValid(settings.selected_image)))
+            if (type == QueueType.IMG2IMG && !(await FoxImage.IsImageValid(settings.SelectedImage)))
                 throw new Exception("Invalid input image");
 
             await FoxDB.SaveObjectAsync(q, "queue");
@@ -969,7 +985,7 @@ namespace makefoxsrv
             // Attempt to find the FoxQueue item in the fullQueue cache
 
             // Attempt to find the FoxQueue item in the fullQueue cache
-            var cachedItem = fullQueue.FirstOrDefault(fq => fq.User.UID == user.UID && (tgChatId == null || fq.Telegram?.Peer?.ID == tgChatId));
+            var cachedItem = fullQueue.FirstOrDefault(fq => fq is not null && fq.User.UID == user.UID && (tgChatId == null || fq.Telegram?.Peer?.ID == tgChatId));
 
             if (cachedItem is not null)
             {
@@ -986,9 +1002,14 @@ namespace makefoxsrv
             var q = await FoxDB.LoadObjectAsync<FoxQueue>("queue", "uid = @uid AND (@peerId IS NULL OR tele_chatid = @peerId) ORDER BY id DESC LIMIT 1", parameters, async (o, r) =>
             {
                 long uid = Convert.ToInt64(r["uid"]);
-                o.User = await FoxUser.GetByUID(uid);
+                var user = await FoxUser.GetByUID(uid);
+                    
+                if (user is null)
+                    throw new Exception("User not found");
 
-                long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
+                o.User = user;
+
+                long ? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
 
                 var teleChat = teleChatId is not null ? await FoxTelegram.GetChatFromID(teleChatId.Value) : null;
 
@@ -1108,7 +1129,13 @@ namespace makefoxsrv
             var q = await FoxDB.LoadObjectAsync<FoxQueue>("queue", query, parameters, async (o, r) =>
             {
                 long uid = Convert.ToInt64(r["uid"]);
-                o.User = await FoxUser.GetByUID(uid);
+
+                var user = await FoxUser.GetByUID(uid);
+
+                if (user is null)
+                    throw new Exception("User not found");
+
+                o.User = user;
 
                 long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
 
@@ -1138,7 +1165,7 @@ namespace makefoxsrv
                 return cachedItem;
             }
 
-            var parameters = new Dictionary<string, object>
+            var parameters = new Dictionary<string, object?>
             {
                 { "@id", id }
             };
@@ -1146,7 +1173,13 @@ namespace makefoxsrv
             var q = await FoxDB.LoadObjectAsync<FoxQueue>("queue", "id = @id", parameters, async (o, r) =>
             {
                 long uid = Convert.ToInt64(r["uid"]);
-                o.User = await FoxUser.GetByUID(uid);
+
+                var user = await FoxUser.GetByUID(uid);
+
+                if (user is null)
+                    throw new Exception("User not found");
+
+                o.User = user;
 
                 long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
 
@@ -1411,28 +1444,34 @@ namespace makefoxsrv
                                 }
                         };
 
-                        await Telegram.EditMessageAsync(
-                            id: MessageID,
-                            text: messageBuilder.ToString(),
-                            replyInlineMarkup: inlineKeyboardButtons
-                        );
+                        if (Telegram is not null)
+                        {
+                            await Telegram.EditMessageAsync(
+                                id: MessageID,
+                                text: messageBuilder.ToString(),
+                                replyInlineMarkup: inlineKeyboardButtons
+                            );
+                        }
                     }
                     catch when (ex.Message != "MESSAGE_NOT_MODIFIED")
                     {
                         FoxLog.LogException(ex);
                     }
                     
-                    await Enqueue(this, (errorType == errorType.SILENT));
+                    Enqueue(this, (errorType == errorType.SILENT));
 
                     break;
                 case errorType.SHUTDOWN:
                 case errorType.FATAL:
                     try
                     {
-                        await Telegram.EditMessageAsync(
-                            id: MessageID,
-                            text: messageBuilder.ToString()
-                        );
+                        if (Telegram is not null)
+                        {
+                            await Telegram.EditMessageAsync(
+                                id: MessageID,
+                                text: messageBuilder.ToString()
+                            );
+                        }
                     }
                     catch when (ex.Message != "MESSAGE_NOT_MODIFIED")
                     {
@@ -1509,7 +1548,7 @@ namespace makefoxsrv
 
             if (_inputImage == null)
             {
-                _inputImage = await FoxImage.Load(Settings.selected_image);
+                _inputImage = await FoxImage.Load(Settings.SelectedImage);
 
                 if (_inputImage is null)
                     throw new Exception("Input image could not be loaded");

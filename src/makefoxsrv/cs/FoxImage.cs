@@ -1278,7 +1278,7 @@ namespace makefoxsrv
                         {
                             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-                            settings.selected_image = newImg.ID;
+                            settings.SelectedImage = newImg.ID;
 
                             await settings.Save();
 
@@ -1315,7 +1315,7 @@ namespace makefoxsrv
                                 {
                                     var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-                                    settings.selected_image = newImg.ID;
+                                    settings.SelectedImage = newImg.ID;
 
                                     await settings.Save();
 
@@ -1337,7 +1337,7 @@ namespace makefoxsrv
                                         {
                                             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-                                            settings.selected_image = newImg.ID;
+                                            settings.SelectedImage = newImg.ID;
 
                                             await settings.Save();
 

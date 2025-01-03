@@ -169,7 +169,7 @@ namespace makefoxsrv
             );
 
             await q.SetStatus(FoxQueue.QueueStatus.PENDING, query.msg_id);
-            await FoxQueue.Enqueue(q);
+            FoxQueue.Enqueue(q);
         }
 
         private static async Task CallbackCmdHistory(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
@@ -215,7 +215,7 @@ namespace makefoxsrv
             if (user.GetAccessLevel() < AccessLevel.ADMIN)
             {
 
-                if (q.Settings.width >= 1920 || q.Settings.height >= 1920)
+                if (q.Settings.Width >= 1920 || q.Settings.Height >= 1920)
                 {
                     await t.SendMessageAsync(
                         text: $"❌ This image is already at the maximum allowed resolution!  Enhancing again won't accomplish anything.  Please go back and enhance the original image if you'd like a different result.",
@@ -265,15 +265,15 @@ namespace makefoxsrv
 
                 //(settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
 
-                settings.seed = -1;
+                settings.Seed = -1;
                 settings.hires_denoising_strength = 0.45M;
                 settings.hires_steps = 15;
                 settings.hires_enabled = true;
 
-                settings.selected_image = q.OutputImageID.Value;
+                settings.SelectedImage = q.OutputImageID.Value;
 
-                uint width = Math.Max(settings.width, settings.hires_width);
-                uint height = Math.Max(settings.height, settings.hires_height);
+                uint width = Math.Max(settings.Width, settings.hires_width);
+                uint height = Math.Max(settings.Height, settings.hires_height);
 
                 (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 1920);
             }
@@ -283,8 +283,8 @@ namespace makefoxsrv
                 settings.hires_steps = 15;
                 settings.hires_enabled = true;
 
-                uint width = Math.Max(settings.width, settings.hires_width);
-                uint height = Math.Max(settings.height, settings.hires_height);
+                uint width = Math.Max(settings.Width, settings.hires_width);
+                uint height = Math.Max(settings.Height, settings.hires_height);
 
                 (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 1920);
             }
@@ -462,7 +462,7 @@ namespace makefoxsrv
             if (argument == "default")
                 argument = null;
 
-            var model = FoxModel.GetModelByName(argument ?? FoxSettings.Get<string>("DefaultModel"));
+            var model = FoxModel.GetModelByName(argument ?? FoxSettings.Get<string>("DefaultModel")!);
 
             if (model is null)
             {
@@ -483,7 +483,7 @@ namespace makefoxsrv
 
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-            settings.model = argument;
+            settings.Model = model.Name;
 
             await settings.Save();
 
@@ -491,7 +491,7 @@ namespace makefoxsrv
 
             StringBuilder message = new StringBuilder();
 
-            message.AppendLine("✅ <b>Model selected:</b> " + settings.model);
+            message.AppendLine("✅ <b>Model selected:</b> " + settings.Model);
 
             if (model.Description is not null)
             {
@@ -562,17 +562,17 @@ namespace makefoxsrv
             {
                 if (argument == "default")
                 {
-                    argument = null;
+                    argument = FoxSettings.Get<string>("DefaultSampler")!;
                 }
 
                 var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-                settings.sampler = argument;
+                settings.Sampler = argument;
 
                 await settings.Save();
 
                 await t.EditMessageAsync(
-                        text: "✅ Sampler selected: " + settings.sampler,
+                        text: "✅ Sampler selected: " + settings.Sampler,
                         id: query.msg_id
                     );
             }
@@ -728,32 +728,32 @@ namespace makefoxsrv
                 System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
                 System.TimeSpan GPUTime = await q.GetGPUTime();
 
-                uint width = Math.Max(q.Settings.width, q.Settings.hires_width);
-                uint height = Math.Max(q.Settings.height, q.Settings.hires_height);
+                uint width = Math.Max(q.Settings.Width, q.Settings.hires_width);
+                uint height = Math.Max(q.Settings.Height, q.Settings.hires_height);
 
-                var sizeString = $"{width}x{height}" + (q.Settings.hires_enabled ? $" (upscaled from {q.Settings.width}x{q.Settings.height})" : "");
+                var sizeString = $"{width}x{height}" + (q.Settings.hires_enabled ? $" (upscaled from {q.Settings.Width}x{q.Settings.Height})" : "");
 
                 //if (q.Settings.UpscalerWidth is not null && q.Settings.UpscalerHeight is not null)
                 //    sizeString += $" (upscaled from {q.Settings.width}x{q.Settings.height})";
 
                 // Build the main message
-                sb.AppendLine($"🖤Prompt: {q.Settings.prompt}");
-                sb.AppendLine($"🐊Negative: {q.Settings.negative_prompt}");
+                sb.AppendLine($"🖤Prompt: {q.Settings.Prompt}");
+                sb.AppendLine($"🐊Negative: {q.Settings.NegativePrompt}");
                 sb.AppendLine($"🖥️ Size: {sizeString}");
-                sb.AppendLine($"🪜Sampler: {q.Settings.sampler} ({q.Settings.steps} steps)");
-                sb.AppendLine($"🧑‍🎨CFG Scale: {q.Settings.cfgscale}");
+                sb.AppendLine($"🪜Sampler: {q.Settings.Sampler} ({q.Settings.steps} steps)");
+                sb.AppendLine($"🧑‍🎨CFG Scale: {q.Settings.CFGScale}");
                 if (q.Type == FoxQueue.QueueType.IMG2IMG)
-                    sb.AppendLine($"👂Denoising Strength: {q.Settings.denoising_strength}");
-                sb.AppendLine($"🧠Model: {q.Settings.model}");
+                    sb.AppendLine($"👂Denoising Strength: {q.Settings.DenoisingStrength}");
+                sb.AppendLine($"🧠Model: {q.Settings.Model}");
 
                 if (q.Settings.variation_seed is not null && q.Settings.variation_strength is not null)
                 {
                     var variation_percent = (int)(q.Settings.variation_strength * 100);
 
-                    sb.AppendLine($"🌱Seed: {q.Settings.seed} ({q.Settings.variation_seed}@{variation_percent}%)");
+                    sb.AppendLine($"🌱Seed: {q.Settings.Seed} ({q.Settings.variation_seed}@{variation_percent}%)");
                 }
                 else
-                    sb.AppendLine($"🌱Seed: {q.Settings.seed}");
+                    sb.AppendLine($"🌱Seed: {q.Settings.Seed}");
 
                 if (q.WorkerID is not null)
                 {
@@ -874,21 +874,21 @@ namespace makefoxsrv
 
             var imageData = new MemoryStream(img.Image);
 
-            bool addWatermark = !(q.User.CheckAccessLevel(AccessLevel.PREMIUM));
+            //bool addWatermark = !(q.User.CheckAccessLevel(AccessLevel.PREMIUM));
 
-            if (addWatermark)
-            {
-                var outputStream = new MemoryStream();
+            //if (addWatermark)
+            //{
+            //    var outputStream = new MemoryStream();
 
-                using Image<Rgba32> image = Image.Load<Rgba32>(new MemoryStream(img.Image));
+            //    using Image<Rgba32> image = Image.Load<Rgba32>(new MemoryStream(img.Image));
                 
-                using var outputImage = FoxWatermark.ApplyWatermark(image);
+            //    using var outputImage = FoxWatermark.ApplyWatermark(image);
 
-                outputImage.SaveAsPng(outputStream, new PngEncoder());
-                outputStream.Position = 0;
+            //    outputImage.SaveAsPng(outputStream, new PngEncoder());
+            //    outputStream.Position = 0;
 
-                imageData =  outputStream;
-            }
+            //    imageData =  outputStream;
+            //}
             
             var inputImage = await FoxTelegram.Client.UploadFileAsync(imageData, $"{FoxTelegram.Client.User.username}_full_image_{q.ID}.png");
 
@@ -919,7 +919,7 @@ namespace makefoxsrv
             if (q.OutputImageID is null)
                 return;
 
-            settings.selected_image = (ulong)q.OutputImageID;
+            settings.SelectedImage = (ulong)q.OutputImageID;
 
             await settings.Save();
 
