@@ -626,6 +626,48 @@ namespace makefoxsrv
             }
         }
 
+        private static async Task UpdateTelegramUsername(TL.User? user, UpdateUserName newUserInfo)
+        {
+            try
+            {
+                var fUser = user is null ? null : await FoxUser.GetByTelegramUser(user, false);
+                var userName = newUserInfo.usernames.First().username;
+
+                FoxContextManager.Current = new FoxContext
+                {
+                    Telegram = user is null ? null : new FoxTelegram(user, null),
+                    User = fUser
+                };
+
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                {
+                    await SQL.OpenAsync();
+                    using (var cmd = new MySqlCommand())
+                    {
+                        cmd.Connection = SQL;
+                        cmd.CommandText = "UPDATE telegram_users SET username = @username, firstname = @firstname, lastname = @lastname WHERE id = @id";
+                        cmd.Parameters.AddWithValue("username", userName);
+                        cmd.Parameters.AddWithValue("firstname", newUserInfo.first_name);
+                        cmd.Parameters.AddWithValue("lastname", newUserInfo.last_name);
+                        cmd.Parameters.AddWithValue("id", newUserInfo.user_id);
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+                }
+
+                if (fUser is not null)
+                    await fUser.SetUsername(userName);
+
+                FoxLog.WriteLine(ReplaceNonPrintableCharacters($"Updated username for {user.ID} to {userName}"));
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex);
+            }
+            finally
+            {
+                FoxContextManager.Clear();
+            }
+        }
 
         private static async Task HandleUpdateAsync(UpdatesBase updates)
         {
@@ -742,6 +784,10 @@ namespace makefoxsrv
                                 break;
                             case UpdateReadChannelOutbox urco:
                                 //User has read our messages (and we're an admin in the channel)
+                                break;
+                            case UpdateUserName uun:
+                                updates.Users.TryGetValue(uun.user_id, out user);
+                                _ = UpdateTelegramUsername(user, uun);
                                 break;
                             default:
                                 FoxLog.WriteLine("Unexpected update type from Telegram: " + update.GetType().Name);

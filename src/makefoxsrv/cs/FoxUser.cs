@@ -330,6 +330,23 @@ namespace makefoxsrv
             return user;
         }
 
+        public async Task SetUsername(string newUsername)
+        {
+            this.Username = newUsername;
+
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await SQL.OpenAsync();
+
+                using (var updateCmd = new MySqlCommand("UPDATE users SET username = @username WHERE id = @uid", SQL))
+                {
+                    updateCmd.Parameters.AddWithValue("@username", newUsername);
+                    updateCmd.Parameters.AddWithValue("@uid", this.UID);
+                    await updateCmd.ExecuteNonQueryAsync();
+                }
+            }
+        }
+
         public static async Task<FoxUser?> GetByTelegramUser(User tuser, bool autoCreateUser = false)
         {
             var cachedUser = GetFromCacheByTelegramID(tuser.ID);
@@ -338,20 +355,9 @@ namespace makefoxsrv
                 if (cachedUser.Username != tuser.username)
                 {
                     // Telegram username changed, a db update is required
-                    using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
-                    {
-                        await SQL.OpenAsync();
-                        FoxLog.WriteLine($"Username change: {cachedUser.Username} > {tuser.username}");
 
-                        using (var updateCmd = new MySqlCommand("UPDATE users SET username = @username WHERE id = @uid", SQL))
-                        {
-                            updateCmd.Parameters.AddWithValue("@username", tuser.username);
-                            updateCmd.Parameters.AddWithValue("@uid", cachedUser.UID);
-                            await updateCmd.ExecuteNonQueryAsync();
-
-                            cachedUser.Username = tuser.username; // Update the user object with the new username
-                        }
-                    }
+                    FoxLog.WriteLine($"Username change: {cachedUser.Username} > {tuser.username}");
+                    await cachedUser.SetUsername(tuser.username);
                 }
 
                 cachedUser.lastAccessed = DateTime.Now;
