@@ -213,6 +213,7 @@ namespace makefoxsrv
 
         public async Task LockAsync()
         {
+            FoxLog.WriteLine($"Locking user {this.UID}", LogLevel.DEBUG);
             await UserSemaphores.GetOrAdd(this.UID, _ => new SemaphoreSlim(1, 1)).WaitAsync();
         }
 
@@ -220,8 +221,10 @@ namespace makefoxsrv
         {
             if (UserSemaphores.TryGetValue(this.UID, out var userSemaphore))
             {
+                FoxLog.WriteLine($"Unlocking user {this.UID}", LogLevel.DEBUG);
                 userSemaphore.Release();
-            }
+            } else
+                FoxLog.WriteLine($"Attempt to unlock unlocked user {this.UID}!", LogLevel.WARNING);
         }
 
         public async Task SetPreferredLanguage(string language)

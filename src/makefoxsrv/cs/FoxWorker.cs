@@ -41,7 +41,8 @@ namespace makefoxsrv
         public bool UseBase { get; set; } = false;
         public bool UseCommon { get; set; } = false;
         public bool UseNegCommon { get; set; } = false;
-        public string CalcMode { get; set; } = "Latent";
+        //public string CalcMode { get; set; } = "Latent";
+        public string CalcMode { get; set; } = "Attention";
         public bool NotChangeAND { get; set; } = false;
         public string LoRATextEncoder { get; set; } = "0";
         public string LoRAUNet { get; set; } = "0";

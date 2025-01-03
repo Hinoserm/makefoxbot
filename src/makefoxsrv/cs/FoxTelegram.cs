@@ -356,9 +356,6 @@ namespace makefoxsrv
         {
             var user = await FoxUser.GetByTelegramUser(t.User, true);
 
-            if (user is not null)
-                await user.LockAsync();
-
             FoxContextManager.Current = new FoxContext
             {
                 Message = ms,
@@ -371,28 +368,26 @@ namespace makefoxsrv
                 if (user is null)
                     throw new Exception("Unknown user in payment request!");
 
-                if (user is not null)
+                await user.LockAsync();
+
+                string payload = System.Text.Encoding.ASCII.GetString(payment.payload);
+                string[] parts = payload.Split('_');
+                if (parts.Length != 3 || parts[0] != "PAY" || !long.TryParse(parts[1], out long recvUID))
                 {
-
-                    string payload = System.Text.Encoding.ASCII.GetString(payment.payload);
-                    string[] parts = payload.Split('_');
-                    if (parts.Length != 3 || parts[0] != "PAY" || !long.TryParse(parts[1], out long recvUID))
-                    {
-                        throw new System.Exception("Malformed payment request!");
-                    }
-
-                    var recvUser = await FoxUser.GetByUID(recvUID);
-
-                    if (recvUser is null)
-                        throw new Exception("Unknown UID in payment request!");
-
-                    var days = 30;
-
-                    await recvUser.RecordPayment(PaymentTypes.TELEGRAM, (int)payment.total_amount, payment.currency, days, payload, payment.charge.id, payment.charge.provider_charge_id, ms.id);
-                    FoxLog.WriteLine($"Payment recorded for user {recvUID} by {user.UID}: ({payment.total_amount}, {payment.currency}, {days}, {payload}, {payment.charge.id}, {payment.charge.provider_charge_id})");
-
-                    //await botClient.DeleteMessageAsync(message.Chat.Id, message.MessageId);
+                    throw new System.Exception("Malformed payment request!");
                 }
+
+                var recvUser = await FoxUser.GetByUID(recvUID);
+
+                if (recvUser is null)
+                    throw new Exception("Unknown UID in payment request!");
+
+                var days = 30;
+
+                await recvUser.RecordPayment(PaymentTypes.TELEGRAM, (int)payment.total_amount, payment.currency, days, payload, payment.charge.id, payment.charge.provider_charge_id, ms.id);
+                FoxLog.WriteLine($"Payment recorded for user {recvUID} by {user.UID}: ({payment.total_amount}, {payment.currency}, {days}, {payload}, {payment.charge.id}, {payment.charge.provider_charge_id})");
+
+                //await botClient.DeleteMessageAsync(message.Chat.Id, message.MessageId);
             }
             catch (Exception ex)
             {

@@ -118,8 +118,8 @@ namespace makefoxsrv
             else
                 settings.regionalPrompting = originalTask.Settings.regionalPrompting;
 
-            if (settings.regionalPrompting)
-                throw new Exception("Regional prompting is currently unavailable due to a software issue.");
+            //if (settings.regionalPrompting)
+            //    throw new Exception("Regional prompting is currently unavailable due to a software issue.");
 
             if (settings.regionalPrompting && !user.CheckAccessLevel(AccessLevel.PREMIUM)) {
                 await t.SendMessageAsync(

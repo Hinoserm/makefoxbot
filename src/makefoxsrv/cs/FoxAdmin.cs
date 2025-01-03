@@ -614,7 +614,6 @@ namespace makefoxsrv
                 return;
             }
 
-
             int forwardMsgId = message.ReplyHeader.reply_to_msg_id;
 
             var activeUsers = new List<long>();
