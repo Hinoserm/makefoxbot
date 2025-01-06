@@ -101,17 +101,17 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌You must specify a prompt!  Please seek /help",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
             }
 
-            await FoxGenerate.Generate(t, settings, message.ID, user, imgType);
+            await FoxGenerate.Generate(t, settings, message, user, imgType);
         }
 
 
-        public static async Task Generate(FoxTelegram t, FoxUserSettings settings, int messageId, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG, bool enhanced = false, FoxQueue? originalTask = null)
+        public static async Task Generate(FoxTelegram t, FoxUserSettings settings, Message replyToMessage, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG, bool enhanced = false, FoxQueue? originalTask = null)
         {
             if (originalTask is null)
                 settings.regionalPrompting = DetectRegionalPrompting(settings.Prompt ?? "") || DetectRegionalPrompting(settings.NegativePrompt ?? "");
@@ -124,7 +124,7 @@ namespace makefoxsrv
             if (settings.regionalPrompting && !user.CheckAccessLevel(AccessLevel.PREMIUM)) {
                 await t.SendMessageAsync(
                     text: "❌ Regional prompting is a premium feature.\n\nPlease consider a paid /membership",
-                    replyToMessageId: messageId
+                    replyToMessage: replyToMessage
                 );
 
                 return;
@@ -140,7 +140,7 @@ namespace makefoxsrv
 
                     await t.SendMessageAsync(
                         text: $"❌ Maximum of {q_limit} queued request{plural}.",
-                        replyToMessageId: messageId
+                        replyToMessage: replyToMessage
                     );
 
                     return;
@@ -153,7 +153,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: $"❌ There are no workers available to handle your currently selected model ({settings.Model}).  This can happen if the server was recently restarted or if a model was uninstalled.\r\n\r\nPlease try again in a moment or select a different /model.",
-                    replyToMessageId: messageId
+                    replyToMessage: replyToMessage
                 );
 
                 return;
@@ -163,7 +163,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ No workers are available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
-                    replyToMessageId: messageId
+                    replyToMessage: replyToMessage
                 );
 
                 return;
@@ -172,7 +172,7 @@ namespace makefoxsrv
             // Check if the user is premium
             //bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM);
 
-            var q = await FoxQueue.Add(t, user, settings, imgType, 0, messageId, enhanced, originalTask, status: FoxQueue.QueueStatus.PAUSED);
+            var q = await FoxQueue.Add(t, user, settings, imgType, 0, replyToMessage, enhanced, originalTask, status: FoxQueue.QueueStatus.PAUSED);
             if (q is null)
                 throw new Exception("Unable to add item to queue");
             if (q.User is null)
@@ -207,7 +207,7 @@ namespace makefoxsrv
 
                 var warningMsg = await t.SendMessageAsync(
                     text: msgStr.ToString(),
-                    replyToMessageId: messageId,
+                    replyToMessage: replyToMessage,
                     replyInlineMarkup: inlineKeyboardButtons
                 );
 
@@ -232,7 +232,7 @@ namespace makefoxsrv
 
                 var waitMsg = await t.SendMessageAsync(
                     text: $"⏳ Adding to queue ({position} of {totalItems})...",
-                    replyToMessageId: messageId,
+                    replyToMessage: replyToMessage,
                     replyInlineMarkup: inlineKeyboardButtons
                 );
 

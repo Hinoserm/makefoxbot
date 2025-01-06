@@ -151,7 +151,8 @@ namespace makefoxsrv
                         media: new InputMediaUploadedPhoto() { file = inputImage },
                         text: (t.Chat is not null ? messageText : null),
                         replyInlineMarkup: (t.Chat is not null ? inlineKeyboardButtons : null),
-                        replyToMessageId: q.ReplyMessageID ?? 0
+                        replyToMessageId: q.ReplyMessageID ?? 0,
+                        replyToTopicId: q.ReplyTopicID ?? 0
                         );
 
                     await q.SetStatus(FoxQueue.QueueStatus.FINISHED, msg.ID);

@@ -155,7 +155,8 @@ namespace makefoxsrv
             );
         }
 
-        public async Task<Message> SendMessageAsync(string? text = null, int replyToMessageId = 0, ReplyInlineMarkup? replyInlineMarkup = null, MessageEntity[]? entities = null,
+        public async Task<Message> SendMessageAsync(string? text = null, int replyToMessageId = 0, int replyToTopicId = 0,
+            Message? replyToMessage = null, ReplyInlineMarkup? replyInlineMarkup = null, MessageEntity[]? entities = null,
             bool disableWebPagePreview = true, InputMedia? media = null)
         {
             if (!IsConnected)
@@ -164,6 +165,19 @@ namespace makefoxsrv
             long random_id = Helpers.RandomLong();
 
             UpdatesBase? updates;
+
+            InputReplyToMessage? inputReplyToMessage = null;
+
+            if (replyToMessage is not null)
+            {
+                inputReplyToMessage = new InputReplyToMessage { reply_to_msg_id = replyToMessage.id, top_msg_id = replyToMessage.ReplyHeader?.TopicID ?? 0 };
+            } else if (replyToMessageId != 0)
+            {
+                inputReplyToMessage = new InputReplyToMessage { reply_to_msg_id = replyToMessageId, top_msg_id = replyToTopicId };
+            }
+
+            if (inputReplyToMessage is not null && inputReplyToMessage.top_msg_id != 0)
+                inputReplyToMessage.flags |= InputReplyToMessage.Flags.has_top_msg_id;
 
             if (media is not null)
             {
@@ -174,7 +188,7 @@ namespace makefoxsrv
                     peer: _peer,
                     random_id: random_id,
                     message: text,
-                    reply_to: replyToMessageId == 0 ? null : new InputReplyToMessage { reply_to_msg_id = replyToMessageId },
+                    reply_to: inputReplyToMessage,
                     reply_markup: replyInlineMarkup,
                     entities: entities,
                     media: media
@@ -186,7 +200,7 @@ namespace makefoxsrv
                             peer: _peer,
                             random_id: random_id,
                             message: text,
-                            reply_to: replyToMessageId == 0 ? null : new InputReplyToMessage { reply_to_msg_id = replyToMessageId },
+                            reply_to: inputReplyToMessage,
                             reply_markup: replyInlineMarkup,
                             entities: entities,
                             no_webpage: disableWebPagePreview

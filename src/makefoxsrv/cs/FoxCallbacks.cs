@@ -293,7 +293,7 @@ namespace makefoxsrv
 
             settings.regionalPrompting = q.RegionalPrompting; //Have to copy this over manually
 
-            await FoxGenerate.Generate(t, settings, query.msg_id, user, q.Type, true, q);
+            await FoxGenerate.Generate(t, settings, new TL.Message() { id = query.msg_id }, user, q.Type, true, q);
         }
 
         private static async Task CallbackCmdRecycle(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
@@ -383,7 +383,7 @@ namespace makefoxsrv
                 settings.variation_strength = 0.02M;
             }
 
-            await FoxGenerate.Generate(t, settings, query.msg_id, user, q.Type, q.Enhanced, q);
+            await FoxGenerate.Generate(t, settings, new TL.Message() { id = query.msg_id }, user, q.Type, q.Enhanced, q);
         }
 
         private static async Task CallbackCmdLanguage(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)

@@ -19,7 +19,6 @@ using System.Linq;
 using System.ComponentModel.Design;
 using Stripe;
 using Stripe.FinancialConnections;
-using static makefoxsrv.FoxLog;
 
 namespace makefoxsrv
 {
@@ -590,7 +589,7 @@ namespace makefoxsrv
                 if (waitMsg is null)
                     throw new Exception("Unable to send start message.  Giving up.");
 
-                var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message.ID);
+                var q = await FoxQueue.Add(t, user, settings, FoxQueue.QueueType.TXT2IMG, waitMsg.ID, message);
 
                 FoxContextManager.Current.Queue = q;
 

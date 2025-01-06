@@ -83,6 +83,9 @@ namespace makefoxsrv
         [DbColumn("reply_msg")]
         public int? ReplyMessageID { get; private set; }
 
+        [DbColumn("reply_topic_id")]
+        public int? ReplyTopicID { get; private set; }
+
         [DbColumn("type")]
         public QueueType Type { get; private set; }
 
@@ -781,7 +784,7 @@ namespace makefoxsrv
         }
 
         public static async Task<FoxQueue> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings,
-                                                QueueType type, int messageID, int? replyMessageID = null, bool enhanced = false,
+                                                QueueType type, int messageID, Message? replyToMessage = null, bool enhanced = false,
                                                 FoxQueue? originalTask = null, TimeSpan? delay = null, QueueStatus status = QueueStatus.PENDING)
         {
             if (FoxContextManager.Current.Queue is null)
@@ -816,6 +819,8 @@ namespace makefoxsrv
 
             double normalizedComplexity = (double)(imageComplexity - defaultComplexity) / (maxComplexity - defaultComplexity);
 
+            int replyTopicID = replyToMessage?.ReplyHeader?.TopicID ?? 0;
+
             var q = new FoxQueue
             {
                 status = status,
@@ -825,7 +830,8 @@ namespace makefoxsrv
                 Type = type,
                 Settings = settings,
                 MessageID = messageID,
-                ReplyMessageID = replyMessageID,
+                ReplyMessageID = replyToMessage?.id,
+                ReplyTopicID = replyTopicID == 0 ? null : replyTopicID,
                 Enhanced = enhanced,
                 OriginalID = originalTask?.ID,
                 WorkerID = originalTask?.WorkerID,
