@@ -156,7 +156,7 @@ namespace makefoxsrv
                                 }
                                 else
                                 {
-                                    FoxLog.WriteLine($"Task {method.Name} completed in {elapsed}.", LogLevel.DEBUG);
+                                    //FoxLog.WriteLine($"Task {method.Name} completed in {elapsed}.", LogLevel.DEBUG);
                                     await Task.Delay(interval - elapsed.Value, token);
                                 }
                             }

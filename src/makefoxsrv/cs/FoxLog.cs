@@ -157,10 +157,7 @@ namespace makefoxsrv
 
                 //StackTrace stackTrace = new StackTrace(true);
 
-                var strStackTrace = ex?.StackTrace;
-
-                if (ex is null)
-                    strStackTrace = (new StackTrace(fNeedFileInfo: false, skipFrames: 2)).ToString();
+                var strStackTrace = ex is null ? new StackTrace(fNeedFileInfo: false, skipFrames: 2).ToString() : ex.StackTrace;
 
                 var logEntry = new LogEntry
                 {

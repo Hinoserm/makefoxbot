@@ -1284,7 +1284,7 @@ namespace makefoxsrv
 
                             await t.SendMessageAsync(
                                 text: "✅ Image saved and selected as input for /img2img",
-                                replyToMessageId: message.ID
+                                replyToMessage: message
                             );
                         }
                         else if (t.Chat is not null)
@@ -1321,7 +1321,7 @@ namespace makefoxsrv
 
                                     await t.SendMessageAsync(
                                         text: "✅ Image saved as input for /img2img",
-                                        replyToMessageId: message.ID
+                                        replyToMessage: message
                                     );
                                 }
                             }
@@ -1343,7 +1343,7 @@ namespace makefoxsrv
 
                                             await t.SendMessageAsync(
                                                 text: "✅ Image saved and selected as input for /img2img",
-                                                replyToMessageId: message.ID
+                                                replyToMessage: message
                                                 );
                                         }
                                     }
@@ -1357,7 +1357,7 @@ namespace makefoxsrv
             }
             catch (Exception ex)
             {
-                FoxLog.WriteLine($"Error with input image: {ex.Message}\r\n{ex.StackTrace}");
+                FoxLog.LogException(ex, $"Error with input image: {ex.Message}");
             }
 
             return null;
