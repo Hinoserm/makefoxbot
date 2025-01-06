@@ -898,7 +898,9 @@ namespace makefoxsrv
             
             var inputImage = await FoxTelegram.Client.UploadFileAsync(imageData, $"{FoxTelegram.Client.User.username}_full_image_{q.ID}.png");
 
-            var msg = await FoxTelegram.Client.SendMessageAsync(t.Peer, "", new InputMediaUploadedDocument(inputImage, "image/png"));
+            await t.SendMessageAsync(replyToMessageId: q.MessageID,
+                               replyToTopicId: q.ReplyTopicID ?? 0,
+                               media: new InputMediaUploadedDocument(inputImage, "image/png"));
 
             //await img.SaveFullTelegramFileIds(message.Document.FileId, message.Document.FileUniqueId);
         }
