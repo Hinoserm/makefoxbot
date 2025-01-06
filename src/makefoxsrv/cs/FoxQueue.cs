@@ -439,12 +439,8 @@ namespace makefoxsrv
                 // Look in the full queue for all tasks relevant to the same chat
                 var chatTasks = fullQueue.Values
                     .Where(queueItem => queueItem != null
-                                        && queueItem.Telegram?.Chat?.ID == item.Telegram.Chat.ID
-                                        && (
-                                            queueItem.status == FoxQueue.QueueStatus.PENDING ||
-                                            queueItem.status == FoxQueue.QueueStatus.PROCESSING ||
-                                            queueItem.status == FoxQueue.QueueStatus.ERROR
-                                        ))
+                            && queueItem.Telegram?.Chat?.ID == item.Telegram.Chat.ID
+                            )
                     .OrderBy(queueItem => queueItem.DateSent)
                     .ToList();
 
@@ -454,7 +450,8 @@ namespace makefoxsrv
                 // Check if any task in the same chat is currently being processed
                 bool hasActiveProcessingTask = chatTasks.Any(t => t.status != FoxQueue.QueueStatus.PAUSED 
                                                                && t.status != FoxQueue.QueueStatus.PENDING
-                                                               && t.status != FoxQueue.QueueStatus.CANCELLED);
+                                                               && t.status != FoxQueue.QueueStatus.CANCELLED
+                                                               && t.status != FoxQueue.QueueStatus.FINISHED);
 
                 // Skip the task if flood-limiting rules are violated
                 if (messagesLastMinute >= 10 || hasActiveProcessingTask)
