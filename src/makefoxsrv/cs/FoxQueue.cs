@@ -445,7 +445,7 @@ namespace makefoxsrv
                     .ToList();
 
                 // Count messages sent within the last minute
-                int messagesLastMinute = chatTasks.Count(t => t.DateSent >= oneMinuteAgo);
+                int messagesLastMinute = chatTasks.Count(t => t.DateSent is not null && t.DateSent >= oneMinuteAgo);
 
                 // Check if any task in the same chat is currently being processed
                 bool hasActiveProcessingTask = chatTasks.Any(t => t.status != FoxQueue.QueueStatus.PAUSED 
@@ -454,7 +454,7 @@ namespace makefoxsrv
                                                                && t.status != FoxQueue.QueueStatus.FINISHED);
 
                 // Skip the task if flood-limiting rules are violated
-                if (messagesLastMinute >= 10 || hasActiveProcessingTask)
+                if (messagesLastMinute >= 10)
                 {
                     return null; // Signal to skip this task
                 }
