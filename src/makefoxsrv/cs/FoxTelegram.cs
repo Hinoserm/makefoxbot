@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Security.Policy;
 using System.Text;
 using System.Threading;
@@ -804,6 +805,44 @@ namespace makefoxsrv
                                         break;
                                 }
 
+                                break;
+                            case UpdateChannelParticipant ucp:
+                                if (ucp.user_id == FoxTelegram.BotUser?.ID)
+                                {
+                                    // Bot was added or removed from a group
+
+                                    if (ucp.prev_participant?.UserId == FoxTelegram.BotUser?.ID)
+                                    {
+                                        FoxLog.WriteLine($"Bot was removed from group {ucp.channel_id} by {ucp.actor_id}.");
+                                    }
+                                    else if (ucp.new_participant?.UserId == FoxTelegram.BotUser?.ID)
+                                    {
+                                        FoxLog.WriteLine($"Bot was added to group {ucp.channel_id} by {ucp.actor_id}.");
+
+                                        updates.Users.TryGetValue(ucp.actor_id, out user);
+                                        updates.Chats.TryGetValue(ucp.channel_id, out chat);
+
+                                        //FoxLog.WriteLine(FoxStrings.SerializeToJson(m));
+                                        //FoxLog.WriteLine(m.message.Count().ToString());
+
+                                        if (user is not null && chat is not null)
+                                        {
+                                            t = new FoxTelegram(user, chat);
+
+                                            StringBuilder sb = new();
+
+                                            sb.AppendLine("🦊 Thank you for inviting me to your group!  I can help you make wonderful furry art.");
+                                            sb.AppendLine();
+                                            sb.AppendLine($"🎨 To get started, type /help@{FoxTelegram.BotUser?.MainUsername} to see what I can do.");
+                                            sb.AppendLine();
+                                            sb.AppendLine("📚 If you have any questions, feel free to contact @makefoxhelpbot, or check out our group @toomanyfoxes.");
+
+                                            await t.SendMessageAsync(text: sb.ToString());
+                                        }
+
+                                        
+                                    }
+                                }
                                 break;
                             case UpdateDeleteChannelMessages udcm:
                                 await HandleDeleteMessagesAsync(udcm.messages);
