@@ -52,7 +52,7 @@
     <PackageReference Include="System.Security.Permissions" Version="9.0.0" />
     <PackageReference Include="System.Text.Json" Version="9.0.0" />
     <PackageReference Include="System.Windows.Extensions" Version="9.0.0" />
-    <PackageReference Include="WTelegramClient" Version="4.2.5" />
+    <PackageReference Include="WTelegramClient" Version="4.2.7" />
   </ItemGroup>
 
   <ItemGroup>
