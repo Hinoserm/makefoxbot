@@ -1,4 +1,5 @@
-﻿using MySqlConnector;
+﻿using Microsoft.VisualBasic;
+using MySqlConnector;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -641,6 +642,12 @@ namespace makefoxsrv
                     case UpdateChannel uc:
                         tlPeerID = uc.channel_id;
                         break;
+                    case UpdateChannelPinnedTopics ucpts:
+                        tlPeerID = ucpts.channel_id;
+                        break;
+                    case UpdateChannelPinnedTopic ucpt:
+                        tlPeerID = ucpt.channel_id;
+                        break;
                 }
 
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
@@ -656,6 +663,41 @@ namespace makefoxsrv
                         cmd.Parameters.AddWithValue("peer_id", tlPeerID);
                         cmd.Parameters.AddWithValue("msg_id", tlMsgID);
                         cmd.Parameters.AddWithValue("json", FoxStrings.SerializeToJson(update));
+                        cmd.Parameters.AddWithValue("now", DateTime.Now);
+
+                        await cmd.ExecuteNonQueryAsync();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex);
+            }
+        }
+
+        private static async Task LogTelegramMessage(TL.MessageBase message)
+        {
+            try
+            {
+                string? messageText = null;
+
+                if (message is TL.Message msg)
+                    messageText = msg.message;
+
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                {
+                    await SQL.OpenAsync();
+
+                    using (var cmd = new MySqlCommand())
+                    {
+                        cmd.Connection = SQL;
+                        cmd.CommandText = "INSERT INTO telegram_message_log (type, from_id, peer_id, message_id, message_text, message_json, date) VALUES (@type, @from_id, @peer_id, @msg_id, @text, @json, @now)";
+                        cmd.Parameters.AddWithValue("type", message.GetType().Name);
+                        cmd.Parameters.AddWithValue("from_id", message.From?.ID);
+                        cmd.Parameters.AddWithValue("peer_id", message.Peer?.ID);
+                        cmd.Parameters.AddWithValue("msg_id", message.ID);
+                        cmd.Parameters.AddWithValue("text", messageText);
+                        cmd.Parameters.AddWithValue("json", FoxStrings.SerializeToJson(message));
                         cmd.Parameters.AddWithValue("now", DateTime.Now);
 
                         await cmd.ExecuteNonQueryAsync();
@@ -730,7 +772,7 @@ namespace makefoxsrv
                 await UpdateTelegramChats(updates.Chats);
             });
 
-            foreach (var update in updates.UpdateList)
+            foreach (var update in updates.UpdateList) 
             {
                 try
                 {
@@ -738,8 +780,6 @@ namespace makefoxsrv
                     ChatBase? chat = null;
                     FoxTelegram? t = null;
                     MessageBase? replyToMessage = null;
-
-                    //FoxLog.WriteLine("Update type from Telegram: " + update.GetType().Name);
 
                     try
                     {
@@ -751,6 +791,8 @@ namespace makefoxsrv
                                 break;
 
                             case UpdateNewMessage unm:
+                                _ = LogTelegramMessage(unm.message);
+
                                 switch (unm.message)
                                 {
                                     case Message m:
@@ -763,7 +805,7 @@ namespace makefoxsrv
                                         if (user is null)
                                         {
                                             FoxLog.WriteLine($"Weird message {m.ID}: {m.from_id} {m.peer_id} {m.GetType()}");
-                                            throw new Exception("Invalid telegram user");
+                                            continue;
                                         }
 
                                         t = new FoxTelegram(user, chat);
@@ -839,8 +881,6 @@ namespace makefoxsrv
 
                                             await t.SendMessageAsync(text: sb.ToString());
                                         }
-
-                                        
                                     }
                                 }
                                 break;
@@ -873,10 +913,15 @@ namespace makefoxsrv
                             case UpdateReadChannelOutbox urco:
                                 //User has read our messages (and we're an admin in the channel)
                                 break;
+                            case UpdateReadChannelDiscussionOutbox urcdo:
+                                break;
                             case UpdateUserName uun:
                                 user = new TL.User { id = uun.user_id };
 
                                 _ = HandleUpdateUsername(user, uun);
+                                break;
+                            case UpdateUser uu:
+                                // Handle user updates here.
                                 break;
                             default:
                                 FoxLog.WriteLine("Unexpected update type from Telegram: " + update.GetType().Name);
