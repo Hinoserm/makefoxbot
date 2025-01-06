@@ -769,11 +769,22 @@ namespace makefoxsrv
 
                 sb.AppendLine($"⏳Render Time: {GPUTime.ToPrettyFormat()}");
 
-                await t.EditMessageAsync(
-                    text: sb.ToString(),
-                    id: query.msg_id,
-                    replyInlineMarkup: inlineKeyboardButtons
-                );
+                try
+                {
+                    await t.EditMessageAsync(
+                        text: sb.ToString(),
+                        id: query.msg_id,
+                        replyInlineMarkup: inlineKeyboardButtons
+                    );
+                }
+                catch (WTException ex) when (ex.Message == "MEDIA_CAPTION_TOO_LONG")
+                {
+                    await t.SendMessageAsync(
+                        text: sb.ToString(),
+                        replyToMessageId: query.msg_id,
+                        replyInlineMarkup: inlineKeyboardButtons
+                    );
+                }
             }
         }
 
