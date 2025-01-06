@@ -161,7 +161,7 @@ namespace makefoxsrv
         }
 
         public async Task<Message> SendMessageAsync(string? text = null, int replyToMessageId = 0, int replyToTopicId = 0,
-            Message? replyToMessage = null, ReplyInlineMarkup? replyInlineMarkup = null, MessageEntity[]? entities = null,
+            MessageBase? replyToMessage = null, ReplyInlineMarkup? replyInlineMarkup = null, MessageEntity[]? entities = null,
             bool disableWebPagePreview = true, InputMedia? media = null)
         {
             if (!IsConnected)
@@ -175,7 +175,7 @@ namespace makefoxsrv
 
             if (replyToMessage is not null)
             {
-                inputReplyToMessage = new InputReplyToMessage { reply_to_msg_id = replyToMessage.id, top_msg_id = replyToMessage.ReplyHeader?.TopicID ?? 0 };
+                inputReplyToMessage = new InputReplyToMessage { reply_to_msg_id = replyToMessage.ID, top_msg_id = replyToMessage.ReplyHeader?.TopicID ?? 0 };
             } else if (replyToMessageId != 0)
             {
                 inputReplyToMessage = new InputReplyToMessage { reply_to_msg_id = replyToMessageId, top_msg_id = replyToTopicId };
@@ -737,7 +737,7 @@ namespace makefoxsrv
                     User? user = null;
                     ChatBase? chat = null;
                     FoxTelegram? t = null;
-                    int msg_id = 0;
+                    MessageBase? replyToMessage = null;
 
                     //FoxLog.WriteLine("Update type from Telegram: " + update.GetType().Name);
 
@@ -767,7 +767,7 @@ namespace makefoxsrv
                                         }
 
                                         t = new FoxTelegram(user, chat);
-                                        msg_id = m.ID;
+                                        replyToMessage = m;
 
                                         if (m.media is MessageMediaPhoto { photo: Photo photo })
                                         {
@@ -791,7 +791,7 @@ namespace makefoxsrv
                                                     throw new Exception("Invalid telegram user");
 
                                                 t = new FoxTelegram(user, chat);
-                                                msg_id = ms.ID;
+                                                replyToMessage = ms;
 
                                                 _= HandlePayment(t, ms, payment);
                                                 break;
@@ -893,7 +893,7 @@ namespace makefoxsrv
                             {
                                 await t.SendMessageAsync(
                                     text: "❌ Error! \"" + ex.Message + "\"",
-                                    replyToMessageId: msg_id
+                                    replyToMessage: replyToMessage
                                 );
                             } catch { }
                         }
