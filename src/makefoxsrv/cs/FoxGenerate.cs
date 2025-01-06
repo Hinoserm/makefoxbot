@@ -232,8 +232,15 @@ namespace makefoxsrv
 
                 (int position, int totalItems) = FoxQueue.GetNextPosition(q.User);
 
+                var messageText = "⏳ Adding to queue";
+
+                if (t.Chat is null)
+                    messageText += $" ({position} of {totalItems})...";
+                else
+                    messageText += "...";
+
                 var waitMsg = await t.SendMessageAsync(
-                    text: $"⏳ Adding to queue ({position} of {totalItems})...",
+                    text: messageText,
                     replyToMessage: replyToMessage,
                     replyInlineMarkup: inlineKeyboardButtons
                 );
