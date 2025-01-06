@@ -14,6 +14,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Collections.Concurrent;
 using Newtonsoft.Json;
+using System.Runtime.CompilerServices;
 
 public enum AccessLevel
 {
@@ -52,6 +53,7 @@ namespace makefoxsrv
         private static readonly object cacheLock = new object();
 
         private static readonly ConcurrentDictionary<ulong, SemaphoreSlim> UserSemaphores = new();
+        private static readonly ConcurrentDictionary<ulong, ConcurrentQueue<(DateTime LockTime, string OriginInfo, Task LockingTask)>> LockMetadata = new();
 
         public DateTime? cachedTime { get; set; } = null;
         public DateTime lastAccessed { get; private set; } = DateTime.Now;
@@ -225,20 +227,79 @@ namespace makefoxsrv
         //    return false;
         //}
 
-        public async Task LockAsync()
+        public async Task LockAsync(
+            [CallerMemberName] string callerName = "",
+            [CallerFilePath] string callerFilePath = "",
+            [CallerLineNumber] int lineNumber = 0)
         {
-            FoxLog.WriteLine($"Locking user {this.UID}", LogLevel.DEBUG);
-            await UserSemaphores.GetOrAdd(this.UID, _ => new SemaphoreSlim(1, 1)).WaitAsync();
+            SemaphoreSlim semaphore = UserSemaphores.GetOrAdd(this.UID, _ => new SemaphoreSlim(1, 1));
+
+            // Initialize metadata queue for this user if not already done
+            var metadataQueue = LockMetadata.GetOrAdd(this.UID, _ => new ConcurrentQueue<(DateTime, string, Task)>());
+
+            // Capture lock origin information
+            string originInfo = $"{callerName} in {callerFilePath}:{lineNumber}";
+
+            // Perform the 5-minute check for existing locks
+            if (!metadataQueue.IsEmpty)
+            {
+                foreach (var metadata in metadataQueue)
+                {
+                    var lockAge = DateTime.Now - metadata.LockTime;
+
+                    if (lockAge > TimeSpan.FromMinutes(5))
+                    {
+                        if (!metadata.LockingTask.IsCompleted)
+                        {
+                            // Task is still running
+                            FoxLog.WriteLine($"Warning: Lock on user {this.UID} is over 5 minutes old and task is still running. Locked at {metadata.LockTime} by {metadata.OriginInfo}.", LogLevel.WARNING);
+                        }
+                        else
+                        {
+                            // Task is not running; kill the lock
+                            if (metadataQueue.TryDequeue(out var staleLock))
+                            {
+                                FoxLog.WriteLine($"Warning: Lock on user {this.UID} is over 5 minutes old and task is not running. Removing stale lock. Locked at {staleLock.LockTime} by {staleLock.OriginInfo}.", LogLevel.WARNING);
+                                semaphore.Release();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Create the locking task but do NOT await yet
+            var lockingTask = semaphore.WaitAsync();
+
+            // Enqueue the lock metadata with the locking task immediately
+            metadataQueue.Enqueue((DateTime.Now, originInfo, lockingTask));
+
+            // Log and await the semaphore acquisition
+            FoxLog.WriteLine($"Locking user {this.UID}. Origin: {originInfo}", LogLevel.DEBUG);
+            await lockingTask;
         }
+
+
 
         public void Unlock()
         {
             if (UserSemaphores.TryGetValue(this.UID, out var userSemaphore))
             {
-                FoxLog.WriteLine($"Unlocking user {this.UID}", LogLevel.DEBUG);
+                if (LockMetadata.TryGetValue(this.UID, out var metadataQueue) && metadataQueue.TryDequeue(out var metadata))
+                {
+                    FoxLog.WriteLine($"Unlocking user {this.UID}. Originally locked at {metadata.LockTime} by {metadata.OriginInfo}.", LogLevel.DEBUG);
+                }
+                else
+                {
+                    FoxLog.WriteLine($"Unlocking user {this.UID}. No metadata found or queue is empty, lock might have been prematurely released.", LogLevel.WARNING);
+                }
+
+                // Release the semaphore
                 userSemaphore.Release();
-            } else
+            }
+            else
+            {
                 FoxLog.WriteLine($"Attempt to unlock unlocked user {this.UID}!", LogLevel.WARNING);
+            }
         }
 
         public async Task SetPreferredLanguage(string language)
