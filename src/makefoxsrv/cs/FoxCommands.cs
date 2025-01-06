@@ -351,7 +351,8 @@ namespace makefoxsrv
                 text: msg,
                 replyInlineMarkup: inlineKeyboard,
                 entities: entities,
-                disableWebPagePreview: true
+                disableWebPagePreview: true,
+                replyToMessage: message
             );
         }
 
@@ -546,7 +547,8 @@ namespace makefoxsrv
                 text: msg,
                 replyInlineMarkup: inlineKeyboard,
                 entities: entities,
-                disableWebPagePreview: true
+                disableWebPagePreview: true,
+                replyToMessage: message
             );
             
             pSession.TelegramMessageId = sentMessage.ID;
@@ -562,8 +564,8 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: outMsg,
-                entities: entities
-
+                entities: entities,
+                replyToMessage: message
             );
         }
 
@@ -797,7 +799,8 @@ namespace makefoxsrv
             // Send the message with the inline keyboard
             await t.SendMessageAsync(
                 text: "Select a sampler:",
-                replyInlineMarkup: inlineKeyboard
+                replyInlineMarkup: inlineKeyboard,
+                replyToMessage: message
             );
         }
 
