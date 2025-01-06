@@ -153,7 +153,17 @@ namespace makefoxsrv
                 {
                     await t.SendMessageAsync(
                         text: "❌ You are banned from using this bot.",
-                            replyToMessageId: message.ID
+                            replyToMessage: message
+                        );
+
+                    return;
+                }
+
+                if (t.Chat is not null && !await FoxGroupAdmin.CheckGroupTopicAllowed(t.Chat, t.User, message.ReplyHeader?.TopicID ?? 0))
+                {
+                    await t.SendMessageAsync(
+                        text: "❌ Commands are not permitted in this topic.",
+                            replyToMessage: message
                         );
 
                     return;
@@ -715,6 +725,8 @@ namespace makefoxsrv
 
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
+            bool userIsPremium = user.CheckAccessLevel(AccessLevel.PREMIUM) || await FoxGroupAdmin.CheckGroupIsPremium(t.Chat);
+
 
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 
@@ -736,7 +748,7 @@ namespace makefoxsrv
 
                     if (isPremium)
                     {
-                        if (!user.CheckAccessLevel(AccessLevel.PREMIUM))
+                        if (!userIsPremium)
                         {
                             buttonLabel = "🔒 " + buttonLabel;
                             buttonData = "/sampler premium";
@@ -754,7 +766,7 @@ namespace makefoxsrv
                     {
                         buttons = new TL.KeyboardButtonCallback[]
                         {
-                    new TL.KeyboardButtonCallback { text = buttonLabel, data = System.Text.Encoding.UTF8.GetBytes(buttonData) }
+                            new TL.KeyboardButtonCallback { text = buttonLabel, data = System.Text.Encoding.UTF8.GetBytes(buttonData) }
                         }
                     });
                 }
@@ -1244,9 +1256,11 @@ namespace makefoxsrv
                 return;
             }
 
+            bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM) || await FoxGroupAdmin.CheckGroupIsPremium(t.Chat);
+
             steps = Int16.Parse(stepstr[1]);
 
-            if (steps > 20 && !user.CheckAccessLevel(AccessLevel.PREMIUM))
+            if (steps > 20 && !isPremium)
             {
                 await t.SendMessageAsync(
                     text: "❌ Only members can exceed 20 steps.\r\n\r\nPlease consider a /membership",
@@ -1386,7 +1400,9 @@ namespace makefoxsrv
                 return;
             }
 
-            if ((width < 512 || height < 512) && !user.CheckAccessLevel(AccessLevel.PREMIUM))
+            bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM) || await FoxGroupAdmin.CheckGroupIsPremium(t.Chat);
+
+            if ((width < 512 || height < 512) && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendMessageAsync(
                     text: "❌ Dimension should be at least 512 pixels.",
@@ -1395,7 +1411,7 @@ namespace makefoxsrv
                 return;
             }
 
-            if ((width > 1024 || height > 1024) && !user.CheckAccessLevel(AccessLevel.PREMIUM))
+            if ((width > 1024 || height > 1024) && !isPremium)
             {
                 await t.SendMessageAsync(
                     text: "❌ Only premium users can exceed 1024 pixels in any dimension.\n\nPlease consider becoming a premium member: /donate",

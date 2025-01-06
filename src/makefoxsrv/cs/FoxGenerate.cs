@@ -121,7 +121,9 @@ namespace makefoxsrv
             //if (settings.regionalPrompting)
             //    throw new Exception("Regional prompting is currently unavailable due to a software issue.");
 
-            if (settings.regionalPrompting && !user.CheckAccessLevel(AccessLevel.PREMIUM)) {
+            bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM) || await FoxGroupAdmin.CheckGroupIsPremium(t.Chat);
+
+            if (settings.regionalPrompting && !isPremium) {
                 await t.SendMessageAsync(
                     text: "❌ Regional prompting is a premium feature.\n\nPlease consider a paid /membership",
                     replyToMessage: replyToMessage
@@ -132,7 +134,7 @@ namespace makefoxsrv
 
             if (user.GetAccessLevel() < AccessLevel.ADMIN)
             {
-                int q_limit = (user.GetAccessLevel() >= AccessLevel.PREMIUM) ? 3 : 1;
+                int q_limit = isPremium ? 3 : 1;
 
                 if (await FoxQueue.GetCount(user) >= q_limit)
                 {

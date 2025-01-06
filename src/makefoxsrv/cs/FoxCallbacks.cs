@@ -197,6 +197,8 @@ namespace makefoxsrv
             if (q is null)
                 throw new Exception("Unable to locate queue item");
 
+            bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM) || await FoxGroupAdmin.CheckGroupIsPremium(t.Chat);
+
             if (q.Telegram?.User.ID != t.User.ID && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendCallbackAnswer(query.query_id, 0, "Only the original creator may click this button!");
@@ -225,7 +227,7 @@ namespace makefoxsrv
                     return;
                 }
 
-                if (user.GetAccessLevel() < AccessLevel.PREMIUM)
+                if (!isPremium)
                 {
                     using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                     {
@@ -327,6 +329,8 @@ namespace makefoxsrv
 
             await t.SendCallbackAnswer(query.query_id, 0);
 
+            bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM) || await FoxGroupAdmin.CheckGroupIsPremium(t.Chat);
+
             if (user.DateTermsAccepted is null)
             {
                 await FoxMessages.SendTerms(t, user, query.msg_id);
@@ -334,7 +338,7 @@ namespace makefoxsrv
                 return; // User must agree to the terms before they can use this command.
             }
 
-            if (user.GetAccessLevel() < AccessLevel.PREMIUM)
+            if (!isPremium)
             {
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
@@ -511,7 +515,9 @@ namespace makefoxsrv
                 message.AppendLine("🔗 <a href=\"" + model.InfoUrl + "\">More Information</a>");
             }
 
-            if (model.IsPremium && !user.CheckAccessLevel(AccessLevel.PREMIUM))
+            bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM) || await FoxGroupAdmin.CheckGroupIsPremium(t.Chat);
+
+            if (model.IsPremium && !isPremium)
             {
                 message.AppendLine();
                 message.AppendLine("(🔒 This is a premium model and may require a membership to use)");

@@ -22,10 +22,34 @@ using Stripe.FinancialConnections;
 using PayPalCheckoutSdk.Orders;
 using System.Data;
 
+#pragma warning disable CS1998
+
 namespace makefoxsrv
 {
     internal class FoxGroupAdmin
     {
+        public static async Task<bool> CheckGroupIsPremium(ChatBase? group)
+        {
+            if (group is null)
+                return false;
+
+            if (group.ID == 2048609895)
+                return true;
+
+            return false;
+        }
+
+        public static async Task<bool> CheckGroupTopicAllowed(TL.ChatBase? group, TL.User user, int topicId = 0)
+        {
+            if (group is null)
+                return true; // Not a group, so it's fine.
+
+            if (group.ID == 2048609895 && topicId != 101465)
+                return false;
+
+            return true;
+        }
+
         private static async Task CmdGroupAdmin(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             // Get from the database all of the groups this user is an admin of.
