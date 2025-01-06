@@ -617,7 +617,29 @@ namespace makefoxsrv
                         tlPeerID = ucmv.channel_id;
                         tlMsgID = ucmv.id;
                         break;
-
+                    case UpdateBotStopped ubs:
+                        tlPeerID = ubs.user_id;
+                        break;
+                    case UpdateReadChannelOutbox urco:
+                        tlPeerID = urco.channel_id;
+                        break;
+                    case UpdateReadChannelDiscussionOutbox urcdo:
+                        tlPeerID = urcdo.channel_id;
+                        break;
+                    case UpdateChannelParticipant ucp:
+                        tlPeerID = ucp.channel_id;
+                        tlFromID = ucp.user_id;
+                        break;
+                    case UpdatePinnedMessages upm:
+                        tlPeerID = upm.peer.ID;
+                        tlMsgID = upm.messages.FirstOrDefault();
+                        break;
+                    case UpdateReadHistoryInbox urhi:
+                        tlPeerID = urhi.peer.ID;
+                        break;
+                    case UpdateChannel uc:
+                        tlPeerID = uc.channel_id;
+                        break;
                 }
 
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
