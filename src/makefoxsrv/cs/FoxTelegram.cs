@@ -817,8 +817,6 @@ namespace makefoxsrv
                                         }
                                         else
                                         {
-                                            throw new Exception("boop");
-
                                             _= HandleMessageAsync(t, m);
                                         }
 
