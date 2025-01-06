@@ -181,7 +181,7 @@ namespace makefoxsrv
 
                     await t.SendMessageAsync(
                         text: $"❌ Error: {ex.Message}",
-                        replyToMessageId: message.ID
+                        replyToMessage: message
                     );
                 }
                 finally
@@ -196,7 +196,7 @@ namespace makefoxsrv
 
                 await t.SendMessageAsync(
                     text: $"🦊 I'm sorry, I didn't understand that command.  Try /help.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
             }
         }
@@ -361,7 +361,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ You must be an admin to use this command.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -413,7 +413,7 @@ namespace makefoxsrv
                 default:
                     await t.SendMessageAsync(
                         text: "❌ Unknown command.  Use one of these:\r\n  #uncache, #ban, #unban, #resetterms, #resettos",
-                        replyToMessageId: message.ID
+                        replyToMessage: message
                     );
                     break;
             }
@@ -591,7 +591,7 @@ namespace makefoxsrv
 
             Message waitMsg = await t.SendMessageAsync(
                 text: $"⏳👖🍕🦊 Please wait...",
-                replyToMessageId: message.ID
+                replyToMessage: message
             );
 
             try
@@ -620,7 +620,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                         text: "❌ Error: That message doesn't contain an image.  You must send this command as a reply to a message containing an image.",
-                        replyToMessageId: message.ID
+                        replyToMessage: message
                         );
 
                 return;
@@ -670,7 +670,7 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: string.Join(Environment.NewLine, helpEntries),
-                replyToMessageId: message.ID
+                replyToMessage: message
             );
         }
 
@@ -698,7 +698,7 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: FoxStrings.text_help[0],
-                replyToMessageId: message.ID,
+                replyToMessage: message,
                 replyInlineMarkup: inlineKeyboardButtons
             );
         }
@@ -814,7 +814,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ You must be an admin to use this command.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -824,7 +824,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ You must provide a user ID to ban.\r\n\r\nFormat:\r\n  /ban <uid>\r\n  /ban @username",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -836,7 +836,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌You must provide a numeric value.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -864,7 +864,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ You must be an admin to use this command.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -873,7 +873,7 @@ namespace makefoxsrv
             if (String.IsNullOrEmpty(argument)) {
                 await t.SendMessageAsync(
                     text: "❌ You must provide a user ID to ban.\r\n\r\nFormat:\r\n  /ban <uid>\r\n  /ban @username",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -890,7 +890,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ Unable to parse user ID.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -905,7 +905,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ You can't ban an admin or premium user!",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -915,7 +915,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ User is already banned.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -925,7 +925,7 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: $"✅ User {banUser.UID} banned.",
-                replyToMessageId: message.ID
+                replyToMessage: message
             );
         }
 
@@ -944,7 +944,7 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: (settings.NegativePrompt.Length > 0 ? $"✅ Negative prompt set." : "✅ Negative prompt cleared."),
-                replyToMessageId: message.ID
+                replyToMessage: message
             );
         }
 
@@ -959,7 +959,7 @@ namespace makefoxsrv
                 {
                     await t.SendMessageAsync(
                         text: "❌ You must be an admin to view another user's info.",
-                        replyToMessageId: message.ID
+                        replyToMessage: message
                     );
 
                     return;
@@ -971,7 +971,7 @@ namespace makefoxsrv
                 {
                     await t.SendMessageAsync(
                         text: "❌ Unable to parse user ID.",
-                        replyToMessageId: message.ID
+                        replyToMessage: message
                     );
 
                     return;
@@ -1055,7 +1055,7 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: sb.ToString(),
-                replyToMessageId: message.ID
+                replyToMessage: message
             );
         }
 
@@ -1074,14 +1074,14 @@ namespace makefoxsrv
 
                 await t.SendMessageAsync(
                     text: $"✅ Prompt set.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
             }
             else
             {
                 await t.SendMessageAsync(
                     text: $"🖤Current prompt: " + settings.Prompt,
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
             }
         }
@@ -1099,7 +1099,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "Current Seed: " + settings.Seed,
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
                 return;
             }
@@ -1108,7 +1108,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌You must provide a numeric value.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -1120,7 +1120,7 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: $"✅ Seed set to {seed}.",
-                replyToMessageId: message.ID
+                replyToMessage: message
             );
         }
 
@@ -1137,7 +1137,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "Current CFG Scale: " + settings.CFGScale,
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
                 return;
             }
@@ -1146,7 +1146,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌You must provide a numeric value.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -1158,7 +1158,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌Value must be between 0 and 99.0.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -1170,7 +1170,7 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: $"✅ CFG Scale set to {cfgscale}.",
-                replyToMessageId: message.ID
+                replyToMessage: message
             );
         }
 
@@ -1189,7 +1189,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "Current Denoising Strength: " + settings.DenoisingStrength,
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
                 return;
             }
@@ -1198,7 +1198,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌You must provide a numeric value.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -1210,7 +1210,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌Value must be between 0 and 1.0.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -1222,7 +1222,7 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: $"✅ Denoising Strength set to {cfgscale}.",
-                replyToMessageId: message.ID
+                replyToMessage: message
             );
         }
 
@@ -1241,7 +1241,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "Current steps value: " + settings.steps,
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
                 return;
             }
@@ -1250,7 +1250,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌You must provide an integer value.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -1264,7 +1264,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ Only members can exceed 20 steps.\r\n\r\nPlease consider a /membership",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 if (settings.steps > 20)
@@ -1279,7 +1279,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ Value must be above 1 and below 30.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -1291,7 +1291,7 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: $"✅ Steps set to {steps}.",
-                replyToMessageId: message.ID
+                replyToMessage: message
             );
         }
 
@@ -1310,7 +1310,7 @@ namespace makefoxsrv
                       $"👂Denoising Strength: {settings.DenoisingStrength}\r\n" +
                       $"🧠Model: {settings.Model}\r\n" +
                       $"🌱Seed: {settings.Seed}\r\n",
-                replyToMessageId: message.ID
+                replyToMessage: message
             );
         }
 
@@ -1322,7 +1322,7 @@ namespace makefoxsrv
 
             var cancelMsg = await t.SendMessageAsync(
                 text: $"⏳ Cancelling...",
-                replyToMessageId: message.ID
+                replyToMessage: message
             );
 
             List<ulong> pendingIds = new List<ulong>();
@@ -1383,7 +1383,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "🖥️ Current size: " + settings.Width + "x" + settings.Height,
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
                 return;
             }
@@ -1395,7 +1395,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ Value must be in the format of [width]x[height].  Example: /setsize 768x768",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
                 return;
             }
@@ -1406,7 +1406,7 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ Dimension should be at least 512 pixels.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
                 return;
             }
@@ -1415,14 +1415,14 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ Only premium users can exceed 1024 pixels in any dimension.\n\nPlease consider becoming a premium member: /donate",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
                 return;
             } else if ((width * height) > 3686400 && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendMessageAsync(
                     text: "❌ Total image pixel count cannot be greater than 1920x1920.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
                 return;
             }
@@ -1451,7 +1451,7 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: msgString,
-                replyToMessageId: message.ID
+                replyToMessage: message
             );;
         }
     }

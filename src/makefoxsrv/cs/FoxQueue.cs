@@ -430,6 +430,40 @@ namespace makefoxsrv
                                  && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
                 .ToList();
 
+            if (item.Telegram?.Chat is not null)
+            {
+                // Enforce strict flood-limiting rules: one task per chat, max 10 messages per minute.
+                var now = DateTime.Now;
+                var oneMinuteAgo = now.AddMinutes(-1);
+
+                // Look in the full queue for all tasks relevant to the same chat
+                var chatTasks = fullQueue.Values
+                    .Where(queueItem => queueItem != null
+                                        && queueItem.Telegram?.Chat?.ID == item.Telegram.Chat.ID
+                                        && (
+                                            queueItem.status == FoxQueue.QueueStatus.PENDING ||
+                                            queueItem.status == FoxQueue.QueueStatus.PROCESSING ||
+                                            queueItem.status == FoxQueue.QueueStatus.ERROR
+                                        ))
+                    .OrderBy(queueItem => queueItem.DateSent)
+                    .ToList();
+
+                // Count messages sent within the last minute
+                int messagesLastMinute = chatTasks.Count(t => t.DateSent >= oneMinuteAgo);
+
+                // Check if any task in the same chat is currently being processed
+                bool hasActiveProcessingTask = chatTasks.Any(t => t.status != FoxQueue.QueueStatus.PAUSED 
+                                                               && t.status != FoxQueue.QueueStatus.PENDING
+                                                               && t.status != FoxQueue.QueueStatus.CANCELLED);
+
+                // Skip the task if flood-limiting rules are violated
+                if (messagesLastMinute >= 10 || hasActiveProcessingTask)
+                {
+                    return null; // Signal to skip this task
+                }
+            }
+
+
             if (!item.User.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 // New code to check the total complexity of the user's queue
