@@ -504,7 +504,7 @@ namespace makefoxsrv
 
 
 
-            var inlineKeyboard = new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() };
+            var inlineKeyboard = t.Chat is not null ? null : new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() };
 
             StringBuilder sb = new StringBuilder();
 
@@ -539,6 +539,11 @@ namespace makefoxsrv
 
             sb.Append("<i>Note: Membership purchases are not tax-deductible.</i>");
 
+            if (t.Chat is not null)
+            {
+                sb.AppendLine($"\n\n<b>You cannot purchase a membership from within a group chat.\n\nTo purchase a membership, please contact @{FoxTelegram.BotUser?.MainUsername} directly.</b>");
+            }
+            
             var msg = sb.ToString();
 
             var entities = FoxTelegram.Client.HtmlToEntities(ref msg);

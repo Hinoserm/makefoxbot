@@ -20,6 +20,8 @@ namespace makefoxsrv
     public class FoxTelegram
     {
 
+        static public TL.User? BotUser { get; private set; } = null;
+
         public static WTelegram.Client Client
         {
             get => _client ?? throw new InvalidOperationException("Client is null");
@@ -126,6 +128,8 @@ namespace makefoxsrv
             _client.FloodRetryThreshold = 0;
 
             await _client.LoginBotIfNeeded(botToken);
+
+            BotUser = _client.User;
 
             FoxLog.WriteLine($"We are logged-in as {_client.User} (id {_client.User.ID})");
 
