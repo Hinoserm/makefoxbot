@@ -485,13 +485,13 @@ namespace makefoxsrv
             });
 
             // Add Stars button
-            buttonRows.Add(new TL.KeyboardButtonRow
-            {
-                buttons = new TL.KeyboardButtonCallback[]
-                {
-                    new() { text = "⭐ Use Telegram Stars ⭐", data = System.Text.Encoding.UTF8.GetBytes("/donate stars") }
-                }
-            });
+            //buttonRows.Add(new TL.KeyboardButtonRow
+            //{
+            //    buttons = new TL.KeyboardButtonCallback[]
+            //    {
+            //        new() { text = "⭐ Use Telegram Stars ⭐", data = System.Text.Encoding.UTF8.GetBytes("/donate stars") }
+            //    }
+            //});
 
             // Add cancel button on its own row at the end
             buttonRows.Add(new TL.KeyboardButtonRow
@@ -581,7 +581,7 @@ namespace makefoxsrv
 
             if (user.DateTermsAccepted is null)
             {
-                await FoxMessages.SendTerms(t, user, message.ID, 0);
+                await FoxMessages.SendTerms(t, user, message, 0);
 
                 return; // User must agree to the terms before they can use this command.
             }
@@ -683,7 +683,7 @@ namespace makefoxsrv
 
         private static async Task CmdStart(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            await FoxMessages.SendWelcome(t, user, message.ID);
+            await FoxMessages.SendWelcome(t, user, message);
         }
 
         [CommandDescription("Show helpful information")]
@@ -813,7 +813,7 @@ namespace makefoxsrv
         [CommandArguments("")]
         private static async Task CmdModel(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            await FoxMessages.SendModelList(t, user, message.ID);
+            await FoxMessages.SendModelList(t, user, message);
         }
 
         private static async Task CmdBroadcast(FoxTelegram t, Message message, FoxUser user, String? argument)

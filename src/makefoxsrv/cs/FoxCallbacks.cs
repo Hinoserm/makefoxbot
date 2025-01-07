@@ -143,7 +143,7 @@ namespace makefoxsrv
 
             if (user.DateTermsAccepted is null)
             {
-                await FoxMessages.SendTerms(t, user, query.msg_id);
+                await FoxMessages.SendTerms(t, user, new Message() { id = query.msg_id });
 
                 return; // User must agree to the terms before they can use this command.
             }
@@ -209,7 +209,7 @@ namespace makefoxsrv
             
             if (user.DateTermsAccepted is null)
             {
-                await FoxMessages.SendTerms(t, user, query.msg_id);
+                await FoxMessages.SendTerms(t, user, new Message() { id = query.msg_id });
 
                 return; // User must agree to the terms before they can use this command.
             }
@@ -333,7 +333,7 @@ namespace makefoxsrv
 
             if (user.DateTermsAccepted is null)
             {
-                await FoxMessages.SendTerms(t, user, query.msg_id);
+                await FoxMessages.SendTerms(t, user, new Message() { id = query.msg_id });
 
                 return; // User must agree to the terms before they can use this command.
             }
@@ -402,7 +402,7 @@ namespace makefoxsrv
 
             await t.SendCallbackAnswer(query.query_id, 0, user.Strings.Get("Lang.AnswerCallbackMsg"));
 
-            await FoxMessages.SendWelcome(t, user, 0, query.msg_id);
+            await FoxMessages.SendWelcome(t, user, null, query.msg_id);
 
         }
 
@@ -418,7 +418,7 @@ namespace makefoxsrv
 
             await t.SendCallbackAnswer(query.query_id, 0, user.Strings.Get("Terms.AgreeClicked"));
 
-            await FoxMessages.SendTerms(t, user, 0, query.msg_id);
+            await FoxMessages.SendTerms(t, user, null, query.msg_id);
 
         }
 
@@ -451,14 +451,14 @@ namespace makefoxsrv
 
             if (argument == "more")
             {
-                await FoxMessages.SendModelList(t, user, 0, 2, query.msg_id);
+                await FoxMessages.SendModelList(t, user, null, 2, query.msg_id);
 
                 return;
             }
 
             if (argument == "back")
             {
-                await FoxMessages.SendModelList(t, user, 0, 1, query.msg_id);
+                await FoxMessages.SendModelList(t, user, null, 1, query.msg_id);
 
                 return;
             }
@@ -858,7 +858,8 @@ namespace makefoxsrv
 
             await t.SendMessageAsync(
                 text: FoxStrings.text_help[help_id - 1],
-                replyInlineMarkup: inlineKeyboardButtons
+                replyInlineMarkup: inlineKeyboardButtons,
+                replyToMessageId: query.msg_id
             );
         }
 

@@ -19,7 +19,7 @@ namespace makefoxsrv
     internal class FoxMessages
     {
 
-        public static async Task<TL.Message?> SendModelList(FoxTelegram t, FoxUser user, int replyMessageID, int pageNumber = 1, int editMessageID = 0)
+        public static async Task<TL.Message?> SendModelList(FoxTelegram t, FoxUser user, TL.Message? replyToMessage, int pageNumber = 1, int editMessageID = 0)
         {
             List<TL.KeyboardButtonRow> keyboardRows = new List<TL.KeyboardButtonRow>();
 
@@ -92,7 +92,7 @@ namespace makefoxsrv
                 return await t.SendMessageAsync(
                     text: "Select a model:\r\n\r\n (⭐ = Premium)",
                     replyInlineMarkup: inlineKeyboard,
-                    replyToMessageId: replyMessageID
+                    replyToMessage: replyToMessage
                 );
             }
             else
@@ -363,7 +363,7 @@ namespace makefoxsrv
         }
 
 
-        public static async Task<Message?> SendTerms(FoxTelegram t, FoxUser user, int replyMessageID = 0, int editMessage = 0)
+        public static async Task<Message?> SendTerms(FoxTelegram t, FoxUser user, TL.Message? replyToMessage = null, int editMessage = 0)
         {
             try
             {
@@ -414,7 +414,7 @@ namespace makefoxsrv
                         text: message,
                         entities: entities,
                         replyInlineMarkup: inlineKeyboardButtons,
-                        replyToMessageId: replyMessageID
+                        replyToMessage: replyToMessage
 
                     );
 
@@ -432,7 +432,7 @@ namespace makefoxsrv
             return null;
         }
 
-        public static async Task<Message?> SendWelcome(FoxTelegram t, FoxUser user, int replyMessageID = 0, int editMessage = 0)
+        public static async Task<Message?> SendWelcome(FoxTelegram t, FoxUser user, TL.Message? replyToMessage = null, int editMessage = 0)
         {
             try
             {
@@ -480,7 +480,7 @@ namespace makefoxsrv
                         text: message,
                         entities: entities,
                         replyInlineMarkup: inlineKeyboardButtons,
-                        replyToMessageId: replyMessageID
+                        replyToMessage: replyToMessage
 
                     );
 

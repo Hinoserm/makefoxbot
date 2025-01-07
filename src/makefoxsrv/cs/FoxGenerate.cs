@@ -45,7 +45,7 @@ namespace makefoxsrv
 
             if (user.DateTermsAccepted is null)
             {
-                await FoxMessages.SendTerms(t, user, message.ID);
+                await FoxMessages.SendTerms(t, user, message);
 
                 return; // User must agree to the terms before they can use this command.
             }
