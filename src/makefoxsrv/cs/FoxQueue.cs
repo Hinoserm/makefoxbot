@@ -498,15 +498,15 @@ namespace makefoxsrv
                 }
             }
 
-            // 4. Handle Enhanced/variation tasks that need the same worker, if possible
-            if (item.Enhanced || item.Settings.variation_seed != null)
+            // 4. Handle variation tasks that need the same worker, if possible
+            if (item.Settings.variation_seed != null)
             {
                 var timeInQueue = DateTime.Now - item.DateCreated;
 
-                // Wait up to 10 minutes to reuse a compatible worker.
+                // Wait up to 5 minutes to reuse a compatible worker.
                 // After that, take whatever we can get.
 
-                if (timeInQueue.TotalMinutes < 10)
+                if (timeInQueue.TotalMinutes < 5)
                 {
                     var gpuType = item.Worker?.GPUType;
 

@@ -260,7 +260,7 @@ namespace makefoxsrv
 
             FoxUserSettings settings = q.Settings.Copy();
 
-            if (q.Type == FoxQueue.QueueType.IMG2IMG)
+            if (true || q.Type == FoxQueue.QueueType.IMG2IMG)
             {
                 if (q.OutputImageID is null)
                     throw new Exception("Missing output image ID.");
@@ -268,8 +268,8 @@ namespace makefoxsrv
                 //(settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
 
                 settings.Seed = -1;
-                settings.hires_denoising_strength = 0.45M;
-                settings.hires_steps = 15;
+                settings.hires_denoising_strength = 0.20M;
+                settings.hires_steps = 20;
                 settings.hires_enabled = true;
 
                 settings.SelectedImage = q.OutputImageID.Value;
@@ -279,23 +279,23 @@ namespace makefoxsrv
 
                 (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 1920);
             }
-            else if (q.Type == FoxQueue.QueueType.TXT2IMG)
-            {
-                settings.hires_denoising_strength = 0.45M;
-                settings.hires_steps = 15;
-                settings.hires_enabled = true;
+            //else if (q.Type == FoxQueue.QueueType.TXT2IMG)
+            //{
+            //    settings.hires_denoising_strength = 0.45M;
+            //    settings.hires_steps = 15;
+            //    settings.hires_enabled = true;
 
-                uint width = Math.Max(settings.Width, settings.hires_width);
-                uint height = Math.Max(settings.Height, settings.hires_height);
+            //    uint width = Math.Max(settings.Width, settings.hires_width);
+            //    uint height = Math.Max(settings.Height, settings.hires_height);
 
-                (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 1920);
-            }
-            else
-                throw new Exception("Invalid queue type");
+            //    (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 1920);
+            //}
+            //else
+            //    throw new Exception("Invalid queue type");
 
             settings.regionalPrompting = q.RegionalPrompting; //Have to copy this over manually
 
-            await FoxGenerate.Generate(t, settings, new TL.Message() { id = query.msg_id }, user, q.Type, true, q);
+            await FoxGenerate.Generate(t, settings, new TL.Message() { id = query.msg_id }, user, FoxQueue.QueueType.IMG2IMG, true, q);
         }
 
         private static async Task CallbackCmdRecycle(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
