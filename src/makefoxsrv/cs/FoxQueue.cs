@@ -316,9 +316,16 @@ namespace makefoxsrv
                         {
                             DateTime now = DateTime.Now;
 
-                            for (int i = 0; i < taskList.Count; i++)
+                            // Separate tasks into prioritized (waiting > 3 minutes) and non-prioritized
+                            var prioritizedTasks = taskList.Where(t => t.task != null && t.task.DateQueued is not null && (now - t.task.DateQueued.Value).TotalMinutes > 3).ToList();
+                            var nonPrioritizedTasks = taskList.Where(t => t.task != null && (t.task.DateQueued is null || (now - t.task.DateQueued.Value).TotalMinutes <= 3)).ToList();
+
+                            // Combine prioritized tasks first
+                            var orderedTasks = prioritizedTasks.Concat(nonPrioritizedTasks).ToList();
+
+                            for (int i = 0; i < orderedTasks.Count; i++)
                             {
-                                var itemToAssign = taskList[i].task;
+                                var itemToAssign = orderedTasks[i].task;
 
                                 if (itemToAssign is null)
                                     continue; // Shouldn't happen, but just in case.
