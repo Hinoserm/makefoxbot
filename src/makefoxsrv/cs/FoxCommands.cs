@@ -527,11 +527,11 @@ namespace makefoxsrv
             }
 
             sb.AppendLine("\n<b>Membership Benefits:</b>\n");
-            sb.AppendLine(" - <b>High-Resolution Image Enhancements:</b> Members enjoy nearly unlimited enhancements, subject to fair usage limits.\n");
+            sb.AppendLine(" - <b>High-Resolution Image Enhancements:</b> Members enjoy nearly unlimited enhancements and variations, subject to fair usage limits.\n");
 
             sb.AppendLine(" - <b>Flexible Image Dimensions:</b> Create images in any shape and size up to 3.7 million pixels.\n");
 
-            sb.AppendLine(" - <b>Prompt Assistance (Coming Soon!):</b> Access to a natural language AI assistant for prompt building.\n");
+            sb.AppendLine(" - <b>Queue Priority:</b> Your requests get placed first in the queue, allowing for shorter wait times.\n");
 
             sb.AppendLine(" - <b>Early Access:</b> Be the first to try new experimental models and features.\n");
 
