@@ -1441,14 +1441,14 @@ namespace makefoxsrv
 
                 messageBuilder.AppendLine($"❌ Maximum retries attempted.  Task Cancelled.");
                 messageBuilder.AppendLine();
-                messageBuilder.AppendLine("Error: {ex.Message}");
+                messageBuilder.AppendLine($"Error: {ex.Message}");
             }
 
             if (errorType == errorType.OTHER)
             {
                 messageBuilder.AppendLine($"⏳ Encountered an error.  This request will retry shortly.");
                 messageBuilder.AppendLine();
-                messageBuilder.AppendLine("Error: {ex.Message}");
+                messageBuilder.AppendLine($"Error: {ex.Message}");
             }
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
