@@ -268,7 +268,7 @@ namespace makefoxsrv
                 //(settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
 
                 settings.Seed = -1;
-                settings.hires_denoising_strength = 0.20M;
+                settings.hires_denoising_strength = 0.40M;
                 settings.hires_steps = 20;
                 settings.hires_enabled = true;
 
