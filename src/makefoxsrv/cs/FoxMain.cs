@@ -78,6 +78,9 @@ public interface IMySettings
 
     [Option(Alias = "Web.WEBSOCKET_URL")]
     string WebSocketUrl { get; }
+
+    [Option(Alias = "LLM.API_KEY")]
+    string llmApiKey { get; }
 }
 
 public static class TimeSpanExtensions

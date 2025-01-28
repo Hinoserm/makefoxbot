@@ -99,7 +99,19 @@ namespace makefoxsrv
                 return;
 
             if (message.message[0] != '/')
+            {
+                if (t.Chat is null)
+                {
+                    var llmUser = await FoxUser.GetByTelegramUser(t.User, false);
+
+                    if (llmUser is not null)
+                    {
+                        FoxContextManager.Current.User = llmUser;
+                        await FoxLLM.ProcessLLMRequest(t, llmUser, message); // Send to LLM
+                    }
+                }
                 return; // Not a command, skip it.
+            }
 
             var args = message.message.Split([' ', '\n'], 2);
             var command = args[0];
