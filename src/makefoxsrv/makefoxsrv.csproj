@@ -41,18 +41,19 @@
     <PackageReference Include="EmbedIO" Version="3.5.2" />
     <PackageReference Include="MySqlConnector" Version="2.4.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Newtonsoft.Json.Schema" Version="4.0.1" />
     <PackageReference Include="PayPalCheckoutSdk" Version="1.0.4" />
-    <PackageReference Include="SixLabors.Fonts" Version="2.0.7" />
+    <PackageReference Include="SixLabors.Fonts" Version="2.1.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.6" />
-    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.4" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5" />
     <PackageReference Include="Stripe.net" Version="47.2.0" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.0" />
-    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="9.0.0" />
-    <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
-    <PackageReference Include="System.Security.Permissions" Version="9.0.0" />
-    <PackageReference Include="System.Text.Json" Version="9.0.0" />
-    <PackageReference Include="System.Windows.Extensions" Version="9.0.0" />
-    <PackageReference Include="WTelegramClient" Version="4.2.7" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.1" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="9.0.1" />
+    <PackageReference Include="System.Drawing.Common" Version="9.0.1" />
+    <PackageReference Include="System.Security.Permissions" Version="9.0.1" />
+    <PackageReference Include="System.Text.Json" Version="9.0.1" />
+    <PackageReference Include="System.Windows.Extensions" Version="9.0.1" />
+    <PackageReference Include="WTelegramClient" Version="4.2.8" />
   </ItemGroup>
 
   <ItemGroup>
