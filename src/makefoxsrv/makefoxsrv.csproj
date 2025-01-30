@@ -53,6 +53,7 @@
     <PackageReference Include="System.Security.Permissions" Version="9.0.1" />
     <PackageReference Include="System.Text.Json" Version="9.0.1" />
     <PackageReference Include="System.Windows.Extensions" Version="9.0.1" />
+    <PackageReference Include="Tiktoken" Version="2.2.0" />
     <PackageReference Include="WTelegramClient" Version="4.2.8" />
   </ItemGroup>
 

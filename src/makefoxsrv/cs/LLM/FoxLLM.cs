@@ -29,6 +29,8 @@ using System.Data;
 using System.Net.Http.Headers;
 using Newtonsoft.Json.Schema.Generation;
 using System.Text.Json.Nodes;
+using System.Security.Principal;
+
 namespace makefoxsrv
 {
     internal class FoxLLM
@@ -63,6 +65,8 @@ namespace makefoxsrv
             client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
             client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
             client.Timeout = TimeSpan.FromSeconds(120);
+      
+            //client.BaseAddress = new Uri("https://api.deepinfra.com/v1/openai/");
             client.BaseAddress = new Uri("https://openrouter.ai/api/v1/");
             //client.BaseAddress = new Uri("https://api.deepseek.com/");
             //client.BaseAddress = new Uri("https://api.openai.com/v1/");
@@ -263,8 +267,6 @@ namespace makefoxsrv
 
             FoxLog.WriteLine($"LLM Input: {userMessage}");
 
-            var maxTokens = 1024;
-
             try
             {
                 // Define the SendResponse tool schema
@@ -337,23 +339,32 @@ namespace makefoxsrv
                 };
 
                 // Fetch chat history dynamically, directly as a List<object>
-                var chatHistory = await CompileChatHistory(telegram, user);
+                var chatHistory = await LLMConversationBuilder.BuildConversationAsync(user, message.message, 4096);
 
-                string llmModel = "meta-llama/llama-3.3-70b-instruct"; //"meta-llama/llama-3.3-70b-instruct";
+                // Build the system prompt
+                var systemPrompt = new ChatMessage("system", await BuildSystemPrompt(user));
+
+                string llmModel = "meta-llama/llama-3.3-70b-instruct"; //"meta-llama/llama-3.3-70b-instruct"; //"meta-llama/llama-3.3-70b-instruct";
+
+                var maxTokens = 1024;
 
                 // Create the request body with system and user prompts
                 var requestBody = new
                 {
                     model = llmModel, //"deepseek-chat", // Replace with the model you want to use
                     max_tokens = maxTokens,
-                    messages = chatHistory // Append chat history
-                    .Concat(new[] // Append the latest user request at the end
+                    messages = new[] { systemPrompt } // System prompt first
+                        .Concat(chatHistory) // Append chat history
+                        .ToArray(), // Convert to array for JSON serialization
+                    tools = new object[] { generateImageTool },
+                    provider = new
                     {
-                        new { role = "system", content = await BuildSystemPrompt(user) },
-                        new { role = "user", content = $"Current message: {userMessage}" }
-                    })
-                    .ToArray(),
-                    tools = new object[] { generateImageTool }
+                        order = new[]
+                        {
+                            "DeepInfra"
+                        }
+                    }
+                    /*allow_fallbacks = false */
                 };
 
                 // Serialize the request body to JSON
@@ -373,12 +384,19 @@ namespace makefoxsrv
                     JObject jsonResponse = JObject.Parse(responseContent);
                     string? assistantReply = jsonResponse["choices"]?[0]?["message"]?["content"]?.ToString();
 
+                    int inputTokens = jsonResponse["usage"]?["prompt_tokens"]?.Value<int>() ?? 0;
+                    int outputTokens = jsonResponse["usage"]?["completion_tokens"]?.Value<int>() ?? 0;
+
+
                     if (!string.IsNullOrEmpty(assistantReply?.Trim()))
                     {
                         FoxLog.WriteLine($"LLM Output: {assistantReply}");
                         await telegram.SendMessageAsync(assistantReply, replyToMessage: message);
-                        await LogLLMResponse(user, assistantReply);
+                        await LLMConversationBuilder.InsertConversationMessageAsync(user, "assistant", assistantReply);
                     }
+
+                    FoxLog.WriteLine($"Input  Tokens: {inputTokens}");
+                    FoxLog.WriteLine($"Output Tokens: {outputTokens}");
 
                     // Extract tool calls
                     var toolCalls = jsonResponse["choices"]?[0]?["message"]?["tool_calls"];
@@ -392,7 +410,7 @@ namespace makefoxsrv
                             if (!string.IsNullOrEmpty(functionName) && !string.IsNullOrEmpty(arguments))
                             {
                                 // Log the LLM function call
-                                await LogLLMFunctionCall(user, functionName, arguments);
+                                await LLMConversationBuilder.InsertFunctionCallAsync(user, functionName, arguments);
                             }
 
                             if (functionName == "SendMessage")
