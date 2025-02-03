@@ -14,6 +14,7 @@ using WTelegram;
 using TL;
 using System.Collections;
 using System.Text.RegularExpressions;
+using System.Reflection.Metadata.Ecma335;
 
 // Functions and commands specific to generating images
 
@@ -111,7 +112,7 @@ namespace makefoxsrv
         }
 
 
-        public static async Task Generate(FoxTelegram t, FoxUserSettings settings, Message replyToMessage, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG, bool enhanced = false, FoxQueue? originalTask = null)
+        public static async Task<FoxQueue?> Generate(FoxTelegram t, FoxUserSettings settings, Message replyToMessage, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG, bool enhanced = false, FoxQueue? originalTask = null)
         {
             if (originalTask is null)
                 settings.regionalPrompting = DetectRegionalPrompting(settings.Prompt ?? "") || DetectRegionalPrompting(settings.NegativePrompt ?? "");
@@ -129,7 +130,7 @@ namespace makefoxsrv
                     replyToMessage: replyToMessage
                 );
 
-                return;
+                return null;
             }
 
             if (user.GetAccessLevel() < AccessLevel.ADMIN)
@@ -145,7 +146,7 @@ namespace makefoxsrv
                         replyToMessage: replyToMessage
                     );
 
-                    return;
+                    return null;
                 }
             }
 
@@ -158,7 +159,7 @@ namespace makefoxsrv
                     replyToMessage: replyToMessage
                 );
 
-                return;
+                return null;
             }
 
             if (FoxQueue.CheckWorkerAvailability(settings) is null)
@@ -168,7 +169,7 @@ namespace makefoxsrv
                     replyToMessage: replyToMessage
                 );
 
-                return;
+                return null;
             }
 
             // Check if the user is premium
@@ -247,7 +248,11 @@ namespace makefoxsrv
 
                 await q.SetStatus(FoxQueue.QueueStatus.PENDING, waitMsg.ID);
                 FoxQueue.Enqueue(q);
-            } 
+
+                return q;
+            }
+
+            return null;
         }
     }
 }

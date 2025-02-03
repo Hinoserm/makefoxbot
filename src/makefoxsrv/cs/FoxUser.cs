@@ -429,60 +429,52 @@ namespace makefoxsrv
 
         public static async Task<FoxUser?> GetByTelegramUser(User tuser, bool autoCreateUser = false)
         {
-            var cachedUser = GetFromCacheByTelegramID(tuser.ID);
-            if (cachedUser != null)
+            var user = GetFromCacheByTelegramID(tuser.ID);
+            if (user is null)
             {
-                if (cachedUser.Username != tuser.username)
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
-                    // Telegram username changed, a db update is required
+                    await SQL.OpenAsync();
 
-                    FoxLog.WriteLine($"Username change: {cachedUser.Username} > {tuser.username}");
-                    await cachedUser.SetUsername(tuser.username);
-                }
-
-                cachedUser.lastAccessed = DateTime.Now;
-
-                return cachedUser;
-            }
-
-            FoxUser? user = null;
-
-            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
-            {
-                await SQL.OpenAsync();
-
-                using (var cmd = new MySqlCommand("SELECT * FROM users WHERE telegram_id = @id", SQL))
-                {
-                    cmd.Parameters.AddWithValue("@id", tuser.ID);
-
-                    using (var r = await cmd.ExecuteReaderAsync())
+                    using (var cmd = new MySqlCommand("SELECT * FROM users WHERE telegram_id = @id", SQL))
                     {
-                        if (await r.ReadAsync())
+                        cmd.Parameters.AddWithValue("@id", tuser.ID);
+
+                        using (var r = await cmd.ExecuteReaderAsync())
                         {
-                            user = CreateFromRow(r);
+                            if (await r.ReadAsync())
+                            {
+                                user = CreateFromRow(r);
+                            }
+                        }
+                    }
+
+                    if (user != null && user.Username != tuser.username)
+                    {
+                        // Telegram username changed, a db update is required
+                        FoxLog.WriteLine($"Username change: {user.Username} > {tuser.username}");
+
+                        using (var updateCmd = new MySqlCommand("UPDATE users SET username = @username WHERE id = @uid", SQL))
+                        {
+                            updateCmd.Parameters.AddWithValue("@username", tuser.username);
+                            updateCmd.Parameters.AddWithValue("@uid", user.UID);
+                            await updateCmd.ExecuteNonQueryAsync();
+
+                            user.Username = tuser.username; // Update the user object with the new username
                         }
                     }
                 }
-
-                if (user != null && user.Username != tuser.username)
-                {
-                    // Telegram username changed, a db update is required
-                    FoxLog.WriteLine($"Username change: {user.Username} > {tuser.username}");
-
-                    using (var updateCmd = new MySqlCommand("UPDATE users SET username = @username WHERE id = @uid", SQL))
-                    {
-                        updateCmd.Parameters.AddWithValue("@username", tuser.username);
-                        updateCmd.Parameters.AddWithValue("@uid", user.UID);
-                        await updateCmd.ExecuteNonQueryAsync();
-
-                        user.Username = tuser.username; // Update the user object with the new username
-                    }
-                }
             }
 
-            // If the user was not found in the database, create a new FoxUser from the Telegram user
+            // If the user was not found in the database or cache, create a new FoxUser from the Telegram user
             if (user is null && autoCreateUser)
                 user = await CreateFromTelegramUser(tuser);
+
+            if (user is not null)
+            {
+                user.lastAccessed = DateTime.Now;
+                user.Telegram = new FoxTelegram(tuser, null);
+            }
 
             return user;
         }

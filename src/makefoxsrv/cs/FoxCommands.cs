@@ -8,7 +8,6 @@ using System.Reflection;
 using System.IO;
 using System.Reflection.Metadata;
 using System.Linq.Expressions;
-using System.Drawing;
 using MySqlConnector;
 using WTelegram;
 using TL;
@@ -19,6 +18,12 @@ using System.Linq;
 using System.ComponentModel.Design;
 using Stripe;
 using Stripe.FinancialConnections;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Formats.Png;
+using System.Text.RegularExpressions;
 
 namespace makefoxsrv
 {
@@ -83,6 +88,8 @@ namespace makefoxsrv
             { "/admin",       CmdAdmin },
             //--------------- -----------------
             { "/styles",      CmdStyles },
+            //--------------- -----------------
+            { "/stickerify",  CmdStickerify }
         };
 
         public static async Task HandleCommand(FoxTelegram t, Message message)
@@ -98,22 +105,23 @@ namespace makefoxsrv
             if (message.message is null || message.message.Length < 2)
                 return;
 
+            var args = message.message.Split([' ', '\n'], 2);
+
             if (message.message[0] != '/')
             {
-                //if (t.Chat is null)
-                //{
-                //    var llmUser = await FoxUser.GetByTelegramUser(t.User, false);
+                if (t.Chat is null && !string.IsNullOrEmpty(FoxMain.settings?.llmApiKey))
+                {
+                    var llmUser = await FoxUser.GetByTelegramUser(t.User, false);
 
-                //    if (llmUser is not null)
-                //    {
-                //        FoxContextManager.Current.User = llmUser;
-                //        await FoxLLM.ProcessLLMRequest(t, llmUser, message); // Send to LLM
-                //    }
-                //}
+                    if (llmUser is not null)
+                    {
+                        FoxContextManager.Current.User = llmUser;
+                        await FoxLLM.ProcessLLMRequest(t, llmUser, message); // Send to LLM
+                    }
+                }
                 return; // Not a command, skip it.
             }
 
-            var args = message.message.Split([' ', '\n'], 2);
             var command = args[0];
 
             var c = command.Split('@', 2);
@@ -664,6 +672,49 @@ namespace makefoxsrv
                     text: "✅ Image saved and selected as input for /img2img"
                 );
             }
+
+        }
+
+        private static async Task CmdStickerify(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            var stickerImg = await FoxImage.SaveImageFromReply(t, message);
+
+            if (stickerImg is null)
+            {
+                await t.SendMessageAsync(
+                        text: "❌ Error: That message doesn't contain an image.  You must send this command as a reply to a message containing an image.",
+                        replyToMessage: message
+                        );
+
+                return;
+            }
+
+            using Image<Rgba32> img = Image.Load<Rgba32>(stickerImg.Image);
+
+            // Here we enable drop shadow with custom parameters. 
+            Image<Rgba32> processed = FoxStickerify.ProcessSticker(img, tolerance: 100, extraMargin: 3, inwardEdge: 3,
+                                                      addDropShadow: true,
+                                                      dropShadowOffsetX: 5,
+                                                      dropShadowOffsetY: 5,
+                                                      dropShadowBlurSigma: 3f,
+                                                      dropShadowOpacity: 0.5f);
+
+            processed = FoxStickerify.CropAndEnsure512x512(processed);
+
+            var outputStream = new MemoryStream();
+
+
+            processed.SaveAsPng(outputStream, new PngEncoder { ColorType = PngColorType.RgbWithAlpha });
+
+            outputStream.Position = 0;
+
+            var outputImage = await FoxTelegram.Client.UploadFileAsync(outputStream, $"{FoxTelegram.Client.User.username}_sticker_{stickerImg.ID}.png");
+
+
+            await t.SendMessageAsync(
+                               replyToMessage: message,
+                               media: new InputMediaUploadedDocument(outputImage, "image/png")
+            );
 
         }
 

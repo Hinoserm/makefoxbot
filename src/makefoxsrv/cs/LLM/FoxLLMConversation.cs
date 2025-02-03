@@ -5,7 +5,8 @@ using System.Threading.Tasks;
 using MySqlConnector;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Tiktoken; // Your Tiktoken library namespace
+using Tiktoken;
+using TL; // Your Tiktoken library namespace
 
 namespace makefoxsrv
 {
@@ -15,7 +16,7 @@ namespace makefoxsrv
     /// </summary>
     public record ChatMessage(string role, string content);
 
-    public static class LLMConversationBuilder
+    public static class FoxLLMConversation
     {
         /// <summary>
         /// Main entry point. Builds a conversation array for the AI, including:
@@ -26,13 +27,12 @@ namespace makefoxsrv
         ///    stop early if we exceed the token budget, then reversed to chronological order.
         ///  • If something doesn't fit the budget, we forcibly add it anyway and log a warning.
         /// </summary>
-        public static async Task<List<ChatMessage>> BuildConversationAsync(
+        public static async Task<List<ChatMessage>> FetchConversationAsync(
             FoxUser user,
-            string latestUserRequest,
             int maxTokens)
         {
             var messages = new List<ChatMessage>();
-
+            
             // 1) Divide token budgets: 70% for memory, 30% for conversation logs
             int memoryBudget = (int)(maxTokens * 0.70);
             int convoBudget = maxTokens - memoryBudget;
@@ -76,18 +76,9 @@ namespace makefoxsrv
                 if (needTimestamp)
                 {
                     var timeLabel = $"Timestamp: {msg.Item2:HH:mm, yyyy-MM-dd}";
-                    int tsTokens = encoder.CountTokens(timeLabel);
-                    if (tsTokens <= convoBudget)
-                    {
-                        finalConversation.Add(new ChatMessage("system", timeLabel));
-                        convoBudget -= tsTokens;
-                    }
-                    else
-                    {
-                        FoxLog.WriteLine($"[Warning] No space for timestamp, forcibly adding (over by {tsTokens - convoBudget} tokens).");
-                        finalConversation.Add(new ChatMessage("system", timeLabel));
-                        convoBudget = 0;
-                    }
+                    convoBudget -= encoder.CountTokens(timeLabel);
+
+                    finalConversation.Add(new ChatMessage("system", timeLabel));
 
                     lastTs = msg.Item2;
                 }
@@ -112,7 +103,7 @@ namespace makefoxsrv
 
             var finalTs = $"Timestamp: {now:HH:mm, yyyy-MM-dd}";
             convoBudget -= encoder.CountTokens(finalTs);
-            finalConversation.Add(new ChatMessage("system", finalTs));
+            //finalConversation.Add(new ChatMessage("system", finalTs));
 
             // 6) Insert memory prompt now (if it exists)
             if (memoryPrompt != null)
@@ -128,20 +119,13 @@ namespace makefoxsrv
                 }
             }
 
-            // 7) Finally, the user's newest request
-            int userReqTokens = encoder.CountTokens(latestUserRequest);
-            if (userReqTokens <= (maxTokens - userReqTokens))
-            {
-                finalConversation.Add(new ChatMessage("user", latestUserRequest));
-            }
-            else
-            {
-                FoxLog.WriteLine($"[Warning] forcibly adding latest user request (over by {userReqTokens - (maxTokens - userReqTokens)} tokens).");
-                finalConversation.Add(new ChatMessage("user", latestUserRequest));
-            }
+            //if (latestUserMessage is not null)
+            //{
+            //    var latestUserRequest = latestUserMessage.message;
 
-            // Insert it into the database AFTER everything else, so that it doesn't end up going in twice.
-            await InsertConversationMessageAsync(user, "user", latestUserRequest);
+            //    convoBudget -= encoder.CountTokens(latestUserRequest);
+            //    finalConversation.Add(new ChatMessage("user", latestUserRequest));
+            //}
 
             return finalConversation;
         }
@@ -175,9 +159,10 @@ namespace makefoxsrv
                   c.content      AS content,
                   ''             AS function_name,
                   ''             AS raw_params,
-                  c.created_at   AS created_at
+                  c.created_at   AS created_at,
+                  c.tg_msgid     AS xtra_id
                 FROM llm_conversations c
-                WHERE c.user_id = @uid
+                WHERE c.user_id = @uid AND c.deleted = 0
 
                 UNION ALL
 
@@ -187,7 +172,8 @@ namespace makefoxsrv
                   ''             AS content,
                   f.function_name AS function_name,
                   f.parameters   AS raw_params,
-                  f.created_at   AS created_at
+                  f.created_at   AS created_at,
+                  f.final_id     AS xtra_id
                 FROM llm_function_calls f
                 WHERE f.user_id = @uid
 
@@ -258,7 +244,7 @@ namespace makefoxsrv
         {
             var lines = new List<string>
             {
-                $"You (the AI) called the function {functionName} with the parameters:"
+                $"You (the AI) called function {functionName} with the parameters:"
             };
 
             try
@@ -353,41 +339,89 @@ namespace makefoxsrv
         /// Inserts a conversation message into llm_conversations.
         /// role = system/user/assistant
         /// </summary>
-        public static async Task InsertConversationMessageAsync(FoxUser user, string role, string content)
+        public static async Task<long> InsertConversationMessageAsync(FoxUser user, string role, string content, TL.Message? message)
         {
             await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
             await conn.OpenAsync();
 
             var cmd = new MySqlCommand(@"
-                INSERT INTO llm_conversations (user_id, role, content, created_at)
-                VALUES (@uid, @role, @ct, @now)
+                INSERT INTO llm_conversations (user_id, role, content, tg_msgid, created_at)
+                VALUES (@uid, @role, @ct, @msgid, @now)
             ", conn);
 
             cmd.Parameters.AddWithValue("@uid", user.UID);
             cmd.Parameters.AddWithValue("@role", role);
             cmd.Parameters.AddWithValue("@ct", content);
+            cmd.Parameters.AddWithValue("@msgid", message?.ID);
             cmd.Parameters.AddWithValue("@now", DateTime.Now);
 
             await cmd.ExecuteNonQueryAsync();
+
+            return cmd.LastInsertedId;
+        }
+
+        public static async Task DeleteConversationMessageAsync(long messageId)
+        {
+            await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
+            var cmd = new MySqlCommand(@"
+                UPDATE llm_conversations 
+                SET deleted = 1 
+                WHERE id = @msgId;
+            ", conn);
+
+            cmd.Parameters.AddWithValue("@msgId", messageId);
+
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public static async Task DeleteConversationTelegramMessagesAsync(int[] messageIds, int batchSize = 1000)
+        {
+            if (messageIds == null || messageIds.Length == 0)
+                return;
+
+            await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
+            for (int i = 0; i < messageIds.Length; i += batchSize)
+            {
+                var batch = messageIds.Skip(i).Take(batchSize).ToArray();
+                var placeholders = string.Join(',', batch.Select((_, index) => $"@msgId{index}"));
+
+                var cmd = new MySqlCommand($@"
+                    UPDATE llm_conversations 
+                    SET deleted = 1 
+                    WHERE tg_msgid IN ({placeholders});
+                ", conn);
+
+                for (int j = 0; j < batch.Length; j++)
+                {
+                    cmd.Parameters.AddWithValue($"@msgId{j}", batch[j]);
+                }
+
+                await cmd.ExecuteNonQueryAsync();
+            }
         }
 
         /// <summary>
         /// Inserts a function call into llm_function_calls, storing JSON parameters.
         /// e.g., functionName = "GenerateImage", parametersJson = "{ \"prompt\": \"a fox\" }"
         /// </summary>
-        public static async Task InsertFunctionCallAsync(FoxUser user, string functionName, string parametersJson)
+        public static async Task InsertFunctionCallAsync(FoxUser user, string functionName, string parametersJson, long? finalId)
         {
             await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
             await conn.OpenAsync();
 
             var cmd = new MySqlCommand(@"
-                INSERT INTO llm_function_calls (user_id, function_name, parameters, created_at)
-                VALUES (@uid, @fn, @pj, @now)
+                INSERT INTO llm_function_calls (user_id, function_name, parameters, final_id, created_at)
+                VALUES (@uid, @fn, @pj, @fid, @now)
             ", conn);
 
             cmd.Parameters.AddWithValue("@uid", user.UID);
             cmd.Parameters.AddWithValue("@fn", functionName);
             cmd.Parameters.AddWithValue("@pj", parametersJson);
+            cmd.Parameters.AddWithValue("@fid", finalId);
             cmd.Parameters.AddWithValue("@now", DateTime.Now);
 
             await cmd.ExecuteNonQueryAsync();

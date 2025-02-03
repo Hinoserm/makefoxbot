@@ -80,7 +80,7 @@ public interface IMySettings
     string WebSocketUrl { get; }
 
     [Option(Alias = "LLM.API_KEY")]
-    string llmApiKey { get; }
+    string? llmApiKey { get; }
 }
 
 public static class TimeSpanExtensions
@@ -204,6 +204,8 @@ namespace makefoxsrv
         static async Task Main(string[] args)
         {
             using CancellationTokenSource cts = new();
+
+            //FoxONNX.Start();
 
             sqlCancellationToken = cts.Token;
 

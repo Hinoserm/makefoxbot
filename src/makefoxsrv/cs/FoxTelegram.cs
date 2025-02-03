@@ -518,10 +518,15 @@ namespace makefoxsrv
             }
         }
 
-        private static async Task HandleDeleteMessagesAsync(int[] messages)
+        private static async Task HandleDeleteMessagesAsync(int[] messages, long? channel_id = null)
         {
             try
             {
+                FoxLog.WriteLine("Deleting messages (" + string.Join(",", messages) + ") channel_id = " + channel_id?.ToString() ?? "null");
+
+                if (channel_id is null)
+                    await FoxLLMConversation.DeleteConversationTelegramMessagesAsync(messages);
+
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
                     await SQL.OpenAsync();
@@ -885,7 +890,7 @@ namespace makefoxsrv
                                 }
                                 break;
                             case UpdateDeleteChannelMessages udcm:
-                                await HandleDeleteMessagesAsync(udcm.messages);
+                                await HandleDeleteMessagesAsync(udcm.messages, udcm.channel_id);
                                 break;
                             case UpdateDeleteMessages udm:
                                 await HandleDeleteMessagesAsync(udm.messages);

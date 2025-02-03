@@ -372,3 +372,7 @@ MigrationBackup/
 FodyWeavers.xsd
 /data/images
 /data/archive
+/models/model.onnx
+/models/model.onnx.data
+/models/mxbai-embed-large-v1-vocab.txt
+/models/mxbai-embed-large-v1.onnx
