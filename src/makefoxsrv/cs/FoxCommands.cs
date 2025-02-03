@@ -692,7 +692,7 @@ namespace makefoxsrv
             using Image<Rgba32> img = Image.Load<Rgba32>(stickerImg.Image);
 
             // Here we enable drop shadow with custom parameters. 
-            Image<Rgba32> processed = FoxStickerify.ProcessSticker(img, tolerance: 100, extraMargin: 3, inwardEdge: 3,
+            Image<Rgba32> processed = FoxStickerify.ProcessSticker(img, tolerance: 30, extraMargin: 3, inwardEdge: 3,
                                                       addDropShadow: true,
                                                       dropShadowOffsetX: 5,
                                                       dropShadowOffsetY: 5,
