@@ -84,6 +84,26 @@ namespace makefoxsrv
         }
     }
 
+    public record NeverOOMIntegrated
+    : IAdditionalScriptConfig
+    {
+        public bool unet_enabled { get; set; } = false;
+        public bool vae_enabled { get; set; } = true;
+
+        public string Key => "Never OOM Integrated";
+
+        public object ToJsonObject()
+        {
+            var args = new object[]
+            {
+                unet_enabled,
+                vae_enabled
+            };
+
+            return new { args };
+        }
+    }
+
     internal class FoxWorker
     {
         public int ID { get; private set; }
@@ -1250,6 +1270,12 @@ namespace makefoxsrv
                         config.AdditionalScripts.Add(new RegionalPrompter()); // Use default options.
                     }
 
+                    var scripts = await api.Scripts(ctsLoop.Token);
+
+                    if (settings.Width * settings.Height > 1048576) // Above 1024x1024
+                        if (scripts.Txt2Img.Contains("never oom integrated")) // And script is supported
+                            config.AdditionalScripts.Add(new NeverOOMIntegrated()); // Enable tiled VAE mode
+
                     var txt2img = await api.TextToImage(config, ctsLoop.Token);
 
                     outputImage = txt2img.Images.First().Data.ToArray();
@@ -1466,6 +1492,12 @@ namespace makefoxsrv
                 // Add Regional Prompter configuration
                 config.AdditionalScripts.Add(new RegionalPrompter()); // Use default options.;
             }
+
+            var scripts = await api.Scripts(cancellationToken);
+
+            if (settings.Width * settings.Height > 1048576) // Above 1024x1024
+                if (scripts.Img2Img.Contains("never oom integrated")) // And script is supported
+                    config.AdditionalScripts.Add(new NeverOOMIntegrated()); // Enable tiled VAE mode
 
             var img2img = await api.Image2Image(config, cancellationToken);
 
