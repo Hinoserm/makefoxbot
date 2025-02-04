@@ -205,7 +205,7 @@ namespace makefoxsrv
         {
             using CancellationTokenSource cts = new();
 
-            //FoxONNX.Start();
+            FoxONNX.Start();
 
             sqlCancellationToken = cts.Token;
 

@@ -3,8 +3,6 @@ using System.Linq;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using BERTTokenizers;
-using Stripe;
-using TL;
 
 public static class FoxONNX
 {
@@ -24,7 +22,9 @@ public static class FoxONNX
         // Enable CUDA (GPU) execution
         try
         {
-            options.AppendExecutionProvider_CUDA(); // Use GPU 0
+            options.AppendExecutionProvider_CUDA(); // Use GPU, if available
+            options.AppendExecutionProvider_CPU();
+
             Console.WriteLine("ONNX Runtime: Using CUDA for inference.");
         }
         catch (Exception ex)
@@ -32,25 +32,39 @@ public static class FoxONNX
             Console.WriteLine($"CUDA not available, falling back to CPU: {ex.Message}");
 
             options = new SessionOptions();
+            options.AppendExecutionProvider_CPU();
         }
 
         _session = new InferenceSession(modelPath, options);
+
+        DateTime startTime = DateTime.UtcNow; 
+        GenerateEmbedding("This is a test embedding");
+        Console.WriteLine($"ONNX Runtime: Startup test completed in {(DateTime.UtcNow - startTime).TotalMilliseconds} ms.");
+        startTime = DateTime.UtcNow;
+        GenerateEmbedding("This is a test embedding", 128);
+        Console.WriteLine($"ONNX Runtime: Test (128) completed in {(DateTime.UtcNow - startTime).TotalMilliseconds} ms.");
+        startTime = DateTime.UtcNow;
+        GenerateEmbedding("This is a test embedding", 256);
+        Console.WriteLine($"ONNX Runtime: Test (256) completed in {(DateTime.UtcNow - startTime).TotalMilliseconds} ms.");
+        startTime = DateTime.UtcNow;
+        GenerateEmbedding("This is a test embedding", 512);
+        Console.WriteLine($"ONNX Runtime: Test (512) completed in {(DateTime.UtcNow - startTime).TotalMilliseconds} ms.");
     }
 
-    public static float[] GenerateEmbedding(string text)
+    public static float[] GenerateEmbedding(string text, int seqLength = 128)
     {
-        var encoded = _tokenizer.Encode(128, text);
+        var encoded = _tokenizer.Encode(seqLength, text);
 
-        var inputIds = new DenseTensor<long>(encoded.Select(t => t.InputIds).ToArray(), new[] { 1, 128 });
-        var attentionMask = new DenseTensor<long>(encoded.Select(t => t.AttentionMask).ToArray(), new[] { 1, 128 });
-        var tokenTypeIds = new DenseTensor<long>(new long[128], new[] { 1, 128 });
+        var inputIds = new DenseTensor<long>(encoded.Select(t => t.InputIds).ToArray(), new[] { 1, seqLength });
+        var attentionMask = new DenseTensor<long>(encoded.Select(t => t.AttentionMask).ToArray(), new[] { 1, seqLength });
+        var tokenTypeIds = new DenseTensor<long>(new long[seqLength], new[] { 1, seqLength });
 
         var inputs = new[]
         {
-        NamedOnnxValue.CreateFromTensor("input_ids", inputIds),
-        NamedOnnxValue.CreateFromTensor("attention_mask", attentionMask),
-        NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeIds)
-    };
+            NamedOnnxValue.CreateFromTensor("input_ids", inputIds),
+            NamedOnnxValue.CreateFromTensor("attention_mask", attentionMask),
+            NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeIds)
+        };
 
         using (var results = _session.Run(inputs))
         {

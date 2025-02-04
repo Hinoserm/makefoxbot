@@ -104,6 +104,8 @@ namespace makefoxsrv
         public DateTime? TaskEndDate { get; private set; } = null;
         public DateTime? LastActivity { get; private set; } = null;
 
+        public string? SingleModel { get; private set; } = null;
+
         public string? GPUType { get; private set; } = null;
 
         static public TimeSpan ProgressUpdateInterval { get; set; } = TimeSpan.FromMilliseconds(100);
@@ -351,6 +353,9 @@ namespace makefoxsrv
                     if (!(reader["gpu_type"] is DBNull))
                         worker.GPUType = reader.GetString("gpu_type");
 
+                    if (!(reader["single_model"] is DBNull))
+                        worker.SingleModel = reader.GetString("single_model");
+
                     await worker.SetStartDate();
 
                     try
@@ -471,6 +476,9 @@ namespace makefoxsrv
 
             foreach (var modelData in models)
             {
+                if (this.SingleModel is not null && this.SingleModel != modelData.ModelName)
+                    continue; // Skip if we're only loading a single model
+
                 // Try to get or create the model globally
                 var foxModel = await FoxModel.GetOrCreateModel(
                     modelData.ModelName,
