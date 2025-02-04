@@ -476,7 +476,7 @@ namespace makefoxsrv
 
             foreach (var modelData in models)
             {
-                if (this.SingleModel is not null && this.SingleModel != modelData.ModelName)
+                if (!string.IsNullOrEmpty(this.SingleModel) && this.SingleModel != modelData.ModelName)
                     continue; // Skip if we're only loading a single model
 
                 // Try to get or create the model globally
