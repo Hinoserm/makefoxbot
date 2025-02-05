@@ -853,7 +853,7 @@ namespace makefoxsrv
 
             // Default and maximum complexity
             long defaultComplexity = 640 * 768 * 20;
-            long maxComplexity = 1280 * 1536 * 20;
+            long maxComplexity = 1280 * 1280 * 20;
 
             double normalizedComplexity = (double)(imageComplexity - defaultComplexity) / (maxComplexity - defaultComplexity);
 
