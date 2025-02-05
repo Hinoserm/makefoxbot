@@ -486,7 +486,8 @@ namespace makefoxsrv
                     // Only allow 3 tasks per premium user.
                     return null;
                 }
-                else if (userWorkers.Any())
+                
+                if (userWorkers.Any())
                 {
                     var userQueueComplexity = taskList
                         .Select(t => t.task)
