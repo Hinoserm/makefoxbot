@@ -478,7 +478,7 @@ namespace makefoxsrv
 
                 if (userWorkers.Any() && !isUserPremium)
                 {
-                    // Only allow one task per premium user.
+                    // Only allow 1 task per free user.
                     return null;
                 }
                 else if (userWorkers.Count() >= 3 && isUserPremium)
