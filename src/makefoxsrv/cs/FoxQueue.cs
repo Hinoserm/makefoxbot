@@ -472,11 +472,11 @@ namespace makefoxsrv
 
             if (true || !item.User.CheckAccessLevel(AccessLevel.ADMIN))
             {
-                var userWorkers = suitableWorkers
+                var userWorkers = workers
                 .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
                 .ToList();
 
-                if (userWorkers.Any() && !isUserPremium)
+                if (userWorkers.Count() >= 1 && !isUserPremium)
                 {
                     // Only allow 1 task per free user.
                     return null;
@@ -487,7 +487,7 @@ namespace makefoxsrv
                     return null;
                 }
                 
-                if (userWorkers.Any())
+                if (userWorkers.Count() >= 1)
                 {
                     var userQueueComplexity = userWorkers
                         .Select(t => t.qItem)
