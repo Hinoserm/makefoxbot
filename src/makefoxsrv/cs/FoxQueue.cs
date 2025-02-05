@@ -467,32 +467,44 @@ namespace makefoxsrv
                 }
             }
 
+            bool isUserPremium = item.User.CheckAccessLevel(AccessLevel.PREMIUM);
+
 
             if (true || !item.User.CheckAccessLevel(AccessLevel.ADMIN))
             {
-                // New code to check the total complexity of the user's queue
-                var userQueueComplexity = taskList
-                    .Select(t => t.task)
-                    .Where(queueItem => queueItem != null
-                                        && queueItem.User?.UID == item.User?.UID
-                                        && queueItem.RetryDate <= DateTime.Now
-                                        && (
-                                            queueItem.status == FoxQueue.QueueStatus.PENDING ||
-                                            queueItem.status == FoxQueue.QueueStatus.PROCESSING ||
-                                            queueItem.status == FoxQueue.QueueStatus.ERROR
-                                        ))
-                    .Sum(queueItem => queueItem!.Complexity ?? 0);
+                var userWorkers = suitableWorkers
+                .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
+                .ToList();
 
-                // 3. Block if the same user is already being processed, or if complexity is too high
-                if (userQueueComplexity >= 1.0 || !item.User.CheckAccessLevel(AccessLevel.PREMIUM))
+                if (userWorkers.Any() && !isUserPremium)
                 {
-                    var userWorkers = suitableWorkers
-                        .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
-                        .ToList();
+                    // Only allow one task per premium user.
+                    return null;
+                }
+                else if (userWorkers.Count() >= 3 && isUserPremium)
+                {
+                    // Only allow 3 tasks per premium user.
+                    return null;
+                }
+                else if (userWorkers.Any())
+                {
+                    var userQueueComplexity = taskList
+                        .Select(t => t.task)
+                        .Where(queueItem => queueItem != null
+                                            && queueItem.User?.UID == item.User?.UID
+                                            && queueItem.RetryDate <= DateTime.Now
+                                            && (
+                                                queueItem.status == FoxQueue.QueueStatus.PENDING ||
+                                                queueItem.status == FoxQueue.QueueStatus.PROCESSING ||
+                                                queueItem.status == FoxQueue.QueueStatus.ERROR
+                                            ))
+                        .Sum(queueItem => queueItem!.Complexity ?? 0);
 
-                    if (userWorkers.Any())
+                    Console.WriteLine($"Queue Complexity: {item.User.UID}: {userQueueComplexity}");
+
+                    // 3. Block if the same user is already being processed, or if complexity is too high
+                    if (userQueueComplexity >= 1.0)
                     {
-                        //FoxLog.WriteLine($"Task {item.ID} - Skipping because user {item.User?.UID} is already being processed by another worker.", LogLevel.DEBUG);
                         return null;
                     }
                 }
