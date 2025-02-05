@@ -468,7 +468,7 @@ namespace makefoxsrv
             }
 
 
-            if (!item.User.CheckAccessLevel(AccessLevel.ADMIN))
+            if (true || !item.User.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 // New code to check the total complexity of the user's queue
                 var userQueueComplexity = taskList
