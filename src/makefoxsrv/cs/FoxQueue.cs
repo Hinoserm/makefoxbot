@@ -489,21 +489,17 @@ namespace makefoxsrv
                 
                 if (userWorkers.Any())
                 {
-                    var userQueueComplexity = taskList
-                        .Select(t => t.task)
+                    var userQueueComplexity = userWorkers
+                        .Select(t => t.qItem)
                         .Where(queueItem => queueItem != null
-                                            && queueItem.User?.UID == item.User?.UID
-                                            && queueItem.RetryDate <= DateTime.Now
-                                            && (
-                                                queueItem.status == FoxQueue.QueueStatus.PENDING ||
-                                                queueItem.status == FoxQueue.QueueStatus.PROCESSING ||
-                                                queueItem.status == FoxQueue.QueueStatus.ERROR
-                                            ))
+                                            && queueItem.User?.UID == item.User?.UID)
                         .Sum(queueItem => queueItem!.Complexity ?? 0);
+
+                    userQueueComplexity += item.Complexity ?? 0;
 
                     Console.WriteLine($"Queue Complexity: {item.User.UID}: {userQueueComplexity}");
 
-                    // 3. Block if the same user is already being processed, or if complexity is too high
+                    // 3. Block if the complexity is too high
                     if (userQueueComplexity >= 1.0)
                     {
                         return null;
