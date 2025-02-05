@@ -500,7 +500,7 @@ namespace makefoxsrv
                     Console.WriteLine($"Queue Complexity: {item.User.UID}: {userQueueComplexity}");
 
                     // 3. Block if the complexity is too high
-                    if (userQueueComplexity >= 1.0)
+                    if (userQueueComplexity >= 3.0)
                     {
                         return null;
                     }
