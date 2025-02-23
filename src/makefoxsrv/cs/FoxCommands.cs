@@ -505,13 +505,13 @@ namespace makefoxsrv
             });
 
             // Add Stars button
-            //buttonRows.Add(new TL.KeyboardButtonRow
-            //{
-            //    buttons = new TL.KeyboardButtonCallback[]
-            //    {
-            //        new() { text = "⭐ Use Telegram Stars ⭐", data = System.Text.Encoding.UTF8.GetBytes("/donate stars") }
-            //    }
-            //});
+            buttonRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonCallback[]
+                {
+                    new() { text = "⭐ Use Telegram Stars ⭐", data = System.Text.Encoding.UTF8.GetBytes("/donate stars") }
+                }
+            });
 
             // Add cancel button on its own row at the end
             buttonRows.Add(new TL.KeyboardButtonRow

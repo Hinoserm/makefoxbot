@@ -491,8 +491,7 @@ namespace makefoxsrv
                 {
                     var userQueueComplexity = userWorkers
                         .Select(t => t.qItem)
-                        .Where(queueItem => queueItem != null
-                                            && queueItem.User?.UID == item.User?.UID)
+                        .Where(queueItem => queueItem != null && queueItem.User?.UID == item.User?.UID)
                         .Sum(queueItem => queueItem!.Complexity ?? 0);
 
                     userQueueComplexity += item.Complexity ?? 0;
