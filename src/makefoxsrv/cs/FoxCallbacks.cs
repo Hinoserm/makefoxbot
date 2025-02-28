@@ -777,8 +777,9 @@ namespace makefoxsrv
                         replyInlineMarkup: inlineKeyboardButtons
                     );
                 }
-                catch (WTException ex) when (ex.Message == "MEDIA_CAPTION_TOO_LONG")
+                catch (WTException ex) when (ex.Message == "MEDIA_CAPTION_TOO_LONG" || ex.Message == "MESSAGE_ID_INVALID") 
                 {
+                    FoxLog.WriteLine($"BAD MESSAGE ID: {query.msg_id} ({q.MessageID})");
                     await t.SendMessageAsync(
                         text: sb.ToString(),
                         replyToMessageId: query.msg_id,
