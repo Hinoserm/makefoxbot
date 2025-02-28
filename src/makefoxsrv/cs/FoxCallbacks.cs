@@ -781,7 +781,7 @@ namespace makefoxsrv
                 {
                     var newmsg = await t.SendMessageAsync(
                         text: sb.ToString(),
-                        replyToMessageId: query.msg_id,
+                        replyToMessageId: q.MessageID,
                         replyInlineMarkup: inlineKeyboardButtons
                     );
 
