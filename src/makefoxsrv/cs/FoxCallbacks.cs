@@ -781,13 +781,13 @@ namespace makefoxsrv
                 }
                 catch (WTException ex) when (ex.Message == "MEDIA_CAPTION_TOO_LONG" || ex.Message == "MESSAGE_ID_INVALID") 
                 {
-                    FoxLog.WriteLine($"CallbackCmdInfo FAIL: {query.msg_id} ({q.ID}) Reason: {ex.Message}", LogLevel.DEBUG);
-
-                    await t.SendMessageAsync(
+                    var newmsg = await t.SendMessageAsync(
                         text: sb.ToString(),
                         replyToMessageId: query.msg_id,
                         replyInlineMarkup: inlineKeyboardButtons
                     );
+
+                    FoxLog.WriteLine($"CallbackCmdInfo FAIL: {query.msg_id} ({q.ID}) NEW ID {newmsg.ID} Reason: {ex.Message}", LogLevel.DEBUG);
                 }
             }
         }
