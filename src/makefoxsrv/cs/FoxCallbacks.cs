@@ -769,7 +769,19 @@ namespace makefoxsrv
 
                 sb.AppendLine($"⏳Render Time: {GPUTime.ToPrettyFormat()}");
 
-                FoxLog.WriteLine($"INFO MESSAGE ID: {query.msg_id} ({q.MessageID}) {query.peer.GetType()}");
+                if (user.UID == 1)
+                {
+                    FoxLog.WriteLine($"INFO MESSAGE ID: {query.msg_id} ({q.MessageID}) {query.peer.GetType()}");
+
+
+                    await FoxTelegram.Client.Messages_SendReaction(
+                        t.Peer,
+                        query.msg_id,
+                        new[] {
+                            new TL.ReactionEmoji() { emoticon = "👍" },
+                        }
+                    );
+                }
 
                 try
                 {
