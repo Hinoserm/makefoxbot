@@ -769,20 +769,6 @@ namespace makefoxsrv
 
                 sb.AppendLine($"⏳Render Time: {GPUTime.ToPrettyFormat()}");
 
-                if (user.UID == 1)
-                {
-                    FoxLog.WriteLine($"INFO MESSAGE ID: {query.msg_id} ({q.MessageID}) {query.peer.GetType()}");
-
-
-                    await FoxTelegram.Client.Messages_SendReaction(
-                        t.Peer,
-                        query.msg_id,
-                        new[] {
-                            new TL.ReactionEmoji() { emoticon = "👍" },
-                        }
-                    );
-                }
-
                 try
                 {
                     await t.EditMessageAsync(
@@ -790,9 +776,13 @@ namespace makefoxsrv
                         id: query.msg_id,
                         replyInlineMarkup: inlineKeyboardButtons
                     );
+
+                    FoxLog.WriteLine($"CallbackCmdInfo SUCCESS: {query.msg_id} ({q.ID})", LogLevel.DEBUG);
                 }
                 catch (WTException ex) when (ex.Message == "MEDIA_CAPTION_TOO_LONG" || ex.Message == "MESSAGE_ID_INVALID") 
                 {
+                    FoxLog.WriteLine($"CallbackCmdInfo FAIL: {query.msg_id} ({q.ID}) Reason: {ex.Message}", LogLevel.DEBUG);
+
                     await t.SendMessageAsync(
                         text: sb.ToString(),
                         replyToMessageId: query.msg_id,
