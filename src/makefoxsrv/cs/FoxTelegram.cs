@@ -242,13 +242,16 @@ namespace makefoxsrv
             throw new Exception("Message not found in updates");
         }
 
-        public async Task<Message?> EditMessageAsync(int id, string? text = null, ReplyInlineMarkup ? replyInlineMarkup = null, MessageEntity[]? entities = null, bool disableWebPagePreview = true)
+        public async Task<Message?> EditMessageAsync(int id, string? text = null, TL.InputPeer? peer = null, ReplyInlineMarkup ? replyInlineMarkup = null, MessageEntity[]? entities = null, bool disableWebPagePreview = true)
         {
             if (!IsConnected)
                 throw new InvalidOperationException("Telegram is disconnected");
 
+            if (peer is null)
+                peer = _peer;
+
             var updates = await _client.Messages_EditMessage(
-                peer: _peer,
+                peer: peer,
                 message: text,
                 id: id,
                 reply_markup: replyInlineMarkup,
