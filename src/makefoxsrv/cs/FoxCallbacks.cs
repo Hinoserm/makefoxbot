@@ -776,8 +776,6 @@ namespace makefoxsrv
                         id: query.msg_id,
                         replyInlineMarkup: inlineKeyboardButtons
                     );
-
-                    FoxLog.WriteLine($"CallbackCmdInfo SUCCESS: {query.msg_id} ({q.ID})", LogLevel.DEBUG);
                 }
                 catch (WTException ex) when (ex.Message == "MEDIA_CAPTION_TOO_LONG" || ex.Message == "MESSAGE_ID_INVALID") 
                 {
