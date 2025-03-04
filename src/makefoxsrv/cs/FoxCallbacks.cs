@@ -628,7 +628,7 @@ namespace makefoxsrv
                     {
                         buttons = new TL.KeyboardButtonBuy[]
                         {
-                            new() { text = "⭐ 1000 Stars (30 Days)",  }
+                            new() { text = "⭐ 800 Stars (30 Days)",  }
                         }
                     });
 
@@ -642,7 +642,7 @@ namespace makefoxsrv
                     });
 
                     var prices = new TL.LabeledPrice[] {
-                        new TL.LabeledPrice { label = $"30 Day Membership", amount = 1000 },
+                        new TL.LabeledPrice { label = $"30 Day Membership", amount = 800 },
                     };
 
                     var inputInvoice = new TL.InputMediaInvoice
