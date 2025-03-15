@@ -41,7 +41,7 @@ public class FoxONNXImageTagger
         }
         catch (Exception ex)
         {
-            FoxLog.WriteLine($"❌ Failed to load ONNX model: {ex.Message}", LogLevel.ERROR);
+            FoxLog.WriteLine($"❌ Failed to load ONNX model: {ex.Message} \r\n {ex.InnerException?.Message}", LogLevel.ERROR);
             throw;
         }
     }
