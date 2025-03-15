@@ -13,15 +13,17 @@ using System.Text.Json;
 
 public class FoxONNXImageTagger
 {
-    private readonly InferenceSession _session;
+    private static readonly InferenceSession _session;
     // Maps index (int) -> tag (string) loaded from ONNX metadata key "tags_json"
-    private readonly Dictionary<int, string> _tags;
+    private static readonly Dictionary<int, string> _tags;
 
-    public FoxONNXImageTagger(string onnxModelPath)
+    static FoxONNXImageTagger()
     {
+        string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384.onnx";
+
         var options = new SessionOptions();
-        options.AppendExecutionProvider_CUDA(); // Use CUDA
-        _session = new InferenceSession(onnxModelPath, options);
+        //options.AppendExecutionProvider_CUDA(); // Use CUDA
+        _session = new InferenceSession(modelPath, options);
 
         _tags = LoadTagsFromONNX(_session);
         if (_tags == null || _tags.Count == 0)
@@ -222,7 +224,7 @@ public class FoxONNXImageTagger
     /// {"anthro": 0, "female": 1, "male": 2, ...}
     /// This method reverses the mapping to index -> tag.
     /// </summary>
-    private Dictionary<int, string> LoadTagsFromONNX(InferenceSession session)
+    private static Dictionary<int, string> LoadTagsFromONNX(InferenceSession session)
     {
         var metadata = session.ModelMetadata.CustomMetadataMap;
         if (metadata.TryGetValue("tags_json", out string jsonTags))
@@ -241,7 +243,7 @@ public class FoxONNXImageTagger
         string imagePath = "test.jpg";
 
         using Image<Rgba32> image = Image.Load<Rgba32>(imagePath);
-        FoxONNXImageTagger tagger = new FoxONNXImageTagger(modelPath);
+        FoxONNXImageTagger tagger = new FoxONNXImageTagger();
         var predictions = tagger.ProcessImage(image);
 
         Console.WriteLine("\n🔹 Predicted Tags with Scores:");

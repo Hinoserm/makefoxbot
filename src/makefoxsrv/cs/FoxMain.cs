@@ -207,10 +207,6 @@ namespace makefoxsrv
 
             //FoxONNX.Start();
 
-            FoxONNXImageTagger.Test();
-
-            return;
-
             sqlCancellationToken = cts.Token;
 
             FoxContextManager.Current = new FoxContext();

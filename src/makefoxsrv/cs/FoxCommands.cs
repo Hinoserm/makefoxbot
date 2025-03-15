@@ -89,7 +89,8 @@ namespace makefoxsrv
             //--------------- -----------------
             { "/styles",      CmdStyles },
             //--------------- -----------------
-            { "/stickerify",  CmdStickerify }
+            { "/stickerify",  CmdStickerify },
+            { "/tag",         CmdTag }
         };
 
         public static async Task HandleCommand(FoxTelegram t, Message message)
@@ -672,6 +673,37 @@ namespace makefoxsrv
                     text: "✅ Image saved and selected as input for /img2img"
                 );
             }
+
+        }
+
+        private static async Task CmdTag(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            var stickerImg = await FoxImage.SaveImageFromReply(t, message);
+
+            if (stickerImg is null)
+            {
+                await t.SendMessageAsync(
+                        text: "❌ Error: That message doesn't contain an image.  You must send this command as a reply to a message containing an image.",
+                        replyToMessage: message
+                        );
+
+                return;
+            }
+
+            using Image<Rgba32> image = Image.Load<Rgba32>(stickerImg.Image);
+
+            // Here we enable drop shadow with custom parameters. 
+            
+            FoxONNXImageTagger tagger = new FoxONNXImageTagger();
+            var predictions = tagger.ProcessImage(image);
+
+            string messageText = predictions is null ? "No tags found." : $"Tags: {string.Join(", ", predictions.Keys)}";
+
+
+            await t.SendMessageAsync(
+                               replyToMessage: message,
+                               text: messageText
+            );
 
         }
 
