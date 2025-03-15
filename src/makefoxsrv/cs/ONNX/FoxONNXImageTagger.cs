@@ -10,6 +10,7 @@ using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.Drawing.Processing;
 using System.Text.Json;
+using Swan.Logging;
 
 namespace makefoxsrv;
 
@@ -21,12 +22,22 @@ public class FoxONNXImageTagger
 
     static FoxONNXImageTagger()
     {
-        string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384.onnx";
+        string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_int8.onnx";
 
         try
         {
             var options = new SessionOptions();
+            // Enable all graph optimizations
+            options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+            //options.LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_INFO;
+            //options.LogVerbosityLevel = 1;
+
             options.AppendExecutionProvider_CUDA(); // Use CUDA
+            options.AppendExecutionProvider_CPU(); // Use CPU
+
+            // Set threading options for max performance
+            //options.IntraOpNumThreads = Environment.ProcessorCount;
+            //options.InterOpNumThreads = Environment.ProcessorCount;
 
             _session = new InferenceSession(modelPath, options);
 
@@ -51,14 +62,53 @@ public class FoxONNXImageTagger
     /// </summary>
     public Dictionary<string, float> ProcessImage(Image<Rgba32> image, float weightThreshold = 0.2f)
     {
+        // Preprocess image to FP32
         float[] inputTensor = PreprocessImage(image);
-        var inputData = new DenseTensor<float>(inputTensor, new int[] { 1, 3, 384, 384 });
-        // Use the actual input name from the model metadata.
-        string inputName = _session.InputMetadata.Keys.First();
-        var inputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor(inputName, inputData) };
 
-        using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results = _session.Run(inputs);
-        float[] finalScores = results.First().AsEnumerable<float>().ToArray();
+        // Get model input metadata
+        string inputName = _session.InputMetadata.Keys.First();
+        var expectedType = _session.InputMetadata[inputName].ElementDataType; // Get ONNX-defined type
+
+        Console.WriteLine($"🔍 Model expects input type: {expectedType}");
+
+        // ✅ Correctly detect FP16 model
+        bool isFp16Model = (expectedType == TensorElementType.Float16);
+
+        NamedOnnxValue inputData;
+
+        if (isFp16Model)
+        {
+            Float16[] halfTensor = Array.ConvertAll(inputTensor, f => (Float16)f);
+            inputData = NamedOnnxValue.CreateFromTensor(inputName, new DenseTensor<Float16>(halfTensor, new int[] { 1, 3, 384, 384 }));
+            Console.WriteLine("✅ Using FP16 (Half) input tensor.");
+        }
+        else
+        {
+            inputData = NamedOnnxValue.CreateFromTensor(inputName, new DenseTensor<float>(inputTensor, new int[] { 1, 3, 384, 384 }));
+            Console.WriteLine("✅ Using FP32 (Float) input tensor.");
+        }
+
+        var inputs = new List<NamedOnnxValue> { inputData };
+
+        Console.WriteLine("🔍 Checking model outputs...");
+        foreach (var output in _session.OutputMetadata)
+        {
+            Console.WriteLine($"✅ Model Output Name: {output.Key}, Type: {output.Value.ElementType}");
+        }
+
+        // **Run inference**
+
+        var startTime = DateTime.Now;
+        using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results = _session.Run(new List<NamedOnnxValue> { inputData });
+        var elapsedTime = DateTime.Now - startTime;
+
+        FoxLog.Write($"Inference completed in {elapsedTime.TotalMilliseconds:F2} ms. ", LogLevel.INFO);
+
+        // ✅ Convert FP16 output back to FP32 if necessary
+        float[] finalScores = isFp16Model
+            ? results.First().AsEnumerable<Float16>().Select(h => (float)h).ToArray()  // Convert FP16 -> FP32
+            : results.First().AsEnumerable<float>().ToArray();
+
         results.Dispose();
 
         if (finalScores.Length != _tags.Count)
@@ -66,12 +116,12 @@ public class FoxONNXImageTagger
             throw new Exception($"Output length {finalScores.Length} does not match tag count {_tags.Count}.");
         }
 
-        int numClasses = finalScores.Length;  // Should always be 9083
+        int numClasses = finalScores.Length;
 
         // Sort indices descending by final score.
         int[] sortedIndices = Enumerable.Range(0, numClasses)
-                                          .OrderByDescending(i => finalScores[i])
-                                          .ToArray();
+                                           .OrderByDescending(i => finalScores[i])
+                                           .ToArray();
 
         Dictionary<string, float> predictions = new();
         foreach (int idx in sortedIndices)
@@ -84,6 +134,8 @@ public class FoxONNXImageTagger
 
         return predictions;
     }
+
+
 
     /// <summary>
     /// Preprocesses an Image<Rgba32> exactly as in the original demo:

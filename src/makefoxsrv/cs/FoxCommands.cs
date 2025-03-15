@@ -90,7 +90,7 @@ namespace makefoxsrv
             { "/styles",      CmdStyles },
             //--------------- -----------------
             { "/stickerify",  CmdStickerify },
-            { "/tags",         CmdTag }
+            { "/tags",        CmdTag }
         };
 
         public static async Task HandleCommand(FoxTelegram t, Message message)
@@ -694,15 +694,18 @@ namespace makefoxsrv
 
             // Here we enable drop shadow with custom parameters. 
             
+            var startTime = DateTime.Now;
             FoxONNXImageTagger tagger = new FoxONNXImageTagger();
             var predictions = tagger.ProcessImage(image);
+            var elapsedTime = DateTime.Now - startTime;
+
 
             string messageText = predictions is null ? "No tags found." : $"Tags: {string.Join(", ", predictions.Keys)}";
 
 
             await t.SendMessageAsync(
                                replyToMessage: message,
-                               text: messageText
+                               text: messageText + $"\r\n\nProcessing time: {elapsedTime}"
             );
 
         }
