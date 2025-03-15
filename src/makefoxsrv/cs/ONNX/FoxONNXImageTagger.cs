@@ -21,12 +21,13 @@ public class FoxONNXImageTagger
 
     static FoxONNXImageTagger()
     {
+        string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384.onnx";
+
         try
         {
-            string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384.onnx";
-
             var options = new SessionOptions();
-            //options.AppendExecutionProvider_CUDA(); // Use CUDA\
+            //options.AppendExecutionProvider_CUDA(); // Use CUDA
+            options.AppendExecutionProvider_CPU();
 
             _session = new InferenceSession(modelPath, options);
 
@@ -35,6 +36,8 @@ public class FoxONNXImageTagger
             {
                 throw new Exception("Failed to load tags from ONNX model metadata.");
             }
+
+            FoxLog.WriteLine($"ONNX Model Loaded: {modelPath}");
         }
         catch (Exception ex)
         {
