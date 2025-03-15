@@ -22,7 +22,7 @@ public class FoxONNXImageTagger
 
     static FoxONNXImageTagger()
     {
-        string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_int8.onnx";
+        string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_fp16.onnx";
 
         try
         {
