@@ -11,6 +11,8 @@ using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.Drawing.Processing;
 using System.Text.Json;
 
+namespace makefoxsrv;
+
 public class FoxONNXImageTagger
 {
     private static readonly InferenceSession _session;
@@ -22,8 +24,15 @@ public class FoxONNXImageTagger
         string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384.onnx";
 
         var options = new SessionOptions();
-        //options.AppendExecutionProvider_CUDA(); // Use CUDA
-        _session = new InferenceSession(modelPath, options);
+        //options.AppendExecutionProvider_CUDA(); // Use CUDA\
+        try
+        {
+            _session = new InferenceSession(modelPath, options);
+        } catch (Exception ex)
+        {
+            FoxLog.WriteLine($"❌ Failed to load ONNX model: {ex.Message}");
+            throw;
+        }
 
         _tags = LoadTagsFromONNX(_session);
         if (_tags == null || _tags.Count == 0)
