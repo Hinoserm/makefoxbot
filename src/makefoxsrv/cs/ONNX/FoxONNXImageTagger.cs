@@ -27,9 +27,9 @@ public class FoxONNXImageTagger
         {
             var options = new SessionOptions();
             //options.AppendExecutionProvider_CUDA(); // Use CUDA
-            options.AppendExecutionProvider_CPU();
+            //options.AppendExecutionProvider_CPU();
 
-            _session = new InferenceSession(modelPath, options);
+            _session = new InferenceSession(modelPath);
 
             _tags = LoadTagsFromONNX(_session);
             if (_tags == null || _tags.Count == 0)
