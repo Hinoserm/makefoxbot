@@ -90,7 +90,7 @@ namespace makefoxsrv
             { "/styles",      CmdStyles },
             //--------------- -----------------
             { "/stickerify",  CmdStickerify },
-            { "/tag",         CmdTag }
+            { "/tags",         CmdTag }
         };
 
         public static async Task HandleCommand(FoxTelegram t, Message message)
