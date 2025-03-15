@@ -21,23 +21,25 @@ public class FoxONNXImageTagger
 
     static FoxONNXImageTagger()
     {
-        string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384.onnx";
-
-        var options = new SessionOptions();
-        //options.AppendExecutionProvider_CUDA(); // Use CUDA\
         try
         {
-            _session = new InferenceSession(modelPath, options);
-        } catch (Exception ex)
-        {
-            FoxLog.WriteLine($"❌ Failed to load ONNX model: {ex.Message}");
-            throw;
-        }
+            string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384.onnx";
 
-        _tags = LoadTagsFromONNX(_session);
-        if (_tags == null || _tags.Count == 0)
+            var options = new SessionOptions();
+            //options.AppendExecutionProvider_CUDA(); // Use CUDA\
+
+            _session = new InferenceSession(modelPath, options);
+
+            _tags = LoadTagsFromONNX(_session);
+            if (_tags == null || _tags.Count == 0)
+            {
+                throw new Exception("Failed to load tags from ONNX model metadata.");
+            }
+        }
+        catch (Exception ex)
         {
-            throw new Exception("Failed to load tags from ONNX model metadata.");
+            FoxLog.WriteLine($"❌ Failed to load ONNX model: {ex.Message}", LogLevel.ERROR);
+            throw;
         }
     }
 
