@@ -377,3 +377,5 @@ FodyWeavers.xsd
 /models/mxbai-embed-large-v1-vocab.txt
 /models/mxbai-embed-large-v1.onnx
 /models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384.onnx
+/models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_fp16.onnx
+/models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_int8.onnx
