@@ -33,7 +33,7 @@ public class FoxONNXImageTagger
             //options.LogVerbosityLevel = 1;
 
             options.AppendExecutionProvider_CUDA(); // Use CUDA
-            options.AppendExecutionProvider_CPU(); // Use CPU
+            options.AppendExecutionProvider_CPU();  // Use CPU
 
             // Set threading options for max performance
             //options.IntraOpNumThreads = Environment.ProcessorCount;
@@ -154,9 +154,6 @@ public class FoxONNXImageTagger
         using Image<Rgba32> comp = CompositeAlpha(fitted, Color.White);
         // CenterCrop: crop exactly 384x384 (if necessary)
         using Image<Rgba32> cropped = CenterCrop(comp, 384, 384);
-
-        // Optionally save the preprocessed image for debugging:
-        cropped.Save("test-output.png");
 
         // Convert the cropped image to a tensor (CHW order)
         float[] tensor = ConvertToTensor(cropped);
@@ -300,21 +297,5 @@ public class FoxONNXImageTagger
         }
         Console.WriteLine("⚠ Metadata 'tags_json' NOT found.");
         return new Dictionary<int, string>();
-    }
-
-    public static void Test()
-    {
-        string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384.onnx";
-        string imagePath = "test.jpg";
-
-        using Image<Rgba32> image = Image.Load<Rgba32>(imagePath);
-        FoxONNXImageTagger tagger = new FoxONNXImageTagger();
-        var predictions = tagger.ProcessImage(image);
-
-        Console.WriteLine("\n🔹 Predicted Tags with Scores:");
-        foreach (var kv in predictions)
-        {
-            Console.WriteLine($"{kv.Key}: {kv.Value * 100:F1}%");
-        }
     }
 }
