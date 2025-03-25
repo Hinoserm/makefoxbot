@@ -98,7 +98,9 @@ class FoxWeb
                             ["Filename"] = kv.Filename,
                             ["Name"] = kv.Name,
                             ["BaseModel"] = kv.BaseModel,
-                            ["TriggerWords"] = kv.TriggerWords,
+                            ["TriggerWords"] = kv.TriggerWords is null
+                                ? JsonValue.Create<string?>(null)
+                                : new JsonArray(kv.TriggerWords.Select(w => JsonValue.Create(w)).ToArray()),
                             ["Alias"] = kv.Alias,
                             ["CivitaiId"] = kv.CivitaiId,
                             ["CivitaiModelId"] = kv.CivitaiModelId,

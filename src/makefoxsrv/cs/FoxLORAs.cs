@@ -16,7 +16,8 @@ namespace makefoxsrv
             public required string Filename { get; set; }
             public required string Hash { get; set; }
             public string? Name { get; set; }
-            public string? TriggerWords { get; set; }
+            public List<string>? TriggerWords { get; set; }
+
             public string? BaseModel { get; set; }
             public string? Alias { get; set; }
             public int? CivitaiId { get; set; }
@@ -66,7 +67,10 @@ namespace makefoxsrv
                         Name = reader.IsDBNull("name") ? null : reader.GetString("name"),
                         CivitaiId = reader.IsDBNull("civitai_id") ? null : reader.GetInt32("civitai_id"),
                         CivitaiModelId = reader.IsDBNull("civitai_model_id") ? null : reader.GetInt32("civitai_model_id"),
-                        TriggerWords = reader.IsDBNull("trigger_words") ? null : reader.GetString("trigger_words"),
+                        TriggerWords = reader.IsDBNull("trigger_words")
+                            ? null
+                            : reader.GetString("trigger_words").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+
                         Workers = new(FoxWorkerComparer.Instance)
                     };
 
@@ -83,12 +87,29 @@ namespace makefoxsrv
                 }
             }
 
-            // Step 2: Scan filesystem
+            LorasLoaded = true;
+            _= LoadHashes();
+        }
+
+        private static async Task LoadHashes()
+        {
+            var rootDir = FoxSettings.Get<string?>("LoraPath");
+
+            if (string.IsNullOrEmpty(rootDir) || !Directory.Exists(rootDir))
+            {
+                FoxLog.WriteLine("[LORA] LoraPath is not set or does not exist. Skipping LORA loading.");
+                return;
+            }
+
             var files = Directory.EnumerateFiles(rootDir, "*", SearchOption.AllDirectories)
-                .Where(f => f.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase));
+                .Where(f => f.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
             using var insertConn = new MySqlConnection(FoxMain.sqlConnectionString);
             await insertConn.OpenAsync();
+
+            var semaphore = new SemaphoreSlim(8); // limit to 4 concurrent workers
+            var tasks = new List<Task>();
 
             foreach (var file in files)
             {
@@ -102,73 +123,124 @@ namespace makefoxsrv
                     continue;
                 }
 
-                var hash = ComputeSHA256(file);
+                await semaphore.WaitAsync();
 
-                if (_lorasByHash.ContainsKey((hash, nameWithoutExt)))
-                    continue;
-
-                var lora = new LoraInfo
+                tasks.Add(Task.Run(async () =>
                 {
-                    Filename = nameWithoutExt,
-                    Hash = hash,
-                    Name = null,
-                    BaseModel = null,
-                    CivitaiId = null,
-                    CivitaiModelId = null,
-                    TriggerWords = null,
-                    Workers = new(FoxWorkerComparer.Instance)
-                };
+                    try
+                    {
+                        var hash = ComputeSHA256(file);
 
-                await DownloadCivitaiInfo(lora);
+                        if (_lorasByHash.ContainsKey((hash, nameWithoutExt)))
+                            return;
 
-                using var insertCmd = new MySqlCommand(@"
-                    INSERT INTO lora_info (hash, filename, base_model, trigger_words, name, civitai_id, civitai_model_id)
-                    VALUES (@hash, @filename, @base_model, @trigger_words, @name, @civitai_id, @civitai_model_id)", insertConn);
+                        var lora = new LoraInfo
+                        {
+                            Filename = nameWithoutExt,
+                            Hash = hash,
+                            Name = null,
+                            BaseModel = null,
+                            CivitaiId = null,
+                            CivitaiModelId = null,
+                            TriggerWords = null,
+                            Workers = new(FoxWorkerComparer.Instance)
+                        };
 
-                insertCmd.Parameters.AddWithValue("@hash", lora.Hash);
-                insertCmd.Parameters.AddWithValue("@filename", lora.Filename);
-                insertCmd.Parameters.AddWithValue("@base_model", lora.BaseModel);
-                insertCmd.Parameters.AddWithValue("@name", lora.Name);
-                insertCmd.Parameters.AddWithValue("@civitai_id", lora.CivitaiId);
-                insertCmd.Parameters.AddWithValue("@civitai_model_id", lora.CivitaiModelId);
-                insertCmd.Parameters.AddWithValue("@trigger_words", lora.TriggerWords);
+                        await DownloadCivitaiInfo(lora);
 
-                await insertCmd.ExecuteNonQueryAsync();
+                        // Lock sequential DB access
+                        lock (insertConn)
+                        {
+                            using var insertCmd = new MySqlCommand(@"
+                            INSERT INTO lora_info (hash, filename, base_model, trigger_words, name, civitai_id, civitai_model_id)
+                            VALUES (@hash, @filename, @base_model, @trigger_words, @name, @civitai_id, @civitai_model_id)", insertConn);
 
-                _lorasByHash[(hash, lora.Filename)] = lora;
+                            insertCmd.Parameters.AddWithValue("@hash", lora.Hash);
+                            insertCmd.Parameters.AddWithValue("@filename", lora.Filename);
+                            insertCmd.Parameters.AddWithValue("@base_model", (object?)lora.BaseModel ?? DBNull.Value);
+                            insertCmd.Parameters.AddWithValue("@name", (object?)lora.Name ?? DBNull.Value);
+                            insertCmd.Parameters.AddWithValue("@civitai_id", (object?)lora.CivitaiId ?? DBNull.Value);
+                            insertCmd.Parameters.AddWithValue("@civitai_model_id", (object?)lora.CivitaiModelId ?? DBNull.Value);
+                            insertCmd.Parameters.AddWithValue("@trigger_words",
+                                lora.TriggerWords is { Count: > 0 } ? string.Join(", ", lora.TriggerWords) : DBNull.Value);
 
-                if (!_lorasByFilename.TryGetValue(nameWithoutExt, out var list))
-                {
-                    list = new List<LoraInfo>();
-                    _lorasByFilename[nameWithoutExt] = list;
-                }
+                            insertCmd.ExecuteNonQuery();
+                        }
 
-                list.Add(lora);
+                        _lorasByHash[(hash, lora.Filename)] = lora;
+
+                        lock (_lorasByFilename)
+                        {
+                            if (!_lorasByFilename.TryGetValue(nameWithoutExt, out var list))
+                            {
+                                list = new List<LoraInfo>();
+                                _lorasByFilename[nameWithoutExt] = list;
+                            }
+
+                            list.Add(lora);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.WriteLine($"[LORA] Error processing {file}: {ex.Message}");
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }));
             }
 
+            await Task.WhenAll(tasks);
 
-            // Fill in any missing CivitAI info (in case we missed it in previous runs)
             _ = UpdateMissingCivitaiInfo();
-
-            LorasLoaded = true;
         }
 
         public static async Task UpdateMissingCivitaiInfo()
         {
+            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
             foreach (var lora in _lorasByHash.Values)
             {
                 if (lora.CivitaiId != null)
                     continue;
 
-                await DownloadCivitaiInfo(lora);
+                try
+                {
+                    await DownloadCivitaiInfo(lora);
+
+                    // Update the DB
+                    using var cmd = new MySqlCommand(@"
+                        UPDATE lora_info
+                        SET civitai_id = @civitai_id,
+                            civitai_model_id = @civitai_model_id,
+                            name = @name,
+                            base_model = @base_model,
+                            trigger_words = @trigger_words
+                        WHERE hash = @hash", conn);
+
+                    cmd.Parameters.AddWithValue("@civitai_id", lora.CivitaiId);
+                    cmd.Parameters.AddWithValue("@civitai_model_id", lora.CivitaiModelId);
+                    cmd.Parameters.AddWithValue("@name", lora.Name);
+                    cmd.Parameters.AddWithValue("@base_model", lora.BaseModel);
+                    cmd.Parameters.AddWithValue("@trigger_words", lora.TriggerWords is { Count: > 0 } ? string.Join(", ", lora.TriggerWords) : DBNull.Value);
+                    cmd.Parameters.AddWithValue("@hash", lora.Hash);
+
+                    await cmd.ExecuteNonQueryAsync();
+                }
+                catch
+                {
+                    // Ignore errors for individual LORAs, we don't want to halt the entire process
+                    FoxLog.WriteLine($"Failed to update Civitai info for {lora.Filename} (hash: {lora.Hash})");
+                }
             }
         }
 
         public static async Task DownloadCivitaiInfo(LoraInfo lora)
         {
             using var http = new HttpClient();
-            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
-            await conn.OpenAsync();
+
 
             try
             {
@@ -187,27 +259,8 @@ namespace makefoxsrv
                 lora.BaseModel ??= obj["baseModel"]?.ToString();
 
                 var words = obj["trainedWords"]?.Values<string>();
-                if (words != null)
-                    lora.TriggerWords ??= string.Join(", ", words.ToList());
-
-                // Update the DB
-                using var cmd = new MySqlCommand(@"
-                    UPDATE lora_info
-                    SET civitai_id = @civitai_id,
-                        civitai_model_id = @civitai_model_id,
-                        name = @name,
-                        base_model = @base_model,
-                        trigger_words = @trigger_words
-                    WHERE hash = @hash", conn);
-
-                cmd.Parameters.AddWithValue("@civitai_id", lora.CivitaiId);
-                cmd.Parameters.AddWithValue("@civitai_model_id", lora.CivitaiModelId);
-                cmd.Parameters.AddWithValue("@name", lora.Name);
-                cmd.Parameters.AddWithValue("@base_model", lora.BaseModel);
-                cmd.Parameters.AddWithValue("@trigger_words", lora.TriggerWords);
-                cmd.Parameters.AddWithValue("@hash", lora.Hash);
-
-                await cmd.ExecuteNonQueryAsync();
+                if (words is not null)
+                    lora.TriggerWords ??= words.ToList();
             }
             catch (Exception ex)
             {
