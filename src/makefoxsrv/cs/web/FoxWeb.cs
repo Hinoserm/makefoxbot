@@ -96,12 +96,13 @@ class FoxWeb
                         {
                             ["Hash"] = kv.Hash,
                             ["Filename"] = kv.Filename,
-                            ["Name"] = kv.Name ?? "",
-                            ["BaseModel"] = kv.BaseModel ?? "",
-                            ["TriggerWords"] = kv.TriggerWords ?? "",
+                            ["Name"] = kv.Name,
+                            ["BaseModel"] = kv.BaseModel,
+                            ["TriggerWords"] = kv.TriggerWords,
+                            ["Alias"] = kv.Alias,
                             ["CivitaiId"] = kv.CivitaiId,
                             ["CivitaiModelId"] = kv.CivitaiModelId,
-                            ["CivitaiUrl"] = kv.CivitaiUrl ?? "",
+                            ["CivitaiUrl"] = kv.CivitaiUrl,
                             ["Workers"] = new JsonArray(
                                 kv.Workers
                                     .OrderBy(w => w.ID)

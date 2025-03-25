@@ -546,7 +546,7 @@ namespace makefoxsrv
                 {
                     // Attempt to insert, or update if exists
 
-                    FoxLORAs.RegisterWorkerByFilename(this, lora.Name);
+                    FoxLORAs.RegisterWorkerByFilename(this, lora.Name, lora.Alias);
                     lora_count++;
                 }
                 FoxLog.WriteLine($"  Worker {ID} - Loaded {lora_count} LORAs.");

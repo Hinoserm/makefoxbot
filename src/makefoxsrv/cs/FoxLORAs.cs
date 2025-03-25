@@ -18,6 +18,7 @@ namespace makefoxsrv
             public string? Name { get; set; }
             public string? TriggerWords { get; set; }
             public string? BaseModel { get; set; }
+            public string? Alias { get; set; }
             public int? CivitaiId { get; set; }
             public int? CivitaiModelId { get; set; }
             public string? CivitaiUrl =>
@@ -223,12 +224,13 @@ namespace makefoxsrv
         }
 
 
-        public static void RegisterWorkerByFilename(FoxWorker worker, string filenameWithoutExtension)
+        public static void RegisterWorkerByFilename(FoxWorker worker, string filenameWithoutExtension, string? alias = null)
         {
             if (_lorasByFilename.TryGetValue(filenameWithoutExtension, out var loras))
             {
                 foreach (var lora in loras)
                 {
+                    lora.Alias ??= alias; // Set alias if not already set
                     lora.Workers.Add(worker);
                 }
             }
