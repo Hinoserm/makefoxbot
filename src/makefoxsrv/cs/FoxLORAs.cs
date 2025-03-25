@@ -17,7 +17,7 @@ namespace makefoxsrv
             public required string Hash { get; set; }
             public string? Name { get; set; }
             public List<string>? TriggerWords { get; set; }
-
+            public string? Description { get; set; } // Optional description for the LORA
             public string? BaseModel { get; set; }
             public string? Alias { get; set; }
             public int? CivitaiId { get; set; }
@@ -50,7 +50,7 @@ namespace makefoxsrv
             {
                 await SQL.OpenAsync();
 
-                string query = @"SELECT hash, filename, base_model, name, trigger_words, civitai_id, civitai_model_id FROM lora_info";
+                string query = @"SELECT hash, filename, base_model, name, description, trigger_words, civitai_id, civitai_model_id FROM lora_info";
 
                 using var cmd = new MySqlCommand(query, SQL);
                 using var reader = await cmd.ExecuteReaderAsync();
@@ -67,6 +67,7 @@ namespace makefoxsrv
                         Name = reader.IsDBNull("name") ? null : reader.GetString("name"),
                         CivitaiId = reader.IsDBNull("civitai_id") ? null : reader.GetInt32("civitai_id"),
                         CivitaiModelId = reader.IsDBNull("civitai_model_id") ? null : reader.GetInt32("civitai_model_id"),
+                        Description = reader.IsDBNull("description") ? null : reader.GetString("description"),
                         TriggerWords = reader.IsDBNull("trigger_words")
                             ? null
                             : reader.GetString("trigger_words").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
@@ -142,6 +143,7 @@ namespace makefoxsrv
                             BaseModel = null,
                             CivitaiId = null,
                             CivitaiModelId = null,
+                            Description = null,
                             TriggerWords = null,
                             Workers = new(FoxWorkerComparer.Instance)
                         };
@@ -152,13 +154,14 @@ namespace makefoxsrv
                         lock (insertConn)
                         {
                             using var insertCmd = new MySqlCommand(@"
-                            INSERT INTO lora_info (hash, filename, base_model, trigger_words, name, civitai_id, civitai_model_id)
-                            VALUES (@hash, @filename, @base_model, @trigger_words, @name, @civitai_id, @civitai_model_id)", insertConn);
+                            INSERT INTO lora_info (hash, filename, base_model, trigger_words, name, description, civitai_id, civitai_model_id)
+                            VALUES (@hash, @filename, @base_model, @trigger_words, @name, @description, @civitai_id, @civitai_model_id)", insertConn);
 
                             insertCmd.Parameters.AddWithValue("@hash", lora.Hash);
                             insertCmd.Parameters.AddWithValue("@filename", lora.Filename);
                             insertCmd.Parameters.AddWithValue("@base_model", (object?)lora.BaseModel ?? DBNull.Value);
                             insertCmd.Parameters.AddWithValue("@name", (object?)lora.Name ?? DBNull.Value);
+                            insertCmd.Parameters.AddWithValue("@description", (object?)lora.Description ?? DBNull.Value);
                             insertCmd.Parameters.AddWithValue("@civitai_id", (object?)lora.CivitaiId ?? DBNull.Value);
                             insertCmd.Parameters.AddWithValue("@civitai_model_id", (object?)lora.CivitaiModelId ?? DBNull.Value);
                             insertCmd.Parameters.AddWithValue("@trigger_words",

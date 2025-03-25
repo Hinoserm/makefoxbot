@@ -102,6 +102,7 @@ class FoxWeb
                                 ? JsonValue.Create<string?>(null)
                                 : new JsonArray(kv.TriggerWords.Select(w => JsonValue.Create(w)).ToArray()),
                             ["Alias"] = kv.Alias,
+                            ["Description"] = kv.Description,
                             ["CivitaiId"] = kv.CivitaiId,
                             ["CivitaiModelId"] = kv.CivitaiModelId,
                             ["CivitaiUrl"] = kv.CivitaiUrl,
