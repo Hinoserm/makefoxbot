@@ -381,7 +381,7 @@ namespace makefoxsrv
                     try
                     {
                         await worker.LoadModelInfo();
-                        //await worker.GetLoRAInfo();
+                        await worker.GetLoRAInfo();
                         await worker.SetOnlineStatus(true);
                     }
                     catch (Exception ex)
@@ -527,15 +527,12 @@ namespace makefoxsrv
         public async Task GetLoRAInfo()
         {
             long lora_count = 0;
-            long lora_tag_count = 0;
 
             using var httpClient = new HttpClient();
-            var apiUrl = address + "/sdapi/v1/loras";
+            var apiUrl = address + "sdapi/v1/loras";
 
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-            await SQL.OpenAsync();
-
-            using var transaction = SQL.BeginTransaction();
+            if (!FoxLORAs.usingLoras)
+                return;
 
             try
             {
@@ -545,112 +542,20 @@ namespace makefoxsrv
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 var loras = JsonSerializer.Deserialize<List<Lora>>(jsonString, options);
 
-                // Fetch existing LoRAs for the worker to identify deletions
-                var lorasToKeep = new HashSet<string>(loras.Select(l => l.Name));
-                var loraNames = string.Join(",", lorasToKeep.Select(n => $"'{n.Replace("'", "''")}'"));
-
-                var cmd = new MySqlCommand($"DELETE FROM worker_loras WHERE worker_id = @workerId AND name NOT IN ({loraNames})", SQL, transaction);
-                cmd.Parameters.AddWithValue("@workerId", ID);
-
-                await cmd.ExecuteNonQueryAsync();
-
-
                 foreach (var lora in loras)
                 {
                     // Attempt to insert, or update if exists
-                    var insertOrUpdateCmd = new MySqlCommand(@"
-                        INSERT INTO worker_loras (worker_id, name, alias, path)
-                        VALUES (@workerId, @name, @alias, @path)
-                        ON DUPLICATE KEY UPDATE alias=VALUES(alias), path=VALUES(path);", SQL, transaction);
-                    insertOrUpdateCmd.Parameters.AddWithValue("@workerId", ID);
-                    insertOrUpdateCmd.Parameters.AddWithValue("@name", lora.Name);
-                    insertOrUpdateCmd.Parameters.AddWithValue("@alias", lora.Alias ?? "");
-                    insertOrUpdateCmd.Parameters.AddWithValue("@path", lora.Path);
-                    await insertOrUpdateCmd.ExecuteNonQueryAsync();
 
-                    // Retrieve the lora_id
-                    var getLoraIdCmd = new MySqlCommand(@"
-                        SELECT lora_id FROM worker_loras
-                        WHERE worker_id = @workerId AND name = @name;", SQL, transaction);
-                    getLoraIdCmd.Parameters.AddWithValue("@workerId", ID);
-                    getLoraIdCmd.Parameters.AddWithValue("@name", lora.Name);
-                    var loraId = Convert.ToInt64(await getLoraIdCmd.ExecuteScalarAsync());
-
-                    var deleteOldTagCmd = new MySqlCommand($"DELETE FROM worker_lora_tags WHERE lora_id = @id", SQL, transaction);
-                    deleteOldTagCmd.Parameters.AddWithValue("@id", loraId);
-
-                    await deleteOldTagCmd.ExecuteNonQueryAsync();
-
+                    FoxLORAs.RegisterWorkerByFilename(this, lora.Name);
                     lora_count++;
-
-                    Dictionary<string, int> tagFrequencies = new Dictionary<string, int>();
-
-                    if (lora.Metadata.TryGetProperty("ss_tag_frequency", out var ssTagFrequency) && ssTagFrequency.ValueKind == JsonValueKind.Object)
-                    {
-                        // Iterate over each category in the ss_tag_frequency
-                        foreach (var category in ssTagFrequency.EnumerateObject())
-                        {
-                            if (category.Value.ValueKind == JsonValueKind.Object)
-                            {
-                                // Iterate over each tag within the category
-                                foreach (var tag in category.Value.EnumerateObject())
-                                {
-                                    // Check if the value is a string or an integer
-                                    if (tag.Value.ValueKind == JsonValueKind.Number)
-                                    {
-                                        // Add the tag name and count to the dictionary
-                                        tagFrequencies[tag.Name] = tag.Value.GetInt32();
-                                    }
-                                    //else if (tag.Value.ValueKind == JsonValueKind.String)
-                                    //{
-                                    //    // If it's a string, enter it with a value of 1
-                                    //    tagFrequencies[tag.Name] = 1;
-                                    //}
-                                }
-                            }
-                            else if (category.Value.ValueKind == JsonValueKind.String)
-                            {
-                                // Handle the case where the entire category is a string
-                                //tagFrequencies[category.Name] = 1;
-                            }
-                        }
-                    }
-                    else if (ssTagFrequency.ValueKind == JsonValueKind.String)
-                    {
-                        // Handle the case where ss_tag_frequency itself is a string
-                        string tagName = ssTagFrequency.GetString();
-                        if (!string.IsNullOrEmpty(tagName))
-                        {
-                            //tagFrequencies[tagName] = 1;
-                        }
-                    }
-
-                    lora_tag_count += tagFrequencies.Count();
-
-                    // Start a transaction
-
-                    var values = tagFrequencies.Select(tag => $"({loraId}, {ID}, '{tag.Key.Replace("'", "''")}', {tag.Value})");
-                    var insertTagsCmdText = $"INSERT INTO worker_lora_tags (lora_id, worker_id, tag_name, frequency) VALUES {string.Join(", ", values)} ON DUPLICATE KEY UPDATE frequency=VALUES(frequency);";
-                    if (values.Any())
-                    {
-                        var insertTagsCmd = new MySqlCommand(insertTagsCmdText, SQL, transaction);
-                        await insertTagsCmd.ExecuteNonQueryAsync();
-                    }
                 }
-
-                // Commit the transaction
-                await transaction.CommitAsync();
-
-                FoxLog.WriteLine($"  Worker {ID} - Loaded {lora_count} LoRAs with {lora_tag_count} tags.");
+                FoxLog.WriteLine($"  Worker {ID} - Loaded {lora_count} LORAs.");
             }
             catch (HttpRequestException ex)
             {
                 FoxLog.LogException(ex, $"Error fetching LoRAs: {ex.Message}");
-
-                await transaction.RollbackAsync();
             }
         }
-
 
         public async Task LoadEmbeddingInfo()
         {

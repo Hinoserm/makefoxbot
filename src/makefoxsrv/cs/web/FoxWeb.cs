@@ -24,6 +24,7 @@ using static FoxWeb.MethodLookup;
 using System.Text.Json.Nodes;
 
 using JsonObject = System.Text.Json.Nodes.JsonObject;
+using JsonArray = System.Text.Json.Nodes.JsonArray;
 
 class FoxWeb
 {
@@ -87,6 +88,45 @@ class FoxWeb
 
             try
             {
+
+                if (command == "info:loras")
+                {
+                    var loras = FoxLORAs.GetAllLORAs()
+                        .Select(kv => new JsonObject
+                        {
+                            ["Hash"] = kv.Hash,
+                            ["Filename"] = kv.Filename,
+                            ["Name"] = kv.Name ?? "",
+                            ["BaseModel"] = kv.BaseModel ?? "",
+                            ["TriggerWords"] = kv.TriggerWords ?? "",
+                            ["CivitaiId"] = kv.CivitaiId,
+                            ["CivitaiModelId"] = kv.CivitaiModelId,
+                            ["CivitaiUrl"] = kv.CivitaiUrl ?? "",
+                            ["Workers"] = new JsonArray(
+                                kv.Workers
+                                    .OrderBy(w => w.ID)
+                                    .Select(w => new JsonObject
+                                    {
+                                        ["ID"] = w.ID,
+                                        ["Name"] = w.name
+                                    }).ToArray()
+                            )
+                        }).ToList();
+
+                    var response = new JsonObject
+                    {
+                        ["Loras"] = new JsonArray(loras.ToArray())
+                    };
+
+                    string prettyJson = JsonSerializer.Serialize(response, new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    });
+
+                    await HttpContext.SendStringAsync(prettyJson, "application/json", Encoding.UTF8);
+                    return;
+                }
+
                 // Get the FoxUser from the request context or other appropriate source
                 FoxUser? user = await GetUserFromRequest(HttpContext); // Ensure this method gets the FoxUser correctly
                 JsonObject parameters = await ParseParameters(HttpContext);
