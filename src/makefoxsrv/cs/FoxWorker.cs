@@ -381,7 +381,7 @@ namespace makefoxsrv
                     try
                     {
                         await worker.LoadModelInfo();
-                        await worker.GetLoRAInfo();
+                        _= worker.LoadLoRAInfo();
                         await worker.SetOnlineStatus(true);
                     }
                     catch (Exception ex)
@@ -524,14 +524,14 @@ namespace makefoxsrv
         }
 
 
-        public async Task GetLoRAInfo()
+        public async Task LoadLoRAInfo()
         {
             long lora_count = 0;
 
             using var httpClient = new HttpClient();
             var apiUrl = address + "sdapi/v1/loras";
 
-            if (!FoxLORAs.usingLoras)
+            if (!FoxLORAs.LorasLoaded)
                 return;
 
             try
@@ -901,6 +901,7 @@ namespace makefoxsrv
                                     await SetOnlineStatus(true);
 
                                     await LoadModelInfo(); //Reload in case it changed.
+                                    _ = LoadLoRAInfo();
 
                                     Online = true;
                                     waitMs = 2000;

@@ -30,7 +30,7 @@ namespace makefoxsrv
 
         private static readonly Dictionary<(string Hash, string Filename), LoraInfo> _lorasByHash = new();
         private static readonly Dictionary<string, List<LoraInfo>> _lorasByFilename = new(StringComparer.OrdinalIgnoreCase);
-        public static bool usingLoras = false;
+        public static bool LorasLoaded = false;
 
         public static async Task StartupLoad()
         {
@@ -39,11 +39,9 @@ namespace makefoxsrv
             if (String.IsNullOrEmpty(rootDir) || !Directory.Exists(rootDir))
             {
                 FoxLog.WriteLine("[LORA] LoraPath is not set or does not exist. Skipping LORA loading.");
-                usingLoras = false;
+                LorasLoaded = false;
                 return;
             }
-
-            usingLoras = true;
 
             // Step 1: Load from MySQL
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
@@ -149,7 +147,9 @@ namespace makefoxsrv
 
 
             // Fill in any missing CivitAI info (in case we missed it in previous runs)
-            _= UpdateMissingCivitaiInfo();
+            _ = UpdateMissingCivitaiInfo();
+
+            LorasLoaded = true;
         }
 
         public static async Task UpdateMissingCivitaiInfo()
