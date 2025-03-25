@@ -259,7 +259,7 @@ namespace makefoxsrv
                 lora.BaseModel ??= obj["baseModel"]?.ToString();
 
                 var words = obj["trainedWords"]?.Values<string>();
-                if (words is not null)
+                if (words is not null && words.Count() > 0)
                     lora.TriggerWords ??= words.ToList();
             }
             catch (Exception ex)
