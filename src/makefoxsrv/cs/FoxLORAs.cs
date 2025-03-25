@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace makefoxsrv
 {
@@ -91,6 +92,46 @@ namespace makefoxsrv
             LorasLoaded = true;
             _= LoadHashes();
         }
+
+        public static string NormalizeLoraTags(string prompt, out List<string> missingLoras)
+        {
+            missingLoras = new List<string>();
+
+            var regex = new Regex(@"<lora:([^:>]+)(?::([^>]+))?>", RegexOptions.IgnoreCase);
+            var matches = regex.Matches(prompt);
+
+            var replacements = new Dictionary<string, string>();
+
+            foreach (Match match in matches)
+            {
+                string originalName = match.Groups[1].Value;
+                string? extra = match.Groups[2].Success ? match.Groups[2].Value : null;
+
+                string? normalizedKey = _lorasByFilename.Keys
+                    .FirstOrDefault(k => string.Equals(k, originalName, StringComparison.OrdinalIgnoreCase));
+
+                if (normalizedKey != null)
+                {
+                    string normalizedTag = extra != null
+                        ? $"<lora:{normalizedKey}:{extra}>"
+                        : $"<lora:{normalizedKey}>";
+
+                    replacements[match.Value] = normalizedTag;
+                }
+                else if (!missingLoras.Contains(originalName, StringComparer.OrdinalIgnoreCase))
+                {
+                    missingLoras.Add(originalName);
+                }
+            }
+
+            foreach (var kvp in replacements)
+            {
+                prompt = prompt.Replace(kvp.Key, kvp.Value);
+            }
+
+            return prompt;
+        }
+
 
         private static async Task LoadHashes()
         {
@@ -278,6 +319,115 @@ namespace makefoxsrv
             var hashBytes = sha256.ComputeHash(stream);
             return Convert.ToHexString(hashBytes).ToLowerInvariant();
         }
+
+        public static Dictionary<string, List<LoraInfo>> SuggestSimilarLoras(List<string> missingLoraNames, int maxSuggestionsPerMissing = 5)
+        {
+            var suggestions = new Dictionary<string, List<LoraInfo>>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var rawMissing in missingLoraNames)
+            {
+                var missing = NormalizeForMatching(rawMissing);
+                var missingTokens = Tokenize(rawMissing);
+
+                var bestMatches = new List<(int Score, LoraInfo Info)>();
+
+                foreach (var kvp in _lorasByFilename)
+                {
+                    foreach (var info in kvp.Value)
+                    {
+                        var candidates = new List<string?> {
+                    info.Filename,
+                    info.Name,
+                    info.Alias,
+                    info.Description
+                };
+
+                        if (info.TriggerWords != null)
+                            candidates.AddRange(info.TriggerWords);
+
+                        foreach (var candidate in candidates)
+                        {
+                            if (string.IsNullOrWhiteSpace(candidate))
+                                continue;
+
+                            var normalized = NormalizeForMatching(candidate);
+                            var candidateTokens = Tokenize(candidate);
+
+                            int score = LevenshteinDistance(missing, normalized);
+
+                            // Substring bonus
+                            if (normalized.Contains(missing))
+                                score -= 15;
+
+                            // Token overlap bonus
+                            int overlap = missingTokens.Intersect(candidateTokens).Count();
+                            score -= overlap * 3;
+
+                            bestMatches.Add((score, info));
+                        }
+                    }
+                }
+
+                var top = bestMatches
+                    .OrderBy(m => m.Score)
+                    .Select(m => m.Info)
+                    .Distinct()
+                    .Take(maxSuggestionsPerMissing)
+                    .ToList();
+
+                if (top.Count > 0)
+                    suggestions[rawMissing] = top;
+            }
+
+            return suggestions;
+        }
+
+
+        private static string NormalizeForMatching(string input)
+        {
+            return new string(input
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToLowerInvariant)
+                .ToArray());
+        }
+
+        private static HashSet<string> Tokenize(string input)
+        {
+            return input
+                .ToLowerInvariant()
+                .Split(new[] { '_', '-', '.', ' ', '[', ']', '(', ')', ',', ':' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => new string(t.Where(char.IsLetterOrDigit).ToArray()))
+                .Where(t => t.Length > 0)
+                .ToHashSet();
+        }
+
+
+        private static int LevenshteinDistance(string s, string t)
+        {
+            var dp = new int[s.Length + 1, t.Length + 1];
+
+            for (int i = 0; i <= s.Length; i++)
+                dp[i, 0] = i;
+
+            for (int j = 0; j <= t.Length; j++)
+                dp[0, j] = j;
+
+            for (int i = 1; i <= s.Length; i++)
+            {
+                for (int j = 1; j <= t.Length; j++)
+                {
+                    int cost = s[i - 1] == t[j - 1] ? 0 : 1;
+
+                    dp[i, j] = Math.Min(
+                        Math.Min(dp[i - 1, j] + 1,     // deletion
+                                 dp[i, j - 1] + 1),    // insertion
+                        dp[i - 1, j - 1] + cost);      // substitution
+                }
+            }
+
+            return dp[s.Length, t.Length];
+        }
+
 
 
         public static void RegisterWorkerByFilename(FoxWorker worker, string filenameWithoutExtension, string? alias = null)

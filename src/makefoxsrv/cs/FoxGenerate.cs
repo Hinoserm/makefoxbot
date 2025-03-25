@@ -172,6 +172,29 @@ namespace makefoxsrv
                 return null;
             }
 
+            settings.Prompt = FoxLORAs.NormalizeLoraTags(settings.Prompt ?? "", out var missingLoras);
+
+            if (missingLoras.Count > 0)
+            {
+                var missingLoraNames = string.Join(", ", missingLoras);
+                var suggestions = FoxLORAs.SuggestSimilarLoras(missingLoras);
+
+                var suggestionLines = suggestions.Select(kvp =>
+                    $"→ {kvp.Key}: {string.Join(", ", kvp.Value.Select(v => v.Filename))}");
+
+                var suggestionText = suggestionLines.Any()
+                    ? "\n\nDid you mean:\n" + string.Join("\n", suggestionLines)
+                    : "";
+
+                await t.SendMessageAsync(
+                    text: $"❌ The following LORAs are not available: {missingLoraNames}.{suggestionText}",
+                    replyToMessage: replyToMessage
+                );
+
+                return null;
+            }
+
+
             // Check if the user is premium
             //bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM);
 

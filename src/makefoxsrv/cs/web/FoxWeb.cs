@@ -88,7 +88,6 @@ class FoxWeb
 
             try
             {
-
                 if (command == "info:loras")
                 {
                     var loras = FoxLORAs.GetAllLORAs()
@@ -128,6 +127,7 @@ class FoxWeb
                     });
 
                     await HttpContext.SendStringAsync(prettyJson, "application/json", Encoding.UTF8);
+
                     return;
                 }
 
