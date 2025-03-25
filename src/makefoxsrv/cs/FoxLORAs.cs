@@ -322,55 +322,67 @@ namespace makefoxsrv
 
         public static Dictionary<string, List<LoraInfo>> SuggestSimilarLoras(List<string> missingLoraNames, int maxSuggestionsPerMissing = 5)
         {
+            const int maxScore = 22; // Lower = stricter
+            const int minTokenOverlap = 1;
+
             var suggestions = new Dictionary<string, List<LoraInfo>>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var rawMissing in missingLoraNames)
             {
-                var missing = NormalizeForMatching(rawMissing);
+                var missingNorm = NormalizeForMatching(rawMissing);
                 var missingTokens = Tokenize(rawMissing);
 
-                var bestMatches = new List<(int Score, LoraInfo Info)>();
+                var scored = new List<(int Score, LoraInfo Info)>();
 
-                foreach (var kvp in _lorasByFilename)
+                foreach (var loraList in _lorasByFilename.Values)
                 {
-                    foreach (var info in kvp.Value)
+                    foreach (var info in loraList)
                     {
-                        var candidates = new List<string?> {
-                    info.Filename,
-                    info.Name,
-                    info.Alias,
-                    info.Description
+                        var candidates = new List<(string? Field, int Weight)>
+                {
+                    (info.Filename, 3),
+                    (info.Alias, 3),
+                    (info.Name, 2),
+                    (info.Description, 1)
                 };
 
                         if (info.TriggerWords != null)
-                            candidates.AddRange(info.TriggerWords);
+                            candidates.AddRange(info.TriggerWords.Select(t => (t, 1)));
 
-                        foreach (var candidate in candidates)
+                        int bestScore = int.MaxValue;
+
+                        foreach (var (field, weight) in candidates)
                         {
-                            if (string.IsNullOrWhiteSpace(candidate))
+                            if (string.IsNullOrWhiteSpace(field))
                                 continue;
 
-                            var normalized = NormalizeForMatching(candidate);
-                            var candidateTokens = Tokenize(candidate);
+                            var norm = NormalizeForMatching(field);
+                            var tokens = Tokenize(field);
 
-                            int score = LevenshteinDistance(missing, normalized);
+                            int score = LevenshteinDistance(missingNorm, norm);
 
-                            // Substring bonus
-                            if (normalized.Contains(missing))
-                                score -= 15;
+                            if (norm.Contains(missingNorm))
+                                score -= 20;
 
-                            // Token overlap bonus
-                            int overlap = missingTokens.Intersect(candidateTokens).Count();
-                            score -= overlap * 3;
+                            int tokenOverlap = missingTokens.Intersect(tokens).Count();
+                            score -= tokenOverlap * 5 * weight;
 
-                            bestMatches.Add((score, info));
+                            // Require at least 1 overlapping token unless it's a substring
+                            if (tokenOverlap < minTokenOverlap && !norm.Contains(missingNorm))
+                                continue;
+
+                            if (score < bestScore)
+                                bestScore = score;
                         }
+
+                        if (bestScore <= maxScore)
+                            scored.Add((bestScore, info));
                     }
                 }
 
-                var top = bestMatches
-                    .OrderBy(m => m.Score)
-                    .Select(m => m.Info)
+                var top = scored
+                    .OrderBy(x => x.Score)
+                    .Select(x => x.Info)
                     .Distinct()
                     .Take(maxSuggestionsPerMissing)
                     .ToList();
@@ -381,6 +393,8 @@ namespace makefoxsrv
 
             return suggestions;
         }
+
+
 
 
         private static string NormalizeForMatching(string input)
