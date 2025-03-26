@@ -203,6 +203,24 @@ public class StableDiffusion
     }
     #endregion
 
+    #region scheduler
+    /// <inheritdoc />
+    public async Task<IEnumerable<IScheduler>> Schedulers(CancellationToken cancellationToken = default)
+    {
+        return (await FastHttpClient.GetFromJsonAsync<SchedulerResponse[]>("/sdapi/v1/schedulers", SerializerOptions, cancellationToken))!;
+    }
+
+    /// <inheritdoc />
+    public async Task<IScheduler> Scheduler(string name, CancellationToken cancellationToken = default)
+    {
+        var schedulers = await Schedulers(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return schedulers.Single(a => a.Name.Equals(name, StringComparison.InvariantCultureIgnoreCase));
+    }
+    #endregion
+
+
     #region upscaler
     /// <inheritdoc />
     public async Task<IEnumerable<IUpscaler>> Upscalers(CancellationToken cancellationToken = default)

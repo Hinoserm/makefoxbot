@@ -10,6 +10,8 @@ public record TextToImageConfig
     public required PromptConfig Prompt { get; set; }
     public required SeedConfig Seed { get; set; }
     public required SamplerConfig Sampler { get; set; }
+    public required SchedulerConfig Scheduler { get; set; }
+
     public required IStableDiffusionModel Model { get; set; }
 
     public required uint Width { get; set; }
@@ -98,6 +100,9 @@ internal class TextToImageConfigRequest
     [JsonPropertyName("sampler_name"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SamplerName { get; init; }
 
+    [JsonPropertyName("scheduler"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SchedulerName { get; init; }
+
     [JsonPropertyName("cfg_scale"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public float? CfgScale { get; init; }
 
@@ -168,6 +173,7 @@ internal class TextToImageConfigRequest
         SeedResizeFromHeight = config.Seed.SeedResizeFromHeight;
         SamplingSteps = config.Sampler.SamplingSteps;
         SamplerName = config.Sampler.Sampler.Name;
+        SchedulerName = config.Scheduler.Scheduler.Name;
         CfgScale = (float?)config.Sampler.CfgScale;
         Eta = (float?)config.Sampler.Eta;
         Batches = config.Batches;

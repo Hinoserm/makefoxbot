@@ -11,6 +11,8 @@ public record ImageToImageConfig
     public required PromptConfig Prompt { get; set; }
     public required SeedConfig Seed { get; set; }
     public required SamplerConfig Sampler { get; set; }
+
+    public required SchedulerConfig Scheduler { get; set; }
     public required IStableDiffusionModel Model { get; set; }
 
     public double? DenoisingStrength { get; set; }
@@ -135,6 +137,9 @@ internal class ImageToImageConfigRequest
     [JsonPropertyName("sampler_name"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SamplerName { get; init; }
 
+    [JsonPropertyName("scheduler"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SchedulerName { get; init; }
+
     [JsonPropertyName("cfg_scale"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public float? CfgScale { get; init; }
 
@@ -203,6 +208,7 @@ internal class ImageToImageConfigRequest
         SamplingSteps = config.Sampler.SamplingSteps;
         CfgScale = (float?)config.Sampler.CfgScale;
         SamplerName = config.Sampler.Sampler.Name;
+        SchedulerName = config.Scheduler.Scheduler.Name;
         Eta = (float?)config.Sampler.Eta;
         DenoisingStrength = (float?)config.DenoisingStrength;
         Mask = config.Mask;

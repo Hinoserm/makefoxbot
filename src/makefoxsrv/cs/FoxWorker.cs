@@ -1114,12 +1114,19 @@ namespace makefoxsrv
 
                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
-                    //var model = await api.StableDiffusionModel("indigoFurryMix_v90Hybrid");
                     var model = await api.StableDiffusionModel(settings.Model, ctsLoop.Token);
-                    //var sampler = await api.Sampler("DPM++ 2M Karras", ctsLoop.Token);
-                    //var sampler = await api.Sampler("Restart", ctsLoop.Token);
-                    //var sampler = await api.Sampler(settings.model == "redwater_703" ? "DPM++ 2M Karras" : "Euler A", ctsLoop.Token);
-                    var sampler = await api.Sampler(settings.Sampler);
+
+                    var useSampler = settings.Sampler;
+                    var useScheduler = "Automatic";
+
+                    if (settings.Sampler == "DPM++ 2M Karras")
+                    {
+                        useSampler = "DPM++ 2M";
+                        useScheduler = "Karras";
+                    }
+
+                    var sampler = await api.Sampler(useSampler, ctsLoop.Token);
+                    var scheduler = await api.Scheduler(useScheduler, ctsLoop.Token);
 
                     var width = settings.Width;
                     var height = settings.Height;
@@ -1142,6 +1149,10 @@ namespace makefoxsrv
                     var config = new TextToImageConfig()
                     {
                         Model = model,
+
+                        Scheduler = new() {
+                            Scheduler = scheduler
+                        },
 
                         Prompt = new()
                         {
@@ -1350,7 +1361,17 @@ namespace makefoxsrv
                 throw new Exception("API not currently available");
 
             var model = await api.StableDiffusionModel(settings.Model, cancellationToken);
-            var sampler = await api.Sampler(settings.Sampler);
+            var useSampler = settings.Sampler;
+            var useScheduler = "Automatic";
+
+            if (settings.Sampler == "DPM++ 2M Karras")
+            {
+                useSampler = "DPM++ 2M";
+                useScheduler = "Karras";
+            }
+
+            var sampler = await api.Sampler(useSampler, cancellationToken);
+            var scheduler = await api.Scheduler(useScheduler, cancellationToken);
 
             var img = new Base64EncodedImage(inputImage);
 
@@ -1359,6 +1380,11 @@ namespace makefoxsrv
                 Images = { img },
 
                 Model = model,
+
+                Scheduler = new()
+                {
+                    Scheduler = scheduler
+                },
 
                 Prompt = new()
                 {
