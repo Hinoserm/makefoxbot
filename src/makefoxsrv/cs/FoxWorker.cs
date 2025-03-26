@@ -817,23 +817,23 @@ namespace makefoxsrv
 
         public async Task<List<String>> UpdateLoadedModels()
         {
-            if (Online && api is not null)
-            {
-                try
-                {
-                    string[] loadedModels = await api.LoadedModels();
+            //if (Online && api is not null)
+            //{
+                //try
+                //{
+                //    string[] loadedModels = await api.LoadedModels();
 
-                    if (loadedModels is not null)
-                        LoadedModels = loadedModels.ToList();
-                }
-                catch
-                {
+                //    if (loadedModels is not null)
+                //        LoadedModels = loadedModels.ToList();
+                //}
+                //catch
+                //{
                     // Use our best guess; the last used model.
 
                     if (LastUsedModel is not null)
                         LoadedModels = new List<string>() { LastUsedModel };
-                }
-            }
+                //}
+            //}
 
             if (LoadedModels.Count() > 0)
                 FoxLog.WriteLine($"Worker {this.name} reports these models loaded: " + string.Join(", ", LoadedModels), LogLevel.DEBUG);
