@@ -228,7 +228,7 @@ namespace makefoxsrv
                 // Record the start time
                 var startTime = DateTime.Now;
 
-                while ((DateTime.Now - startTime).Minutes < 15 && !cancellationToken.IsCancellationRequested)
+                while ((DateTime.Now - startTime).Minutes < 30 && !cancellationToken.IsCancellationRequested)
                 {
 
                     if (_missingFiles.Count() >= 2000)
@@ -255,7 +255,7 @@ namespace makefoxsrv
 
                         FoxLog.WriteLine($"Found images to archive...");
 
-                        while (await r.ReadAsync(cancellationToken))
+                        while (await r.ReadAsync(cancellationToken) && !cancellationToken.IsCancellationRequested)
                         {
                             try
                             {
@@ -473,7 +473,7 @@ namespace makefoxsrv
                             if (!reader.HasRows)
                                 break;
 
-                            while (await reader.ReadAsync(cancellationToken))
+                            while (await reader.ReadAsync(cancellationToken) && !cancellationToken.IsCancellationRequested)
                             {
                                 var imageId = reader.GetInt64("id");
                                 var dateAdded = reader.GetDateTime("date_added");
