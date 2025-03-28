@@ -335,16 +335,16 @@ namespace makefoxsrv
                 FoxLog.LogException(ex);
             }
 
-            FoxLog.WriteLine($"Finished archiving {count} images.");
-
             if (!cancellationToken.IsCancellationRequested)
                 count += await RunOrphanedImageFileCleanup(cutoff - TimeSpan.FromHours(1), cancellationToken);
+
+            FoxLog.WriteLine($"Finished archiving {count} images.");
 
             // Leave this off for now
             //if (!cancellationToken.IsCancellationRequested)
             //    count += await RunDuplicateImageFinder(cutoff, cancellationToken);
 
-            if (count > 0)
+            if (!cancellationToken.IsCancellationRequested && count > 0)
             {
                 FoxLog.WriteLine($"Removing empty directories...");
                 DeleteEmptyDirectories(Path.Combine(dataPath, "images", "input"));
