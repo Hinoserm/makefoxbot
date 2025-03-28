@@ -1718,11 +1718,13 @@ namespace makefoxsrv
                     continue; // Skip empty groups.
                 int uniqueUsers = group.Select(t => t.User.UID).Distinct().Count();
                 TimeSpan groupLongest = TimeSpan.Zero;
+
                 foreach (var task in group)
                 {
                     if (task.DateQueued is DateTime queued)
                     {
                         TimeSpan waitingTime = now - queued;
+
                         if (waitingTime > groupLongest)
                             groupLongest = waitingTime;
                     }
@@ -1735,7 +1737,7 @@ namespace makefoxsrv
             var completedTasks = fullQueue.Values
                 .Where(t => t.status == QueueStatus.FINISHED && t.DateQueued != null && t.DateStarted != null)
                 .OrderByDescending(t => t.DateStarted)
-                .Take(50)
+                //.Take(50)
                 .ToList();
 
             string completedLine = "";
