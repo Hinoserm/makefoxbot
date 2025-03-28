@@ -1756,6 +1756,20 @@ namespace makefoxsrv
                 completedLine = $"Of the last {completedTasks.Count()} completed images, the longest waited {FormatTimeSpan(completedLongest)} in queue.";
             }
 
+            var processingTasks = fullQueue.Values
+                .Where(t => t.status == QueueStatus.PROCESSING && t.DateStarted != null)
+                .OrderByDescending(t => t.DateStarted)
+                .ToList();
+
+            string processingMessage = "";
+            if (processingTasks.Any())
+            {
+                var longestProcessing = processingTasks
+                    .Select(t => DateTime.Now - t.DateStarted!.Value)
+                    .Max();
+                processingMessage = $"Processing {processingTasks.Count} tasks (longest {FormatTimeSpan(longestProcessing)})";
+            }
+
             // Build the final message using only non-empty lines.
             List<string> lines = new() { overallLine };
 
@@ -1763,6 +1777,9 @@ namespace makefoxsrv
 
             if (!string.IsNullOrEmpty(completedLine))
                 lines.Add(completedLine);
+
+            if (!string.IsNullOrEmpty(processingMessage))
+                lines.Add(processingMessage);
 
             return string.Join("\n\n", lines);
         }
