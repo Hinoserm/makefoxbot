@@ -191,6 +191,8 @@ namespace makefoxsrv
 
                         await DownloadCivitaiInfo(lora);
 
+                        FoxLog.WriteLine($"[LORA] Found New LORA: {lora.Filename} ({lora.CivitaiUrl})");
+
                         // Lock sequential DB access
                         lock (insertConn)
                         {

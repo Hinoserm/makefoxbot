@@ -484,46 +484,52 @@ namespace makefoxsrv
                                     continue; // Shouldn't be possible.
 
                                 processedFiles.Add(srcPath);
-
-                                if (oldPath.StartsWith("archive/", StringComparison.OrdinalIgnoreCase))
+                                try
                                 {
-                                    // Image is already archived.  Confirm the file exists.
-
-                                    var archivePath = Path.Combine(dataPath, "archive", srcPath);
-                                    srcPath = Path.Combine(dataPath, srcPath);
-
-                                    if (File.Exists(archivePath))
+                                    if (oldPath.StartsWith("archive/", StringComparison.OrdinalIgnoreCase))
                                     {
-                                        // If the file exists in the archive, delete the orphaned source file.
-                                        FoxLog.WriteLine($"Orphaned image #{imageId} was found in archive: {srcPath}");
-                                        File.Delete(srcPath);
+                                        // Image is already archived.  Confirm the file exists.
+
+                                        var archivePath = Path.Combine(dataPath, "archive", srcPath);
+                                        srcPath = Path.Combine(dataPath, srcPath);
+
+                                        if (File.Exists(archivePath))
+                                        {
+                                            // If the file exists in the archive, delete the orphaned source file.
+                                            FoxLog.WriteLine($"Orphaned image #{imageId} was found in archive: {srcPath}");
+                                            File.Delete(srcPath);
+                                        }
+                                        else
+                                        {
+                                            // If the file doesn't exist but should, copy it into the archive from the source file.
+                                            FoxLog.WriteLine($"File for image #{imageId} was missing in archive, copying: {srcPath} -> {archivePath}");
+
+                                            string? directoryPath = Path.GetDirectoryName(archivePath);
+
+                                            if (directoryPath is null)
+                                                throw new Exception($"Invalid directory path for image #{imageId}: {archivePath}");
+
+                                            if (!Directory.Exists(directoryPath))
+                                            {
+                                                Directory.CreateDirectory(directoryPath);
+                                            }
+                                            File.Move(srcPath, archivePath);
+                                        }
                                     }
                                     else
                                     {
-                                        // If the file doesn't exist but should, copy it into the archive from the source file.
-                                        FoxLog.WriteLine($"File for image #{imageId} was missing in archive, copying: {srcPath} -> {archivePath}");
+                                        var archivePath = Path.Combine(dataPath, "archive", srcPath);
 
-                                        string? directoryPath = Path.GetDirectoryName(archivePath);
+                                        if (!File.Exists(archivePath))
+                                            File.Move(Path.Combine(dataPath, srcPath), archivePath);
 
-                                        if (directoryPath is null)
-                                            throw new Exception($"Invalid directory path for image #{imageId}: {archivePath}");
-
-                                        if (!Directory.Exists(directoryPath))
-                                        {
-                                            Directory.CreateDirectory(directoryPath);
-                                        }
-                                        File.Move(srcPath, archivePath);
+                                        FoxLog.WriteLine($"Archiving file for image #{imageId}: {srcPath} -> {archivePath}");
+                                        await UpdatePath(imageId, Path.Combine("archive", srcPath));
                                     }
                                 }
-                                else
+                                catch (Exception ex)
                                 {
-                                    var archivePath = Path.Combine(dataPath, "archive", srcPath);
-
-                                    if (!File.Exists(archivePath))
-                                        File.Move(Path.Combine(dataPath, srcPath), archivePath);
-
-                                    FoxLog.WriteLine($"Archiving file for image #{imageId}: {srcPath} -> {archivePath}");
-                                    await UpdatePath(imageId, Path.Combine("archive", srcPath));
+                                    FoxLog.WriteLine($"Error processing image #{imageId}: {ex.Message}\r\n{ex.StackTrace}");
                                 }
                             }
                         }
