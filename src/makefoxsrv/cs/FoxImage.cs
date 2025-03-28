@@ -534,7 +534,7 @@ namespace makefoxsrv
                                         if (!File.Exists(archivePath))
                                             File.Move(Path.Combine(dataPath, srcPath), archivePath);
 
-                                        FoxLog.WriteLine($"Archiving file for image #{imageId}: {srcPath} -> {archivePath}");
+                                        //FoxLog.WriteLine($"Archiving file for image #{imageId}: {srcPath} -> {archivePath}");
                                         await UpdatePath(imageId, Path.Combine("archive", srcPath));
                                     }
                                 }
