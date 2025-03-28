@@ -520,6 +520,16 @@ namespace makefoxsrv
                                     {
                                         var archivePath = Path.Combine(dataPath, "archive", srcPath);
 
+                                        string? directoryPath = Path.GetDirectoryName(archivePath);
+
+                                        if (directoryPath is null)
+                                            throw new Exception($"Invalid directory path for image #{imageId}: {archivePath}");
+
+                                        if (!Directory.Exists(directoryPath))
+                                        {
+                                            Directory.CreateDirectory(directoryPath);
+                                        }
+
                                         if (!File.Exists(archivePath))
                                             File.Move(Path.Combine(dataPath, srcPath), archivePath);
 
