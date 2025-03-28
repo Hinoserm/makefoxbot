@@ -22,6 +22,16 @@ namespace makefoxsrv
 {
     internal class FoxAdmin
     {
+        public static async Task HandleQueueStatus(FoxTelegram t, Message message, string? argument)
+        {
+            var queueStatus = FoxQueue.GenerateQueueStatusMessage();
+
+            var statusMessage = $"📊 Queue Status:\n\n" +
+                                $"{queueStatus}\n";
+
+            await t.SendMessageAsync(text: statusMessage, replyToMessage: message);
+        }
+
         public static async Task HandleLeaveGroup(FoxTelegram t, Message message, string? argument)
         {
             if (String.IsNullOrEmpty(argument))

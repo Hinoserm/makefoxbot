@@ -1660,5 +1660,127 @@ namespace makefoxsrv
             _outputImage = value;
             OutputImageID = value.ID;
         }
+
+        public static string GenerateQueueStatusMessage()
+        {
+            // Helper: formats a TimeSpan as "m:ss"
+            string FormatTimeSpan(TimeSpan ts) => $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
+
+            DateTime now = DateTime.Now;
+
+            // Waiting tasks are those with status PENDING or ERROR that actually entered the queue (i.e. DateQueued is not null)
+            List<FoxQueue> waitingTasks;
+            lock (lockObj)
+            {
+                waitingTasks = taskList
+                    .Where(x => (x.task.status == QueueStatus.PENDING || x.task.status == QueueStatus.ERROR)
+                                && x.task.DateQueued != null)
+                    .Select(x => x.task)
+                    .ToList();
+            }
+
+            // Overall waiting stats: count unique users, total tasks, and longest waiting time (now - DateQueued)
+            int overallUniqueUsers = waitingTasks.Select(t => t.User.UID).Distinct().Count();
+            int overallImagesCount = waitingTasks.Count;
+            TimeSpan overallLongest = TimeSpan.Zero;
+            foreach (var task in waitingTasks)
+            {
+                if (task.DateQueued is DateTime queuedTime)
+                {
+                    TimeSpan waitingTime = now - queuedTime;
+                    if (waitingTime > overallLongest)
+                        overallLongest = waitingTime;
+                }
+            }
+            string overallLine = $"{overallUniqueUsers} users are waiting for {overallImagesCount} images (longest waiting {FormatTimeSpan(overallLongest)})";
+
+            // Group waiting tasks by access level.
+            // We treat BASIC as FREE.
+            IEnumerable<FoxQueue> adminTasks = waitingTasks.Where(t => t.User.GetAccessLevel().ToString().ToUpper() == "ADMIN");
+            IEnumerable<FoxQueue> premiumTasks = waitingTasks.Where(t => t.User.GetAccessLevel().ToString().ToUpper() == "PREMIUM");
+            IEnumerable<FoxQueue> freeTasks = waitingTasks.Where(t => t.User.GetAccessLevel().ToString().ToUpper() == "BASIC");
+
+            string adminLine, premiumLine, freeLine;
+
+            // ADMIN group
+            {
+                int uniqueAdmins = adminTasks.Select(t => t.User.UID).Distinct().Count();
+                int adminCount = adminTasks.Count();
+                TimeSpan adminLongest = TimeSpan.Zero;
+                foreach (var task in adminTasks)
+                {
+                    if (task.DateQueued is DateTime queuedTime)
+                    {
+                        TimeSpan waitingTime = now - queuedTime;
+                        if (waitingTime > adminLongest)
+                            adminLongest = waitingTime;
+                    }
+                }
+                adminLine = $"{uniqueAdmins} ADMIN users waiting for {adminCount} images (longest waiting {FormatTimeSpan(adminLongest)})";
+            }
+
+            // PREMIUM group
+            {
+                int uniquePremium = premiumTasks.Select(t => t.User.UID).Distinct().Count();
+                int premiumCount = premiumTasks.Count();
+                TimeSpan premiumLongest = TimeSpan.Zero;
+                foreach (var task in premiumTasks)
+                {
+                    if (task.DateQueued is DateTime queuedTime)
+                    {
+                        TimeSpan waitingTime = now - queuedTime;
+                        if (waitingTime > premiumLongest)
+                            premiumLongest = waitingTime;
+                    }
+                }
+                premiumLine = $"{uniquePremium} PREMIUM users waiting for {premiumCount} images (longest waiting {FormatTimeSpan(premiumLongest)})";
+            }
+
+            // FREE group (BASIC)
+            {
+                int uniqueFree = freeTasks.Select(t => t.User.UID).Distinct().Count();
+                int freeCount = freeTasks.Count();
+                TimeSpan freeLongest = TimeSpan.Zero;
+                foreach (var task in freeTasks)
+                {
+                    if (task.DateQueued is DateTime queuedTime)
+                    {
+                        TimeSpan waitingTime = now - queuedTime;
+                        if (waitingTime > freeLongest)
+                            freeLongest = waitingTime;
+                    }
+                }
+                freeLine = $"{uniqueFree} FREE users waiting for {freeCount} images (longest waiting {FormatTimeSpan(freeLongest)})";
+            }
+
+            // For completed tasks, we only consider FINISHED ones that actually entered the queue 
+            // (both DateQueued and DateStarted must be non-null) and calculate waiting time as DateStarted - DateQueued.
+            var completedTasks = fullQueue.Values
+                .Where(t => t.status == QueueStatus.FINISHED && t.DateQueued != null && t.DateStarted != null)
+                .OrderByDescending(t => t.DateFinished) // most recently finished first
+                .Take(10)
+                .ToList();
+
+            TimeSpan completedLongest = TimeSpan.Zero;
+            foreach (var task in completedTasks)
+            {
+                if (task.DateQueued is DateTime queuedTime && task.DateStarted is DateTime startedTime)
+                {
+                    TimeSpan waitingTime = startedTime - queuedTime;
+                    if (waitingTime > completedLongest)
+                        completedLongest = waitingTime;
+                }
+            }
+            string completedLine = $"Of the last 10 completed images, the longest waited {FormatTimeSpan(completedLongest)} in queue.";
+
+            // Combine all parts with a single newline separator.
+            return overallLine + "\n" +
+                   adminLine + "\n" +
+                   premiumLine + "\n" +
+                   freeLine + "\n" +
+                   completedLine;
+        }
+
+
     }
 }

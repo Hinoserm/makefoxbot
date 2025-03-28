@@ -396,6 +396,9 @@ namespace makefoxsrv
 
             switch (command.ToLower())
             {
+                case "#queue":
+                    await FoxAdmin.HandleQueueStatus(t, message, commandArgs);
+                    break;
                 case "#leave":
                     await FoxAdmin.HandleLeaveGroup(t, message, commandArgs);
                     break;
