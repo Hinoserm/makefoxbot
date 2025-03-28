@@ -541,7 +541,7 @@ namespace makefoxsrv
                                 catch (OperationCanceledException)
                                 {
                                     // End gracefully
-                                    break;
+                                    throw;
                                 }
                                 catch (Exception ex)
                                 {
@@ -591,7 +591,7 @@ namespace makefoxsrv
                     catch (OperationCanceledException)
                     {
                         // End gracefully
-                        break;
+                        throw;
                     }
                     catch (Exception ex)
                     {
