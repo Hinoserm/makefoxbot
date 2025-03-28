@@ -317,6 +317,7 @@ namespace makefoxsrv
                             catch (OperationCanceledException)
                             {
                                 //End gracefully
+                                throw;
                             }
                             catch (Exception ex)
                             {
