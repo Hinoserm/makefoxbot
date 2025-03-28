@@ -34,11 +34,11 @@ namespace makefoxsrv
             _ = Task.Run(async () =>
             {
                 DateTime startTime = DateTime.Now;
-                while (DateTime.Now - startTime < TimeSpan.FromMinutes(15))
+                while (DateTime.Now - startTime < TimeSpan.FromMinutes(60))
                 {
                     try
                     {
-                        await Task.Delay(TimeSpan.FromSeconds(7));
+                        await Task.Delay(TimeSpan.FromSeconds(8));
 
                         string updatedStatus = $"📊 Queue Status:\n\n{FoxQueue.GenerateQueueStatusMessage()}\n";
 
