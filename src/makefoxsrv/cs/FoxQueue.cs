@@ -1767,7 +1767,7 @@ namespace makefoxsrv
                 var longestProcessing = processingTasks
                     .Select(t => DateTime.Now - t.DateStarted!.Value)
                     .Max();
-                processingMessage = $"Processing {processingTasks.Count} tasks (longest {FormatTimeSpan(longestProcessing)})";
+                processingMessage = $"Processing {processingTasks.Count} tasks on {FoxWorker.GetWorkers().Count()} workers. (longest {FormatTimeSpan(longestProcessing)})";
             }
 
             // Build the final message using only non-empty lines.
