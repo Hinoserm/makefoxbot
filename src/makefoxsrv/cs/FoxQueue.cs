@@ -1762,7 +1762,7 @@ namespace makefoxsrv
                 .ToList();
 
             var workerList = FoxWorker.GetWorkers().Values
-                .Where(w => w.Enabled && w.Online)
+                .Where(w => w.Online == true)
                 .ToList();
 
             string processingMessage = "";
