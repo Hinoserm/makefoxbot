@@ -1761,13 +1761,17 @@ namespace makefoxsrv
                 .OrderByDescending(t => t.DateStarted)
                 .ToList();
 
+            var workerList = FoxWorker.GetWorkers().Values
+                .Where(w => w.Enabled && w.Online)
+                .ToList();
+
             string processingMessage = "";
             if (processingTasks.Any())
             {
                 var longestProcessing = processingTasks
                     .Select(t => DateTime.Now - t.DateStarted!.Value)
                     .Max();
-                processingMessage = $"Processing {processingTasks.Count} tasks on {FoxWorker.GetWorkers().Count()} workers. (longest {FormatTimeSpan(longestProcessing)})";
+                processingMessage = $"Processing {processingTasks.Count} tasks on {workerList.Count()} workers. (longest {FormatTimeSpan(longestProcessing)})";
             }
 
             // Build the final message using only non-empty lines.
