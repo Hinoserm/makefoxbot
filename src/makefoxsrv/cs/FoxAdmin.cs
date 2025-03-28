@@ -29,7 +29,27 @@ namespace makefoxsrv
             var statusMessage = $"📊 Queue Status:\n\n" +
                                 $"{queueStatus}\n";
 
-            await t.SendMessageAsync(text: statusMessage, replyToMessage: message);
+            var originalMsg = await t.SendMessageAsync(text: statusMessage, replyToMessage: message);
+
+            _ = Task.Run(async () =>
+            {
+                DateTime startTime = DateTime.Now;
+                while (DateTime.Now - startTime < TimeSpan.FromMinutes(15))
+                {
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(7));
+
+                        string updatedStatus = $"📊 Queue Status:\n\n{FoxQueue.GenerateQueueStatusMessage()}\n";
+
+                        await t.EditMessageAsync(originalMsg.ID, updatedStatus);
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.WriteLine($"Error updating queue status: {ex.Message}");
+                    }
+                }
+            });
         }
 
         public static async Task HandleLeaveGroup(FoxTelegram t, Message message, string? argument)
