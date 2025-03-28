@@ -1734,8 +1734,8 @@ namespace makefoxsrv
             // For completed tasks, consider only FINISHED tasks that have both DateQueued and DateStarted.
             var completedTasks = fullQueue.Values
                 .Where(t => t.status == QueueStatus.FINISHED && t.DateQueued != null && t.DateStarted != null)
-                .OrderByDescending(t => t.DateFinished)
-                .Take(10)
+                .OrderByDescending(t => t.DateStarted)
+                .Take(50)
                 .ToList();
 
             string completedLine = "";
@@ -1751,14 +1751,17 @@ namespace makefoxsrv
                             completedLongest = waitingTime;
                     }
                 }
-                completedLine = $"Of the last 10 completed images, the longest waited {FormatTimeSpan(completedLongest)} in queue.";
+                completedLine = $"Of the last {completedTasks.Count()} completed images, the longest waited {FormatTimeSpan(completedLongest)} in queue.";
             }
 
             // Build the final message using only non-empty lines.
             List<string> lines = new() { overallLine };
+
             lines.AddRange(groupLines);
+
             if (!string.IsNullOrEmpty(completedLine))
                 lines.Add(completedLine);
+
             return string.Join("\n\n", lines);
         }
 
