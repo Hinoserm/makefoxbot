@@ -47,6 +47,7 @@ namespace makefoxsrv
                     catch (Exception ex)
                     {
                         FoxLog.WriteLine($"Error updating queue status: {ex.Message}");
+                        break; //Stop trying.
                     }
                 }
             });
