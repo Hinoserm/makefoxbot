@@ -1377,13 +1377,14 @@ namespace makefoxsrv
             // List of silent error strings. If any of these are encountered, the task will be retried immediately.
 
             var silentErrors = new List<string> {
-                "llocation on device",
+                "allocation on device",
                 "out of memory",
-                "xpected all tensors to be on",
-                "onnection refused",
-                "ould not connect to server",
-                "rror occurred while sending",
-                "rror while copying content to a stream",
+                "expected all tensors to be on",
+                "connection refused",
+                "could not connect to server",
+                "error occurred while sending",
+                "error while copying content to a stream",
+                "object is not callable"
             };
 
             // List of fatal errors. If any of these are encountered, the task will not be retried.
@@ -1416,7 +1417,7 @@ namespace makefoxsrv
 
                 this.RetryCount++;
             }
-            if (silentErrors.Any(silentError => ex.Message.Contains(silentError)))
+            if (silentErrors.Any(silentError => ex.Message.Contains(silentError, StringComparison.InvariantCultureIgnoreCase)))
             {
                 errorType = errorType.SILENT;
                 messageBuilder.AppendLine("❌ This worker has experienced an error.");

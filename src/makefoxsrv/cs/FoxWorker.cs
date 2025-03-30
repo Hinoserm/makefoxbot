@@ -124,6 +124,8 @@ namespace makefoxsrv
         public DateTime? TaskEndDate { get; private set; } = null;
         public DateTime? LastActivity { get; private set; } = null;
 
+        public int ErrorCount { get; private set; } = 0;
+
         public string? SingleModel { get; private set; } = null;
 
         public string? GPUType { get; private set; } = null;
@@ -702,6 +704,8 @@ namespace makefoxsrv
             //await SetOnlineStatus(false); //SetFailedDate() already marks us as offline.
             await SetFailedDate(ex);
 
+            this.ErrorCount++;
+
             //If we have the semaphore and crash, we better give it to someone else.
             //if (semaphoreAcquired)
             //    semaphore.Release();
@@ -1234,20 +1238,29 @@ namespace makefoxsrv
                 // Unless it's a memory error.
                 try
                 {
-                    if (ex.Message.Contains("Allocation on device") || ex.Message.Contains("out of memory"))
+                    string msg = ex.Message;
+
+                    string[] knownErrors =
+                    [
+                        "allocation on device",
+                        "out of memory",
+                        "object is not callable"
+                    ];
+
+                    if (knownErrors.Any(e => msg.Contains(e, StringComparison.OrdinalIgnoreCase)))
                     {
+                        //These errors require us to offline the worker
+
                         await HandleError(ex);
                     }
                     else
                     {
                         if (qItem is not null)
                         {
+                            //Otherwise, just error the single request.
                             await qItem.SetError(ex);
-
                             OnTaskError?.Invoke(this, new TaskErrorEventArgs(qItem, ex));
                         }
-
-
                     }
                 }
                 catch (Exception ex2)
