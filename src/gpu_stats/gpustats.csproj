@@ -8,16 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="FoxWebChatComponet.razor" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="FoxWebChatComponet.razor">
-      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-    </Content>
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="MySqlConnector" Version="2.4.0" />
   </ItemGroup>
 

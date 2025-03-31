@@ -1417,7 +1417,7 @@ namespace makefoxsrv
 
                 this.RetryCount++;
             }
-            if (silentErrors.Any(silentError => ex.Message.Contains(silentError, StringComparison.InvariantCultureIgnoreCase)))
+            if (silentErrors.Any(silentError => ex.Message.Contains(silentError, StringComparison.OrdinalIgnoreCase)))
             {
                 errorType = errorType.SILENT;
                 messageBuilder.AppendLine("❌ This worker has experienced an error.");

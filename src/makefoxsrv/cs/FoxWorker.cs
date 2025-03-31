@@ -531,7 +531,15 @@ namespace makefoxsrv
             long lora_count = 0;
 
             using var httpClient = new HttpClient();
-            var apiUrl = address + "sdapi/v1/loras";
+
+            var refreshUrl = new Uri(new Uri(address), "/sdapi/v1/refresh-checkpoints");
+
+            // Instruct worker to refresh the list of models
+            var refreshResponse = await httpClient.PostAsync(refreshUrl, null, stopToken.Token);
+
+            refreshResponse.EnsureSuccessStatusCode();
+
+            var apiUrl = new Uri(new Uri(address), "/sdapi/v1/loras");
 
             if (!FoxLORAs.LorasLoaded)
                 return;
