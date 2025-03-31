@@ -485,6 +485,16 @@ namespace makefoxsrv
 
         public async Task LoadModelInfo()
         {
+
+            using var httpClient = new HttpClient();
+
+            var refreshUrl = new Uri(new Uri(address), "/sdapi/v1/refresh-checkpoints");
+
+            // Instruct worker to refresh the list of models
+            var refreshResponse = await httpClient.PostAsync(refreshUrl, null, stopToken.Token);
+
+            refreshResponse.EnsureSuccessStatusCode();
+
             long modelCount = 0;
             var api = await ConnectAPI();
 
@@ -532,7 +542,7 @@ namespace makefoxsrv
 
             using var httpClient = new HttpClient();
 
-            var refreshUrl = new Uri(new Uri(address), "/sdapi/v1/refresh-checkpoints");
+            var refreshUrl = new Uri(new Uri(address), "/sdapi/v1/refresh-loras");
 
             // Instruct worker to refresh the list of models
             var refreshResponse = await httpClient.PostAsync(refreshUrl, null, stopToken.Token);
