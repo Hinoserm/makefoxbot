@@ -566,654 +566,670 @@
     </div>
 
     <script>
-        // State management
-        const state = {
-            loras: [],
-            filteredLoras: [],
-            baseModels: new Set(),
-            currentPage: 1,
-            itemsPerPage: 12,
-            searchTerm: '',
-            selectedBaseModel: '',
-            loading: true
-        };
+		// State management
+		const state = {
+			loras: [],
+			filteredLoras: [],
+			baseModels: new Set(),
+			currentPage: 1,
+			itemsPerPage: 12,
+			searchTerm: '',
+			selectedBaseModel: '',
+			loading: true
+		};
 
-        // DOM elements
-        const modelsContainer = document.getElementById('models-container');
-        const searchInput = document.getElementById('search-input');
-        const modelFilter = document.getElementById('model-filter');
-        const paginationContainer = document.getElementById('pagination');
-        const modelCountElement = document.getElementById('model-count');
-        const toast = document.getElementById('toast');
+		// DOM elements
+		const modelsContainer = document.getElementById('models-container');
+		const searchInput = document.getElementById('search-input');
+		const modelFilter = document.getElementById('model-filter');
+		const paginationContainer = document.getElementById('pagination');
+		const modelCountElement = document.getElementById('model-count');
+		const toast = document.getElementById('toast');
 
-        // Fetch data from API
-        async function fetchLoraData() {
-            try {
-                const response = await fetch('https://makefox.bot/cs/api/info/loras');
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                const data = await response.json();
-                return data.Loras || [];
-            } catch (error) {
-                console.error('Error fetching LoRA data:', error);
-                return [];
-            }
-        }
+		// Fetch data from API
+		async function fetchLoraData() {
+			try {
+				const response = await fetch('https://makefox.bot/cs/api/info/loras');
+				if (!response.ok) {
+					throw new Error('Network response was not ok');
+				}
+				const data = await response.json();
+				return data.Loras || [];
+			} catch (error) {
+				console.error('Error fetching LoRA data:', error);
+				return [];
+			}
+		}
 
-        // No longer needed as we're using the ImageURLs directly from the API response
-        // Keeping this commented code for reference
-        /*
-        async function fetchModelImage(modelId, versionId) {
-            try {
-                const response = await fetch(`https://civitai.com/api/v1/images?modelId=${modelId}&modelVersionId=${versionId}&nsfw=X&limit=1`);
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                const data = await response.json();
-                if (data.items && data.items.length > 0) {
-                    return data.items[0].url;
-                }
-                return null;
-            } catch (error) {
-                console.error('Error fetching image:', error);
-                return null;
-            }
-        }
-        */
+		// No longer needed as we're using the ImageURLs directly from the API response
+		// Keeping this commented code for reference
+		/*
+		async function fetchModelImage(modelId, versionId) {
+			try {
+				const response = await fetch(`https://civitai.com/api/v1/images?modelId=${modelId}&modelVersionId=${versionId}&nsfw=X&limit=1`);
+				if (!response.ok) {
+					throw new Error('Network response was not ok');
+				}
+				const data = await response.json();
+				if (data.items && data.items.length > 0) {
+					return data.items[0].url;
+				}
+				return null;
+			} catch (error) {
+				console.error('Error fetching image:', error);
+				return null;
+			}
+		}
+		*/
 
-        // Show toast notification
-        function showToast(message) {
-            toast.textContent = message;
-            toast.classList.add('show');
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 2000);
-        }
+		// Show toast notification
+		function showToast(message) {
+			toast.textContent = message;
+			toast.classList.add('show');
+			setTimeout(() => {
+				toast.classList.remove('show');
+			}, 2000);
+		}
 
-        // Copy text to clipboard
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text)
-                .then(() => {
-                    showToast('Copied to clipboard!');
-                })
-                .catch(err => {
-                    console.error('Failed to copy text:', err);
-                    showToast('Failed to copy');
-                });
-        }
+		// Copy text to clipboard
+		function copyToClipboard(text) {
+			navigator.clipboard.writeText(text)
+				.then(() => {
+					showToast('Copied to clipboard!');
+				})
+				.catch(err => {
+					console.error('Failed to copy text:', err);
+					showToast('Failed to copy');
+				});
+		}
 
-        // Filter loras based on search term and selected base model
-        function filterLoras() {
-            // If search term is empty, return all loras (filtered by base model if needed)
-            if (!state.searchTerm.trim()) {
-                if (state.selectedBaseModel) {
-                    state.filteredLoras = state.loras.filter(lora => lora.BaseModel === state.selectedBaseModel);
-                } else {
-                    state.filteredLoras = [...state.loras];
-                }
-            } else {
-                // Otherwise, apply search filters
-                const searchTerms = state.searchTerm.toLowerCase().split(' ');
-                
-                state.filteredLoras = state.loras.filter(lora => {
-                    // Check for match in name, alias, filename, or description
-                    const nameMatch = lora.Name && searchTerms.every(term => 
-                        lora.Name.toLowerCase().includes(term));
-                    
-                    const aliasMatch = lora.Alias && searchTerms.every(term => 
-                        lora.Alias.toLowerCase().includes(term));
-                    
-                    const filenameMatch = lora.Filename && searchTerms.every(term => 
-                        lora.Filename.toLowerCase().includes(term));
-                    
-                    const descMatch = lora.Description && searchTerms.every(term => 
-                        lora.Description.toLowerCase().includes(term));
-                    
-                    // Check for match in trigger words
-                    const triggerWordsMatch = lora.TriggerWords && Array.isArray(lora.TriggerWords) && 
-                        searchTerms.every(term => 
-                            lora.TriggerWords.some(word => word.toLowerCase().includes(term))
-                        );
-                    
-                    const contentMatch = nameMatch || aliasMatch || filenameMatch || descMatch || triggerWordsMatch;
-                    
-                    // Apply base model filter if selected
-                    if (state.selectedBaseModel) {
-                        return contentMatch && lora.BaseModel === state.selectedBaseModel;
-                    }
-                    
-                    return contentMatch;
-                });
-            }
-            
-            state.currentPage = 1;
-            renderModelCount();
-            renderModels();
-            renderPagination();
-        }
+		// Filter loras based on search term and selected base model
+		function filterLoras() {
+			// If search term is empty, return all loras (filtered by base model if needed)
+			if (!state.searchTerm.trim()) {
+				if (state.selectedBaseModel) {
+					state.filteredLoras = state.loras.filter(lora => lora.BaseModel === state.selectedBaseModel);
+				} else {
+					state.filteredLoras = [...state.loras];
+				}
+			} else {
+				// Otherwise, apply search filters
+				const searchTerms = state.searchTerm.toLowerCase().split(' ');
+				
+				state.filteredLoras = state.loras.filter(lora => {
+					// Check for match in name, alias, filename, or description
+					const nameMatch = lora.Name && searchTerms.every(term => 
+						lora.Name.toLowerCase().includes(term));
+					
+					const aliasMatch = lora.Alias && searchTerms.every(term => 
+						lora.Alias.toLowerCase().includes(term));
+					
+					const filenameMatch = lora.Filename && searchTerms.every(term => 
+						lora.Filename.toLowerCase().includes(term));
+					
+					const descMatch = lora.Description && searchTerms.every(term => 
+						lora.Description.toLowerCase().includes(term));
+					
+					// Check for match in trigger words
+					const triggerWordsMatch = lora.TriggerWords && Array.isArray(lora.TriggerWords) && 
+						searchTerms.every(term => 
+							lora.TriggerWords.some(word => word.toLowerCase().includes(term))
+						);
+					
+					const contentMatch = nameMatch || aliasMatch || filenameMatch || descMatch || triggerWordsMatch;
+					
+					// Apply base model filter if selected
+					if (state.selectedBaseModel) {
+						return contentMatch && lora.BaseModel === state.selectedBaseModel;
+					}
+					
+					return contentMatch;
+				});
+			}
+			
+			state.currentPage = 1;
+			renderModelCount();
+			renderModels();
+			renderPagination();
+		}
 
-        // Render the model count
-        function renderModelCount() {
-            modelCountElement.textContent = `Showing ${state.filteredLoras.length} of ${state.loras.length} models`;
-        }
+		// Render the model count
+		function renderModelCount() {
+			modelCountElement.textContent = `Showing ${state.filteredLoras.length} of ${state.loras.length} models`;
+		}
 
-        // Render the pagination
-        function renderPagination() {
-            const totalPages = Math.ceil(state.filteredLoras.length / state.itemsPerPage);
-            
-            if (totalPages <= 1) {
-                paginationContainer.innerHTML = '';
-                return;
-            }
-            
-            let paginationHTML = '';
-            
-            // First page button
-            paginationHTML += `<button class="page-btn ${state.currentPage === 1 ? 'disabled' : ''}" 
-                                     ${state.currentPage === 1 ? 'disabled' : ''} 
-                                     data-page="1" title="First page">
-                                 First
-                               </button>`;
-            
-            // Previous page button
-            paginationHTML += `<button class="page-btn ${state.currentPage === 1 ? 'disabled' : ''}" 
-                                     ${state.currentPage === 1 ? 'disabled' : ''} 
-                                     data-page="${state.currentPage - 1}" title="Previous page">
-                                 Prev
-                               </button>`;
-            
-            // Page buttons
-            const maxVisiblePages = 5;
-            const startPage = Math.max(1, state.currentPage - Math.floor(maxVisiblePages / 2));
-            const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-            
-            for (let i = startPage; i <= endPage; i++) {
-                paginationHTML += `<button class="page-btn ${i === state.currentPage ? 'active' : ''}" 
-                                         data-page="${i}">
-                                     ${i}
-                                   </button>`;
-            }
-            
-            // Next page button
-            paginationHTML += `<button class="page-btn ${state.currentPage === totalPages ? 'disabled' : ''}" 
-                                     ${state.currentPage === totalPages ? 'disabled' : ''} 
-                                     data-page="${state.currentPage + 1}" title="Next page">
-                                 Next
-                               </button>`;
-            
-            // Last page button
-            paginationHTML += `<button class="page-btn ${state.currentPage === totalPages ? 'disabled' : ''}" 
-                                     ${state.currentPage === totalPages ? 'disabled' : ''} 
-                                     data-page="${totalPages}" title="Last page">
-                                 Last
-                               </button>`;
-            
-            paginationContainer.innerHTML = paginationHTML;
-            
-            // Add event listeners
-            const pageButtons = paginationContainer.querySelectorAll('.page-btn:not(.disabled)');
-            pageButtons.forEach(button => {
-                button.addEventListener('click', (e) => {
-                    state.currentPage = parseInt(e.target.dataset.page);
-                    renderModels();
-                    renderPagination();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                });
-            });
-        }
+		// Render the pagination
+		function renderPagination() {
+			const totalPages = Math.ceil(state.filteredLoras.length / state.itemsPerPage);
+			
+			if (totalPages <= 1) {
+				paginationContainer.innerHTML = '';
+				return;
+			}
+			
+			let paginationHTML = '';
+			
+			// First page button
+			paginationHTML += `<button class="page-btn ${state.currentPage === 1 ? 'disabled' : ''}" 
+									 ${state.currentPage === 1 ? 'disabled' : ''} 
+									 data-page="1" title="First page">
+								 First
+							   </button>`;
+			
+			// Previous page button
+			paginationHTML += `<button class="page-btn ${state.currentPage === 1 ? 'disabled' : ''}" 
+									 ${state.currentPage === 1 ? 'disabled' : ''} 
+									 data-page="${state.currentPage - 1}" title="Previous page">
+								 Prev
+							   </button>`;
+			
+			// Page buttons
+			const maxVisiblePages = 5;
+			const startPage = Math.max(1, state.currentPage - Math.floor(maxVisiblePages / 2));
+			const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+			
+			for (let i = startPage; i <= endPage; i++) {
+				paginationHTML += `<button class="page-btn ${i === state.currentPage ? 'active' : ''}" 
+										 data-page="${i}">
+									 ${i}
+								   </button>`;
+			}
+			
+			// Next page button
+			paginationHTML += `<button class="page-btn ${state.currentPage === totalPages ? 'disabled' : ''}" 
+									 ${state.currentPage === totalPages ? 'disabled' : ''} 
+									 data-page="${state.currentPage + 1}" title="Next page">
+								 Next
+							   </button>`;
+			
+			// Last page button
+			paginationHTML += `<button class="page-btn ${state.currentPage === totalPages ? 'disabled' : ''}" 
+									 ${state.currentPage === totalPages ? 'disabled' : ''} 
+									 data-page="${totalPages}" title="Last page">
+								 Last
+							   </button>`;
+			
+			paginationContainer.innerHTML = paginationHTML;
+			
+			// Add event listeners
+			const pageButtons = paginationContainer.querySelectorAll('.page-btn:not(.disabled)');
+			pageButtons.forEach(button => {
+				button.addEventListener('click', (e) => {
+					state.currentPage = parseInt(e.target.dataset.page);
+					renderModels();
+					renderPagination();
+					window.scrollTo({ top: 0, behavior: 'smooth' });
+				});
+			});
+		}
 
-        // Create model card HTML
-        function createModelCard(lora) {
-            // LoRA prompt syntax - ensure Filename exists and is not null/undefined
-            const filename = lora.Filename || lora.Name || lora.Alias || "unknown";
-            const loraPromptSyntax = `&lt;lora:${filename}:1&gt;`;
-            
-            // For displaying trigger words
-            const triggerWords = lora.TriggerWords || [];
-            
-            // Create complete prompt with LoRA and trigger words - unescaped for data-copy attribute
-            const unescapedSyntax = `<lora:${filename}:1>`;
-            const completePrompt = triggerWords.length > 0 
-                ? `${unescapedSyntax}, ${triggerWords.join(', ')}`
-                : unescapedSyntax;
-            
-            const cardHTML = `
-                <div class="model-card">
-                    <div class="model-image" id="image-${lora.Hash}" data-img-id="${lora.Hash}">
-                        <div class="skeleton" style="width: 100%; height: 100%;"></div>
-                    </div>
-                    <div class="model-info">
-                        <h3 class="model-name">${lora.Name || lora.Filename}</h3>
-                        
-                        <div class="model-meta">
-                            <span>Base Model: ${lora.BaseModel || 'Unknown'}</span>
-                            ${lora.Alias ? `<span>Alias: ${lora.Alias}</span>` : ''}
-                        </div>
-                        
-                        <p class="model-description">${lora.Description || 'No description available.'}</p>
-                        
-                        <div class="section-title">Prompt Syntax</div>
-                        <div class="code-snippet" data-copy="${unescapedSyntax}">${loraPromptSyntax}</div>
-                        
-                        ${triggerWords.length > 0 ? `
-                            <div class="section-title">Trigger Words</div>
-                            <div class="tags-container">
-                                ${triggerWords.map(tag => `<span class="tag" data-copy="${tag}">${tag}</span>`).join('')}
-                            </div>
-                        ` : ''}
-                        
-                        <div class="model-actions">
-                            ${lora.CivitaiUrl ? `<a href="${lora.CivitaiUrl}" target="_blank" class="btn btn-primary">View on Civitai</a>` : ''}
-                            <button class="btn btn-secondary copy-complete-prompt" data-prompt="${completePrompt}">
-                                Copy Full Prompt
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            return cardHTML;
-        }
+		// Create model card HTML
+		function createModelCard(lora) {
+			// LoRA prompt syntax - ensure Filename exists and is not null/undefined
+			const filename = lora.Filename || lora.Name || lora.Alias || "unknown";
+			const loraPromptSyntax = `&lt;lora:${filename}:1&gt;`;
+			
+			// For displaying trigger words
+			const triggerWords = lora.TriggerWords || [];
+			
+			// Create complete prompt with LoRA and trigger words - unescaped for data-copy attribute
+			const unescapedSyntax = `<lora:${filename}:1>`;
+			const completePrompt = triggerWords.length > 0 
+				? `${unescapedSyntax}, ${triggerWords.join(', ')}`
+				: unescapedSyntax;
+			
+			const cardHTML = `
+				<div class="model-card">
+					<div class="model-image" id="image-${lora.Hash}" data-img-id="${lora.Hash}">
+						<div class="skeleton" style="width: 100%; height: 100%;"></div>
+					</div>
+					<div class="model-info">
+						<h3 class="model-name">${lora.Name || lora.Filename}</h3>
+						
+						<div class="model-meta">
+							<span>Base Model: ${lora.BaseModel || 'Unknown'}</span>
+							${lora.Alias ? `<span>Alias: ${lora.Alias}</span>` : ''}
+						</div>
+						
+						<p class="model-description">${lora.Description || 'No description available.'}</p>
+						
+						<div class="section-title">Prompt Syntax</div>
+						<div class="code-snippet" data-copy="${unescapedSyntax}">${loraPromptSyntax}</div>
+						
+						${triggerWords.length > 0 ? `
+							<div class="section-title">Trigger Words</div>
+							<div class="tags-container">
+								${triggerWords.map(tag => `<span class="tag" data-copy="${tag}">${tag}</span>`).join('')}
+							</div>
+						` : ''}
+						
+						<div class="model-actions">
+							${lora.CivitaiUrl ? `<a href="${lora.CivitaiUrl}" target="_blank" class="btn btn-primary">View on Civitai</a>` : ''}
+							<button class="btn btn-secondary copy-complete-prompt" data-prompt="${completePrompt}">
+								Copy Full Prompt
+							</button>
+						</div>
+					</div>
+				</div>
+			`;
+			
+			return cardHTML;
+		}
 
-        // Render filtered models
-        function renderModels() {
-            const startIndex = (state.currentPage - 1) * state.itemsPerPage;
-            const endIndex = startIndex + state.itemsPerPage;
-            const modelsToShow = state.filteredLoras.slice(startIndex, endIndex);
-            
-            if (state.loading) {
-                modelsContainer.innerHTML = `
-                    <div class="loading">
-                        <div class="spinner"></div>
-                    </div>
-                `;
-                return;
-            }
-            
-            if (state.filteredLoras.length === 0) {
-                modelsContainer.innerHTML = `
-                    <div class="empty-state">
-                        <h3>No LoRA models found</h3>
-                        <p>Try adjusting your search criteria.</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            let modelsHTML = '';
-            modelsToShow.forEach(lora => {
-                modelsHTML += createModelCard(lora);
-            });
-            
-            modelsContainer.innerHTML = modelsHTML;
-            
-            // Load images after rendering cards
-            modelsToShow.forEach(lora => {
-                if (lora.CivitaiModelId && lora.CivitaiId) {
-                    loadModelImage(lora.Hash, lora.CivitaiModelId, lora.CivitaiId);
-                }
-            });
-            
-            // Add event listeners for copy buttons
-            modelsToShow.forEach(lora => {
-                loadModelImage(lora.Hash);
-            });
-            const copyCompleteButtons = document.querySelectorAll('.copy-complete-prompt');
-            copyCompleteButtons.forEach(button => {
-                button.addEventListener('click', (e) => {
-                    const prompt = e.target.dataset.prompt;
-                    copyToClipboard(prompt);
-                });
-            });
-            
-            // Add event listeners for code snippets
-            const codeSnippets = document.querySelectorAll('.code-snippet');
-            codeSnippets.forEach(snippet => {
-                snippet.addEventListener('click', (e) => {
-                    const textToCopy = e.target.dataset.copy;
-                    copyToClipboard(textToCopy);
-                    
-                    // Visual feedback
-                    e.target.classList.add('copied');
-                    setTimeout(() => {
-                        e.target.classList.remove('copied');
-                    }, 2000);
-                });
-            });
-            
-            // Add event listeners for individual tags
-            const tags = document.querySelectorAll('.tag');
-            tags.forEach(tag => {
-                tag.addEventListener('click', (e) => {
-                    const textToCopy = e.target.dataset.copy;
-                    copyToClipboard(textToCopy);
-                });
-            });
-        }
+		// Render filtered models
+		function renderModels() {
+			const startIndex = (state.currentPage - 1) * state.itemsPerPage;
+			const endIndex = startIndex + state.itemsPerPage;
+			const modelsToShow = state.filteredLoras.slice(startIndex, endIndex);
+			
+			if (state.loading) {
+				modelsContainer.innerHTML = `
+					<div class="loading">
+						<div class="spinner"></div>
+					</div>
+				`;
+				return;
+			}
+			
+			if (state.filteredLoras.length === 0) {
+				modelsContainer.innerHTML = `
+					<div class="empty-state">
+						<h3>No LoRA models found</h3>
+						<p>Try adjusting your search criteria.</p>
+					</div>
+				`;
+				return;
+			}
+			
+			let modelsHTML = '';
+			modelsToShow.forEach(lora => {
+				modelsHTML += createModelCard(lora);
+			});
+			
+			modelsContainer.innerHTML = modelsHTML;
+			
+			// Load images after rendering cards
+			modelsToShow.forEach(lora => {
+				if (lora.CivitaiModelId && lora.CivitaiId) {
+					loadModelImage(lora.Hash, lora.CivitaiModelId, lora.CivitaiId);
+				}
+			});
+			
+			// Add event listeners for copy buttons
+			modelsToShow.forEach(lora => {
+				loadModelImage(lora.Hash);
+			});
+			const copyCompleteButtons = document.querySelectorAll('.copy-complete-prompt');
+			copyCompleteButtons.forEach(button => {
+				button.addEventListener('click', (e) => {
+					const prompt = e.target.dataset.prompt;
+					copyToClipboard(prompt);
+				});
+			});
+			
+			// Add event listeners for code snippets
+			const codeSnippets = document.querySelectorAll('.code-snippet');
+			codeSnippets.forEach(snippet => {
+				snippet.addEventListener('click', (e) => {
+					const textToCopy = e.target.dataset.copy;
+					copyToClipboard(textToCopy);
+					
+					// Visual feedback
+					e.target.classList.add('copied');
+					setTimeout(() => {
+						e.target.classList.remove('copied');
+					}, 2000);
+				});
+			});
+			
+			// Add event listeners for individual tags
+			const tags = document.querySelectorAll('.tag');
+			tags.forEach(tag => {
+				tag.addEventListener('click', (e) => {
+					const textToCopy = e.target.dataset.copy;
+					copyToClipboard(textToCopy);
+				});
+			});
+		}
 
-        // Load model image
-        function loadModelImage(hash) {
-            const imageContainer = document.getElementById(`image-${hash}`);
-            if (!imageContainer) return;
-            
-            // Find the corresponding lora model
-            const lora = state.loras.find(l => l.Hash === hash);
-            
-            if (lora && lora.ImageURLs && lora.ImageURLs.length > 0) {
-                // Filter for valid image URLs (jpg, jpeg, png, webp, gif)
-                const validImageUrls = lora.ImageURLs.filter(url => {
-                    const lowercaseUrl = url.toLowerCase();
-                    return lowercaseUrl.endsWith('.jpg') || 
-                           lowercaseUrl.endsWith('.jpeg') || 
-                           lowercaseUrl.endsWith('.png') || 
-                           lowercaseUrl.endsWith('.webp') || 
-                           lowercaseUrl.endsWith('.gif');
-                });
-                
-                if (validImageUrls.length > 0) {
-                    // Store image data on container for navigation
-                    imageContainer.dataset.currentImageIndex = "0";
-                    imageContainer.dataset.totalImages = validImageUrls.length.toString();
-                    
-                    // Create the base image container
-                    let imageHtml = `<div class="model-image-container">
-                        <img src="${validImageUrls[0]}" alt="Model preview" data-full-img="${validImageUrls[0]}">
-                    `;
-                    
-                    // Add navigation if there are multiple images
-                    if (validImageUrls.length > 1) {
-                        imageHtml += `
-                            <div class="image-nav">
-                                <button class="image-nav-button prev-image" data-hash="${hash}">❮</button>
-                                <button class="image-nav-button next-image" data-hash="${hash}">❯</button>
-                            </div>
-                            <div class="image-count">1/${validImageUrls.length}</div>
-                        `;
-                    }
-                    
-                    imageHtml += `</div>`;
-                    imageContainer.innerHTML = imageHtml;
-                    
-                    // Store all valid image URLs on the container for future navigation
-                    imageContainer.dataset.imageUrls = JSON.stringify(validImageUrls);
-                    
-                    // Add click event to enlarge image
-                    const img = imageContainer.querySelector('img');
-                    img.addEventListener('click', (e) => {
-                        const enlargedContainer = document.getElementById('enlarged-image-view');
-                        const enlargedImg = enlargedContainer.querySelector('.enlarged-image');
-                        
-                        // Set the enlarged image source
-                        enlargedImg.src = e.target.dataset.fullImg;
-                        
-                        // Set active hash for enlarged view navigation
-                        enlargedContainer.dataset.activeHash = hash;
-                        
-                        // Set the counter
-                        const enlargedCounter = enlargedContainer.querySelector('.enlarged-counter');
-                        if (enlargedCounter) {
-                            const currentIndex = parseInt(imageContainer.dataset.currentImageIndex || "0");
-                            const totalImages = imageUrls.length;
-                            enlargedCounter.textContent = `${currentIndex + 1}/${totalImages}`;
-                        }
-                        
-                        // Show the enlarged view
-                        enlargedContainer.classList.add('active');
-                    });
-                    
-                    // Add event listeners for image navigation buttons
-                    if (validImageUrls.length > 1) {
-                        const prevButton = imageContainer.querySelector('.prev-image');
-                        const nextButton = imageContainer.querySelector('.next-image');
-                        
-                        prevButton.addEventListener('click', (e) => {
-                            e.stopPropagation(); // Prevent click from bubbling to the image
-                            navigateImages(hash, 'prev');
-                        });
-                        
-                        nextButton.addEventListener('click', (e) => {
-                            e.stopPropagation(); // Prevent click from bubbling to the image
-                            navigateImages(hash, 'next');
-                        });
-                    }
-                } else {
-                    // No valid images found, use fallback
-                    showImageFallback(imageContainer);
-                }
-            } else {
-                // No images available, use fallback
-                showImageFallback(imageContainer);
-            }
-        }
-        
-        // Navigate through images
-        function navigateImages(hash, direction, isEnlarged = false) {
-            const imageContainer = document.getElementById(`image-${hash}`);
-            if (!imageContainer) return;
-            
-            // Get the valid image URLs from the container's dataset
-            const validImageUrls = JSON.parse(imageContainer.dataset.imageUrls || '[]');
-            if (validImageUrls.length <= 1) return;
-            
-            let currentIndex = parseInt(imageContainer.dataset.currentImageIndex || "0");
-            const totalImages = validImageUrls.length;
-            
-            // Calculate new index based on direction
-            if (direction === 'next') {
-                currentIndex = (currentIndex + 1) % totalImages;
-            } else {
-                currentIndex = (currentIndex - 1 + totalImages) % totalImages;
-            }
-            
-            // Update current index in dataset
-            imageContainer.dataset.currentImageIndex = currentIndex.toString();
-            
-            // Update the thumbnail image
-            const thumbImg = imageContainer.querySelector('img');
-            if (thumbImg) {
-                thumbImg.src = validImageUrls[currentIndex];
-                thumbImg.dataset.fullImg = validImageUrls[currentIndex];
-            }
-            
-            // Update the thumbnail counter
-            const counter = imageContainer.querySelector('.image-count');
-            if (counter) {
-                counter.textContent = `${currentIndex + 1}/${totalImages}`;
-            }
-            
-            // If we're navigating in enlarged view, update that too
-            if (isEnlarged) {
-                const enlargedContainer = document.getElementById('enlarged-image-view');
-                const enlargedImg = enlargedContainer.querySelector('.enlarged-image');
-                if (enlargedImg) {
-                    enlargedImg.src = validImageUrls[currentIndex];
-                }
-                
-                const enlargedCounter = enlargedContainer.querySelector('.enlarged-counter');
-                if (enlargedCounter) {
-                    enlargedCounter.textContent = `${currentIndex + 1}/${totalImages}`;
-                }
-            }
-        }
-        
-        // Helper function to show fallback image placeholder
-        function showImageFallback(container) {
-            container.innerHTML = `
-                <div style="display: flex; justify-content: center; align-items: center; height: 100%; background-color: #f1f5f9;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                        <polyline points="21 15 16 10 5 21"></polyline>
-                    </svg>
-                </div>
-            `;
-        }
+		// Load model image
+		function loadModelImage(hash) {
+			const imageContainer = document.getElementById(`image-${hash}`);
+			if (!imageContainer) return;
+			
+			// Find the corresponding lora model
+			const lora = state.loras.find(l => l.Hash === hash);
+			
+			if (lora && lora.ImageURLs && lora.ImageURLs.length > 0) {
+				// Filter for valid image URLs (jpg, jpeg, png, webp, gif)
+				const validImageUrls = lora.ImageURLs.filter(url => {
+					const lowercaseUrl = url.toLowerCase();
+					return lowercaseUrl.endsWith('.jpg') || 
+						   lowercaseUrl.endsWith('.jpeg') || 
+						   lowercaseUrl.endsWith('.png') || 
+						   lowercaseUrl.endsWith('.webp') || 
+						   lowercaseUrl.endsWith('.gif');
+				});
+				
+				if (validImageUrls.length > 0) {
+					// Store image data on container for navigation
+					imageContainer.dataset.currentImageIndex = "0";
+					imageContainer.dataset.totalImages = validImageUrls.length.toString();
+					
+					// Create the base image container
+					let imageHtml = `<div class="model-image-container">
+						<img src="${validImageUrls[0]}" alt="Model preview" data-full-img="${validImageUrls[0]}">
+					`;
+					
+					// Add navigation if there are multiple images
+					if (validImageUrls.length > 1) {
+						imageHtml += `
+							<div class="image-nav">
+								<button class="image-nav-button prev-image" data-hash="${hash}">❮</button>
+								<button class="image-nav-button next-image" data-hash="${hash}">❯</button>
+							</div>
+							<div class="image-count">1/${validImageUrls.length}</div>
+						`;
+					}
+					
+					imageHtml += `</div>`;
+					imageContainer.innerHTML = imageHtml;
+					
+					// Store all valid image URLs on the container for future navigation
+					imageContainer.dataset.imageUrls = JSON.stringify(validImageUrls);
+					
+					// Add click event to enlarge image
+					const img = imageContainer.querySelector('img');
+					img.addEventListener('click', (e) => {
+						const enlargedContainer = document.getElementById('enlarged-image-view');
+						const enlargedImg = enlargedContainer.querySelector('.enlarged-image');
+						
+						// Set the enlarged image source
+						enlargedImg.src = e.target.dataset.fullImg;
+						
+						// Set active hash for enlarged view navigation
+						enlargedContainer.dataset.activeHash = hash;
+						
+						// Set the counter
+						const enlargedCounter = enlargedContainer.querySelector('.enlarged-counter');
+						if (enlargedCounter) {
+							const currentIndex = parseInt(imageContainer.dataset.currentImageIndex || "0");
+							const totalImages = parseInt(imageContainer.dataset.totalImages || "0");
+							enlargedCounter.textContent = `${currentIndex + 1}/${totalImages}`;
+						}
+						
+						// Show the enlarged view
+						enlargedContainer.classList.add('active');
+					});
+					
+					// Add event listeners for image navigation buttons
+					if (validImageUrls.length > 1) {
+						const prevButton = imageContainer.querySelector('.prev-image');
+						const nextButton = imageContainer.querySelector('.next-image');
+						
+						prevButton.addEventListener('click', (e) => {
+							e.stopPropagation(); // Prevent click from bubbling to the image
+							navigateImages(hash, 'prev');
+						});
+						
+						nextButton.addEventListener('click', (e) => {
+							e.stopPropagation(); // Prevent click from bubbling to the image
+							navigateImages(hash, 'next');
+						});
+					}
+				} else {
+					// No valid images found, use fallback
+					showImageFallback(imageContainer);
+				}
+			} else {
+				// No images available, use fallback
+				showImageFallback(imageContainer);
+			}
+		}
 
-        // Populate base model filter
-        function populateBaseModelFilter() {
-            const baseModels = Array.from(state.baseModels).sort();
-            let optionsHTML = '<option value="">All Base Models</option>';
-            
-            baseModels.forEach(model => {
-                optionsHTML += `<option value="${model}">${model}</option>`;
-            });
-            
-            modelFilter.innerHTML = optionsHTML;
-        }
+		// Also make sure the navigateImages function handles enlarged view correctly
+		function navigateImages(hash, direction, isEnlarged = false) {
+			console.log(`Navigating ${direction} for hash: ${hash}, enlarged: ${isEnlarged}`);
+			
+			const imageContainer = document.getElementById(`image-${hash}`);
+			if (!imageContainer) {
+				console.error(`Could not find image container for hash: ${hash}`);
+				return;
+			}
+			
+			// Get the valid image URLs from the container's dataset
+			const validImageUrls = JSON.parse(imageContainer.dataset.imageUrls || '[]');
+			console.log(`Found ${validImageUrls.length} images for this model`);
+			
+			if (validImageUrls.length <= 1) return;
+			
+			let currentIndex = parseInt(imageContainer.dataset.currentImageIndex || "0");
+			const totalImages = validImageUrls.length;
+			
+			// Calculate new index based on direction
+			if (direction === 'next') {
+				currentIndex = (currentIndex + 1) % totalImages;
+			} else {
+				currentIndex = (currentIndex - 1 + totalImages) % totalImages;
+			}
+			
+			console.log(`New index: ${currentIndex}`);
+			
+			// Update current index in dataset
+			imageContainer.dataset.currentImageIndex = currentIndex.toString();
+			
+			// Update the thumbnail image
+			const thumbImg = imageContainer.querySelector('img');
+			if (thumbImg) {
+				thumbImg.src = validImageUrls[currentIndex];
+				thumbImg.dataset.fullImg = validImageUrls[currentIndex];
+			}
+			
+			// Update the thumbnail counter
+			const counter = imageContainer.querySelector('.image-count');
+			if (counter) {
+				counter.textContent = `${currentIndex + 1}/${totalImages}`;
+			}
+			
+			// If we're navigating in enlarged view, update that too
+			if (isEnlarged) {
+				const enlargedContainer = document.getElementById('enlarged-image-view');
+				const enlargedImg = enlargedContainer.querySelector('.enlarged-image');
+				if (enlargedImg) {
+					console.log(`Updating enlarged image to: ${validImageUrls[currentIndex]}`);
+					enlargedImg.src = validImageUrls[currentIndex];
+				} else {
+					console.error('Could not find enlarged image element');
+				}
+				
+				const enlargedCounter = enlargedContainer.querySelector('.enlarged-counter');
+				if (enlargedCounter) {
+					enlargedCounter.textContent = `${currentIndex + 1}/${totalImages}`;
+				}
+			}
+		}
 
-        // Initialize
-        async function init() {
-            state.loading = true;
-            renderModels();
-            
-            // Fetch data
-            state.loras = await fetchLoraData();
-            
-            // Extract base models and filter out null/undefined values
-            state.loras.forEach(lora => {
-                if (lora.BaseModel) {
-                    state.baseModels.add(lora.BaseModel);
-                }
-            });
-            
-            // Initial render
-            state.filteredLoras = [...state.loras];
-            state.loading = false;
-            
-            populateBaseModelFilter();
-            renderModelCount();
-            renderModels();
-            renderPagination();
+		// Helper function to show fallback image placeholder
+		function showImageFallback(container) {
+			container.innerHTML = `
+				<div style="display: flex; justify-content: center; align-items: center; height: 100%; background-color: #f1f5f9;">
+					<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+						<circle cx="8.5" cy="8.5" r="1.5"></circle>
+						<polyline points="21 15 16 10 5 21"></polyline>
+					</svg>
+				</div>
+			`;
+		}
 
-            // Set up a global click handler for all images using event delegation
-            document.addEventListener('click', function(e) {
-                // Check if the clicked element is an image inside a model-image container
-                if (e.target.tagName === 'IMG' && e.target.closest('.model-image')) {
-                    const imageContainer = e.target.closest('.model-image');
-                    const hash = imageContainer.dataset.hash;
-                    const currentIndex = parseInt(imageContainer.dataset.currentImageIndex || "0");
-                    const totalImages = parseInt(imageContainer.dataset.totalImages || "0");
-                    const imgUrl = e.target.dataset.fullImg || e.target.src;
-                    
-                    // Image clicked! Show enlarged view
-                    const enlargedContainer = document.getElementById('enlarged-image-view');
-                    const enlargedImg = enlargedContainer.querySelector('.enlarged-image');
-                    
-                    // Get the image URLs
-                    const validImageUrls = JSON.parse(imageContainer.dataset.imageUrls || '[]');
-                    
-                    // Update the image
-                    if (enlargedImg) {
-                        enlargedImg.src = imgUrl;
-                    }
-                    
-                    // Set active hash for navigation
-                    enlargedContainer.dataset.activeHash = hash;
-                    
-                    // Update counter if multiple images
-                    const counter = enlargedContainer.querySelector('.enlarged-counter');
-                    if (counter && totalImages > 1) {
-                        counter.textContent = `${currentIndex + 1}/${totalImages}`;
-                    } else if (counter) {
-                        counter.textContent = "";
-                    }
-                    
-                    // Show/hide navigation buttons based on multiple images
-                    const prevBtn = enlargedContainer.querySelector('.prev-enlarged-image');
-                    const nextBtn = enlargedContainer.querySelector('.next-enlarged-image');
-                    
-                    if (prevBtn && nextBtn) {
-                        if (totalImages > 1) {
-                            prevBtn.style.display = 'flex';
-                            nextBtn.style.display = 'flex';
-                        } else {
-                            prevBtn.style.display = 'none';
-                            nextBtn.style.display = 'none';
-                        }
-                    }
-                    
-                    // Show the enlarged view
-                    enlargedContainer.classList.add('active');
-                }
-            });
-            
-            // Add event listeners
-            searchInput.addEventListener('input', (e) => {
-                state.searchTerm = e.target.value;
-                filterLoras();
-            });
-            
-            // Add debug logging for filter change
-            modelFilter.addEventListener('change', (e) => {
-                state.selectedBaseModel = e.target.value;
-                console.log("Filter changed to:", state.selectedBaseModel);
-                filterLoras();
-            });
-        }
+		// Populate base model filter
+		function populateBaseModelFilter() {
+			const baseModels = Array.from(state.baseModels).sort();
+			let optionsHTML = '<option value="">All Base Models</option>';
+			
+			baseModels.forEach(model => {
+				optionsHTML += `<option value="${model}">${model}</option>`;
+			});
+			
+			modelFilter.innerHTML = optionsHTML;
+		}
 
-        // Setup enlarged image view navigation
-        const enlargedContainer = document.getElementById('enlarged-image-view');
-        
-        // Add navigation buttons to enlarged view
-        enlargedContainer.innerHTML = `
-            <button class="close-enlarged">&times;</button>
-            <button class="enlarged-nav-button prev-enlarged-image">&lt;</button>
-            <img src="" alt="Enlarged preview" class="enlarged-image">
-            <button class="enlarged-nav-button next-enlarged-image">&gt;</button>
-            <div class="enlarged-counter"></div>
-        `;
-        
-        const closeButton = enlargedContainer.querySelector('.close-enlarged');
-        const prevEnlargedButton = enlargedContainer.querySelector('.prev-enlarged-image');
-        const nextEnlargedButton = enlargedContainer.querySelector('.next-enlarged-image');
-        const enlargedCounter = enlargedContainer.querySelector('.enlarged-counter');
-        
-        closeButton.addEventListener('click', () => {
-            enlargedContainer.classList.remove('active');
-        });
-        
-        // Navigation for enlarged view
-        prevEnlargedButton.addEventListener('click', (e) => {
-            const activeHash = enlargedContainer.dataset.activeHash;
-            if (activeHash) {
-                navigateImages(activeHash, 'prev', true);
-            }
-        });
-        
-        nextEnlargedButton.addEventListener('click', (e) => {
-            const activeHash = enlargedContainer.dataset.activeHash;
-            if (activeHash) {
-                navigateImages(activeHash, 'next', true);
-            }
-        });
-        
-        // Close enlarged view when clicking outside the image
-        enlargedContainer.addEventListener('click', (e) => {
-            if (e.target === enlargedContainer) {
-                enlargedContainer.classList.remove('active');
-            }
-        });
-        
-        // Close enlarged view with Escape key
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && enlargedContainer.classList.contains('active')) {
-                enlargedContainer.classList.remove('active');
-            } else if (e.key === 'ArrowLeft' && enlargedContainer.classList.contains('active')) {
-                const activeHash = enlargedContainer.dataset.activeHash;
-                if (activeHash) {
-                    navigateImages(activeHash, 'prev', true);
-                }
-            } else if (e.key === 'ArrowRight' && enlargedContainer.classList.contains('active')) {
-                const activeHash = enlargedContainer.dataset.activeHash;
-                if (activeHash) {
-                    navigateImages(activeHash, 'next', true);
-                }
-            }
-        });
-        
-        // Start the app
-        init();
+		// Initialize
+		async function init() {
+			state.loading = true;
+			renderModels();
+			
+			// Fetch data
+			state.loras = await fetchLoraData();
+			
+			// Extract base models and filter out null/undefined values
+			state.loras.forEach(lora => {
+				if (lora.BaseModel) {
+					state.baseModels.add(lora.BaseModel);
+				}
+			});
+			
+			// Initial render
+			state.filteredLoras = [...state.loras];
+			state.loading = false;
+			
+			populateBaseModelFilter();
+			renderModelCount();
+			renderModels();
+			renderPagination();
+
+			// Set up a global click handler for all images using event delegation
+			document.addEventListener('click', function(e) {
+				// Check if the clicked element is an image inside a model-image container
+				if (e.target.tagName === 'IMG' && e.target.closest('.model-image')) {
+					const imageContainer = e.target.closest('.model-image');
+					const hash = imageContainer.dataset.imgId;
+					const currentIndex = parseInt(imageContainer.dataset.currentImageIndex || "0");
+					const totalImages = parseInt(imageContainer.dataset.totalImages || "0");
+					const imgUrl = e.target.dataset.fullImg || e.target.src;
+					
+					// Image clicked! Show enlarged view
+					const enlargedContainer = document.getElementById('enlarged-image-view');
+					const enlargedImg = enlargedContainer.querySelector('.enlarged-image');
+					
+					// Get the image URLs
+					const validImageUrls = JSON.parse(imageContainer.dataset.imageUrls || '[]');
+					
+					// Update the image
+					if (enlargedImg) {
+						enlargedImg.src = imgUrl;
+					}
+					
+					// Set active hash for navigation
+					enlargedContainer.dataset.activeHash = hash;
+					
+					// Update counter if multiple images
+					const counter = enlargedContainer.querySelector('.enlarged-counter');
+					if (counter && totalImages > 1) {
+						counter.textContent = `${currentIndex + 1}/${totalImages}`;
+					} else if (counter) {
+						counter.textContent = "";
+					}
+					
+					// Show/hide navigation buttons based on multiple images
+					const prevBtn = enlargedContainer.querySelector('.prev-enlarged-image');
+					const nextBtn = enlargedContainer.querySelector('.next-enlarged-image');
+					
+					if (prevBtn && nextBtn) {
+						if (totalImages > 1) {
+							prevBtn.style.display = 'flex';
+							nextBtn.style.display = 'flex';
+						} else {
+							prevBtn.style.display = 'none';
+							nextBtn.style.display = 'none';
+						}
+					}
+					
+					// Show the enlarged view
+					enlargedContainer.classList.add('active');
+				}
+			});
+			
+			// Add event listeners
+			searchInput.addEventListener('input', (e) => {
+				state.searchTerm = e.target.value;
+				filterLoras();
+			});
+			
+			// Add debug logging for filter change
+			modelFilter.addEventListener('change', (e) => {
+				state.selectedBaseModel = e.target.value;
+				console.log("Filter changed to:", state.selectedBaseModel);
+				filterLoras();
+			});
+		}
+
+		// Setup enlarged image view navigation
+		const enlargedContainer = document.getElementById('enlarged-image-view');
+
+		// Add navigation buttons to enlarged view if not already there
+		if (!enlargedContainer.querySelector('.prev-enlarged-image')) {
+			enlargedContainer.innerHTML = `
+				<button class="close-enlarged">&times;</button>
+				<button class="enlarged-nav-button prev-enlarged-image">&lt;</button>
+				<img src="" alt="Enlarged preview" class="enlarged-image">
+				<button class="enlarged-nav-button next-enlarged-image">&gt;</button>
+				<div class="enlarged-counter"></div>
+			`;
+		}
+
+		const closeButton = enlargedContainer.querySelector('.close-enlarged');
+		const prevEnlargedButton = enlargedContainer.querySelector('.prev-enlarged-image');
+		const nextEnlargedButton = enlargedContainer.querySelector('.next-enlarged-image');
+
+		// Close button event
+		closeButton.addEventListener('click', () => {
+			enlargedContainer.classList.remove('active');
+		});
+
+		// Navigation for enlarged view - Fix the event handlers
+		prevEnlargedButton.addEventListener('click', (e) => {
+			e.stopPropagation(); // Prevent event bubbling
+			const activeHash = enlargedContainer.dataset.activeHash;
+			if (activeHash) {
+				navigateImages(activeHash, 'prev', true);
+			}
+		});
+
+		nextEnlargedButton.addEventListener('click', (e) => {
+			e.stopPropagation(); // Prevent event bubbling
+			const activeHash = enlargedContainer.dataset.activeHash;
+			if (activeHash) {
+				navigateImages(activeHash, 'next', true);
+			}
+		});
+
+		// Close enlarged view when clicking outside the image
+		enlargedContainer.addEventListener('click', (e) => {
+			if (e.target === enlargedContainer) {
+				enlargedContainer.classList.remove('active');
+			}
+		});
+
+		// Close enlarged view with Escape key
+		document.addEventListener('keydown', (e) => {
+			if (e.key === 'Escape' && enlargedContainer.classList.contains('active')) {
+				enlargedContainer.classList.remove('active');
+			} else if (e.key === 'ArrowLeft' && enlargedContainer.classList.contains('active')) {
+				const activeHash = enlargedContainer.dataset.activeHash;
+				if (activeHash) {
+					navigateImages(activeHash, 'prev', true);
+				}
+			} else if (e.key === 'ArrowRight' && enlargedContainer.classList.contains('active')) {
+				const activeHash = enlargedContainer.dataset.activeHash;
+				if (activeHash) {
+					navigateImages(activeHash, 'next', true);
+				}
+			}
+		});
+
+		// Start the app
+		init();
     </script>
 </body>
 </html>
