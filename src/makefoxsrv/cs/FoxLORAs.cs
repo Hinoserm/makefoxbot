@@ -241,7 +241,8 @@ namespace makefoxsrv
 
             await Task.WhenAll(tasks);
 
-            _ = UpdateMissingCivitaiInfo();
+            await UpdateMissingCivitaiInfo();
+            await DownloadMissingLoraImages();
         }
 
         public static async Task UpdateMissingCivitaiInfo()
@@ -390,6 +391,109 @@ namespace makefoxsrv
             }
 
             lora.ImageURLs = urls.Count > 0 ? urls : null;
+        }
+
+        public static async Task DownloadMissingLoraImages(CancellationToken cancellationToken = default, int maxConcurrent = 10)
+        {
+            FoxLog.WriteLine("[LORA] Starting download of missing LORA images");
+
+            List<(int id, string url)> pendingDownloads = new();
+
+            // Step 1: Get all URLs that need to be downloaded
+            using (var conn = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await conn.OpenAsync(cancellationToken);
+
+                using var cmd = new MySqlCommand(
+                    "SELECT id, image_url FROM lora_image_urls WHERE image IS NULL", conn);
+
+                using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    pendingDownloads.Add((reader.GetInt32("id"), reader.GetString("image_url")));
+                }
+            }
+
+            if (pendingDownloads.Count == 0)
+            {
+                FoxLog.WriteLine("[LORA] No missing LORA images to download");
+                return;
+            }
+
+            FoxLog.WriteLine($"[LORA] Found {pendingDownloads.Count} LORA images to download");
+
+            // Step 2: Download images with limited concurrency
+            var semaphore = new SemaphoreSlim(maxConcurrent);
+            var tasks = new List<Task>();
+            int successCount = 0;
+            int failureCount = 0;
+
+            foreach (var (id, url) in pendingDownloads)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
+                await semaphore.WaitAsync(cancellationToken);
+
+                tasks.Add(Task.Run(async () =>
+                {
+                    try
+                    {
+                        var validExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+                        var uri = new Uri(url);
+                        var extension = Path.GetExtension(uri.LocalPath).ToLowerInvariant();
+
+                        if (!validExtensions.Contains(extension))
+                        {
+                            Interlocked.Increment(ref failureCount);
+                            FoxLog.WriteLine($"[LORA] Skipping non-image URL: {url}");
+                            return;
+                        }
+
+                        using var http = new HttpClient();
+                        http.Timeout = TimeSpan.FromSeconds(30);
+
+                        // Download the image
+                        byte[] imageData = await http.GetByteArrayAsync(url, cancellationToken);
+
+                        if (imageData.Length == 0)
+                        {
+                            Interlocked.Increment(ref failureCount);
+                            FoxLog.WriteLine($"[LORA] Downloaded empty image from {url}");
+                            return;
+                        }
+
+                        // Save the image to the database
+                        using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                        await conn.OpenAsync(cancellationToken);
+
+                        using var cmd = new MySqlCommand(
+                            "UPDATE lora_image_urls SET image = @image WHERE id = @id", conn);
+
+                        cmd.Parameters.AddWithValue("@id", id);
+                        cmd.Parameters.Add("@image", MySqlDbType.LongBlob).Value = imageData;
+
+                        await cmd.ExecuteNonQueryAsync(cancellationToken);
+                        Interlocked.Increment(ref successCount);
+
+                        //FoxLog.WriteLine($"[LORA] Successfully downloaded and saved image #{id} ({url.Substring(0, Math.Min(30, url.Length))}...)");
+                    }
+                    catch (Exception ex)
+                    {
+                        Interlocked.Increment(ref failureCount);
+                        FoxLog.WriteLine($"[LORA] Failed to download image #{id} from {url}: {ex.Message}");
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }));
+            }
+
+            // Wait for all downloads to complete
+            await Task.WhenAll(tasks);
+
+            FoxLog.WriteLine($"[LORA] LORA image download complete. Successfully downloaded {successCount} images, {failureCount} failures");
         }
 
         private static string ComputeSHA256(string filePath)
