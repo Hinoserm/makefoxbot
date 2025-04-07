@@ -467,8 +467,7 @@ namespace makefoxsrv
                         using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
                         await conn.OpenAsync(cancellationToken);
 
-                        using var cmd = new MySqlCommand(
-                            "UPDATE lora_image_urls SET image = @image WHERE id = @id", conn);
+                        using var cmd = new MySqlCommand("UPDATE lora_image_urls SET image = @image WHERE id = @id", conn);
 
                         cmd.Parameters.AddWithValue("@id", id);
                         cmd.Parameters.Add("@image", MySqlDbType.LongBlob).Value = imageData;
