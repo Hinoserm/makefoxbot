@@ -105,6 +105,9 @@ class FoxWeb
                             ["CivitaiId"] = kv.CivitaiId,
                             ["CivitaiModelId"] = kv.CivitaiModelId,
                             ["CivitaiUrl"] = kv.CivitaiUrl,
+                            ["ImageURLs"] = kv.ImageURLs is null
+                                ? JsonValue.Create<string?>(null)
+                                : new JsonArray(kv.ImageURLs.Select(w => JsonValue.Create(w)).ToArray()),
                             ["Workers"] = new JsonArray(
                                 kv.Workers
                                     .OrderBy(w => w.ID)

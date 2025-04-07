@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Text.RegularExpressions;
+using TL;
 
 namespace makefoxsrv
 {
@@ -27,6 +28,7 @@ namespace makefoxsrv
                 CivitaiId.HasValue && CivitaiModelId.HasValue
                 ? $"https://civitai.com/models/{CivitaiModelId}?modelVersionId={CivitaiId}"
                 : null;
+            public List<string>? ImageURLs { get; set; }
 
             public HashSet<FoxWorker> Workers { get; set; } = new(FoxWorkerComparer.Instance);
         }
@@ -75,6 +77,8 @@ namespace makefoxsrv
 
                         Workers = new(FoxWorkerComparer.Instance)
                     };
+
+                    await LoadLoraImageUrlsFromDB(lora);
 
                     _lorasByHash[(hash, lora.Filename)] = lora;
 
@@ -131,7 +135,6 @@ namespace makefoxsrv
 
             return prompt;
         }
-
 
         private static async Task LoadHashes()
         {
@@ -207,8 +210,7 @@ namespace makefoxsrv
                             insertCmd.Parameters.AddWithValue("@description", (object?)lora.Description ?? DBNull.Value);
                             insertCmd.Parameters.AddWithValue("@civitai_id", (object?)lora.CivitaiId ?? DBNull.Value);
                             insertCmd.Parameters.AddWithValue("@civitai_model_id", (object?)lora.CivitaiModelId ?? DBNull.Value);
-                            insertCmd.Parameters.AddWithValue("@trigger_words",
-                                lora.TriggerWords is { Count: > 0 } ? string.Join(", ", lora.TriggerWords) : DBNull.Value);
+                            insertCmd.Parameters.AddWithValue("@trigger_words", lora.TriggerWords is { Count: > 0 } ? string.Join(", ", lora.TriggerWords) : DBNull.Value);
 
                             insertCmd.ExecuteNonQuery();
                         }
@@ -249,7 +251,7 @@ namespace makefoxsrv
 
             foreach (var lora in _lorasByHash.Values)
             {
-                if (lora.CivitaiId != null)
+                if (lora.CivitaiId != null && lora.ImageURLs != null)
                     continue;
 
                 try
@@ -274,6 +276,8 @@ namespace makefoxsrv
                     cmd.Parameters.AddWithValue("@hash", lora.Hash);
 
                     await cmd.ExecuteNonQueryAsync();
+
+                    await SaveLoraImageUrls(lora);
                 }
                 catch
                 {
@@ -286,7 +290,6 @@ namespace makefoxsrv
         public static async Task DownloadCivitaiInfo(LoraInfo lora)
         {
             using var http = new HttpClient();
-
 
             try
             {
@@ -304,6 +307,16 @@ namespace makefoxsrv
                 lora.Name ??= obj["model"]?["name"]?.ToString(); // fallback
                 lora.BaseModel ??= obj["baseModel"]?.ToString();
 
+                // Extract all image URLs from the response
+                var imageUrls = obj["images"]?
+                    .Select(img => img["url"]?.ToString())
+                    .Where(url => !string.IsNullOrEmpty(url))
+                    .Select(url => url!) // Cast non-null strings
+                    .ToList();
+
+                // If we have URLs, assign them, otherwise set to null
+                lora.ImageURLs = imageUrls?.Count > 0 ? imageUrls : null;
+
                 var words = obj["trainedWords"]?.Values<string>();
                 if (words is not null && words.Count() > 0)
                     lora.TriggerWords ??= words.ToList();
@@ -312,6 +325,71 @@ namespace makefoxsrv
             {
                 FoxLog.WriteLine($"Failed to fetch/update for {lora.Filename}: {ex.Message}");
             }
+        }
+
+        private static async Task SaveLoraImageUrls(LoraInfo lora)
+        {
+            try
+            {
+                if (lora.ImageURLs is null || lora.ImageURLs.Count < 1)
+                    return; // Nothing to save
+
+                using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                await conn.OpenAsync();
+
+                // First, delete any existing image URLs for this LORA
+                using (var deleteCmd = new MySqlCommand(
+                    "DELETE FROM lora_image_urls WHERE lora_hash = @hash", conn))
+                {
+                    deleteCmd.Parameters.AddWithValue("@hash", lora.Hash);
+                    await deleteCmd.ExecuteNonQueryAsync();
+                }
+
+                // Insert all new image URLs
+                foreach (var imageUrl in lora.ImageURLs)
+                {
+                    using var insertCmd = new MySqlCommand(
+                        "INSERT INTO lora_image_urls (lora_hash, image_url) " +
+                        "VALUES (@hash, @url)", conn);
+
+                    insertCmd.Parameters.AddWithValue("@hash", lora.Hash);
+                    insertCmd.Parameters.AddWithValue("@url", imageUrl);
+
+                    await insertCmd.ExecuteNonQueryAsync();
+                }
+
+                FoxLog.WriteLine($"[LORA] Saved {lora.ImageURLs.Count} image URLs for LORA {lora.Hash}");
+            }
+            catch (Exception ex)
+            {
+                FoxLog.WriteLine($"Failed to save image URLs for LORA {lora.Hash}: {ex.Message}");
+            }
+        }
+
+        public static async Task LoadLoraImageUrlsFromDB(LoraInfo lora)
+        {
+            var urls = new List<string>();
+
+            try
+            {
+                using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                await conn.OpenAsync();
+
+                using var cmd = new MySqlCommand("SELECT image_url FROM lora_image_urls WHERE lora_hash = @hash", conn);
+                cmd.Parameters.AddWithValue("@hash", lora.Hash);
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    urls.Add(reader.GetString(0));
+                }
+            }
+            catch (Exception ex)
+            {
+                FoxLog.WriteLine($"Failed to retrieve image URLs for LORA {lora.Hash}: {ex.Message}");
+            }
+
+            lora.ImageURLs = urls.Count > 0 ? urls : null;
         }
 
         private static string ComputeSHA256(string filePath)
