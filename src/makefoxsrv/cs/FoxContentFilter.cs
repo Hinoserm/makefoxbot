@@ -420,5 +420,107 @@ namespace makefoxsrv
                 }
             }
         }
+
+        public record ViolationRecord(ulong QueueId, ulong RuleId, ulong Uid);
+
+
+        [Cron(minutes: 5)]
+        public static async Task CronNotifyPendingViolations()
+        {
+            List<ViolationRecord> violations = new List<ViolationRecord>();
+
+            if (!FoxTelegram.IsConnected)
+                throw new Exception("Telegram is not connected");
+
+            var moderationGroupId = FoxSettings.Get<long?>("ModerationGroupID");
+
+            if (moderationGroupId is null || moderationGroupId == 0)
+                throw new Exception("Moderation group ID is not set or invalid");
+
+            using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await connection.OpenAsync();
+
+                // Retrieve violations with acknowledged IS NULL and queue status not PAUSED/CANCELLED.
+                string sql = @"
+                    SELECT q.uid, cf.queue_id, cf.rule_id
+                    FROM content_filter_violations cf
+                    JOIN makefoxbot.queue q ON cf.queue_id = q.id
+                    WHERE cf.acknowledged IS NULL
+                    AND q.status NOT IN ('PAUSED', 'CANCELLED')";
+
+                using (var selectCmd = new MySqlCommand(sql, connection))
+                {
+                    using (var reader = await selectCmd.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            ulong queueId = Convert.ToUInt64(reader["queue_id"]);
+                            ulong ruleId = Convert.ToUInt64(reader["rule_id"]);
+                            ulong uid = Convert.ToUInt64(reader["uid"]);
+
+                            violations.Add(new ViolationRecord(queueId, ruleId, uid));
+                        }
+                    }
+                }
+
+                if (violations.Count == 0)
+                {
+                    Console.WriteLine("No pending violations found.");
+                    return;
+                }
+
+                // Group violations by uid and build a notification message string.
+                var grouped = violations.GroupBy(v => v.Uid)
+                                        .Select(g => $"User {g.Key} had {g.Count()} violations")
+                                        .ToArray();
+
+                string notificationMessage = string.Join("\r\n", grouped);
+                Console.WriteLine("Notification message to be sent to moderation group:");
+                Console.WriteLine(notificationMessage);
+
+                // Try sending the notification message.
+                try
+                {
+                    await SendModerationNotification(notificationMessage);
+
+                    // If the notification succeeded, mark each violation as acknowledged using C#'s DateTime.Now.
+                    foreach (var violation in violations)
+                    {
+                        using (var updateCmd = new MySqlCommand(
+                            "UPDATE content_filter_violations SET acknowledged = @ackTime WHERE queue_id = @queueId AND rule_id = @ruleId", connection))
+                        {
+                            updateCmd.Parameters.Add("@ackTime", MySqlDbType.DateTime).Value = DateTime.Now;
+                            updateCmd.Parameters.Add("@queueId", MySqlDbType.UInt64).Value = violation.QueueId;
+                            updateCmd.Parameters.Add("@ruleId", MySqlDbType.UInt64).Value = violation.RuleId;
+                            await updateCmd.ExecuteNonQueryAsync();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.WriteLine($"Failed to send moderation notification: {ex.Message}", LogLevel.ERROR);
+                }
+            }
+        }
+
+        // Stub method: implement your actual message-sending logic here.
+        public static async Task SendModerationNotification(string message)
+        {
+            var moderationGroupId = FoxSettings.Get<long?>("ModerationGroupID");
+
+            if (moderationGroupId is null || moderationGroupId == 0)
+                return;
+
+            // For example, send this message via email, a messaging API, or log it as needed.
+            FoxLog.WriteLine($"Sending moderation notification:\r\n{message}");
+
+            var moderationGroup = await FoxTelegram.GetChatFromID(moderationGroupId.Value);
+
+            if (moderationGroup is null)
+                throw new Exception("Moderation group not found");
+
+            await FoxTelegram.Client.SendMessageAsync(moderationGroup, message);
+        }
     }
 }
