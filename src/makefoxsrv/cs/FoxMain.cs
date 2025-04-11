@@ -297,6 +297,10 @@ namespace makefoxsrv
                 return;
             }
 
+            await FoxContentFilter.LoadRulesAsync();
+
+
+
             await FoxLORAs.StartupLoad();
 
             Console.CancelKeyPress += (sender, e) =>

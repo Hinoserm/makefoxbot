@@ -206,7 +206,9 @@ namespace makefoxsrv
 
             FoxContextManager.Current.Queue = q;
 
-            if (settings?.Prompt?.IndexOf("crabcakes", StringComparison.OrdinalIgnoreCase) >= 0)
+            var violatedRules = FoxContentFilter.CheckPrompt(settings.Prompt, settings.NegativePrompt);
+
+            if (violatedRules is not null && violatedRules.Count() > 0)
             {
                 var inlineKeyboardButtons = new ReplyInlineMarkup()
                 {
@@ -223,13 +225,11 @@ namespace makefoxsrv
 
                 StringBuilder msgStr = new StringBuilder();
 
-
-                msgStr.AppendLine("*** THIS IS A TEST MESSAGE.  DISREGARD IT AND CLICK CONTINUE ***\r\n\r\n");
-                msgStr.AppendLine("⚠️ Our automated system has detected that your request might violate our content policy.\r\n");
-                msgStr.AppendLine("You are responsible for ensuring compliance with our policies.  Violations may result in account restrictions including a permanent ban.\r\n");
-                msgStr.AppendLine("Please review our <link>content policy</link> before continuing.\r\n");
-                msgStr.AppendLine("Be aware that if you choose to continue, this request may be flagged for moderator review.");
-                msgStr.AppendLine("\r\n\r\n*** THIS IS A TEST MESSAGE.  DISREGARD IT AND CLICK CONTINUE ***");
+                msgStr.AppendLine("⚠️ This request has been flagged as potentially violating our content policy.\r\n")
+                msgStr.AppendLine("You're responsible for ensuring it complies. Violations (intentional or not) can result in account restrictions or a permanent ban.\r\n");
+                msgStr.AppendLine("Please review our <link>(TODO) Content Policy</link> before proceeding.\r\n");
+                msgStr.AppendLine("If you choose to continue and our moderators determine the content crosses the line, your account may be suspended without further notice.\r\n");
+                msgStr.AppendLine("(This system is in early development; contact @makefoxhelpbot if you have questions or concerns.)");
 
                 var warningMsg = await t.SendMessageAsync(
                     text: msgStr.ToString(),
