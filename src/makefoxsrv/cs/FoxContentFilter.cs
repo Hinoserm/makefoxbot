@@ -216,6 +216,9 @@ namespace makefoxsrv
         /// <summary>
         /// Processes a single expression part (possibly containing OR operations)
         /// </summary>
+        /// <summary>
+        /// Processes a single expression part (possibly containing OR operations)
+        /// </summary>
         private static string ProcessExpression(string expression)
         {
             Console.WriteLine($"Processing expression part: {expression}");
@@ -228,7 +231,7 @@ namespace makefoxsrv
                 // Check if we have OR operations inside
                 if (inner.Contains("|"))
                 {
-                    // Split into OR parts and collect positives and negatives separately.
+                    // Split by '|' at top level
                     List<string> orParts = SplitByTopLevelOperator(inner, '|');
                     Console.WriteLine($"Split into {orParts.Count} OR parts: {string.Join(", ", orParts)}");
 
@@ -237,54 +240,38 @@ namespace makefoxsrv
 
                     foreach (string orPart in orParts)
                     {
-                        string trimmedOrPart = orPart.Trim();
-                        if (trimmedOrPart.StartsWith("!"))
+                        string trimmed = orPart.Trim();
+                        if (trimmed.StartsWith("!"))
                         {
-                            // Collect the negative terms (will require all negatives to be met in one branch)
-                            string term = trimmedOrPart.Substring(1).Trim();
+                            // Collect negative tokens (tokens that must NOT appear)
+                            string term = trimmed.Substring(1).Trim();
                             negativeTerms.Add(term);
                             Console.WriteLine($"Collected negated term: {term}");
                         }
                         else
                         {
-                            // Collect the positive terms into one branch.
-                            positiveTerms.Add(trimmedOrPart);
-                            Console.WriteLine($"Collected positive term: {trimmedOrPart}");
+                            // Collect positive tokens (tokens that must appear)
+                            positiveTerms.Add(trimmed);
+                            Console.WriteLine($"Collected positive term: {trimmed}");
                         }
                     }
 
-                    string positiveRegex = "";
+                    // Instead of alternating (OR), require positives and forbidden negatives concurrently
+                    string result = "";
                     if (positiveTerms.Count > 0)
                     {
-                        // Combine all positive tokens with alternation.
                         string alternation = string.Join("|", positiveTerms.Select(term => Regex.Escape(term)));
-                        positiveRegex = $"(?=.*\\b(?:{alternation})\\b)";
+                        result += $"(?=.*\\b(?:{alternation})\\b)";
                     }
-
-                    string negativeRegex = "";
                     if (negativeTerms.Count > 0)
                     {
-                        // Combine negatives conjunctively (all must be absent)
-                        negativeRegex = string.Join("", negativeTerms.Select(term => $"(?!.*\\b{Regex.Escape(term)}\\b)"));
+                        result += string.Concat(negativeTerms.Select(term => $"(?!.*\\b{Regex.Escape(term)}\\b)"));
                     }
-
-                    // If both positive and negative tokens exist, allow either branch.
-                    if (!string.IsNullOrEmpty(positiveRegex) && !string.IsNullOrEmpty(negativeRegex))
-                    {
-                        return $"(?:(?:{positiveRegex})|(?:{negativeRegex}))";
-                    }
-                    else if (!string.IsNullOrEmpty(positiveRegex))
-                    {
-                        return positiveRegex;
-                    }
-                    else
-                    {
-                        return negativeRegex;
-                    }
+                    return result;
                 }
                 else if (inner.StartsWith("!"))
                 {
-                    // Handle simple negation
+                    // Handle simple negation within parentheses
                     string term = inner.Substring(1).Trim();
                     string negatedRegex = $"(?!.*\\b{Regex.Escape(term)}\\b)";
                     Console.WriteLine($"Processed negation: {inner} -> {negatedRegex}");
@@ -292,7 +279,7 @@ namespace makefoxsrv
                 }
                 else
                 {
-                    // Handle simple term
+                    // Handle simple positive term within parentheses
                     string positiveRegex = $"(?=.*\\b{Regex.Escape(inner)}\\b)";
                     Console.WriteLine($"Processed parenthesized term: {inner} -> {positiveRegex}");
                     return positiveRegex;
@@ -300,7 +287,7 @@ namespace makefoxsrv
             }
             else if (expression.StartsWith("!"))
             {
-                // Handle simple negation (outside of parentheses)
+                // Handle simple negation outside of parentheses
                 string term = expression.Substring(1).Trim();
                 string negatedRegex = $"(?!.*\\b{Regex.Escape(term)}\\b)";
                 Console.WriteLine($"Processed negation: {expression} -> {negatedRegex}");
@@ -308,12 +295,13 @@ namespace makefoxsrv
             }
             else
             {
-                // Handle simple term
+                // Handle simple term outside of parentheses
                 string positiveRegex = $"(?=.*\\b{Regex.Escape(expression)}\\b)";
                 Console.WriteLine($"Processed term: {expression} -> {positiveRegex}");
                 return positiveRegex;
             }
         }
+
 
 
         /// <summary>
@@ -334,17 +322,10 @@ namespace makefoxsrv
                     ? NormalizeForMatching(negativePrompt)
                     : string.Empty;
 
-                Console.WriteLine($"Checking positive prompt: {positivePrompt}");
-                if (!string.IsNullOrEmpty(negativePrompt))
-                {
-                    Console.WriteLine($"Checking negative prompt: {negativePrompt}");
-                }
-
                 foreach (var rule in _rules)
                 {
                     try
                     {
-                        Console.WriteLine($"Evaluating rule {rule.Id}: {rule.Description ?? "No description"}");
                         bool positiveMatch = rule.CompiledPromptRegex?.IsMatch(positivePrompt) ?? false;
                         bool negativeMatch = true; // Default to true if no negative pattern
 
@@ -354,18 +335,9 @@ namespace makefoxsrv
                             negativeMatch = rule.CompiledNegativePromptRegex.IsMatch(negativePrompt);
                         }
 
-                        Console.WriteLine($"  Positive match: {positiveMatch}, Negative match: {negativeMatch}");
-
                         // Rule matches if both positive and negative patterns match
                         if (positiveMatch && negativeMatch)
-                        {
-                            Console.WriteLine($"  Rule {rule.Id} MATCHED!");
                             violatedRules.Add(rule);
-                        }
-                        else
-                        {
-                            Console.WriteLine($"  Rule {rule.Id} did not match");
-                        }
                     }
                     catch (Exception ex)
                     {
