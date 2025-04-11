@@ -432,9 +432,9 @@ namespace makefoxsrv
             if (!FoxTelegram.IsConnected)
                 throw new Exception("Telegram is not connected");
 
-            var moderationGroupId = FoxSettings.Get<long?>("ModerationGroupID");
+            var moderationGroupId = FoxSettings.Get<long>("ModerationGroupID");
 
-            if (moderationGroupId is null || moderationGroupId == 0)
+            if (moderationGroupId == 0)
                 throw new Exception("Moderation group ID is not set or invalid");
 
             using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
@@ -507,15 +507,15 @@ namespace makefoxsrv
         // Stub method: implement your actual message-sending logic here.
         public static async Task SendModerationNotification(string message)
         {
-            var moderationGroupId = FoxSettings.Get<long?>("ModerationGroupID");
+            var moderationGroupId = FoxSettings.Get<long>("ModerationGroupID");
 
-            if (moderationGroupId is null || moderationGroupId == 0)
+            if (moderationGroupId == 0)
                 return;
 
             // For example, send this message via email, a messaging API, or log it as needed.
             FoxLog.WriteLine($"Sending moderation notification:\r\n{message}");
 
-            var moderationGroup = await FoxTelegram.GetChatFromID(moderationGroupId.Value);
+            var moderationGroup = await FoxTelegram.GetChatFromID(moderationGroupId);
 
             if (moderationGroup is null)
                 throw new Exception("Moderation group not found");

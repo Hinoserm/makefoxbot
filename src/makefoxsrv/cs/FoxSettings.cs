@@ -33,6 +33,7 @@ namespace makefoxsrv
             {"GetFullChat",     true },
             {"GetChatPhoto",    false },
             {"GetChatAdmins",   false },
+            {"ModerationGroupID", 0 },
         };
 
         private static object ConvertToType(string key, string value, Type type)
