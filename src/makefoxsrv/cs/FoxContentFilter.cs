@@ -370,7 +370,7 @@ namespace makefoxsrv
                     catch (Exception ex)
                     {
                         // Log the error but don't crash
-                        Console.WriteLine($"Error evaluating rule {rule.Id}: {ex.Message}");
+                        FoxLog.WriteLine($"Error evaluating rule {rule.Id}: {ex.Message}", LogLevel.ERROR);
                         continue;
                     }
                 }
@@ -378,7 +378,7 @@ namespace makefoxsrv
             catch (Exception ex)
             {
                 // Log the error but don't crash
-                Console.WriteLine($"Error in CheckPrompt: {ex.Message}");
+                FoxLog.WriteLine($"Error in CheckPrompt: {ex.Message}", LogLevel.ERROR);
             }
 
             return violatedRules;
@@ -409,23 +409,41 @@ namespace makefoxsrv
         }
 
         /// <summary>
-        /// Records a rule violation in the database
+        /// Records multiple rule violations in the database
         /// </summary>
         /// <param name="queueId">The queue ID of the processed image request</param>
-        /// <param name="ruleId">The ID of the violated rule</param>
-        public static async Task RecordViolationAsync(ulong queueId, ulong ruleId)
+        /// <param name="ruleIds">The list of violated rule IDs</param>
+        public static async Task RecordViolationsAsync(ulong queueId, List<ulong> ruleIds)
         {
+            if (ruleIds == null || ruleIds.Count == 0)
+                return;
+
             using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await connection.OpenAsync();
 
-                using (var command = new MySqlCommand(
-                    "INSERT INTO content_filter_violations (queue_id, rule_id) " +
-                    "VALUES (@queueId, @ruleId)", connection))
-                {
-                    command.Parameters.AddWithValue("@queueId", queueId);
-                    command.Parameters.AddWithValue("@ruleId", ruleId);
+                var sb = new StringBuilder();
+                sb.Append("INSERT INTO content_filter_violations (queue_id, rule_id) VALUES ");
 
+                using (var command = new MySqlCommand())
+                {
+                    command.Connection = connection;
+
+                    for (int i = 0; i < ruleIds.Count; i++)
+                    {
+                        string queueParam = $"@queueId{i}";
+                        string ruleParam = $"@ruleId{i}";
+
+                        sb.Append($"({queueParam}, {ruleParam})");
+
+                        if (i < ruleIds.Count - 1)
+                            sb.Append(", ");
+
+                        command.Parameters.Add(queueParam, MySqlDbType.UInt64).Value = queueId;
+                        command.Parameters.Add(ruleParam, MySqlDbType.UInt64).Value = ruleIds[i];
+                    }
+
+                    command.CommandText = sb.ToString();
                     await command.ExecuteNonQueryAsync();
                 }
             }
