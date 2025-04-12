@@ -679,6 +679,7 @@ namespace makefoxsrv
 
         }
 
+        [CommandDescription("Send this in a reply to an image to get a list of AI-predicted E621 tags.")]
         private static async Task CmdTag(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             var stickerImg = await FoxImage.SaveImageFromReply(t, message);
@@ -699,16 +700,22 @@ namespace makefoxsrv
             
             var startTime = DateTime.Now;
             FoxONNXImageTagger tagger = new FoxONNXImageTagger();
-            var predictions = tagger.ProcessImage(image);
+            var predictions = tagger.ProcessImage(image, 0.3f);
             var elapsedTime = DateTime.Now - startTime;
 
 
-            string messageText = predictions is null ? "No tags found." : $"Tags: {string.Join(", ", predictions.Keys)}";
+            string msgText = predictions != null && predictions.Count > 0
+                ? "*Predicted Tags:*\r\n\r\n" + string.Join(", ", predictions.Select(p => $"`{p.Key}`"))
+                : "*No tags found.*";
 
+            msgText += $"\r\n\n*Processing time: {Math.Round(elapsedTime.TotalMilliseconds, 0)}ms*";
+
+            var msgEntities = FoxTelegram.Client.MarkdownToEntities(ref msgText);
 
             await t.SendMessageAsync(
                                replyToMessage: message,
-                               text: messageText + $"\r\n\nProcessing time: {elapsedTime}"
+                               text: msgText,
+                               entities: msgEntities
             );
 
         }
