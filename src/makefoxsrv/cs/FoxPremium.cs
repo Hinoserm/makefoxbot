@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 using MySqlConnector;
@@ -108,7 +109,19 @@ namespace makefoxsrv
                     }
 
                     if (message is not null)
-                        message += "\r\n\r\nPlease consider renewing today.  Your support is essential to ensure our continued operation.";
+                    {
+                        var options = new[]
+                        {
+                            "Please consider renewing today.  Our survival depends on your support.",
+                            "Please consider renewing today.  We can't do this without you.",
+                            "Please renew today—your support keeps us alive.",
+                            "Renew today. You're the reason we're still here.",
+                            "Please renew now. Your support makes all the difference."
+                        };
+
+                        var random = new Random();
+                        message += "\r\n\r\n" + options[random.Next(options.Length)];
+                    }
 
                     // If a message is due, try to send it and then update the last notification timestamp
                     if (message != null)
