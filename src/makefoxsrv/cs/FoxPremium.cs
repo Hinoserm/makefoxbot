@@ -45,12 +45,14 @@ namespace makefoxsrv
                 using (var selectCmd = new MySqlCommand("SELECT id, date_premium_expires, last_premium_notification" +
                                                         " FROM users" +
                                                         " WHERE date_premium_expires IS NOT NULL" +
+                                                        " AND (last_premium_notification IS NULL OR last_premium_notification < @priorDay)" +
                                                         " AND date_premium_expires BETWEEN @minDate AND @maxDate",
                                                         connection)
                 )
                 {
-                    selectCmd.Parameters.AddWithValue("@minDate", now.AddDays(-3));
+                    selectCmd.Parameters.AddWithValue("@minDate", now.AddDays(-7));
                     selectCmd.Parameters.AddWithValue("@maxDate", now.AddDays(5));
+                    selectCmd.Parameters.AddWithValue("@priorDay", now.AddDays(-1));
 
                     // then proceed with executing the reader...
                     using (var reader = await selectCmd.ExecuteReaderAsync().ConfigureAwait(false))
@@ -68,6 +70,14 @@ namespace makefoxsrv
                     }
                 }
 
+                if (users.Count == 0)
+                    return; // Nothing to do.
+
+                int sentCount = 0;
+                int errorCount = 0;
+                
+                FoxLog.WriteLine($"Found {users.Count} users for premium expiry notifications. Processing...");
+
                 // Process each user and determine if a notification should be sent.
                 foreach (var user in users)
                 {
@@ -78,7 +88,10 @@ namespace makefoxsrv
                     {
                         if (user.lastNotified == null || user.lastNotified < user.expiry)
                         {
-                            message = "Your paid /membership has expired.";
+                            if ((now - user.expiry).TotalDays >= 1)
+                                message = $"Your paid /membership expired on {user.expiry:MMMM d yyyy}";
+                            else
+                                message = "Your paid /membership has expired.";
                         }
                     }
                     else
@@ -140,6 +153,8 @@ namespace makefoxsrv
                             // Attempt to send the message
                             await tg.SendMessageAsync(message);
 
+                            sentCount++;
+
                             // Update the user's last_premium_notification column to now
                             using (var updateCmd = new MySqlCommand(
                                 "UPDATE users SET last_premium_notification = @now WHERE id = @id", connection))
@@ -151,12 +166,15 @@ namespace makefoxsrv
                         }
                         catch (Exception ex)
                         {
+                            errorCount++;
                             FoxLog.LogException(ex);
                         }
 
                         await Task.Delay(10000); // Wait 10 seconds to avoid FLOOD_WAITs.
                     }
                 }
+
+                FoxLog.WriteLine($"Processed premium notifications: Sent {sentCount}, Errors {errorCount}");
             }
         }
     }
