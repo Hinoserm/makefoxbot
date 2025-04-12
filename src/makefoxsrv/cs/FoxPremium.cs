@@ -28,7 +28,7 @@ namespace makefoxsrv
             return premiumFeatures.Count > 0 ? premiumFeatures.ToArray() : null;
         }
 
-        [Cron (hours: 1)]
+        [Cron (minutes: 5)]
         public async Task ProcessPremiumNotificationsAsync()
         {
             // Get current system time (always use local time)
@@ -44,7 +44,8 @@ namespace makefoxsrv
                 // Load all users with a non-null premium expiration date
                 using (var selectCmd = new MySqlCommand("SELECT id, date_premium_expires, last_premium_notification" +
                                                         " FROM users" +
-                                                        " WHERE date_premium_expires IS NOT NULL" +
+                                                        " WHERE access_level != 'BANNED'" +
+                                                        " AND date_premium_expires IS NOT NULL" +
                                                         " AND (last_premium_notification IS NULL OR last_premium_notification < @priorDay)" +
                                                         " AND date_premium_expires BETWEEN @minDate AND @maxDate",
                                                         connection)
@@ -146,6 +147,9 @@ namespace makefoxsrv
 
                             if (fUser is null)
                                 throw new Exception("User not found!");
+
+                            if (fUser.GetAccessLevel() == AccessLevel.BANNED)
+                                throw new Exception("User is banned!");
 
                             // Create Telegram object for user
                             var tg = fUser.Telegram;
