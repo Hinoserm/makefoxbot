@@ -140,6 +140,8 @@ namespace makefoxsrv
                         {
                             FoxLog.LogException(ex);
                         }
+
+                        await Task.Delay(10000); // Wait 10 seconds to avoid FLOOD_WAITs.
                     }
                 }
             }
