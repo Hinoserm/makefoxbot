@@ -700,7 +700,7 @@ namespace makefoxsrv
             
             var startTime = DateTime.Now;
             FoxONNXImageTagger tagger = new FoxONNXImageTagger();
-            var predictions = tagger.ProcessImage(image, 0.3f);
+            var predictions = tagger.ProcessImage(image, 0.2f);
             var elapsedTime = DateTime.Now - startTime;
 
 
