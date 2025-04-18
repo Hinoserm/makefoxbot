@@ -1003,7 +1003,10 @@ namespace makefoxsrv
                         catch (OperationCanceledException ex)
                         {
                             if (qItem is not null)
+                            {
+                                await this.Interrupt();
                                 await qItem.SetError(ex);
+                            }
 
                             break; //Break the loop for a graceful shutdown
                         }
@@ -1025,6 +1028,7 @@ namespace makefoxsrv
                     }
 
                     FoxLog.WriteLine($"Worker {ID} - Shutdown.");
+
                     workers.TryRemove(ID, out _);
                 }
                 catch (Exception ex)
