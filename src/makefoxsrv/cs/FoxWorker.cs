@@ -382,6 +382,7 @@ namespace makefoxsrv
 
                     try
                     {
+                        await worker.Interrupt();
                         await worker.LoadModelInfo();
                         _= worker.LoadLoRAInfo();
                         await worker.SetOnlineStatus(true);
@@ -394,6 +395,25 @@ namespace makefoxsrv
                     //_ = worker.Run(botClient);
                     //_ = Task.Run(async () => await worker.Run());
                 }
+            }
+        }
+
+        public async Task Interrupt()
+        {
+            try
+            {
+                using var httpClient = new HttpClient();
+
+                // Construct the final URL
+                var finalUrl = new Uri(new Uri(address), "/sdapi/v1/interrupt");
+
+                // Make the HTTP POST request
+                var response = await httpClient.PostAsync(finalUrl, null, stopToken.Token);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex);
             }
         }
 
