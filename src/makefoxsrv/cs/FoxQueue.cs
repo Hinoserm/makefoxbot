@@ -470,7 +470,7 @@ namespace makefoxsrv
             bool isUserPremium = item.User.CheckAccessLevel(AccessLevel.PREMIUM);
 
 
-            if (true || !item.User.CheckAccessLevel(AccessLevel.ADMIN))
+            if (!item.User.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 var userWorkers = workers
                 .Where(worker => worker.qItem != null && worker.qItem.User?.UID == item.User?.UID)
