@@ -1284,6 +1284,8 @@ namespace makefoxsrv
                     }
                     else
                     {
+                        FoxLog.LogException(ex); // Still log it.
+
                         if (qItem is not null)
                         {
                             //Otherwise, just error the single request.
