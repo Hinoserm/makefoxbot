@@ -88,7 +88,7 @@ namespace makefoxsrv
     : IAdditionalScriptConfig
     {
         public bool unet_enabled { get; set; } = false;
-        public bool vae_enabled { get; set; } = true;
+        public bool vae_enabled { get; set; } = false;
 
         public string Key => "Never OOM Integrated";
 
