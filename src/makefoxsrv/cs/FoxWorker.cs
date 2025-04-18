@@ -1276,7 +1276,7 @@ namespace makefoxsrv
                         "object is not callable"
                     ];
 
-                    if (knownErrors.Any(e => msg.Contains(e, StringComparison.OrdinalIgnoreCase)))
+                    if (knownErrors.Any(e => msg.Contains(e, StringComparison.OrdinalIgnoreCase)) )
                     {
                         //These errors require us to offline the worker
 

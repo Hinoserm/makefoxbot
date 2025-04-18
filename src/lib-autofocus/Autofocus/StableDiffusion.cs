@@ -28,7 +28,7 @@ public class SDHttpException : HttpRequestException
         Error = errorResponse.Error;
         Detail = errorResponse.Detail;
         Body = errorResponse.Body;
-        Errors = errorResponse.Errors;
+        Errors = errorResponse.Errors ?? errorResponse.Message;
     }
 
     private static ErrorResponse ParseErrorResponse(string responseContent)
@@ -60,6 +60,9 @@ public class SDHttpException : HttpRequestException
 
         [JsonPropertyName("errors")]
         public string? Errors { get; set; }
+
+        [JsonPropertyName("message")]
+        public string? Message { get; set; }
     }
 }
 
