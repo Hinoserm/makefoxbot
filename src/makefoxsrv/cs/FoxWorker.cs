@@ -87,8 +87,8 @@ namespace makefoxsrv
     public record NeverOOMIntegrated
     : IAdditionalScriptConfig
     {
-        public bool unet_enabled { get; set; } = false;
-        public bool vae_enabled { get; set; } = false;
+        public bool unet_enabled { get; set; } = true;
+        public bool vae_enabled { get; set; } = true;
 
         public string Key => "Never OOM Integrated";
 
@@ -1222,7 +1222,10 @@ namespace makefoxsrv
 
                     var scripts = await api.Scripts(ctsLoop.Token);
 
-                    if (settings.Width * settings.Height > 1048576) // Above 1024x1024
+                    var maxWidth = Math.Max(settings.Width, settings.hires_width);
+                    var maxHeight = Math.Max(settings.Height, settings.hires_height);
+
+                    if (maxWidth * maxHeight > 1048576) // Above 1024x1024
                         if (scripts.Txt2Img.Contains("never oom integrated")) // And script is supported
                             config.AdditionalScripts.Add(new NeverOOMIntegrated()); // Enable tiled VAE mode
 
