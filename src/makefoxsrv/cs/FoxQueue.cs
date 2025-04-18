@@ -844,10 +844,14 @@ namespace makefoxsrv
 
             if (type == QueueType.TXT2IMG && (settings.Width > 1024 || settings.Height > 1024))
             {
-                settings.hires_denoising_strength = 0.6M;
+                settings.hires_denoising_strength = 0.33M;
                 settings.hires_steps = 15;
                 settings.hires_width = settings.Width;
                 settings.hires_height = settings.Height;
+
+                settings.Width = Math.Max(512, settings.hires_width / 2);
+                settings.Height = Math.Max(512, settings.hires_height / 2);
+
                 settings.hires_enabled = true;
 
                 (settings.Width, settings.Height) = FoxImage.CalculateLimitedDimensions(settings.Width, settings.Height, 1024);

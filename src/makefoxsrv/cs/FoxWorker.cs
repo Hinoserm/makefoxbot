@@ -88,7 +88,7 @@ namespace makefoxsrv
     : IAdditionalScriptConfig
     {
         public bool unet_enabled { get; set; } = false;
-        public bool vae_enabled { get; set; } = false;
+        public bool vae_enabled { get; set; } = true;
 
         public string Key => "Never OOM Integrated";
 
@@ -1196,7 +1196,7 @@ namespace makefoxsrv
 
                     if (settings.hires_enabled)
                     {
-                        var upscaler = await api.Upscaler("Nearest", ctsLoop.Token);
+                        var upscaler = await api.Upscaler("4x_foolhardy_Remacri", ctsLoop.Token);
                         hiResConfig = new HighResConfig()
                         {
                             Width = settings.hires_width,

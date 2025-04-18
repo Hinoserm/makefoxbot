@@ -1534,10 +1534,10 @@ namespace makefoxsrv
                     replyToMessage: message
                 );
                 return;
-            } else if ((width * height) > 3686400 && !user.CheckAccessLevel(AccessLevel.ADMIN))
+            } else if ((width * height) > (2048*2048) && !user.CheckAccessLevel(AccessLevel.ADMIN))
             {
                 await t.SendMessageAsync(
-                    text: "❌ Total image pixel count cannot be greater than 1920x1920.",
+                    text: "❌ Total image pixel count cannot be greater than 2048x2048",
                     replyToMessage: message
                 );
                 return;

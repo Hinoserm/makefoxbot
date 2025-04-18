@@ -216,8 +216,7 @@ namespace makefoxsrv
 
             if (user.GetAccessLevel() < AccessLevel.ADMIN)
             {
-
-                if (q.Settings.Width >= 1920 || q.Settings.Height >= 1920)
+                if (q.Settings.Width >= 2048 || q.Settings.Height >= 2048)
                 {
                     await t.SendMessageAsync(
                         text: $"❌ This image is already at the maximum allowed resolution!  Enhancing again won't accomplish anything.  Please go back and enhance the original image if you'd like a different result.",
@@ -265,7 +264,7 @@ namespace makefoxsrv
                 if (q.OutputImageID is null)
                     throw new Exception("Missing output image ID.");
 
-                //(settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 1920);
+                //(settings.width, settings.height) = FoxImage.CalculateLimitedDimensions(settings.width * 2, settings.height * 2, 2048);
 
                 settings.Seed = -1;
                 settings.hires_denoising_strength = 0.33M;
@@ -277,7 +276,7 @@ namespace makefoxsrv
                 uint width = Math.Max(settings.Width, settings.hires_width);
                 uint height = Math.Max(settings.Height, settings.hires_height);
 
-                (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 1920);
+                (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 2048);
             }
             //else if (q.Type == FoxQueue.QueueType.TXT2IMG)
             //{
@@ -288,7 +287,7 @@ namespace makefoxsrv
             //    uint width = Math.Max(settings.Width, settings.hires_width);
             //    uint height = Math.Max(settings.Height, settings.hires_height);
 
-            //    (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 1920);
+            //    (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 2048);
             //}
             //else
             //    throw new Exception("Invalid queue type");
