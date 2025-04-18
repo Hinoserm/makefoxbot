@@ -10,7 +10,7 @@ public record TextToImageConfig
     public required PromptConfig Prompt { get; set; }
     public required SeedConfig Seed { get; set; }
     public required SamplerConfig Sampler { get; set; }
-    public required SchedulerConfig Scheduler { get; set; }
+    public SchedulerConfig? Scheduler { get; set; }
 
     public required IStableDiffusionModel Model { get; set; }
 
@@ -173,7 +173,7 @@ internal class TextToImageConfigRequest
         SeedResizeFromHeight = config.Seed.SeedResizeFromHeight;
         SamplingSteps = config.Sampler.SamplingSteps;
         SamplerName = config.Sampler.Sampler.Name;
-        SchedulerName = config.Scheduler.Scheduler.Name;
+        SchedulerName = config.Scheduler?.Scheduler.Name;
         CfgScale = (float?)config.Sampler.CfgScale;
         Eta = (float?)config.Sampler.Eta;
         Batches = config.Batches;

@@ -1137,7 +1137,6 @@ namespace makefoxsrv
                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
                     var model = await api.StableDiffusionModel(settings.Model, ctsLoop.Token);
-
                     var useSampler = settings.Sampler;
                     var useScheduler = "Automatic";
 
@@ -1147,8 +1146,21 @@ namespace makefoxsrv
                         useScheduler = "Karras";
                     }
 
+                    IScheduler? scheduler = null;
+
+                    try
+                    {
+                        scheduler = await api.Scheduler(useScheduler, ctsLoop.Token);
+                    }
+                    catch
+                    {
+                        // Not supported.  Skip.
+                    }
+
+                    if (scheduler is null)
+                        useSampler = settings.Sampler; //Use old-style sampler name.
+
                     var sampler = await api.Sampler(useSampler, ctsLoop.Token);
-                    var scheduler = await api.Scheduler(useScheduler, ctsLoop.Token);
 
                     var width = settings.Width;
                     var height = settings.Height;
@@ -1171,10 +1183,6 @@ namespace makefoxsrv
                     var config = new TextToImageConfig()
                     {
                         Model = model,
-
-                        Scheduler = new() {
-                            Scheduler = scheduler
-                        },
 
                         Prompt = new()
                         {
@@ -1200,6 +1208,9 @@ namespace makefoxsrv
                         },
                         HighRes = hiResConfig
                     };
+
+                    if (scheduler is not null)
+                        config.Scheduler = new() { Scheduler = scheduler };
 
                     if (qItem.RegionalPrompting)
                     {
@@ -1401,8 +1412,21 @@ namespace makefoxsrv
                 useScheduler = "Karras";
             }
 
+            IScheduler? scheduler = null;
+
+            try
+            {
+                scheduler = await api.Scheduler(useScheduler, cancellationToken);
+            }
+            catch
+            {
+                // Not supported.  Skip.
+            }
+
+            if (scheduler is null)
+                useSampler = settings.Sampler; //Use old-style sampler name.
+
             var sampler = await api.Sampler(useSampler, cancellationToken);
-            var scheduler = await api.Scheduler(useScheduler, cancellationToken);
 
             var img = new Base64EncodedImage(inputImage);
 
@@ -1411,11 +1435,6 @@ namespace makefoxsrv
                 Images = { img },
 
                 Model = model,
-
-                Scheduler = new()
-                {
-                    Scheduler = scheduler
-                },
 
                 Prompt = new()
                 {
@@ -1447,6 +1466,9 @@ namespace makefoxsrv
                     CfgScale = (double)settings.CFGScale
                 }
             };
+
+            if (scheduler is not null)
+                config.Scheduler = new() { Scheduler = scheduler };
 
             if (qItem.RegionalPrompting)
             {
