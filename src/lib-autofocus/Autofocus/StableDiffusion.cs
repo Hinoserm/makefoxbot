@@ -40,8 +40,9 @@ public class SDHttpException : HttpRequestException
     private static string CreateMessageFromResponseContent(HttpStatusCode statusCode, string responseContent)
     {
         var errorResponse = ParseErrorResponse(responseContent);
+        var errorMessage = errorResponse.Errors ?? errorResponse.Message;
         // Using Errors if available, else a generic message.
-        string message = string.IsNullOrWhiteSpace(errorResponse.Errors)
+        string message = string.IsNullOrWhiteSpace(errorMessage)
             ? $"HTTP Error: {statusCode}"
             : $"Error: {errorResponse.Errors}";
         return message;
