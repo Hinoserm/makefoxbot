@@ -1027,8 +1027,7 @@ namespace makefoxsrv
                         FoxLog.LogException(ex, $"Error running OnWorkerStop: {ex.Message}");
                     }
 
-                    if (qItem is not null)
-                        await this.Interrupt();
+                    await this.Interrupt();
 
                     FoxLog.WriteLine($"Worker {ID} - Shutdown.");
 
