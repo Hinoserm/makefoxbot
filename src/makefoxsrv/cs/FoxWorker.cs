@@ -408,7 +408,7 @@ namespace makefoxsrv
                 var finalUrl = new Uri(new Uri(address), "/sdapi/v1/interrupt");
 
                 // Make the HTTP POST request
-                var response = await httpClient.PostAsync(finalUrl, null, stopToken.Token);
+                var response = await httpClient.PostAsync(finalUrl, null);
                 response.EnsureSuccessStatusCode();
             }
             catch (Exception ex)
@@ -1027,7 +1027,8 @@ namespace makefoxsrv
                         FoxLog.LogException(ex, $"Error running OnWorkerStop: {ex.Message}");
                     }
 
-                    await this.Interrupt();
+                    if (qItem is not null)
+                        await this.Interrupt();
 
                     FoxLog.WriteLine($"Worker {ID} - Shutdown.");
 
