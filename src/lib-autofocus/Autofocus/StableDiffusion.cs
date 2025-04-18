@@ -44,7 +44,7 @@ public class SDHttpException : HttpRequestException
         // Using Errors if available, else a generic message.
         string message = string.IsNullOrWhiteSpace(errorMessage)
             ? $"HTTP Error: {statusCode}"
-            : $"Error: {errorResponse.Errors}";
+            : $"Error: {errorMessage}";
         return message;
     }
 
