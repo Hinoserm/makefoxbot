@@ -382,7 +382,7 @@ namespace makefoxsrv
 
                     try
                     {
-                        await worker.Interrupt();
+                        //await worker.Interrupt();
                         await worker.LoadModelInfo();
                         _= worker.LoadLoRAInfo();
                         await worker.SetOnlineStatus(true);
@@ -1370,14 +1370,7 @@ namespace makefoxsrv
                     {
                         await qItem.SetCancelled();
 
-                        using var httpClient = new HttpClient();
-
-                        // Construct the final URL
-                        var finalUrl = new Uri(new Uri(address), "/sdapi/v1/interrupt");
-
-                        // Make the HTTP POST request
-                        var response = await httpClient.PostAsync(finalUrl, null, stopToken.Token);
-                        response.EnsureSuccessStatusCode();
+                        await this.Interrupt();
 
                         OnTaskCancelled?.Invoke(this, new TaskEventArgs(qItem));
                     }
@@ -1394,10 +1387,14 @@ namespace makefoxsrv
                 {
                     // Graceful shutdown of the worker.
                     if (qItem is not null)
+                    {
+                        await this.Interrupt();
                         await qItem.SetError(ex);
+                    }
 
                     throw;
-                } else
+                }
+                else
                     await HandleError(ex);
             }
             finally
