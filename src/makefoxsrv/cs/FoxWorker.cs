@@ -87,7 +87,7 @@ namespace makefoxsrv
     public record NeverOOMIntegrated
     : IAdditionalScriptConfig
     {
-        public bool unet_enabled { get; set; } = true;
+        public bool unet_enabled { get; set; } = false;
         public bool vae_enabled { get; set; } = true;
 
         public string Key => "Never OOM Integrated";
