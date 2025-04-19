@@ -273,10 +273,10 @@ namespace makefoxsrv
 
                 settings.SelectedImage = q.OutputImageID.Value;
 
-                uint width = Math.Max(settings.Width, settings.hires_width);
-                uint height = Math.Max(settings.Height, settings.hires_height);
+                //uint width = Math.Max(settings.Width, settings.hires_width);
+                //uint height = Math.Max(settings.Height, settings.hires_height);
 
-                (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 2048);
+                (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(settings.Width * 2, settings.Height * 2, 2048);
             }
             //else if (q.Type == FoxQueue.QueueType.TXT2IMG)
             //{
