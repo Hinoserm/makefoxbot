@@ -1424,7 +1424,7 @@ namespace makefoxsrv
                       $"🪜Sampler: {settings.Sampler} ({settings.steps} steps)\r\n" +
                       $"🧑‍🎨CFG Scale: {settings.CFGScale}\r\n" +
                       $"👂Denoising Strength: {settings.DenoisingStrength}\r\n" +
-                      $"🧠Model: {settings.Model}\r\n" +
+                      $"🧠Model: {settings.ModelName}\r\n" +
                       $"🌱Seed: {settings.Seed}\r\n",
                 replyToMessage: message
             );

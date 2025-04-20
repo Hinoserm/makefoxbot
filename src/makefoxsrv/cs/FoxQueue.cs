@@ -275,7 +275,7 @@ namespace makefoxsrv
             var workers = FoxWorker.GetWorkers().Values;
 
             // Fetch the model by name using the new FoxModel method
-            var model = FoxModel.GetModelByName(settings.Model);
+            var model = FoxModel.GetModelByName(settings.ModelName);
 
             uint width = Math.Max(settings.Width, settings.hires_width);
             uint height = Math.Max(settings.Height, settings.hires_height);
@@ -411,7 +411,7 @@ namespace makefoxsrv
         public static FoxWorker? FindSuitableWorkerForTask(FoxQueue item)
         {
             // 1. Fetch the requested model
-            var model = FoxModel.GetModelByName(item.Settings.Model);
+            var model = FoxModel.GetModelByName(item.Settings.ModelName);
 
             uint width = Math.Max(item.Settings.Width, item.Settings.hires_width);
             uint height = Math.Max(item.Settings.Height, item.Settings.hires_height);
@@ -545,7 +545,7 @@ namespace makefoxsrv
 
             // 7. Idle workers already loaded with this model
             var idleWorkersWithModel = hasModelLoaded
-                .Where(w => w.LoadedModels.Contains(item.Settings.Model) && w.qItem == null)
+                .Where(w => w.LoadedModels.Contains(item.Settings.ModelName) && w.qItem == null)
                 .ToList();
 
             if (idleWorkersWithModel.Any())
@@ -850,7 +850,7 @@ namespace makefoxsrv
 
             if (type == QueueType.TXT2IMG && (settings.Width > 1024 || settings.Height > 1024))
             {
-                settings.hires_denoising_strength = 0.33M;
+                settings.hires_denoising_strength = 0.45M;
                 settings.hires_steps = 15;
                 settings.hires_enabled = true;
 

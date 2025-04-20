@@ -342,60 +342,59 @@ namespace makefoxsrv
         public static async Task LoadWorkers(CancellationToken cancellationToken)
         {
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
             await SQL.OpenAsync(cancellationToken);
 
-            MySqlCommand cmd = new MySqlCommand("SELECT * FROM workers WHERE enabled > 0", SQL);
+            using var cmd = new MySqlCommand("SELECT * FROM workers WHERE enabled > 0", SQL);
+            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
-            using (var reader = await cmd.ExecuteReaderAsync(cancellationToken))
+            if (!reader.HasRows)
+                throw new Exception("No workers available in the database.");
+
+            var setupTasks = new List<Task>();
+
+            while (await reader.ReadAsync(cancellationToken))
             {
-                if (!reader.HasRows)
-                    throw new Exception("No workers available in the database.");
+                int id = reader.GetInt32("id");
+                string url = reader.GetString("url");
+                string name = reader.GetString("name");
 
-                while (await reader.ReadAsync(cancellationToken))
+                FoxLog.WriteLine($"Loading worker {id} - {url}");
+
+                var worker = CreateWorker(id, url, name, cancellationToken);
+
+                if (!(reader["max_img_size"] is DBNull))
+                    worker.MaxImageSize = reader.GetInt32("max_img_size");
+
+                if (!(reader["max_img_steps"] is DBNull))
+                    worker.MaxImageSteps = reader.GetInt32("max_img_steps");
+
+                if (!(reader["regional_prompting"] is DBNull))
+                    worker.SupportsRegionalPrompter = reader.GetBoolean("regional_prompting");
+
+                if (!(reader["gpu_type"] is DBNull))
+                    worker.GPUType = reader.GetString("gpu_type");
+
+                if (!(reader["single_model"] is DBNull))
+                    worker.SingleModel = reader.GetString("single_model");
+
+                setupTasks.Add(Task.Run(async () =>
                 {
-                    int id = reader.GetInt32("id");
-                    string url = reader.GetString("url");
-                    string name = reader.GetString("name");
-
-                    FoxLog.WriteLine($"Loading worker {id} - {url}");
-
-                    var worker = CreateWorker(id, url, name, cancellationToken);
-
-
-                    if (!(reader["max_img_size"] is DBNull))
-                        worker.MaxImageSize = reader.GetInt32("max_img_size");
-
-                    if (!(reader["max_img_steps"] is DBNull))
-                        worker.MaxImageSteps = reader.GetInt32("max_img_steps");
-
-                    if (!(reader["regional_prompting"] is DBNull))
-                        worker.SupportsRegionalPrompter = reader.GetBoolean("regional_prompting");
-
-                    if (!(reader["gpu_type"] is DBNull))
-                        worker.GPUType = reader.GetString("gpu_type");
-
-                    if (!(reader["single_model"] is DBNull))
-                        worker.SingleModel = reader.GetString("single_model");
-
-                    await worker.SetStartDate();
-
                     try
                     {
-                        //await worker.Interrupt();
+                        await worker.SetStartDate();
+                        await worker.Interrupt();
                         await worker.LoadModelInfo();
-                        _= worker.LoadLoRAInfo();
+                        await worker.LoadLoRAInfo();
                         await worker.SetOnlineStatus(true);
                     }
                     catch (Exception ex)
                     {
                         FoxLog.LogException(ex);
                     }
-
-                    //_ = worker.Run(botClient);
-                    //_ = Task.Run(async () => await worker.Run());
-                }
+                }, cancellationToken));
             }
+
+            await Task.WhenAll(setupTasks);
         }
 
         public async Task Interrupt()
@@ -1092,10 +1091,10 @@ namespace makefoxsrv
                 var settings = qItem.Settings.Copy();
 
                 // Check if settings.model is in LoadedModels
-                if (!LoadedModels.Contains(settings.Model))
-                    FoxLog.WriteLine($"Switching model on {this.name} to {settings.Model}", LogLevel.DEBUG);
+                if (!LoadedModels.Contains(settings.ModelName))
+                    FoxLog.WriteLine($"Switching model on {this.name} to {settings.ModelName}", LogLevel.DEBUG);
 
-                this.LastUsedModel = settings.Model;
+                this.LastUsedModel = settings.ModelName;
 
                 Byte[] outputImage;
 
@@ -1163,7 +1162,7 @@ namespace makefoxsrv
 
                     //var cnet = await api.TryGetControlNet() ?? throw new NotImplementedException("no controlnet!");
 
-                    var model = await api.StableDiffusionModel(settings.Model, ctsLoop.Token);
+                    var model = await api.StableDiffusionModel(settings.ModelName, ctsLoop.Token);
                     var useSampler = settings.Sampler;
                     var useScheduler = "Automatic";
 
@@ -1196,7 +1195,7 @@ namespace makefoxsrv
 
                     if (settings.hires_enabled)
                     {
-                        var upscaler = await api.Upscaler("4x_foolhardy_Remacri", ctsLoop.Token);
+                        var upscaler = await api.Upscaler("Nearest", ctsLoop.Token);
                         hiResConfig = new HighResConfig()
                         {
                             Width = settings.hires_width,
@@ -1432,7 +1431,7 @@ namespace makefoxsrv
             if (this.api is null)
                 throw new Exception("API not currently available");
 
-            var model = await api.StableDiffusionModel(settings.Model, cancellationToken);
+            var model = await api.StableDiffusionModel(settings.ModelName, cancellationToken);
             var useSampler = settings.Sampler;
             var useScheduler = "Automatic";
 

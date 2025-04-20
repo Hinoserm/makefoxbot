@@ -486,15 +486,15 @@ namespace makefoxsrv
 
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
 
-            settings.Model = model.Name;
+            settings.ModelName = model.Name;
 
             await settings.Save();
 
-            await model.LoadModelMetadataFromDatabase(); // Refresh info in case it changed.
+            await model.RefreshModelSettingsAsync(); // Refresh info in case it changed.
 
             StringBuilder message = new StringBuilder();
 
-            message.AppendLine("✅ <b>Model selected:</b> " + settings.Model);
+            message.AppendLine("✅ <b>Model selected:</b> " + settings.ModelName);
 
             if (model.Description is not null)
             {
@@ -749,7 +749,7 @@ namespace makefoxsrv
                 sb.AppendLine($"🧑‍🎨CFG Scale: {q.Settings.CFGScale}");
                 if (q.Type == FoxQueue.QueueType.IMG2IMG)
                     sb.AppendLine($"👂Denoising Strength: {q.Settings.DenoisingStrength}");
-                sb.AppendLine($"🧠Model: {q.Settings.Model}");
+                sb.AppendLine($"🧠Model: {q.Settings.ModelName}");
 
                 if (q.Settings.variation_seed is not null && q.Settings.variation_strength is not null)
                 {

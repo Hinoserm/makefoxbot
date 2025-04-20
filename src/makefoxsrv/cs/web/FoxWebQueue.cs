@@ -165,7 +165,7 @@ namespace makefoxsrv
                     ["Steps"] = item.Settings.steps,
                     ["CFGScale"] = item.Settings.CFGScale,
                     ["DenoisingStrength"] = item.Settings.DenoisingStrength,
-                    ["Model"] = item.Settings.Model,
+                    ["Model"] = item.Settings.ModelName,
                     ["Seed"] = item.Settings.Seed,
                     ["Sampler"] = item.Settings.Sampler,
                     ["WorkerName"] = await FoxWorker.GetWorkerName(item.WorkerID),

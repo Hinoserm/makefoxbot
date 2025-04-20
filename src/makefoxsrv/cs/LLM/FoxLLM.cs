@@ -517,7 +517,7 @@ namespace makefoxsrv
 
                                     var settings = await FoxUserSettings.GetTelegramSettings(user, telegram.User, telegram.Chat);
 
-                                    settings.Model = model ?? "yiffymix_v52XL"; //"molKeunKemoXL";
+                                    settings.ModelName = model ?? "yiffymix_v52XL"; //"molKeunKemoXL";
                                     settings.CFGScale = 4.5M;
                                     settings.Prompt = prompt ?? "[empty]";
                                     settings.NegativePrompt = (negativePrompt ?? "");

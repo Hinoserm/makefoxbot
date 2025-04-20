@@ -150,12 +150,12 @@ namespace makefoxsrv
                 }
             }
 
-            var model = FoxModel.GetModelByName(settings.Model);
+            var model = FoxModel.GetModelByName(settings.ModelName);
 
             if (model is null || model.GetWorkersRunningModel().Count < 1)
             {
                 await t.SendMessageAsync(
-                    text: $"❌ There are no workers available to handle your currently selected model ({settings.Model}).  This can happen if the server was recently restarted or if a model was uninstalled.\r\n\r\nPlease try again in a moment or select a different /model.",
+                    text: $"❌ There are no workers available to handle your currently selected model ({settings.ModelName}).  This can happen if the server was recently restarted or if a model was uninstalled.\r\n\r\nPlease try again in a moment or select a different /model.",
                     replyToMessage: replyToMessage
                 );
 

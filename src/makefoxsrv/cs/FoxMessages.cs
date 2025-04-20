@@ -49,7 +49,7 @@ namespace makefoxsrv
                 var buttonLabel = (model.Value.IsPremium ? "⭐" : "") + $"{modelName} ({workerCount})";
                 var buttonData = $"/model {modelName}"; // Or any unique data you need to pass
 
-                if (modelName == settings.Model)
+                if (modelName == settings.ModelName)
                     buttonLabel += " ✅";
 
                 keyboardRows.Add(new TL.KeyboardButtonRow
@@ -221,7 +221,7 @@ namespace makefoxsrv
             sb.AppendLine($"🪜Sampler: {q.Settings.Sampler} ({q.Settings.steps} steps)");
             sb.AppendLine($"🧑‍🎨CFG Scale: {q.Settings.CFGScale}");
             sb.AppendLine($"👂Denoising Strength: {q.Settings.DenoisingStrength}");
-            sb.AppendLine($"🧠Model: {q.Settings.Model}");
+            sb.AppendLine($"🧠Model: {q.Settings.ModelName}");
             sb.AppendLine($"🌱Seed: {q.Settings.Seed}");
 
             if (q.WorkerID is not null)

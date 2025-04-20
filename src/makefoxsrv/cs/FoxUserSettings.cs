@@ -12,7 +12,8 @@ namespace makefoxsrv
         private uint? _width;
         private uint? _height;
         private decimal? _denoisingStrength;
-        private string? _model;
+        private string? _modelName;
+        private FoxModel? _model;
         private string? _sampler;
 
         public bool regionalPrompting = false;
@@ -67,10 +68,10 @@ namespace makefoxsrv
         }
 
         [DbColumn("model")]
-        public string Model
+        public string ModelName
         {
-            get => _model ?? FoxSettings.Get<string>("DefaultModel")!;
-            set => _model = value;
+            get => _modelName ?? FoxSettings.Get<string>("DefaultModel")!;
+            set => _modelName = value;
         }
 
         [DbColumn("sampler")]
@@ -126,7 +127,7 @@ namespace makefoxsrv
                 _width = this._width,
                 _height = this._height,
                 _denoisingStrength = this._denoisingStrength,
-                _model = this._model,
+                _modelName = this._modelName,
                 _sampler = this._sampler,
                 Seed = this.Seed,
                 SelectedImage = this.SelectedImage,
@@ -171,7 +172,7 @@ namespace makefoxsrv
                     cmd.Parameters.AddWithValue("height", this._height);
                     cmd.Parameters.AddWithValue("denoising_strength", this._denoisingStrength);
                     cmd.Parameters.AddWithValue("seed", this.Seed);
-                    cmd.Parameters.AddWithValue("model", this._model);
+                    cmd.Parameters.AddWithValue("model", this._modelName);
 
                     await cmd.ExecuteNonQueryAsync();
                 }
@@ -223,7 +224,7 @@ namespace makefoxsrv
                             if (!(reader["seed"] is DBNull))
                                 settings.Seed = Convert.ToInt32(reader["seed"]);
                             if (!(reader["model"] is DBNull))
-                                settings._model = Convert.ToString(reader["model"]);
+                                settings._modelName = Convert.ToString(reader["model"]);
                             if (!(reader["sampler"] is DBNull))
                                 settings._sampler = Convert.ToString(reader["sampler"]);
                         }
@@ -257,7 +258,7 @@ namespace makefoxsrv
                             if (!(reader["seed"] is DBNull))
                                 settings.Seed = Convert.ToInt32(reader["seed"]);
                             if (!(reader["model"] is DBNull))
-                                settings._model = Convert.ToString(reader["model"]);
+                                settings._modelName = Convert.ToString(reader["model"]);
                             if (!(reader["sampler"] is DBNull))
                                 settings._sampler = Convert.ToString(reader["sampler"]);
                         }
