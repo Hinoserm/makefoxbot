@@ -89,8 +89,6 @@ namespace makefoxsrv
         {
             foreach (var model in globalModels.Values)
             {
-                model._settingsCache = null;
-                model._settingsCacheTime = null;
                 _ = model.LoadAllSettingsAsync(); // Fire-and-forget refresh
             }
         }
@@ -138,9 +136,7 @@ namespace makefoxsrv
 
         public async Task RefreshModelSettingsAsync()
         {
-            if (_settingsCache is null ||
-                _settingsCacheTime is null ||
-                (DateTime.Now - _settingsCacheTime) > _settingsCacheDuration)
+            if (_settingsCache is null || _settingsCacheTime is null || (DateTime.Now - _settingsCacheTime) > _settingsCacheDuration)
             {
                 await LoadAllSettingsAsync();
             }
@@ -148,7 +144,10 @@ namespace makefoxsrv
 
         private T? TryConvertSetting<T>(string key)
         {
-            if (_settingsCache is not null && _settingsCache.TryGetValue(key, out var value))
+            if (_settingsCache is null)
+                throw new InvalidOperationException("Model settings are not initialized.");
+
+            if (_settingsCache.TryGetValue(key, out var value))
             {
                 try
                 {

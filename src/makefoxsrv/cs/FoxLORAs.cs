@@ -37,6 +37,9 @@ namespace makefoxsrv
         private static readonly Dictionary<string, List<LoraInfo>> _lorasByFilename = new(StringComparer.OrdinalIgnoreCase);
         public static bool LorasLoaded = false;
 
+        private static readonly object _hashLock = new();
+        private static readonly object _filenameLock = new();
+
         public static async Task StartupLoad()
         {
             var rootDir = FoxSettings.Get<string?>("LoraPath");
@@ -80,16 +83,22 @@ namespace makefoxsrv
 
                     await LoadLoraImageUrlsFromDB(lora);
 
-                    _lorasByHash[(hash, lora.Filename)] = lora;
-
-                    var filenameKey = lora.Filename;
-                    if (!_lorasByFilename.TryGetValue(filenameKey, out var list))
+                    lock (_hashLock)
                     {
-                        list = new List<LoraInfo>();
-                        _lorasByFilename[filenameKey] = list;
+                        _lorasByHash[(hash, lora.Filename)] = lora;
                     }
 
-                    list.Add(lora);
+                    lock (_filenameLock)
+                    {
+                        var filenameKey = lora.Filename;
+                        if (!_lorasByFilename.TryGetValue(filenameKey, out var list))
+                        {
+                            list = new List<LoraInfo>();
+                            _lorasByFilename[filenameKey] = list;
+                        }
+
+                        list.Add(lora);
+                    }
                 }
             }
 
@@ -111,8 +120,12 @@ namespace makefoxsrv
                 string originalName = match.Groups[1].Value;
                 string? extra = match.Groups[2].Success ? match.Groups[2].Value : null;
 
-                string? normalizedKey = _lorasByFilename.Keys
-                    .FirstOrDefault(k => string.Equals(k, originalName, StringComparison.OrdinalIgnoreCase));
+                string? normalizedKey = null;
+
+                lock (_filenameLock)
+                {
+                    normalizedKey = _lorasByFilename.Keys.FirstOrDefault(k => string.Equals(k, originalName, StringComparison.OrdinalIgnoreCase));
+                }
 
                 if (normalizedKey != null)
                 {
@@ -162,10 +175,13 @@ namespace makefoxsrv
                 var nameWithoutExt = Path.GetFileNameWithoutExtension(file);
 
                 // Skip hashing if filename already known
-                if (_lorasByFilename.TryGetValue(nameWithoutExt, out var existingList) &&
-                    existingList.Any(l => l.Filename.Equals(nameWithoutExt, StringComparison.OrdinalIgnoreCase)))
+                lock (_filenameLock)
                 {
-                    continue;
+                    if (_lorasByFilename.TryGetValue(nameWithoutExt, out var existingList) &&
+                        existingList.Any(l => l.Filename.Equals(nameWithoutExt, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
                 }
 
                 await semaphore.WaitAsync();
@@ -176,8 +192,11 @@ namespace makefoxsrv
                     {
                         var hash = ComputeSHA256(file);
 
-                        if (_lorasByHash.ContainsKey((hash, nameWithoutExt)))
-                            return;
+                        lock (_hashLock)
+                        {
+                            if (_lorasByHash.ContainsKey((hash, nameWithoutExt)))
+                                return;
+                        }
 
                         var lora = new LoraInfo
                         {
@@ -215,7 +234,10 @@ namespace makefoxsrv
                             insertCmd.ExecuteNonQuery();
                         }
 
-                        _lorasByHash[(hash, lora.Filename)] = lora;
+                        lock (_hashLock)
+                        {
+                            _lorasByHash[(hash, lora.Filename)] = lora;
+                        }
 
                         lock (_lorasByFilename)
                         {
@@ -517,7 +539,16 @@ namespace makefoxsrv
 
                 var scored = new List<(int Score, LoraInfo Info)>();
 
-                foreach (var loraList in _lorasByFilename.Values)
+                List<List<LoraInfo>> loraSnapshot;
+
+                lock (_filenameLock)
+                {
+                    loraSnapshot = _lorasByFilename.Values
+                        .Select(l => new List<LoraInfo>(l)) // clone each list to be safe
+                        .ToList();
+                }
+
+                foreach (var loraList in loraSnapshot)
                 {
                     foreach (var info in loraList)
                     {
@@ -658,10 +689,15 @@ namespace makefoxsrv
                 .Where(kv => kv.Key.Hash == hash)
                 .Select(kv => kv.Value);
 
-        public static IReadOnlyList<LoraInfo> GetLorasByFilename(string filenameWithoutExtension) =>
-            _lorasByFilename.TryGetValue(filenameWithoutExtension, out var list)
-                ? list
-                : Array.Empty<LoraInfo>();
+        public static IReadOnlyList<LoraInfo> GetLorasByFilename(string filenameWithoutExtension)
+        {
+            lock (_filenameLock)
+            {
+                return _lorasByFilename.TryGetValue(filenameWithoutExtension, out var list)
+                    ? list
+                    : Array.Empty<LoraInfo>();
+            }
+        }
 
         private class FoxWorkerComparer : IEqualityComparer<FoxWorker>
         {
