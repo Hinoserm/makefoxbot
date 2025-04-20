@@ -54,11 +54,6 @@ namespace makefoxsrv
             FileName = fileName;
             Config = config;
             workersRunningModel = new HashSet<int>();
-
-            if (!globalModels.ContainsKey(Name))
-            {
-                globalModels[Name] = this;
-            }
         }
 
         public void AddWorker(int workerId)
