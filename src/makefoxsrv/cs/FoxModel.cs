@@ -39,6 +39,8 @@ namespace makefoxsrv
         private static readonly TimeSpan _settingsCacheDuration = TimeSpan.FromHours(1);
         private Dictionary<string, string>? _settingsCache = null;
 
+        private static readonly object _modelLock = new();
+
         // Workers that are running this model
         private HashSet<int> workersRunningModel;
 
@@ -66,12 +68,26 @@ namespace makefoxsrv
 
         public static async Task<FoxModel> GetOrCreateModel(string name, string hash, string sha256, string title, string fileName, string config)
         {
-            if (globalModels.TryGetValue(name, out var existing))
-                return existing;
+            lock (_modelLock)
+            {
+                if (globalModels.TryGetValue(name, out var existing))
+                    return existing;
+            }
 
+            // Create and load outside the lock
             var newModel = new FoxModel(name, hash, sha256, title, fileName, config);
             await newModel.LoadAllSettingsAsync();
-            return newModel;
+
+            lock (_modelLock)
+            {
+                // Double-check insert in case another thread beat us to it while we loaded
+                if (!globalModels.ContainsKey(name))
+                {
+                    globalModels[name] = newModel;
+                }
+
+                return globalModels[name];
+            }
         }
 
         public static void ClearCache()
