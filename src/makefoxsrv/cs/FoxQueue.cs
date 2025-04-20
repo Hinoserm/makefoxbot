@@ -829,6 +829,12 @@ namespace makefoxsrv
             }
         }
 
+        private static (uint width, uint height) SnapDimensionsToMultiple((uint width, uint height) dimension, uint multiple = 8)
+        {
+            uint Snap(uint value) => (value / multiple) * multiple;
+            return (Snap(dimension.width), Snap(dimension.height));
+        }
+
         public static async Task<FoxQueue> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings,
                                                 QueueType type, int messageID, Message? replyToMessage = null, bool enhanced = false,
                                                 FoxQueue? originalTask = null, TimeSpan? delay = null, QueueStatus status = QueueStatus.PENDING)
@@ -846,15 +852,10 @@ namespace makefoxsrv
             {
                 settings.hires_denoising_strength = 0.33M;
                 settings.hires_steps = 15;
-                settings.hires_width = settings.Width;
-                settings.hires_height = settings.Height;
-
-                settings.Width = Math.Max(512, settings.hires_width / 2);
-                settings.Height = Math.Max(512, settings.hires_height / 2);
-
                 settings.hires_enabled = true;
 
-                (settings.Width, settings.Height) = FoxImage.CalculateLimitedDimensions(settings.Width, settings.Height, 1024);
+                (settings.hires_width, settings.hires_height) = SnapDimensionsToMultiple((settings.Width, settings.Height), 16);
+                (settings.Width, settings.Height) = FoxImage.CalculateLimitedDimensions(settings.hires_width / 2, settings.hires_height / 2, 1024);
             }
 
             if (settings.Seed == -1)

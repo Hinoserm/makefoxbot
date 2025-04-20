@@ -1203,7 +1203,8 @@ namespace makefoxsrv
                             Height = settings.hires_height,
                             DenoisingStrength = (double)settings.hires_denoising_strength,
                             Upscaler = upscaler,
-                            Steps = settings.hires_steps
+                            Steps = settings.hires_steps,
+                            CfgScale = (float)settings.CFGScale,
                         };
                     }
 

@@ -57,6 +57,7 @@ public record HighResConfig
     public required uint Width { get; set; }
     public required uint Height { get; set; }
     public uint Steps { get; set; } = 0;
+    public float? CfgScale { get; set; }
 }
 
 internal class TextToImageConfigRequest
@@ -140,6 +141,9 @@ internal class TextToImageConfigRequest
     [JsonPropertyName("hr_second_pass_steps"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public uint? UpscaleSteps { get; init; }
 
+    [JsonPropertyName("hr_cfg"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? UpscaleCfg { get; init; }
+
 
     [JsonPropertyName("script_name"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ScriptName { get; init; }
@@ -188,6 +192,7 @@ internal class TextToImageConfigRequest
             UpscaleWidth = config.HighRes.Width;
             UpscaleHeight = config.HighRes.Height;
             UpscaleSteps = config.HighRes.Steps;
+            UpscaleCfg = config.HighRes.CfgScale;
         }
 
         if (config.Script != null)
