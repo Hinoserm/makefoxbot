@@ -172,10 +172,15 @@ namespace makefoxsrv
         public static FoxModel? GetModelByName(string modelName) =>
             globalModels.TryGetValue(modelName, out var model) ? model : null;
 
-        public static Dictionary<string, FoxModel> GetAvailableModels() =>
-            globalModels.Values
-                .Where(m => m.workersRunningModel.Any())
-                .ToDictionary(m => m.Name, m => m);
+        public static Dictionary<string, FoxModel> GetAvailableModels()
+        {
+            lock (_modelLock)
+            {
+                return globalModels.Values
+                    .Where(m => m.workersRunningModel.Any())
+                    .ToDictionary(m => m.Name, m => m);
+            }
+        }
 
         public List<int> GetWorkersRunningModel() => workersRunningModel.ToList();
 
