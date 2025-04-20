@@ -85,12 +85,17 @@ namespace makefoxsrv
             }
         }
 
-        public static void ClearCache()
+        public static long ClearCache()
         {
+            long count = 0;
+
             foreach (var model in globalModels.Values)
             {
                 _ = model.LoadAllSettingsAsync(); // Fire-and-forget refresh
+                count++;
             }
+
+            return count;
         }
 
         public async Task LoadAllSettingsAsync()
