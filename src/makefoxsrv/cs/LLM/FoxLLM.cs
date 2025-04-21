@@ -397,7 +397,7 @@ namespace makefoxsrv
                 // Fetch chat history dynamically, directly as a List<object>
                 var chatHistory = await FoxLLMConversation.FetchConversationAsync(user, 12000);
 
-                string llmModel = "meta-llama/llama-3.3-70b-instruct"; // "meta-llama/llama-3.3-70b-instruct"; // "x-ai/grok-2-1212"; //"mistralai/mistral-large-2411"; //"google/gemini-2.0-flash-001"; //"meta-llama/llama-3.3-70b-instruct"; //"meta-llama/llama-3.3-70b-instruct";
+                string llmModel = "deepseek/deepseek-chat-v3-0324"; // "meta-llama/llama-3.3-70b-instruct"; // "x-ai/grok-2-1212"; //"mistralai/mistral-large-2411"; //"google/gemini-2.0-flash-001"; //"meta-llama/llama-3.3-70b-instruct"; //"meta-llama/llama-3.3-70b-instruct";
 
                 var maxTokens = 512;
 
@@ -429,10 +429,10 @@ namespace makefoxsrv
                     max_tokens = maxTokens,
                     messages = llmMessages,
                     tools = new object[] { generateImageTool, rememberTool },
-                    temperature = 0.75,
-                    top_p = 0.85,
-                    frequency_penalty = 0.5,
-                    presence_penalty = 0.3,
+                    //temperature = 0.75,
+                    //top_p = 0.85,
+                    //frequency_penalty = 0.5,
+                    //presence_penalty = 0.3,
                     stream = false
                     /* provider = new
                     {

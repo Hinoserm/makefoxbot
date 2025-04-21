@@ -835,6 +835,25 @@ namespace makefoxsrv
             return (Snap(dimension.width), Snap(dimension.height));
         }
 
+        private static (uint newWidth, uint newHeight) CalculateBaseResolution(uint targetWidth, uint targetHeight, uint maxBaseDim = 1024)
+        {
+            if (targetWidth == 0 || targetHeight == 0)
+                throw new ArgumentException("Target dimensions must be non‑zero.", nameof(targetWidth));
+
+            // figure out how much we need to shrink the larger dimension
+            double widthRatio = (double)targetWidth / maxBaseDim;
+            double heightRatio = (double)targetHeight / maxBaseDim;
+            // use the ceiling so that after division neither side exceeds maxBaseDim
+            double scale = Math.Ceiling(Math.Max(widthRatio, heightRatio));
+            if (scale < 1) scale = 1;
+
+            // divide – using Round (or Floor) to get an integer pixel count
+            uint baseWidth = (uint)Math.Round(targetWidth / scale);
+            uint baseHeight = (uint)Math.Round(targetHeight / scale);
+
+            return (baseWidth, baseHeight);
+        }
+
         public static async Task<FoxQueue> Add(FoxTelegram telegram, FoxUser user, FoxUserSettings taskSettings,
                                                 QueueType type, int messageID, Message? replyToMessage = null, bool enhanced = false,
                                                 FoxQueue? originalTask = null, TimeSpan? delay = null, QueueStatus status = QueueStatus.PENDING)
@@ -855,7 +874,7 @@ namespace makefoxsrv
                 settings.hires_enabled = true;
 
                 (settings.hires_width, settings.hires_height) = SnapDimensionsToMultiple((settings.Width, settings.Height), 16);
-                (settings.Width, settings.Height) = FoxImage.CalculateLimitedDimensions(settings.hires_width / 2, settings.hires_height / 2, 1024);
+                (settings.Width, settings.Height) = SnapDimensionsToMultiple(CalculateBaseResolution(settings.hires_width, settings.hires_height, 1024), 8);
             }
 
             if (settings.Seed == -1)
