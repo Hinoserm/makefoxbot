@@ -875,6 +875,9 @@ namespace makefoxsrv
 
                 (settings.hires_width, settings.hires_height) = SnapDimensionsToMultiple((settings.Width, settings.Height), 16);
                 (settings.Width, settings.Height) = SnapDimensionsToMultiple(CalculateBaseResolution(settings.hires_width, settings.hires_height, 1024), 8);
+
+                if (settings.Width < 128 || settings.Height < 128)
+                    throw new Exception("Invalid image dimensions; resulting base image would be too small");
             }
 
             if (settings.Seed == -1)
