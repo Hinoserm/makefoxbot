@@ -15,6 +15,7 @@ using TL;
 using System.Collections;
 using System.Text.RegularExpressions;
 using System.Reflection.Metadata.Ecma335;
+using static makefoxsrv.FoxModel;
 
 // Functions and commands specific to generating images
 
@@ -166,6 +167,42 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ No workers are available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
+                    replyToMessage: replyToMessage
+                );
+
+                return null;
+            }
+
+            var modelAllowed = await model.IsUserAllowed(user);
+
+            if (!modelAllowed)
+            {
+                var reason = modelAllowed.Reason;
+                string message = "❌ The selected model is not available right now.  Please try a different /model.";
+
+                if (reason.HasFlag(DenyReason.RestrictedModel))
+                {
+                    message = "❌ This model is currently restricted and cannot be used.  Please try a different /model.";
+                }
+                else if (reason.HasFlag(DenyReason.WeeklyLimitReached))
+                {
+                    message =
+                        "❌ You've hit your weekly quota for premium models.\r\n\r\n" +
+                        "ℹ️ Free users are limited to 100 images across all premium models per week. " +
+                        "Your quota resets every Monday at midnight Central Time (GMT-6).\r\n\r\n" +
+                        "✨ Consider a /membership to unlock additional features, or try a free /model.";
+                }
+                else if (reason.HasFlag(DenyReason.DailyLimitReached))
+                {
+                    message =
+                        "❌ You've reached today's limit for this model.\r\n\r\n" +
+                        "ℹ️ Each premium model is limited to 10 images per day for free users. " +
+                        "This limit resets at midnight Central Time (GMT-6).\r\n\r\n" +
+                        "✨ Consider a /membership to unlock additional features, or try a free /model.";
+                }
+
+                await t.SendMessageAsync(
+                    text: message,
                     replyToMessage: replyToMessage
                 );
 
