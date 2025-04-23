@@ -206,6 +206,8 @@ namespace makefoxsrv
                     replyToMessage: replyToMessage
                 );
 
+                FoxLog.WriteLine($"User {user.UID} attempted to use restricted model {model.Name}");
+
                 return null;
             }
 
