@@ -316,7 +316,7 @@ namespace makefoxsrv
             if (userDailyCount >= 10)
                 reason |= DenyReason.DailyLimitReached;
 
-            if (userWeeklyCount >= 4)
+            if (userWeeklyCount >= 100)
                 reason |= DenyReason.WeeklyLimitReached;
 
             return new(reason == DenyReason.None, reason);
