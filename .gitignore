@@ -380,3 +380,4 @@ FodyWeavers.xsd
 /models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_fp16.onnx
 /models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_int8.onnx
 /models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_fp32.onnx
+/data/requests/lora
