@@ -81,6 +81,9 @@ public interface IMySettings
 
     [Option(Alias = "LLM.API_KEY")]
     string? llmApiKey { get; }
+
+    [Option(Alias = "CivitAI.API_KEY")]
+    string? CivitaiApiKey { get; }
 }
 
 public static class TimeSpanExtensions

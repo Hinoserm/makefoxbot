@@ -686,7 +686,7 @@ namespace makefoxsrv
 
         public static IEnumerable<LoraInfo> GetLorasByHash(string hash) =>
             _lorasByHash
-                .Where(kv => kv.Key.Hash == hash)
+                .Where(kv => string.Equals(kv.Key.Hash, hash, StringComparison.OrdinalIgnoreCase))
                 .Select(kv => kv.Value);
 
         public static IReadOnlyList<LoraInfo> GetLorasByFilename(string filenameWithoutExtension)

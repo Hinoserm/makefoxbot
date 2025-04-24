@@ -305,7 +305,7 @@ namespace makefoxsrv
         public async Task<LimitCheckResult> IsUserAllowed(FoxUser user)
         {
 
-            if (!IsPremium || user.CheckAccessLevel(AccessLevel.PREMIUM))
+            if (!this.IsPremium || user.CheckAccessLevel(AccessLevel.PREMIUM))
                 return new(true, DenyReason.None);
 
             var reason = DenyReason.None;

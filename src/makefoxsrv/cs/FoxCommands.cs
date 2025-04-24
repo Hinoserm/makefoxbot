@@ -90,7 +90,8 @@ namespace makefoxsrv
             { "/styles",      CmdStyles },
             //--------------- -----------------
             { "/stickerify",  CmdStickerify },
-            { "/tags",        CmdTag }
+            { "/tags",        CmdTag },
+            { "/request",     CmdRequest },
         };
 
         public static async Task HandleCommand(FoxTelegram t, Message message)
@@ -182,12 +183,15 @@ namespace makefoxsrv
 
                 if (t.Chat is not null && !await FoxGroupAdmin.CheckGroupTopicAllowed(t.Chat, t.User, message.ReplyHeader?.TopicID ?? 0))
                 {
-                    await t.SendMessageAsync(
-                        text: "❌ Commands are not permitted in this topic.",
-                            replyToMessage: message
-                        );
+                    if (!fUser.CheckAccessLevel(AccessLevel.ADMIN))
+                    {
+                        await t.SendMessageAsync(
+                            text: "❌ Commands are not permitted in this topic.",
+                                replyToMessage: message
+                            );
 
-                    return;
+                        return;
+                    }
                 }
 
                 //FoxLog.WriteLine($"{message.ID}: Running command for UID {fUser?.UID}...");
@@ -444,13 +448,275 @@ namespace makefoxsrv
             }
         }
 
+        //[CommandDescription("Run a standard txt2img generation.")]
+        //[CommandArguments("[<prompt>]")]
+        private static async Task CmdRequest(FoxTelegram t, Message message, FoxUser user, String? argument)
+        {
+            var results = FoxCivitaiRequests.ParseFromMessage(message.message, user);
+
+            if (results.Count == 0)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Error: No valid Civitai model links found in the message.",
+                    replyToMessage: message
+                );
+                return;
+            }
+
+            var outMsg = await t.SendMessageAsync(
+                text: "⏳ Downloading info from CivitAI. Please wait...",
+                replyToMessage: message
+            );
+
+            var newResults = await FoxCivitaiRequests.FetchAllVersionsAsync(results);
+
+            if (newResults.Count == 0)
+            {
+                await t.EditMessageAsync(
+                    text: "❌ Error: Unable to download CivitAI info.  Please try again later.",
+                    id: outMsg.ID
+                );
+
+                return;
+            }
+
+            var allowedTypes = new[]
+            {
+                FoxCivitaiRequests.CivitaiAssetType.LORA,
+                //FoxCivitaiRequests.CivitaiAssetType.Embedding
+            };
+
+            var groupedResults = FoxCivitaiRequests.GroupByType(newResults);
+
+            var sb = new StringBuilder();
+
+            sb.AppendLine("🦊 I will attempt to automatically download your requests from CivitAI.  I always automatically download all sub-models and versions of each link.");
+            sb.AppendLine();
+
+            // Remove already installed LORAs
+            if (groupedResults.TryGetValue(FoxCivitaiRequests.CivitaiAssetType.LORA, out var loraRequests) && loraRequests.Count > 0)
+            {
+                var alreadyInstalled = FoxCivitaiRequests.FetchAlreadyInstalled(loraRequests);
+
+                if (alreadyInstalled.Count > 0)
+                {
+                    var filtered = loraRequests
+                        .Where(x => !alreadyInstalled.Any(y => y.ModelId == x.ModelId))
+                        .ToList();
+
+                    if (filtered.Count > 0)
+                    {
+                        groupedResults[FoxCivitaiRequests.CivitaiAssetType.LORA] = filtered;
+                    }
+                    else
+                    {
+                        groupedResults.Remove(FoxCivitaiRequests.CivitaiAssetType.LORA);
+                    }
+
+                    sb.AppendLine($"⚠️ You have requested {alreadyInstalled.Count} LORA(s) that are already installed and will not be installed again.");
+                    sb.AppendLine();
+                }
+            }
+
+            // Warn and remove unsupported types
+            var unsupportedTypes = groupedResults
+                .Where(kvp => !allowedTypes.Contains(kvp.Key) && kvp.Value.Count > 0)
+                .ToList(); // Avoid modifying the dictionary while enumerating
+
+            foreach (var kvp in unsupportedTypes)
+            {
+                sb.AppendLine($"⚠️ You have requested {kvp.Value.Count} item(s) of type {kvp.Key}, which are not supported and will not be downloaded.");
+                sb.AppendLine();
+                groupedResults.Remove(kvp.Key);
+            }
+
+            // Remove items with missing SHA256, DownloadUrl, or invalid file extension
+            var invalidItems = new List<(FoxCivitaiRequests.CivitaiAssetType Type, FoxCivitaiRequests.CivitaiItem Item)>();
+
+            foreach (var kvp in groupedResults.ToList())
+            {
+                var validItems = new List<FoxCivitaiRequests.CivitaiItem>();
+
+                foreach (var item in kvp.Value)
+                {
+                    bool hasHash = !string.IsNullOrWhiteSpace(item.SHA256Hash);
+                    bool hasUrl = !string.IsNullOrWhiteSpace(item.DownloadUrl);
+                    bool isSafeTensor = !string.IsNullOrWhiteSpace(item.FileName) &&
+                                        item.FileName.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase);
+
+                    if (hasHash && hasUrl && isSafeTensor)
+                        validItems.Add(item);
+                    else
+                        invalidItems.Add((kvp.Key, item));
+                }
+
+                if (validItems.Count > 0)
+                    groupedResults[kvp.Key] = validItems;
+                else
+                    groupedResults.Remove(kvp.Key);
+            }
+
+            // Warn about dropped invalids
+            if (invalidItems.Count > 0)
+            {
+                var groupedByType = invalidItems
+                    .GroupBy(i => i.Type);
+
+                foreach (var group in groupedByType)
+                {
+                    var type = group.Key;
+                    var items = group.Select(x => x.Item)
+                        .Where(x => !string.IsNullOrWhiteSpace(x.FileName))
+                        .Select(x => System.IO.Path.GetFileNameWithoutExtension(x.FileName))
+                        .Distinct()
+                        .OrderBy(x => x)
+                        .ToList();
+
+                    var displayNames = items.Take(5).ToList();
+                    var remaining = items.Count - displayNames.Count;
+
+                    var line = $"⚠️ Skipped {group.Count()} item(s) of type {type} due to missing or unsupported files: {string.Join(", ", displayNames)}";
+
+                    if (remaining > 0)
+                    {
+                        line += $" (and {remaining} others)";
+                    }
+
+                    sb.AppendLine(line);
+                    sb.AppendLine();
+                }
+            }
+
+            // Check if any allowed types are present
+            bool hasAllowedItems = groupedResults.Keys.Any(k => allowedTypes.Contains(k));
+
+            if (!hasAllowedItems)
+            {
+                var allowedList = string.Join(", ", allowedTypes.Select(t => t.ToString()));
+
+                sb.Append($"❌ Error: No downloadable items found in the message.");
+                sb.AppendLine($" You may only request the following types using this automated system: {allowedList}.");
+
+                await t.EditMessageAsync(
+                    text: sb.ToString(),
+                    id: outMsg.ID
+                );
+
+                return;
+            }
+
+            var existingRequests = FoxCivitaiRequests.FetchCivitaiItemsAsync();
+
+            // Exclude already requested items
+
+            var existingHashes = (await FoxCivitaiRequests.FetchCivitaiItemsAsync())
+                .Where(x => !string.IsNullOrWhiteSpace(x.SHA256Hash))
+                .Select(x => x.SHA256Hash!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Flatten everything into one list and find conflicts
+            var conflicting = groupedResults
+                .SelectMany(kvp => kvp.Value.Select(item => (Type: kvp.Key, Item: item)))
+                .Where(x => !string.IsNullOrWhiteSpace(x.Item.SHA256Hash) && existingHashes.Contains(x.Item.SHA256Hash!))
+                .ToList();
+
+            // Remove the conflicting items from groupedResults
+            foreach (var (type, item) in conflicting)
+            {
+                groupedResults[type].Remove(item);
+                if (groupedResults[type].Count == 0)
+                    groupedResults.Remove(type);
+            }
+
+            // Report skipped items
+            if (conflicting.Count > 0)
+            {
+                foreach (var group in conflicting.GroupBy(x => x.Type))
+                {
+                    var names = group.Select(x => System.IO.Path.GetFileNameWithoutExtension(x.Item.FileName ?? ""))
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Distinct()
+                        .OrderBy(x => x)
+                        .ToList();
+
+                    var display = names.Take(5).ToList();
+                    var remaining = names.Count - display.Count;
+
+                    var line = $"⚠️ Skipped {group.Count()} {group.Key} item(s) already requested or installed: {string.Join(", ", display)}";
+                    if (remaining > 0)
+                        line += $" (and {remaining} others)";
+
+                    sb.AppendLine(line);
+                    sb.AppendLine();
+                }
+            }
+
+            // Check and rename conflicting filenames
+
+            foreach (var (type, items) in groupedResults)
+            {
+                var renames = FoxCivitaiRequests.EnsureUniqueFilenames(items);
+
+                if (renames.Count > 0)
+                {
+                    sb.AppendLine($"⚠️ The following {type} request(s) had conflicting filenames and were renamed:");
+
+                    foreach (var (original, updated) in renames)
+                        sb.AppendLine($"{original} → {updated}");
+
+                    sb.AppendLine();
+                }
+            }
+
+            // Process allowed types
+            foreach (var type in allowedTypes)
+            {
+                if (groupedResults.TryGetValue(type, out var items) && items.Count > 0)
+                {
+                    var names = items
+                        .Where(x => !string.IsNullOrWhiteSpace(x.FileName))
+                        .Select(x => System.IO.Path.GetFileNameWithoutExtension(x.FileName))
+                        .Distinct()
+                        .OrderBy(x => x)
+                        .ToList();
+
+                    var displayNames = names.Take(5).ToList();
+                    var remaining = names.Count - displayNames.Count;
+
+                    var line = $"ℹ️ You are requesting {items.Count} {type}s to be installed: {string.Join(", ", displayNames)}";
+
+                    if (remaining > 0)
+                    {
+                        line += $" (and {remaining} others)";
+                    }
+
+                    sb.AppendLine(line);
+                    sb.AppendLine();
+                }
+            }
+
+            if (groupedResults.Count > 0)
+                sb.AppendLine("✅ Your requests will be installed once approved by staff.");
+            else
+                sb.AppendLine("❌ Nothing to do.  Aborting.");
+
+            await t.EditMessageAsync(
+                text: sb.ToString(),
+                id: outMsg.ID
+            );
+
+            foreach (var (type, items) in groupedResults)
+            {
+                await FoxCivitaiRequests.InsertCivitaiItemsAsync(items);
+            }
+        }
+
         [CommandDescription("Show your recent history")]
         [CommandArguments("")]
         private static async Task CmdHistory(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             await FoxMessages.SendHistory(t, user, argument, message.ID);
         }
-
 
         [CommandDescription("Purchase a membership")]
         [CommandArguments("")]
