@@ -454,6 +454,19 @@ namespace makefoxsrv
         {
             var results = FoxCivitaiRequests.ParseFromMessage(message.message, user);
 
+            TL.Message? replyMessage = await t.GetReplyMessage(message);
+
+            if (replyMessage is not null && !String.IsNullOrEmpty(replyMessage.message))
+            {
+                var replyUser = await FoxUser.GetByTelegramUser(new TL.User() { id = replyMessage.Peer.ID }, false);
+
+                var replyResults = FoxCivitaiRequests.ParseFromMessage(replyMessage.message, replyUser ?? user);
+                if (replyResults.Count > 0)
+                {
+                    results.AddRange(replyResults);
+                }
+            }
+
             if (results.Count == 0)
             {
                 await t.SendMessageAsync(
