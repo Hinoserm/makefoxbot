@@ -39,6 +39,8 @@ namespace makefoxsrv
             public FoxUser? User { get; set; }
 
             public DateTime? DateAdded { get; set; }
+            public DateTime? DateInstalled { get; set; }
+            public string? FilePath { get; set; }
 
             public CivitaiItem(int modelId, int? versionId = null)
             {
@@ -62,8 +64,8 @@ namespace makefoxsrv
                     "pony" => "sdxl/pony",
                     "illustrious" => "sdxl/illustrious",
                     "sdxl lightning" => "sdxl/lightning",
-                    "sdxl 1.0" => "sdxl",
-                    "sdxl" => "sdxl",
+                    "sdxl 1.0" => "sdxl/other",
+                    "sdxl" => "sdxl/other",
                     _ when normalized.StartsWith("sdxl ") => "sdxl/other",
                     _ => "other"
                 };
@@ -390,13 +392,15 @@ namespace makefoxsrv
 
             const string query = @"
                 INSERT INTO civitai_requests (
-                    hash, filename, type, download_url, file_path,
+                    hash, filename, type, download_url,
                     base_model, model_name, description, trigger_words,
-                    civitai_model_id, civitai_version_id, date_added, json_raw, uid
+                    civitai_model_id, civitai_version_id, date_added,
+                    json_raw, uid, file_path, date_installed
                 ) VALUES (
-                    @hash, @filename, @type, @download_url, NULL,
+                    @hash, @filename, @type, @download_url,
                     @base_model, @model_name, @description, @trigger_words,
-                    @model_id, @version_id, @date_added, @json_raw, @uid
+                    @model_id, @version_id, @date_added,
+                    @json_raw, @uid, @file_path, @date_installed
                 )
                 ON DUPLICATE KEY UPDATE
                     filename = VALUES(filename),
@@ -409,6 +413,9 @@ namespace makefoxsrv
                     civitai_model_id = VALUES(civitai_model_id),
                     civitai_version_id = VALUES(civitai_version_id),
                     json_raw = VALUES(json_raw),
+                    date_added = VALUES(date_added),
+                    date_installed = VALUES(date_installed),
+                    file_path = VALUES(file_path),
                     uid = VALUES(uid);";
 
             try
@@ -432,6 +439,8 @@ namespace makefoxsrv
                     cmd.Parameters.AddWithValue("@model_id", item.ModelId);
                     cmd.Parameters.AddWithValue("@version_id", item.VersionId ?? (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@date_added", item.DateAdded ?? DateTime.Now);
+                    cmd.Parameters.AddWithValue("@date_installed", item.DateInstalled ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@file_path", item.FilePath ?? (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@json_raw", item.RawJson ?? (object)DBNull.Value);
                     cmd.Parameters.AddWithValue("@uid", item.User?.UID ?? (object)DBNull.Value);
 
@@ -462,9 +471,10 @@ namespace makefoxsrv
             await SQL.OpenAsync();
 
             var query = @"
-                SELECT hash, filename, type, download_url, file_path,
+                SELECT hash, filename, type, download_url,
                        base_model, model_name, description, trigger_words,
-                       civitai_model_id, civitai_version_id, json_raw, uid, date_added
+                       civitai_model_id, civitai_version_id, json_raw, uid,
+                       date_added, date_installed, file_path
                 FROM civitai_requests";
 
             if (filter == StatusFilter.Installed)
@@ -497,6 +507,8 @@ namespace makefoxsrv
                     TrainedWords = r["trigger_words"] is DBNull ? null : Convert.ToString(r["trigger_words"]),
                     RawJson = r["json_raw"] is DBNull ? null : Convert.ToString(r["json_raw"]),
                     DateAdded = r["date_added"] is DBNull ? null : Convert.ToDateTime(r["date_added"]),
+                    DateInstalled = r["date_installed"] is DBNull ? null : Convert.ToDateTime(r["date_installed"]),
+                    FilePath = r["file_path"] is DBNull ? null : Convert.ToString(r["file_path"]),
                     Type = Enum.TryParse<CivitaiAssetType>(
                         Convert.ToString(r["type"]), true, out var parsedType)
                         ? parsedType
@@ -509,6 +521,40 @@ namespace makefoxsrv
 
             return items;
         }
+
+        public static async Task DownloadItemAsync(CivitaiItem item, string destinationPath)
+        {
+            if (string.IsNullOrWhiteSpace(item.DownloadUrl))
+                throw new ArgumentException("URL must not be null or empty.", nameof(item.DownloadUrl));
+
+            if (string.IsNullOrWhiteSpace(destinationPath))
+                throw new ArgumentException("Destination path must not be null or empty.", nameof(destinationPath));
+
+            var finalPath = Path.Combine(new[] { "..", "data", destinationPath });
+
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("MakeFoxSrv");
+
+            if (FoxMain.settings?.CivitaiApiKey is not null)
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", FoxMain.settings.CivitaiApiKey);
+
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            // Ensure target directory exists
+            var directory = Path.GetDirectoryName(finalPath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            using var response = await client.GetAsync(item.DownloadUrl, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            await using var fileStream = new FileStream(finalPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            await stream.CopyToAsync(fileStream);
+        }
+
 
         public static Dictionary<CivitaiAssetType, List<CivitaiItem>> GroupByType(List<CivitaiItem> items)
         {

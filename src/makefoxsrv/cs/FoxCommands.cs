@@ -438,7 +438,9 @@ namespace makefoxsrv
                 case "#forward":
                     await FoxAdmin.HandleForward(t, message, commandArgs);
                     break;
-
+                case "#download":
+                    await FoxCivitaiCommands.AdminCmdDownloadRequests(t, message, user, commandArgs);
+                    break;
                 default:
                     await t.SendMessageAsync(
                         text: "❌ Unknown command.  Use one of these:\r\n  #uncache, #ban, #unban, #resetterms, #resettos",
