@@ -1195,7 +1195,7 @@ namespace makefoxsrv
 
                     if (settings.hires_enabled)
                     {
-                        var upscaler = await api.Upscaler("Nearest", ctsLoop.Token);
+                        var upscaler = await api.Upscaler("R-ESRGAN 4x+", ctsLoop.Token);
                         hiResConfig = new HighResConfig()
                         {
                             Width = settings.hires_width,
