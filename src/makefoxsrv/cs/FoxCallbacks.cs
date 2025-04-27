@@ -257,7 +257,13 @@ namespace makefoxsrv
                 }
             }
 
-            FoxUserSettings settings = q.Settings.Copy();
+        (uint width, uint height) SnapDimensionsToMultiple((uint width, uint height) dimension, uint multiple = 8)
+        {
+            uint Snap(uint value) => (value / multiple) * multiple;
+            return (Snap(dimension.width), Snap(dimension.height));
+        }
+
+        FoxUserSettings settings = q.Settings.Copy();
 
             if (true || q.Type == FoxQueue.QueueType.IMG2IMG)
             {
@@ -276,8 +282,8 @@ namespace makefoxsrv
                 uint width = Math.Max(settings.Width, settings.hires_width);
                 uint height = Math.Max(settings.Height, settings.hires_height);
 
-                (settings.Width, settings.Height) = FoxImage.CalculateLimitedDimensions(width, height, 2048);
-                (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 2048);
+                (settings.Width, settings.Height) = SnapDimensionsToMultiple(FoxImage.CalculateLimitedDimensions(width, height, 2048), 8);
+                (settings.hires_width, settings.hires_height) = SnapDimensionsToMultiple(FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 2048), 16);
             }
             //else if (q.Type == FoxQueue.QueueType.TXT2IMG)
             //{
