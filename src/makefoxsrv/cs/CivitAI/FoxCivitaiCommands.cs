@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using WTelegram;
 using TL;
+using PayPalCheckoutSdk.Orders;
 
 namespace makefoxsrv
 {
@@ -13,7 +14,10 @@ namespace makefoxsrv
     {
         public static async Task AdminCmdDownloadRequests(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            var pendingRequests = await FoxCivitaiRequests.FetchCivitaiItemsAsync(FoxCivitaiRequests.StatusFilter.Uninstalled);
+            var startTime = DateTime.Now;
+
+            // This should eventually be changed to RequestStatus.Approved, once the approval process is implemented
+            var pendingRequests = await FoxCivitaiRequests.FetchAllRequestsAsync(FoxCivitaiRequests.RequestStatus.Pending);
 
             if (pendingRequests.Count == 0)
             {
@@ -37,55 +41,93 @@ namespace makefoxsrv
             );
 
             var semaphore = new SemaphoreSlim(3);
+
+            var downloadCounts = new Dictionary<FoxUser, Dictionary<string, int>>();
+
             var downloadTasks = new List<Task>();
 
             foreach (var (type, items) in groupedResults)
             {
-                var requestTypeDir = type.ToString().ToLowerInvariant(); // lora, model, etc
+                var downloadItems = FoxCivitaiRequests.PrepareDownloadList(items);
+                var requestType = type.ToString().ToLowerInvariant(); // lora, model, etc
 
-                foreach (var item in items.ToList()) // Clone list to avoid modifying during iteration
+                foreach (var downloadItem in downloadItems)
                 {
                     await semaphore.WaitAsync();
 
                     var task = Task.Run(async () =>
                     {
+
+                        var infoItem = downloadItem.Request.InfoItem;
+                        var file = downloadItem.File;
+                        var request = downloadItem.Request;
+
                         try
                         {
-                            if (!string.IsNullOrWhiteSpace(item.FilePath) && File.Exists(item.FilePath))
-                                return;
+                            var baseModel = infoItem.BaseModel?.Trim().ToLowerInvariant();
 
-                            if (string.IsNullOrWhiteSpace(item.DownloadUrl) || string.IsNullOrWhiteSpace(item.FileName))
-                                throw new Exception("Invalid download URL or filename");
+                            var basePath = "other";
 
-                            var subdirs = item.GetStoragePath()
+                            if (baseModel is not null)
+                            {
+                                basePath = baseModel switch
+                                {
+                                    "sd 1.5" => "sd",
+                                    "sd 2.1 768" => "sd21",
+                                    "flux" => "flux",
+                                    "noobai" => "sdxl/nai",
+                                    "pony" => "sdxl/pony",
+                                    "illustrious" => "sdxl/illustrious",
+                                    "sdxl lightning" => "sdxl/lightning",
+                                    "sdxl 1.0" => "sdxl/other",
+                                    "sdxl" => "sdxl/other",
+                                    _ when baseModel.StartsWith("sdxl ") => "sdxl/other",
+                                    _ => "other"
+                                };
+                            }
+
+                            var subdirs = basePath
                                 .Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
                                 .Select(s => s.ToLowerInvariant())
                                 .ToArray();
 
                             var storagePath = Path.Combine(
-                                new[] { "requests", requestTypeDir }
+                                new[] { "..", "data", "requests", requestType }
                                 .Concat(subdirs)
-                                .Append(item.FileName)
+                                .Append(downloadItem.FileName) // Use the renamed file name
                                 .ToArray()
                             );
 
-                            FoxLog.WriteLine($"Downloading: {item.DownloadUrl} > {storagePath}");
+                            FoxLog.WriteLine($"Downloading: {file.DownloadUrl} > {storagePath}");
 
-                            await FoxCivitaiRequests.DownloadItemAsync(item, storagePath);
+                            await file.DownloadAsync(storagePath);
 
-                            item.FilePath = storagePath;
+                            var now = DateTime.Now;
+
+                            // Until we have a proper approval process, we will just set the status to Approved after download
+                            request.DateApproved = now;
+                            request.ApprovedBy = user;
+
+                            request.DateInstalled = now;
+                            request.InstalledBy = user;
+
+                            await request.SaveAsync();
+
+                            if (!downloadCounts.TryGetValue(request.RequestedBy, out var userCounts))
+                            {
+                                userCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                                downloadCounts[request.RequestedBy] = userCounts;
+                            }
+
+                            if (userCounts.ContainsKey(requestType))
+                                userCounts[requestType]++;
+                            else
+                                userCounts[requestType] = 1;
                         }
                         catch (Exception ex)
                         {
                             FoxLog.LogException(ex);
-                            sb.AppendLine($"Error downloading: {item.FileName}");
-
-                            lock (groupedResults)
-                            {
-                                groupedResults[type] = groupedResults[type]
-                                    .Where(i => i != item)
-                                    .ToList();
-                            }
+                            sb.AppendLine($"Error downloading: {downloadItem.FileName}");
                         }
                         finally
                         {
@@ -99,14 +141,8 @@ namespace makefoxsrv
 
             await Task.WhenAll(downloadTasks);
 
-            // Update the database with the new file paths
-            foreach (var (type, items) in groupedResults)
-            {
-                await FoxCivitaiRequests.InsertCivitaiItemsAsync(items);
-            }
-
             sb.AppendLine("Download complete.");
-            
+
             await t.EditMessageAsync(
                 id: outMsg.id,
                 text: sb.ToString()

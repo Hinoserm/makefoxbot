@@ -1,10 +1,11 @@
 ﻿using MySqlConnector;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Enumeration;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,83 +15,56 @@ namespace makefoxsrv
 {
     public static class FoxCivitaiRequests
     {
-        public enum CivitaiAssetType
+        public class CivitaiRequestItem
         {
-            LORA,
-            Embedding,
-            Model,
-            Other,
-            Unknown
-        }
-
-        public class CivitaiItem
-        {
-            public int ModelId { get; init; }
-            public int? VersionId { get; init; }
-            public string? ModelName { get; set; }
-            public string? FileName { get; set; }
-            public CivitaiAssetType Type { get; set; } = CivitaiAssetType.Unknown;
-            public string? DownloadUrl { get; set; }
-            public string? TrainedWords { get; set; }
-            public string? Description { get; set; }
-            public string? BaseModel { get; set; }
-            public string? SHA256Hash { get; set; }
-            public string? RawJson { get; set; } // stores full API response
-            public FoxUser? User { get; set; }
-
-            public DateTime? DateAdded { get; set; }
+            public ulong Id { get; set; }
+            public required FoxCivitai.CivitaiInfoItem InfoItem { get; set; }
+            public required FoxUser RequestedBy { get; set; }
+            public required DateTime DateRequested { get; set; }
+            public FoxUser? ApprovedBy { get; set; }
+            public DateTime? DateApproved { get; set; }
+            public FoxUser? InstalledBy { get; set; }
             public DateTime? DateInstalled { get; set; }
-            public string? FilePath { get; set; }
 
-            public CivitaiItem(int modelId, int? versionId = null)
+            public async Task SaveAsync()
             {
-                ModelId = modelId;
-                VersionId = versionId;
+                using var connection = new MySqlConnection(FoxMain.sqlConnectionString);
+                await connection.OpenAsync();
+
+                await SaveAsync(connection);
             }
 
-            public string GetStoragePath()
+            public async Task SaveAsync(MySqlConnection connection, MySqlTransaction? transaction = null)
             {
-                if (string.IsNullOrWhiteSpace(BaseModel))
-                    return "other";
+                const string query = @"
+                    INSERT INTO civitai_requests (id, cid, uid, date_requested, approved_by_uid, date_approved, installed_by_uid, date_installed)
+                    VALUES (@id, @cid, @uid, @date_requested, @approved_by_uid, @date_approved, @installed_by_uid, @date_installed)
+                    ON DUPLICATE KEY UPDATE
+                        cid = VALUES(cid),
+                        uid = VALUES(uid),
+                        date_requested = VALUES(date_requested),
+                        approved_by_uid = VALUES(approved_by_uid),
+                        date_approved = VALUES(date_approved),
+                        installed_by_uid = VALUES(installed_by_uid),
+                        date_installed = VALUES(date_installed);
+                    SELECT LAST_INSERT_ID();
+                ";
 
-                var normalized = BaseModel.Trim().ToLowerInvariant();
+                using var cmd = new MySqlCommand(query, connection, transaction);
 
-                return normalized switch
-                {
-                    "sd 1.5" => "sd",
-                    "sd 2.1 768" => "sd21",
-                    "flux" => "flux",
-                    "noobai" => "sdxl/nai",
-                    "pony" => "sdxl/pony",
-                    "illustrious" => "sdxl/illustrious",
-                    "sdxl lightning" => "sdxl/lightning",
-                    "sdxl 1.0" => "sdxl/other",
-                    "sdxl" => "sdxl/other",
-                    _ when normalized.StartsWith("sdxl ") => "sdxl/other",
-                    _ => "other"
-                };
+                cmd.Parameters.AddWithValue("@id", this.Id);
+                cmd.Parameters.AddWithValue("@cid", this.InfoItem.Id);
+                cmd.Parameters.AddWithValue("@uid", this.RequestedBy.UID);
+                cmd.Parameters.AddWithValue("@date_requested", this.DateRequested);
+                cmd.Parameters.AddWithValue("@approved_by_uid", this.ApprovedBy?.UID ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@date_approved", this.DateApproved ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@installed_by_uid", this.InstalledBy?.UID ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@date_installed", this.DateInstalled ?? (object)DBNull.Value);
+
+                var result = await cmd.ExecuteScalarAsync();
+                if (this.Id == 0 && result != null)
+                    this.Id = Convert.ToUInt64(result);
             }
-
-            public string GetShortBaseModel()
-            {
-                if (string.IsNullOrWhiteSpace(BaseModel))
-                    return "FB";
-
-                var normalized = BaseModel.Trim().ToLowerInvariant();
-
-                return normalized switch
-                {
-                    "illustrious" => "IL",
-                    "pony" => "Pony",
-                    "noobai" => "nai",
-                    "sdxl" or "sdxl 1.0" or "sdxl lightning" => "XL",
-                    _ when normalized.StartsWith("sdxl ") => "XL",
-                    _ => "FB"
-                };
-            }
-
-            // Future method:
-            // public string GetStoragePath() { ... }
         }
 
         private static readonly Regex _linkRegex = new(
@@ -98,9 +72,9 @@ namespace makefoxsrv
             RegexOptions.Compiled | RegexOptions.IgnoreCase
         );
 
-        public static List<CivitaiItem> ParseFromMessage(string message, FoxUser? user = null)
+        public static List<(int ModelId, int? VersionId)> ParseFromMessage(string message)
         {
-            var results = new List<CivitaiItem>();
+            var results = new List<(int ModelId, int? VersionId)>();
 
             foreach (Match match in _linkRegex.Matches(message))
             {
@@ -114,275 +88,57 @@ namespace makefoxsrv
                     versionId = parsedVersionId;
                 }
 
-                var item = new CivitaiItem(modelId, versionId)
-                {
-                    User = user,
-                    DateAdded = DateTime.Now
-                };
-
-                results.Add(item);
+                results.Add((modelId, versionId));
             }
 
             return results;
         }
 
-
-        public static async Task<List<CivitaiItem>> FetchAllVersionsAsync(List<CivitaiItem> modelLinks)
+        public static async Task<List<CivitaiRequestItem>> ParseRequestAsync(string message, FoxUser user)
         {
-            using var client = new HttpClient();
-            client.BaseAddress = new Uri("https://api.civitai.com");
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("MakeFoxSrv");
+            if (user == null)
+                throw new ArgumentNullException(nameof(user));
 
-            if (FoxMain.settings?.CivitaiApiKey is not null)
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", FoxMain.settings.CivitaiApiKey);
+            var parsedLinks = ParseFromMessage(message);
 
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            if (parsedLinks.Count == 0)
+                return new List<CivitaiRequestItem>(); // Return empty list if no links found
 
-            var allItems = new List<CivitaiItem>();
-            var seenHashes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var throttler = new SemaphoreSlim(4);
-            var tasks = new List<Task>();
+            var civitaiInfoResults = await FetchAllVersionsAsync(parsedLinks);
 
-            foreach (var item in modelLinks)
+            var requestList = new List<CivitaiRequestItem>();
+
+            foreach (var civitaiInfo in civitaiInfoResults)
             {
-                await throttler.WaitAsync();
-
-                var task = Task.Run(async () =>
+                var requestItem = new CivitaiRequestItem
                 {
-                    try
-                    {
-                        var results = await FetchModelVersionsAsync(client, item, seenHashes);
-                        lock (allItems)
-                        {
-                            allItems.AddRange(results);
-                        }
-                    }
-                    finally
-                    {
-                        throttler.Release();
-                    }
-                });
+                    InfoItem = civitaiInfo,
+                    RequestedBy = user,
+                    DateRequested = DateTime.Now
+                };
 
-                tasks.Add(task);
+                requestList.Add(requestItem);
             }
 
-            await Task.WhenAll(tasks);
-            return allItems;
+            return requestList;
         }
 
-
-        private static async Task<List<CivitaiItem>> FetchModelVersionsAsync(HttpClient client, CivitaiItem item, HashSet<string> seenHashes)
+        public static async Task<List<FoxCivitai.CivitaiInfoItem>> FetchAllVersionsAsync(List<(int ModelId, int? VersionId)> modelLinks)
         {
-            var list = new List<CivitaiItem>();
+            var uniqueModels = modelLinks
+                .Select(x => x.ModelId)
+                .Distinct()
+                .Select(id => (id, (int?)null))
+                .ToList();
 
-            try
-            {
-                var response = await client.GetAsync($"/v1/models/{item.ModelId}?nsfw=true");
-                response.EnsureSuccessStatusCode();
+            var civitaiInfoResults = await FoxCivitai.FetchCivitaiInfoAsync(uniqueModels, maxParallel: 4);
 
-                var json = await response.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(json);
-
-                var root = doc.RootElement;
-                var name = root.GetProperty("name").GetString();
-
-                CivitaiAssetType type = CivitaiAssetType.Unknown;
-                if (root.TryGetProperty("type", out var typeProp))
-                {
-                    type = typeProp.GetString()?.ToUpper() switch
-                    {
-                        "LORA" => CivitaiAssetType.LORA,
-                        "TEXTUALINVERSION" => CivitaiAssetType.Embedding,
-                        "CHECKPOINT" => CivitaiAssetType.Model,
-                        _ => CivitaiAssetType.Other
-                    };
-                }
-
-                if (root.TryGetProperty("modelVersions", out var versions))
-                {
-                    foreach (var version in versions.EnumerateArray())
-                    {
-                        int versionId = version.GetProperty("id").GetInt32();
-
-                        string? description = version.TryGetProperty("description", out var descProp)
-                            ? descProp.GetString()
-                            : null;
-
-                        string? baseModel = version.TryGetProperty("baseModel", out var baseProp)
-                            ? baseProp.GetString()
-                            : null;
-
-                        string? trainedWords = null;
-                        if (version.TryGetProperty("trainedWords", out var trainedProp) &&
-                            trainedProp.ValueKind == JsonValueKind.Array)
-                        {
-                            trainedWords = string.Join(", ", trainedProp.EnumerateArray()
-                                .Select(t => t.GetString())
-                                .Where(s => !string.IsNullOrWhiteSpace(s)));
-                        }
-
-                        string? downloadUrl = version.TryGetProperty("downloadUrl", out var dlProp)
-                            ? dlProp.GetString()
-                            : null;
-
-                        string? selectedFileName = null;
-                        string? selectedHash = null;
-
-                        if (version.TryGetProperty("files", out var files) && files.GetArrayLength() > 0)
-                        {
-                            foreach (var file in files.EnumerateArray())
-                            {
-                                if (!file.TryGetProperty("name", out var fileProp))
-                                    continue;
-
-                                var nameVal = fileProp.GetString();
-                                if (string.IsNullOrWhiteSpace(nameVal))
-                                    continue;
-
-                                var ext = System.IO.Path.GetExtension(nameVal).ToLowerInvariant();
-                                bool validExt =
-                                    (type is CivitaiAssetType.LORA or CivitaiAssetType.Model && ext == ".safetensors") ||
-                                    (type == CivitaiAssetType.Embedding && ext == ".pt");
-
-                                if (!validExt)
-                                    continue;
-
-                                if (!file.TryGetProperty("hashes", out var hashes) ||
-                                    !hashes.TryGetProperty("SHA256", out var hashProp))
-                                    continue;
-
-                                var candidateHash = hashProp.GetString();
-                                if (string.IsNullOrWhiteSpace(candidateHash))
-                                    continue;
-
-                                if (seenHashes.Contains(candidateHash))
-                                    continue;
-
-                                // ✅ Valid, not seen before
-                                selectedFileName = nameVal;
-                                selectedHash = candidateHash;
-                                break;
-                            }
-                        }
-
-                        // If no valid unique file found, skip version
-                        if (string.IsNullOrWhiteSpace(selectedHash) || string.IsNullOrWhiteSpace(selectedFileName))
-                            continue;
-
-                        seenHashes.Add(selectedHash);
-
-                        list.Add(new CivitaiItem(item.ModelId, versionId)
-                        {
-                            User = item.User,
-                            DateAdded = item.DateAdded ?? DateTime.Now,
-                            ModelName = name,
-                            FileName = selectedFileName,
-                            Type = type,
-                            DownloadUrl = downloadUrl,
-                            TrainedWords = trainedWords,
-                            Description = description,
-                            BaseModel = baseModel,
-                            SHA256Hash = selectedHash,
-                            RawJson = json
-                        });
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                FoxLog.LogException(ex);
-                return new List<CivitaiItem>();
-            }
-
-            return list;
+            return civitaiInfoResults;
         }
 
-        public static List<(string Original, string Updated)> EnsureUniqueFilenames(List<CivitaiItem> items)
+        public static async Task InsertRequestItemsAsync(List<CivitaiRequestItem> requestItems)
         {
-            var renamedList = new List<(string Original, string Updated)>();
-            var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            var dbFilenames = FetchCivitaiItemsAsync(StatusFilter.All).Result
-                .Where(x => !string.IsNullOrWhiteSpace(x.FileName))
-                .Select(x => System.IO.Path.GetFileNameWithoutExtension(x.FileName!)!)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var item in items)
-            {
-                if (string.IsNullOrWhiteSpace(item.FileName))
-                    continue;
-
-                var ext = System.IO.Path.GetExtension(item.FileName);
-                var originalBase = System.IO.Path.GetFileNameWithoutExtension(item.FileName)!;
-
-                var finalBase = originalBase;
-
-                bool needsRename =
-                    usedNames.Contains(originalBase) ||
-                    dbFilenames.Contains(originalBase) ||
-                    (item.Type == CivitaiAssetType.LORA && FoxLORAs.GetLorasByFilename(originalBase).Count > 0);
-
-                if (needsRename)
-                {
-                    var suffix = item.GetShortBaseModel();
-                    var attempt = $"{originalBase}_{suffix}";
-
-                    if (!usedNames.Contains(attempt) &&
-                        !dbFilenames.Contains(attempt) &&
-                        (item.Type != CivitaiAssetType.LORA || FoxLORAs.GetLorasByFilename(attempt).Count == 0))
-                    {
-                        finalBase = attempt;
-                    }
-                    else
-                    {
-                        for (int i = 2; ; i++)
-                        {
-                            var candidate = $"{originalBase}_{suffix}{i}";
-                            bool inBatch = usedNames.Contains(candidate);
-                            bool inDB = dbFilenames.Contains(candidate);
-                            bool alreadyInstalled = item.Type == CivitaiAssetType.LORA &&
-                                                    FoxLORAs.GetLorasByFilename(candidate).Count > 0;
-
-                            if (!inBatch && !inDB && !alreadyInstalled)
-                            {
-                                finalBase = candidate;
-                                break;
-                            }
-                        }
-                    }
-
-                    item.FileName = finalBase + ext;
-                    renamedList.Add((originalBase, finalBase));
-                }
-
-                usedNames.Add(finalBase);
-            }
-
-            return renamedList;
-        }
-
-        public static List<CivitaiItem> FetchAlreadyInstalled(List<CivitaiItem> loras)
-        {
-            var installed = new List<CivitaiItem>();
-
-            foreach (var item in loras)
-            {
-                if (string.IsNullOrWhiteSpace(item.SHA256Hash))
-                    continue;
-
-                var matches = FoxLORAs.GetLorasByHash(item.SHA256Hash);
-                if (matches.Any())
-                {
-                    installed.Add(item);
-                }
-            }
-
-            return installed;
-        }
-
-        public static async Task InsertCivitaiItemsAsync(List<CivitaiItem> items)
-        {
-            if (items == null || items.Count == 0)
+            if (requestItems is null || requestItems.Count == 0)
                 return;
 
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
@@ -390,61 +146,13 @@ namespace makefoxsrv
 
             using var transaction = await SQL.BeginTransactionAsync();
 
-            const string query = @"
-                INSERT INTO civitai_requests (
-                    hash, filename, type, download_url,
-                    base_model, model_name, description, trigger_words,
-                    civitai_model_id, civitai_version_id, date_added,
-                    json_raw, uid, file_path, date_installed
-                ) VALUES (
-                    @hash, @filename, @type, @download_url,
-                    @base_model, @model_name, @description, @trigger_words,
-                    @model_id, @version_id, @date_added,
-                    @json_raw, @uid, @file_path, @date_installed
-                )
-                ON DUPLICATE KEY UPDATE
-                    filename = VALUES(filename),
-                    type = VALUES(type),
-                    download_url = VALUES(download_url),
-                    base_model = VALUES(base_model),
-                    model_name = VALUES(model_name),
-                    description = VALUES(description),
-                    trigger_words = VALUES(trigger_words),
-                    civitai_model_id = VALUES(civitai_model_id),
-                    civitai_version_id = VALUES(civitai_version_id),
-                    json_raw = VALUES(json_raw),
-                    date_added = VALUES(date_added),
-                    date_installed = VALUES(date_installed),
-                    file_path = VALUES(file_path),
-                    uid = VALUES(uid);";
-
             try
             {
-                foreach (var item in items)
+                foreach (var request in requestItems)
                 {
-                    if (string.IsNullOrWhiteSpace(item.SHA256Hash) ||
-                        string.IsNullOrWhiteSpace(item.FileName) ||
-                        string.IsNullOrWhiteSpace(item.DownloadUrl))
-                        continue;
+                    await request.InfoItem.SaveAsync(SQL, transaction);
 
-                    using var cmd = new MySqlCommand(query, SQL, transaction);
-                    cmd.Parameters.AddWithValue("@hash", item.SHA256Hash);
-                    cmd.Parameters.AddWithValue("@filename", item.FileName);
-                    cmd.Parameters.AddWithValue("@type", item.Type.ToString().ToUpperInvariant());
-                    cmd.Parameters.AddWithValue("@download_url", item.DownloadUrl);
-                    cmd.Parameters.AddWithValue("@base_model", item.BaseModel ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@model_name", item.ModelName ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@description", item.Description ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@trigger_words", item.TrainedWords ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@model_id", item.ModelId);
-                    cmd.Parameters.AddWithValue("@version_id", item.VersionId ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@date_added", item.DateAdded ?? DateTime.Now);
-                    cmd.Parameters.AddWithValue("@date_installed", item.DateInstalled ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@file_path", item.FilePath ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@json_raw", item.RawJson ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@uid", item.User?.UID ?? (object)DBNull.Value);
-
-                    await cmd.ExecuteNonQueryAsync();
+                    await request.SaveAsync(SQL, transaction);
                 }
 
                 await transaction.CommitAsync();
@@ -456,81 +164,12 @@ namespace makefoxsrv
             }
         }
 
-        public enum StatusFilter
+        public static async Task DownloadItemAsync(FoxCivitai.CivitaiFileItem fileItem, string destinationPath)
         {
-            All,
-            Installed,
-            Uninstalled
-        }
+            if (fileItem == null || string.IsNullOrWhiteSpace(fileItem.DownloadUrl))
+                throw new ArgumentException("Invalid file item or missing download URL.");
 
-        public static async Task<List<CivitaiItem>> FetchCivitaiItemsAsync(StatusFilter filter = StatusFilter.All)
-        {
-            var items = new List<CivitaiItem>();
-
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-            await SQL.OpenAsync();
-
-            var query = @"
-                SELECT hash, filename, type, download_url,
-                       base_model, model_name, description, trigger_words,
-                       civitai_model_id, civitai_version_id, json_raw, uid,
-                       date_added, date_installed, file_path
-                FROM civitai_requests";
-
-            if (filter == StatusFilter.Installed)
-                query += " WHERE date_installed IS NOT NULL";
-            else if (filter == StatusFilter.Uninstalled)
-                query += " WHERE date_installed IS NULL";
-
-            using var cmd = new MySqlCommand(query, SQL);
-            using var r = await cmd.ExecuteReaderAsync();
-
-            while (await r.ReadAsync())
-            {
-                if (r["hash"] is DBNull || r["filename"] is DBNull || r["download_url"] is DBNull)
-                    continue;
-
-                long? uid = r["uid"] is DBNull ? null : Convert.ToInt64(r["uid"]);
-                FoxUser? user = uid is not null ? await FoxUser.GetByUID(uid.Value) : null;
-
-                var item = new CivitaiItem(
-                    modelId: Convert.ToInt32(r["civitai_model_id"]),
-                    versionId: r["civitai_version_id"] is DBNull ? null : Convert.ToInt32(r["civitai_version_id"])
-                )
-                {
-                    SHA256Hash = Convert.ToString(r["hash"]),
-                    FileName = Convert.ToString(r["filename"]),
-                    DownloadUrl = Convert.ToString(r["download_url"]),
-                    BaseModel = r["base_model"] is DBNull ? null : Convert.ToString(r["base_model"]),
-                    ModelName = r["model_name"] is DBNull ? null : Convert.ToString(r["model_name"]),
-                    Description = r["description"] is DBNull ? null : Convert.ToString(r["description"]),
-                    TrainedWords = r["trigger_words"] is DBNull ? null : Convert.ToString(r["trigger_words"]),
-                    RawJson = r["json_raw"] is DBNull ? null : Convert.ToString(r["json_raw"]),
-                    DateAdded = r["date_added"] is DBNull ? null : Convert.ToDateTime(r["date_added"]),
-                    DateInstalled = r["date_installed"] is DBNull ? null : Convert.ToDateTime(r["date_installed"]),
-                    FilePath = r["file_path"] is DBNull ? null : Convert.ToString(r["file_path"]),
-                    Type = Enum.TryParse<CivitaiAssetType>(
-                        Convert.ToString(r["type"]), true, out var parsedType)
-                        ? parsedType
-                        : CivitaiAssetType.Unknown,
-                    User = user
-                };
-
-                items.Add(item);
-            }
-
-            return items;
-        }
-
-        public static async Task DownloadItemAsync(CivitaiItem item, string destinationPath)
-        {
-            if (string.IsNullOrWhiteSpace(item.DownloadUrl))
-                throw new ArgumentException("URL must not be null or empty.", nameof(item.DownloadUrl));
-
-            if (string.IsNullOrWhiteSpace(destinationPath))
-                throw new ArgumentException("Destination path must not be null or empty.", nameof(destinationPath));
-
-            var finalPath = Path.Combine(new[] { "..", "data", destinationPath });
+            var finalPath = Path.Combine("..", "data", destinationPath);
 
             using var client = new HttpClient();
             client.DefaultRequestHeaders.UserAgent.ParseAdd("MakeFoxSrv");
@@ -540,14 +179,11 @@ namespace makefoxsrv
 
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-            // Ensure target directory exists
             var directory = Path.GetDirectoryName(finalPath);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-            {
                 Directory.CreateDirectory(directory);
-            }
 
-            using var response = await client.GetAsync(item.DownloadUrl, HttpCompletionOption.ResponseHeadersRead);
+            using var response = await client.GetAsync(fileItem.DownloadUrl, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
 
             await using var stream = await response.Content.ReadAsStreamAsync();
@@ -555,11 +191,193 @@ namespace makefoxsrv
             await stream.CopyToAsync(fileStream);
         }
 
+        public record DownloadItem(CivitaiRequestItem Request, FoxCivitai.CivitaiFileItem File, string FileName);
 
-        public static Dictionary<CivitaiAssetType, List<CivitaiItem>> GroupByType(List<CivitaiItem> items)
+
+        // This nightmarish function is responsible for ensuring that the downloaded files don't have conflicting names.
+        public static List<DownloadItem> PrepareDownloadList(List<FoxCivitaiRequests.CivitaiRequestItem> requestItems)
+        {
+            var downloadList = new List<DownloadItem>();
+
+            var items = requestItems
+                .Where(x => !string.IsNullOrWhiteSpace(x.InfoItem.primaryFile?.Name))
+                .ToList();
+
+            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Preload existing names from FoxLORAs
+            var existingLoraNames = new HashSet<string>(
+                FoxLORAs.GetAllLORAs()
+                    .Select(l => Path.GetFileNameWithoutExtension(l.Filename ?? string.Empty))
+                    .Where(x => !string.IsNullOrWhiteSpace(x)),
+                StringComparer.OrdinalIgnoreCase
+            );
+
+            // Preload used names from other items in the list (excluding self)
+            foreach (var item in items)
+            {
+                var file = item.InfoItem.primaryFile;
+                if (file == null || string.IsNullOrWhiteSpace(file.Name))
+                    continue;
+
+                var ext = Path.GetExtension(file.Name);
+                var baseName = Path.GetFileNameWithoutExtension(file.Name!)!;
+                var originalBaseName = baseName;
+
+                bool IsConflict(string name, FoxCivitai.CivitaiInfoItem current)
+                {
+                    return used.Contains(name) ||
+                           existingLoraNames.Contains(name) ||
+                           items.Any(x => !ReferenceEquals(x, current) &&
+                                          x.InfoItem.primaryFile != null &&
+                                          Path.GetFileNameWithoutExtension(x.InfoItem.primaryFile.Name ?? string.Empty)
+                                             .Equals(name, StringComparison.OrdinalIgnoreCase)) ||
+                           (item.InfoItem.Type == FoxCivitai.CivitaiAssetType.LORA && FoxLORAs.GetLorasByFilename(name).Count > 0);
+                }
+
+                int suffixIndex = 1;
+                var suffix = item.InfoItem.BaseModel?.Trim().ToLowerInvariant() switch
+                {
+                    "illustrious" => "IL",
+                    "pony" => "Pony",
+                    "noobai" => "nai",
+                    "sdxl" or "sdxl 1.0" or "sdxl lightning" => "XL",
+                    _ when item.InfoItem.BaseModel?.StartsWith("sdxl ", StringComparison.OrdinalIgnoreCase) == true => "XL",
+                    _ => "FB"
+                };
+
+                if (IsConflict(baseName, item.InfoItem))
+                {
+                    string candidate;
+
+                    do
+                    {
+                        candidate = $"{originalBaseName}_{suffix}{(suffixIndex > 1 ? suffixIndex.ToString() : "")}";
+                        suffixIndex++;
+                    }
+                    while (IsConflict(candidate, item.InfoItem));
+
+                    baseName = candidate;
+                }
+
+                downloadList.Add(new DownloadItem(item, file, baseName + ext));
+
+                used.Add(baseName);
+            }
+
+            return downloadList;
+        }
+
+        public static List<CivitaiRequestItem> FetchAlreadyInstalled(List<CivitaiRequestItem> requests)
+        {
+            var installed = new List<CivitaiRequestItem>();
+
+            foreach (var request in requests)
+            {
+                var primaryHash = request?.InfoItem?.primaryFile?.SHA256;
+
+                if (request is null || request?.InfoItem is null || string.IsNullOrWhiteSpace(primaryHash))
+                    continue;
+
+                var matches = FoxLORAs.GetLorasByHash(primaryHash);
+
+                if (matches.Any())
+                    installed.Add(request);
+            }
+
+            return installed;
+        }
+
+        public enum RequestStatus
+        {
+            Any,
+            Pending,
+            Approved,
+            Installed
+        }
+
+        public static async Task<List<CivitaiRequestItem>> FetchAllRequestsAsync(RequestStatus requestStatus = RequestStatus.Any)
+        {
+            var results = new List<CivitaiRequestItem>();
+
+            using var connection = new MySqlConnection(FoxMain.sqlConnectionString);
+            await connection.OpenAsync();
+
+            string query = @"
+                SELECT r.id, r.cid, r.uid, r.date_requested, r.approved_by_uid, r.date_approved, r.installed_by_uid, r.date_installed
+                FROM civitai_requests r
+            ";
+
+            switch (requestStatus)
+            {
+                case RequestStatus.Pending:
+                    query += " WHERE r.date_approved IS NULL AND r.date_installed IS NULL";
+                    break;
+                case RequestStatus.Approved:
+                    query += " WHERE r.date_approved IS NOT NULL AND r.date_installed IS NULL";
+                    break;
+                case RequestStatus.Installed:
+                    query += " WHERE r.date_installed IS NOT NULL";
+                    break;
+                case RequestStatus.Any:
+                    // Do nothing
+                default:
+                    break;
+            }
+
+            using var cmd = new MySqlCommand(query, connection);
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            var civitaiInfoMap = new Dictionary<ulong, FoxCivitai.CivitaiInfoItem>();
+
+            while (await reader.ReadAsync())
+            {
+                ulong id = (ulong)reader.GetInt64("id");
+                ulong cid = (ulong)reader.GetInt64("cid");
+                ulong uid = (ulong)reader.GetInt64("uid");
+                DateTime dateRequested = reader.GetDateTime("date_requested");
+                ulong? approvedByUid = reader["approved_by_uid"] is DBNull ? null : (ulong?)reader.GetInt64("approved_by_uid");
+                DateTime? dateApproved = reader["date_approved"] is DBNull ? null : (DateTime?)reader.GetDateTime("date_approved");
+                ulong? installedByUid = reader["installed_by_uid"] is DBNull ? null : (ulong?)reader.GetInt64("installed_by_uid");
+                DateTime? dateInstalled = reader["date_installed"] is DBNull ? null : (DateTime?)reader.GetDateTime("date_installed");
+
+                if (!civitaiInfoMap.TryGetValue(cid, out var civitaiInfo))
+                {
+                    civitaiInfo = await FoxCivitai.CivitaiInfoItem.LoadByCidAsync(cid);
+                    if (civitaiInfo != null)
+                        civitaiInfoMap[cid] = civitaiInfo;
+                }
+
+                if (civitaiInfo == null)
+                    continue;
+
+                var user = await FoxUser.GetByUID((long)uid);
+
+                if (user == null)
+                    continue;
+
+                var requestItem = new CivitaiRequestItem
+                {
+                    Id = id,
+                    InfoItem = civitaiInfo,
+                    RequestedBy = user,
+                    DateRequested = dateRequested,
+                    ApprovedBy = approvedByUid.HasValue ? await FoxUser.GetByUID((long)approvedByUid.Value) : null,
+                    DateApproved = dateApproved,
+                    InstalledBy = installedByUid.HasValue ? await FoxUser.GetByUID((long)installedByUid.Value) : null,
+                    DateInstalled = dateInstalled
+                };
+
+                results.Add(requestItem);
+            }
+
+            return results;
+        }
+
+        public static Dictionary<FoxCivitai.CivitaiAssetType, List<CivitaiRequestItem>> GroupByType(List<CivitaiRequestItem> items)
         {
             return items
-                .GroupBy(i => i.Type)
+                .GroupBy(x => x.InfoItem.Type)
                 .ToDictionary(g => g.Key, g => g.ToList());
         }
     }

@@ -880,6 +880,11 @@ namespace makefoxsrv
                     throw new Exception("Invalid image dimensions; resulting base image would be too small");
             }
 
+            // Enforce multiple of 8 for image dimensions
+
+            (settings.Width, settings.Height) = SnapDimensionsToMultiple((settings.Width, settings.Height), 8);
+            (settings.hires_width, settings.hires_height) = SnapDimensionsToMultiple((settings.hires_width, settings.hires_height), 16);
+
             if (settings.Seed == -1)
                 settings.Seed = GetRandomInt32();
 

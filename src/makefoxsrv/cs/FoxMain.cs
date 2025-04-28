@@ -302,7 +302,7 @@ namespace makefoxsrv
 
             await FoxContentFilter.LoadRulesAsync();
 
-
+            await FoxCivitai.InitializeCacheAsync();
 
             await FoxLORAs.StartupLoad();
 
