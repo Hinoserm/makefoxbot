@@ -27,7 +27,7 @@ using System.Numerics;
 
 namespace makefoxsrv
 {
-    internal partial class FoxQueue
+    public partial class FoxQueue
     {
         public enum QueueStatus //'PAUSED','CANCELLED','PENDING','PROCESSING','PROCESSED','SENDING','FINISHED','ERROR'
         {
@@ -780,6 +780,8 @@ namespace makefoxsrv
             await cmd.ExecuteNonQueryAsync();
 
             FoxLog.WriteLine($"Task {this.ID} status set to {status}", LogLevel.DEBUG);
+
+            await FoxWebQueue.BroadcastQueueUpdate(this);
         }
 
         public static (int hypotheticalPosition, int totalItems) GetNextPosition(FoxUser user, bool Enhanced = false)
@@ -1565,6 +1567,8 @@ namespace makefoxsrv
 
                     break;
             }
+
+            await FoxWebQueue.BroadcastQueueUpdate(this);
         }
 
         public static int GetRandomInt32()

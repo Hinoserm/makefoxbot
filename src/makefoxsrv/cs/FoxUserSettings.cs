@@ -3,7 +3,7 @@ using TL;
 
 namespace makefoxsrv
 {
-    internal class FoxUserSettings
+    public class FoxUserSettings
     {
         private int? _steps;
         private decimal? _cfgScale;

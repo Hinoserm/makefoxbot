@@ -72,7 +72,7 @@ class FoxWebSockets {
                 if (!jsonMessage.ContainsKey("Command"))
                     throw new Exception("No Command specified in message.");
 
-                command = jsonMessage["Command"].ToString();
+                command = jsonMessage["Command"]?.ToString();
 
                 switch (command)
                 {

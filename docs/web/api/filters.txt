@@ -1,0 +1,112 @@
+QUEUE FILTERS - HOW TO USE
+
+You can add a "filters" object when calling Queue:List or when subscribing to queue updates.
+This lets you narrow down what you're asking for.
+
+Filters are in this format:
+
+    "filters": {
+        "field": value
+    }
+
+You can use:
+
+1. Single value:
+
+    "uid": 123
+
+2. List of values (matches any):
+
+    "uid": [123, 456]
+
+3. Negate a value:
+
+    "status": [ { "not": "CANCELLED" } ]
+
+4. Combine includes and excludes:
+
+    "status": [ "FINISHED", { "not": "ERROR" } ]
+
+5. Use ranges:
+
+    "width":  { "lt": 1024 }
+    "height": { "gte": 512 }
+
+Valid range operators:
+    lt   = less than
+    lte  = less than or equal
+    gt   = greater than
+    gte  = greater than or equal
+    not  = not equal
+
+Supported filter fields:
+    id
+    uid
+    status
+    model
+    sampler
+    steps
+    seed
+    cfgscale
+    prompt
+    negative_prompt
+    width
+    height
+    denoising_strength
+    hires_width
+    hires_height
+    hires_steps
+    hires_denoising_strength
+    hires_enabled
+    hires_upscaler
+    variation_seed
+    variation_strength
+    selected_image
+    enhanced
+    complexity
+
+Special string search fields (substring match):
+    prompt_contains
+    negative_prompt_contains
+    model_contains
+    sampler_contains
+    hires_upscaler_contains
+
+STATUS values you can filter by:
+    PAUSED
+    CANCELLED
+    PENDING
+    PROCESSING
+    PROCESSED
+    SENDING
+    FINISHED
+    ERROR
+
+Example full command:
+
+    {
+        "Command": "Queue:List",
+        "PageSize": 25,
+        "filters": {
+            "uid": [123, 456],
+            "status": ["FINISHED", { "not": "ERROR" }],
+            "width":  { "lt": 1024 },
+            "height": { "gte": 512 },
+            "model_contains": "realistic",
+            "prompt_contains": "castle"
+        }
+    }
+
+You can use the same "filters" block with Queue:SubscribeUpdates over WebSocket:
+
+    {
+        "type": "Queue:SubscribeUpdates",
+        "channel": "queue-tab-1",
+        "payload": {
+            "filters": {
+                "status": ["PENDING", "PROCESSING"]
+            }
+        }
+    }
+
+If you send a filter with an unsupported field name, the server will reject the request with an error.

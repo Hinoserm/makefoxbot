@@ -104,7 +104,7 @@ namespace makefoxsrv
         }
     }
 
-    internal class FoxWorker
+    public class FoxWorker
     {
         public int ID { get; private set; }
 

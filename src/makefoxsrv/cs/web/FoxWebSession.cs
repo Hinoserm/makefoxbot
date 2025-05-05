@@ -12,6 +12,8 @@ using EmbedIO.WebSockets;
 using System.Runtime.CompilerServices;
 using EmbedIO.Sessions;
 using static System.Collections.Specialized.BitVector32;
+using System.Text;
+using System.Text.Json.Nodes;
 
 #pragma warning disable CS1998
 
@@ -28,14 +30,13 @@ namespace makefoxsrv
         private static readonly LinkedList<FoxWebSession> sessions = new LinkedList<FoxWebSession>();
         private static readonly object sessionLock = new object();
 
-        public class Subscriptions
+        public class QueueSubscription
         {
-            public bool Chats = true;
-            public bool Workers = false;
-            public bool Progress = false;
-            public bool Stats = false;
-            public bool Console = false;
+            public string Channel { get; set; } = default!;
+            public JsonObject Filters { get; set; } = default!;
         }
+
+        public List<QueueSubscription> QueueSubscriptions { get; } = new();
 
         public FoxWebSession(string sessionId)
         {

@@ -10,9 +10,10 @@ namespace makefoxsrv
     public static class FoxCivitai
     {
         // This is a semaphore to limit the number of concurrent API requests to Civitai.
-        private static readonly SemaphoreSlim CivitaiApiSemaphore = new(4);
+        private static readonly SemaphoreSlim _apiSemaphore = new(4);
 
         // Cache for CivitaiInfoItems to avoid redundant database queries.
+        // Make sure to call .SaveAsync() on the item after modifying it.
         private static readonly Dictionary<ulong, CivitaiInfoItem> _cache = new();
         private static readonly object _cacheLock = new();
 
@@ -445,28 +446,6 @@ namespace makefoxsrv
                     return null;
                 }
             }
-
-            //public async Task DownloadAsync(string destinationDirectory)
-            //{
-            //    Directory.CreateDirectory(destinationDirectory);
-
-            //    CivitaiFileItem? file = Files.Find(f => f.PrimaryFile) ?? Files.Find(f =>
-            //        (Type == CivitaiAssetType.LORA || Type == CivitaiAssetType.Model) && (f.Name?.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase) == true) ||
-            //        (Type == CivitaiAssetType.Embedding && (f.Name?.EndsWith(".pt", StringComparison.OrdinalIgnoreCase) == true)));
-
-            //    if (file == null)
-            //        throw new InvalidOperationException("No primary or valid file found to download.");
-
-            //    var fileName = file.Name ?? (Guid.NewGuid().ToString());
-            //    var destinationPath = Path.Combine(destinationDirectory, fileName);
-
-            //    await file.DownloadAsync(destinationPath);
-
-            //    Filename = fileName;
-            //    FilePath = destinationPath;
-            //    DateDownloaded = DateTime.Now;
-            //    await SaveAsync();
-            //}
         }
 
         public static async Task InitializeCacheAsync()
@@ -575,6 +554,181 @@ namespace makefoxsrv
             return list;
         }
 
+        public static async Task<List<CivitaiInfoItem>> DownloadInfoByHashAsync(string sha256Hash)
+        {
+            var found = await CivitaiInfoItem.LoadByHashAsync(sha256Hash);
+            if (found.Count > 0)
+                return found;
+
+            using var client = new HttpClient();
+            client.BaseAddress = new Uri("https://civitai.com");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("MakeFoxSrv");
+
+            if (FoxMain.settings?.CivitaiApiKey is not null)
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", FoxMain.settings.CivitaiApiKey);
+
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            try
+            {
+                var response = await client.GetAsync($"/api/v1/model-versions/by-hash/{sha256Hash}");
+                if (!response.IsSuccessStatusCode)
+                    return new List<CivitaiInfoItem>();
+
+                var json = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+
+                var root = doc.RootElement;
+                var items = new List<CivitaiInfoItem>();
+
+                var now = DateTime.Now;
+
+                if (root.ValueKind == JsonValueKind.Object)
+                {
+                    var info = new CivitaiInfoItem
+                    {
+                        ModelId = root.GetProperty("modelId").GetInt32(),
+                        VersionId = root.GetProperty("id").GetInt32(),
+                        ModelName = root.GetProperty("model").GetProperty("name").GetString(),
+                        BaseModel = root.TryGetProperty("baseModel", out var bm) ? bm.GetString() : null,
+                        Type = root.GetProperty("model").GetProperty("type").GetString()?.ToUpperInvariant() switch
+                        {
+                            "LORA" => CivitaiAssetType.LORA,
+                            "TEXTUALINVERSION" => CivitaiAssetType.Embedding,
+                            "CHECKPOINT" => CivitaiAssetType.Model,
+                            _ => CivitaiAssetType.Other
+                        },
+                        Description = root.TryGetProperty("description", out var desc) ? desc.GetString() : null,
+                        TriggerWords = root.TryGetProperty("trainedWords", out var tw) && tw.ValueKind == JsonValueKind.Array
+                            ? string.Join(", ", tw.EnumerateArray().Select(x => x.GetString()).Where(x => !string.IsNullOrWhiteSpace(x)))
+                            : null,
+                        DateAdded = now,
+                        RawJson = json
+                    };
+
+                    if (root.TryGetProperty("files", out var filesElement))
+                    {
+                        foreach (var file in filesElement.EnumerateArray())
+                        {
+                            var fileItem = new CivitaiFileItem
+                            {
+                                Parent = info,
+                                FileId = (ulong)file.GetProperty("id").GetInt32(),
+                                Name = file.GetProperty("name").GetString(),
+                                Type = file.GetProperty("type").GetString(),
+                                Size = file.TryGetProperty("sizeKB", out var sz) ? (ulong?)(sz.GetDouble() * 1024) : null,
+                                Format = file.TryGetProperty("metadata", out var metadata) && metadata.TryGetProperty("format", out var fmt) ? fmt.GetString() : null,
+                                SHA256 = file.TryGetProperty("hashes", out var hashes) && hashes.TryGetProperty("SHA256", out var sha) ? sha.GetString() : null,
+                                DownloadUrl = file.TryGetProperty("downloadUrl", out var dl) ? dl.GetString() : null,
+                                PrimaryFile = file.TryGetProperty("primary", out var primary) && primary.GetBoolean(),
+                                DateAdded = now,
+                                RawJson = file.GetRawText()
+                            };
+                            info.Files.Add(fileItem);
+                        }
+                    }
+
+                    if (root.TryGetProperty("images", out var imagesElement))
+                    {
+                        foreach (var img in imagesElement.EnumerateArray())
+                        {
+                            var imageItem = new CivitaiImageItem
+                            {
+                                Parent = info,
+                                Url = img.GetProperty("url").GetString(),
+                                Width = img.TryGetProperty("width", out var width) ? width.GetInt32() : (int?)null,
+                                Height = img.TryGetProperty("height", out var height) ? height.GetInt32() : (int?)null,
+                                Hash = img.TryGetProperty("hash", out var hash) ? hash.GetString() : null,
+                                NsfwLevel = img.TryGetProperty("nsfwLevel", out var nsfw) ? nsfw.GetInt32() : (int?)null,
+                                Type = img.TryGetProperty("type", out var type) ? type.GetString() : null,
+                                DateAdded = now,
+                                RawJson = img.GetRawText()
+                            };
+                            info.Images.Add(imageItem);
+                        }
+                    }
+
+                    items.Add(info);
+                }
+                else if (root.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var version in root.EnumerateArray())
+                    {
+                        var info = new CivitaiInfoItem
+                        {
+                            ModelId = version.GetProperty("modelId").GetInt32(),
+                            VersionId = version.GetProperty("id").GetInt32(),
+                            ModelName = version.GetProperty("model").GetProperty("name").GetString(),
+                            BaseModel = version.TryGetProperty("baseModel", out var bm) ? bm.GetString() : null,
+                            Type = version.GetProperty("model").GetProperty("type").GetString()?.ToUpperInvariant() switch
+                            {
+                                "LORA" => CivitaiAssetType.LORA,
+                                "TEXTUALINVERSION" => CivitaiAssetType.Embedding,
+                                "CHECKPOINT" => CivitaiAssetType.Model,
+                                _ => CivitaiAssetType.Other
+                            },
+                            Description = version.TryGetProperty("description", out var desc) ? desc.GetString() : null,
+                            TriggerWords = version.TryGetProperty("trainedWords", out var tw) && tw.ValueKind == JsonValueKind.Array
+                                ? string.Join(", ", tw.EnumerateArray().Select(x => x.GetString()).Where(x => !string.IsNullOrWhiteSpace(x)))
+                                : null,
+                            DateAdded = now,
+                            RawJson = version.GetRawText()
+                        };
+
+                        if (version.TryGetProperty("files", out var filesElement))
+                        {
+                            foreach (var file in filesElement.EnumerateArray())
+                            {
+                                var fileItem = new CivitaiFileItem
+                                {
+                                    Parent = info,
+                                    FileId = (ulong)file.GetProperty("id").GetInt32(),
+                                    Name = file.GetProperty("name").GetString(),
+                                    Type = file.GetProperty("type").GetString(),
+                                    Size = file.TryGetProperty("sizeKB", out var sz) ? (ulong?)(sz.GetDouble() * 1024) : null,
+                                    Format = file.TryGetProperty("metadata", out var metadata) && metadata.TryGetProperty("format", out var fmt) ? fmt.GetString() : null,
+                                    SHA256 = file.TryGetProperty("hashes", out var hashes) && hashes.TryGetProperty("SHA256", out var sha) ? sha.GetString() : null,
+                                    DownloadUrl = file.TryGetProperty("downloadUrl", out var dl) ? dl.GetString() : null,
+                                    PrimaryFile = file.TryGetProperty("primary", out var primary) && primary.GetBoolean(),
+                                    DateAdded = now,
+                                    RawJson = file.GetRawText()
+                                };
+                                info.Files.Add(fileItem);
+                            }
+                        }
+
+                        if (version.TryGetProperty("images", out var imagesElement))
+                        {
+                            foreach (var img in imagesElement.EnumerateArray())
+                            {
+                                var imageItem = new CivitaiImageItem
+                                {
+                                    Parent = info,
+                                    Url = img.GetProperty("url").GetString(),
+                                    Width = img.TryGetProperty("width", out var width) ? width.GetInt32() : (int?)null,
+                                    Height = img.TryGetProperty("height", out var height) ? height.GetInt32() : (int?)null,
+                                    Hash = img.TryGetProperty("hash", out var hash) ? hash.GetString() : null,
+                                    NsfwLevel = img.TryGetProperty("nsfwLevel", out var nsfw) ? nsfw.GetInt32() : (int?)null,
+                                    Type = img.TryGetProperty("type", out var type) ? type.GetString() : null,
+                                    DateAdded = now,
+                                    RawJson = img.GetRawText()
+                                };
+                                info.Images.Add(imageItem);
+                            }
+                        }
+
+                        items.Add(info);
+                    }
+                }
+
+                return items;
+            }
+            catch
+            {
+                return new List<CivitaiInfoItem>();
+            }
+        }
+
         public static async Task<List<CivitaiInfoItem>> FetchCivitaiInfoAsync(List<(int ModelId, int? VersionId)> requests, int maxParallel = 4)
         {
             using var client = new HttpClient();
@@ -591,7 +745,7 @@ namespace makefoxsrv
 
             foreach (var (modelId, versionId) in requests)
             {
-                await CivitaiApiSemaphore.WaitAsync();
+                await _apiSemaphore.WaitAsync();
 
                 var task = Task.Run(async () =>
                 {
@@ -697,7 +851,7 @@ namespace makefoxsrv
                     }
                     finally
                     {
-                        CivitaiApiSemaphore.Release();
+                        _apiSemaphore.Release();
                     }
                 });
 

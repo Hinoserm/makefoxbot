@@ -22,7 +22,7 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace makefoxsrv
 {
-    internal class FoxImage
+    public class FoxImage
     {
         public enum ImageType
         {
