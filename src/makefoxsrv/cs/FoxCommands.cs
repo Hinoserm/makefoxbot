@@ -84,7 +84,6 @@ namespace makefoxsrv
             //--------------- -----------------
             { "/info",        CmdInfo },
             { "/privacy",     CmdPrivacy },
-            { "/history",     CmdHistory },
             { "/admin",       CmdAdmin },
             //--------------- -----------------
             { "/styles",      CmdStyles },
@@ -713,13 +712,6 @@ namespace makefoxsrv
             {
                 await FoxCivitaiRequests.InsertRequestItemsAsync(items);
             }
-        }
-
-        [CommandDescription("Show your recent history")]
-        [CommandArguments("")]
-        private static async Task CmdHistory(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            await FoxMessages.SendHistory(t, user, argument, message.ID);
         }
 
         [CommandDescription("Purchase a membership")]
@@ -1386,6 +1378,14 @@ namespace makefoxsrv
                 sb.AppendLine($"Memory Used: {usedMemory / 1024 / 1024} MB");
                 sb.AppendLine($"Threads (running/total): {activeThreads} / {threadCount}");
 
+                if (user.CheckAccessLevel(AccessLevel.ADMIN))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("Cache Info:");
+                    sb.AppendLine($"  Queue: {FoxQueueCache.Count()}");
+                    sb.AppendLine($"  Users: {FoxUser.CacheCount()}");
+                }
+
                 sb.AppendLine("\nUser Info:\n");
             }
 
@@ -1713,7 +1713,7 @@ namespace makefoxsrv
 
             List<ulong> pendingIds = new List<ulong>();
 
-            var matchingItems = FoxQueue.fullQueue.FindAll(item => !item.IsFinished() && item.User?.UID == user.UID);
+            var matchingItems = FoxQueueCache.FindAll(item => !item.IsFinished() && item.User?.UID == user.UID);
 
             foreach (var q in matchingItems)
             {

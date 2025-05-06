@@ -79,6 +79,9 @@ namespace makefoxsrv
             this.Strings = new FoxLocalization(this, PreferredLanguage ?? "en");
         }
 
+        public static int CacheCount() =>
+            userCacheByUID.Count();
+
         public void RecordError(Exception ex)
         {
             if (ex is RpcException rex && rex.Code == 420)
@@ -784,6 +787,39 @@ namespace makefoxsrv
                 return this.accessLevel;
         }
 
+        public static Task<List<FoxQueue>> LoadAllActiveForUser(FoxUser user) =>
+            LoadAllActiveForUser(user.UID);
+
+        public static async Task<List<FoxQueue>> LoadAllActiveForUser(ulong UID)
+        {
+            var ids = new List<ulong>();
+
+            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
+            string query = @"
+                SELECT id FROM queue 
+                WHERE uid = @uid AND status NOT IN ('CANCELLED', 'FINISHED')";
+
+            using var cmd = new MySqlCommand(query, conn);
+            cmd.Parameters.AddWithValue("@uid", UID);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                ids.Add(Convert.ToUInt64(reader["id"]));
+
+            var list = new List<FoxQueue>();
+            foreach (var id in ids)
+            {
+                var q = await FoxQueue.Get(id);
+                if (q != null)
+                    list.Add(q);
+            }
+
+            return list;
+        }
+
+
         public async Task Ban(bool silent = false, string? reasonMessage = null)
         {
             await SetAccessLevel(AccessLevel.BANNED);
@@ -791,7 +827,7 @@ namespace makefoxsrv
             var teleUser = TelegramID is not null ? await FoxTelegram.GetUserFromID(TelegramID.Value) : null;
             var t = teleUser is not null ? new FoxTelegram(teleUser, null) : null;
 
-            var matchingItems = FoxQueue.fullQueue.FindAll(item => !item.IsFinished() && item.User?.UID == this.UID);
+            var matchingItems = await LoadAllActiveForUser(this.UID);
 
             foreach (var q in matchingItems)
             {

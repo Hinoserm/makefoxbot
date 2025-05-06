@@ -92,9 +92,6 @@ namespace makefoxsrv
                     case "/recycle":
                         await CallbackCmdRecycle(t, query, fUser, argument);
                         break;
-                    case "/history":
-                        await CallbackCmdHistory(t, query, fUser, argument);
-                        break;
                     case "/cancel":
                         await CallbackCmdCancel(t, query, fUser, argument);
                         break;
@@ -170,20 +167,6 @@ namespace makefoxsrv
 
             await q.SetStatus(FoxQueue.QueueStatus.PENDING, query.msg_id);
             FoxQueue.Enqueue(q);
-        }
-
-        private static async Task CallbackCmdHistory(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
-        {
-            try
-            {
-                await FoxMessages.SendHistory(t, user, argument, query.msg_id, true);
-                await t.SendCallbackAnswer(query.query_id, 4);
-
-            } catch (Exception ex) {
-                await t.SendCallbackAnswer(query.query_id, 0, "Error: " + ex.Message);
-
-                FoxLog.WriteLine($"Error in CallbackCmdHistory: {ex.Message}\r\n{ex.StackTrace}");
-            }
         }
 
         private static async Task CallbackCmdEnhance(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)

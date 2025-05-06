@@ -144,7 +144,7 @@ namespace makefoxsrv
         private static readonly object lockObj = new object();
         private static List<(FoxQueue task, int priority, DateTime dateStarted)> taskList = new List<(FoxQueue task, int priority, DateTime dateStarted)>();
 
-        public static BoundedDictionary<ulong, FoxQueue> fullQueue { get; private set; } = new(1000); //Store the last 1000 queue items.
+        //public static BoundedDictionary<ulong, FoxQueue> fullQueue { get; private set; } = new(1000); //Store the last 1000 queue items.
 
         private static Dictionary<AccessLevel, int> priorityMap = new Dictionary<AccessLevel, int>
             {
@@ -164,26 +164,6 @@ namespace makefoxsrv
             FoxWorker.OnTaskCompleted += (sender, args) => _ = queueSemaphore.Release();
             FoxWorker.OnWorkerStart += (sender, args) => _ = queueSemaphore.Release();
             FoxWorker.OnWorkerOnline += (sender, args) => _ = queueSemaphore.Release();
-
-            // Custom dequeue strategy for queue cache
-            fullQueue.RemovalStrategy = items =>
-            {
-                // Sort items by removal priority:
-                // 1. Use DateCompleted if available (oldest first)
-                // 2. Fallback to DateAdded if DateCompleted is null
-                var sortedItems = items.OrderBy(kvp =>
-                    kvp.Value.DateFinished ?? kvp.Value.DateCreated);
-
-                // Build a complete list of removable items based on type priority
-                var removableItems = sortedItems
-                    .Where(kvp => kvp.Value.status == QueueStatus.CANCELLED) // First priority: CANCELLED
-                    .Concat(sortedItems.Where(kvp => kvp.Value.status == QueueStatus.PAUSED)) // Second priority: PAUSED
-                    .Concat(sortedItems.Where(kvp => kvp.Value.status == QueueStatus.FINISHED)) // Third priority: FINISHED
-                    .Select(kvp => kvp.Key) // Select only the keys
-                    .ToList();
-
-                return removableItems;
-            };
         }
 
         public static long ClearCache()
@@ -445,7 +425,7 @@ namespace makefoxsrv
                 var oneMinuteAgo = now.AddMinutes(-1);
 
                 // Look in the full queue for all tasks relevant to the same chat
-                var chatTasks = fullQueue.Values
+                var chatTasks = FoxQueueCache.Values
                     .Where(queueItem => queueItem != null
                             && queueItem.Telegram?.Chat?.ID == item.Telegram.Chat.ID
                             )
@@ -641,7 +621,7 @@ namespace makefoxsrv
 
                     q.Telegram = new FoxTelegram(teleUser, teleChat);
 
-                    fullQueue.Add(q.ID, q); // Add to queue cache
+                    FoxQueueCache.Add(q); // Add to queue cache
 
                     count++;
                     
@@ -928,7 +908,7 @@ namespace makefoxsrv
 
             await FoxDB.SaveObjectAsync(q, "queue");
 
-            fullQueue.Add(q.ID, q); // Add to queue cache
+            FoxQueueCache.Add(q); // Add to queue cache
 
             // Log this after saving the object so we have it's ID.
 
@@ -1067,52 +1047,6 @@ namespace makefoxsrv
             return;
         }
 
-        public static async Task<FoxQueue?> GetNewestFromUser(FoxUser user, long? tgChatId = null)
-        {
-            // Attempt to find the FoxQueue item in the fullQueue cache
-
-            // Attempt to find the FoxQueue item in the fullQueue cache
-            var cachedItem = fullQueue.FirstOrDefault(fq => fq is not null && fq.User.UID == user.UID && (tgChatId == null || fq.Telegram?.Peer?.ID == tgChatId));
-
-            if (cachedItem is not null)
-            {
-                // If found in cache, return the cached item
-                return cachedItem;
-            }
-
-            var parameters = new Dictionary<string, object?>
-            {
-                { "@uid", user.UID },
-                { "@peerId", tgChatId }
-            };
-
-            var q = await FoxDB.LoadObjectAsync<FoxQueue>("queue", "uid = @uid AND (@peerId IS NULL OR tele_chatid = @peerId) ORDER BY id DESC LIMIT 1", parameters, async (o, r) =>
-            {
-                long uid = Convert.ToInt64(r["uid"]);
-                var user = await FoxUser.GetByUID(uid);
-                    
-                if (user is null)
-                    throw new Exception("User not found");
-
-                o.User = user;
-
-                long ? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
-
-                var teleChat = teleChatId is not null ? await FoxTelegram.GetChatFromID(teleChatId.Value) : null;
-
-                var teleUser = await FoxTelegram.GetUserFromID(Convert.ToInt64(r["tele_id"]));
-
-                if (teleUser is not null)
-                    o.Telegram = new FoxTelegram(teleUser, teleChat);
-            });
-
-            // After loading, add the object to the fullQueue cache if it's not null
-            if (q is not null)
-                fullQueue.Add(q.ID, q); // Add to queue cache
-
-            return q;
-        }
-
         [Cron(seconds: 10)]
         private async Task CronUpdateQueueMessages(CancellationToken cancellationToken)
         {
@@ -1190,97 +1124,73 @@ namespace makefoxsrv
             long user_id = telegram.User.ID;
             long? chat_id = telegram.Chat?.ID;
 
-            // Attempt to find the FoxQueue item in the fullQueue cache
-            var cachedItem = fullQueue.FindAll(fq =>
-                fq.ReplyMessageID == msg_id &&
-                fq.Telegram?.User.ID == user_id &&
-                fq.Telegram?.Chat?.ID == chat_id).FirstOrDefault();
-
-            if (cachedItem is not null)
-            {
-                // If found in cache, return the cached item
-                return cachedItem;
-            }
-
-            var parameters = new Dictionary<string, object?>
-            {
-                { "@msg_id", msg_id },
-                { "@tele_id", user_id },
-                { "@tele_chatid", chat_id }
-            };
-
             string chatCondition = chat_id is null ? "tele_chatid IS NULL" : "tele_chatid = @tele_chatid";
+            string query = $"SELECT id FROM queue WHERE tele_id = @tele_id AND msg_id = @msg_id AND {chatCondition}";
 
-            string query = $"tele_id = @tele_id AND msg_id = @msg_id AND {chatCondition}";
+            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
 
-            var q = await FoxDB.LoadObjectAsync<FoxQueue>("queue", query, parameters, async (o, r) =>
-            {
-                long uid = Convert.ToInt64(r["uid"]);
+            using var cmd = new MySqlCommand(query, conn);
+            cmd.Parameters.AddWithValue("@tele_id", user_id);
+            cmd.Parameters.AddWithValue("@msg_id", msg_id);
 
-                var user = await FoxUser.GetByUID(uid);
+            if (chat_id is not null)
+                cmd.Parameters.AddWithValue("@tele_chatid", chat_id);
 
-                if (user is null)
-                    throw new Exception("User not found");
+            var result = await cmd.ExecuteScalarAsync();
 
-                o.User = user;
+            if (result is not ulong id)
+                return null;
 
-                long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
-
-                var teleChat = teleChatId is not null ? await FoxTelegram.GetChatFromID(teleChatId.Value) : null;
-
-                var teleUser = await FoxTelegram.GetUserFromID(Convert.ToInt64(r["tele_id"]));
-
-                if (teleUser is not null)
-                    o.Telegram = new FoxTelegram(teleUser, teleChat);
-            });
-
-            // After loading, add the object to the fullQueue cache if it's not null
-            if (q is not null)
-                fullQueue.Add(q.ID, q); // Add to queue cache
-
-            return q;
+            return await FoxQueue.Get(id);
         }
 
         public static async Task<FoxQueue?> Get(ulong id, bool noCache = false)
         {
             // Attempt to find the FoxQueue item in the fullQueue cache
-            var cachedItem = fullQueue[id];
+            await FoxQueueCache.Lock(id);
 
-            if (cachedItem is not null)
-            {
-                // If found in cache, return the cached item
-                return cachedItem;
+            var cached = FoxQueueCache.Get(id);
+            if (cached != null && !noCache)
+                return cached;
+
+            FoxQueue? q = null;
+
+            try {
+                var parameters = new Dictionary<string, object?>
+                {
+                    { "@id", id }
+                };
+
+                q = await FoxDB.LoadObjectAsync<FoxQueue>("queue", "id = @id", parameters, async (o, r) =>
+                {
+                    long uid = Convert.ToInt64(r["uid"]);
+
+                    var user = await FoxUser.GetByUID(uid);
+
+                    if (user is null)
+                        throw new Exception("User not found");
+
+                    o.User = user;
+
+                    long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
+
+                    var teleChat = teleChatId is not null ? await FoxTelegram.GetChatFromID(teleChatId.Value) : null;
+
+                    var teleUser = await FoxTelegram.GetUserFromID(Convert.ToInt64(r["tele_id"]));
+
+                    if (teleUser is not null)
+                        o.Telegram = new FoxTelegram(teleUser, teleChat);
+                });
+
+                // After loading, add the object to the fullQueue cache if it's not null
+                if (q is not null && !noCache)
+                    FoxQueueCache.Add(q);
             }
-
-            var parameters = new Dictionary<string, object?>
+            finally
             {
-                { "@id", id }
-            };
-
-            var q = await FoxDB.LoadObjectAsync<FoxQueue>("queue", "id = @id", parameters, async (o, r) =>
-            {
-                long uid = Convert.ToInt64(r["uid"]);
-
-                var user = await FoxUser.GetByUID(uid);
-
-                if (user is null)
-                    throw new Exception("User not found");
-
-                o.User = user;
-
-                long? teleChatId = r["tele_chatid"] is DBNull ? null : (long)r["tele_chatid"];
-
-                var teleChat = teleChatId is not null ? await FoxTelegram.GetChatFromID(teleChatId.Value) : null;
-
-                var teleUser = await FoxTelegram.GetUserFromID(Convert.ToInt64(r["tele_id"]));
-
-                if (teleUser is not null)
-                    o.Telegram = new FoxTelegram(teleUser, teleChat);
-            });
-
-            // After loading, add the object to the fullQueue cache if it's not null
-            if (q is not null && !noCache)
-                fullQueue.Add(q.ID, q); // Add to queue cache
+                FoxQueueCache.Unlock(id);
+            }
 
             return q;
         }
@@ -1772,7 +1682,7 @@ namespace makefoxsrv
             }
 
             // For completed tasks, consider only FINISHED tasks that have both DateQueued and DateStarted.
-            var completedTasks = fullQueue.Values
+            var completedTasks = FoxQueueCache.Values
                 .Where(t => t.status == QueueStatus.FINISHED && t.DateQueued != null && t.DateStarted != null)
                 .OrderByDescending(t => t.DateStarted)
                 //.Take(50)
@@ -1794,7 +1704,7 @@ namespace makefoxsrv
                 completedLine = $"Of the last {completedTasks.Count()} completed images, the longest waited {FormatTimeSpan(completedLongest)} in queue.";
             }
 
-            var processingTasks = fullQueue.Values
+            var processingTasks = FoxQueueCache.Values
                 .Where(t => t.status == QueueStatus.PROCESSING && t.DateStarted != null)
                 .OrderByDescending(t => t.DateStarted)
                 .ToList();
