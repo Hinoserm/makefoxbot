@@ -144,11 +144,14 @@ namespace makefoxsrv
 
         static bool Compare(object? left, object? right, Func<double, double, bool> cmp)
         {
-            if (left == null || right == null) return false;
+            if (left == null || right == null)
+                return false;
+
             try
             {
                 var dL = Convert.ToDouble(left);
                 var dR = Convert.ToDouble(right);
+
                 return cmp(dL, dR);
             }
             catch
@@ -167,11 +170,20 @@ namespace makefoxsrv
             if (node is null) return null;
             if (node is JsonValue value)
             {
-                if (value.TryGetValue(out bool b)) return b;
-                if (value.TryGetValue(out int i)) return i;
-                if (value.TryGetValue(out long l)) return l;
-                if (value.TryGetValue(out double d)) return d;
-                if (value.TryGetValue(out string s)) return s;
+                if (value.TryGetValue(out bool b))
+                    return b;
+
+                if (value.TryGetValue(out int i))
+                    return i;
+
+                if (value.TryGetValue(out long l))
+                    return l;
+
+                if (value.TryGetValue(out double d))
+                    return d;
+
+                if (value.TryGetValue(out string? s))
+                    return s;
             }
             return node.ToString();
         }

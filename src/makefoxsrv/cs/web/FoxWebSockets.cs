@@ -55,7 +55,7 @@ class FoxWebSockets {
             {
                 var message = System.Text.Encoding.UTF8.GetString(buffer);
 
-                Console.WriteLine("Received: " + message);
+                FoxLog.WriteLine("Received: " + message);
 
                 System.Text.Json.Nodes.JsonObject? jsonMessage = JsonNode.Parse(message)?.AsObject();
 
@@ -188,7 +188,7 @@ class FoxWebSockets {
                             {
                                 // Log and respond with the underlying cause if it's a reflection-invoked error
                                 var realError = tie.InnerException ?? tie; // Fallback to the outer exception if no inner
-                                Console.WriteLine($"Error invoking method: {realError.Message}\r\n{realError.StackTrace}");
+                                FoxLog.LogException(realError, $"Error invoking method: {realError.Message}");
 
                                 response = new JsonObject
                                 {
@@ -199,7 +199,7 @@ class FoxWebSockets {
                             }
                             catch (Exception ex)
                             {
-                                Console.WriteLine($"Error invoking method: {ex.Message}\r\n{ex.StackTrace}");
+                                FoxLog.LogException(ex, $"Error invoking method: {ex.Message}");
 
                                 response = new JsonObject
                                 {
@@ -226,7 +226,7 @@ class FoxWebSockets {
                     ["Error"] = $"{ex.Message}"
                 };
 
-                Console.WriteLine($"Websocket Error: {ex.Message}\r\n{ex.StackTrace}");
+                FoxLog.LogException(ex, $"Websocket Error: {ex.Message}");
             }
 
             try
@@ -247,7 +247,7 @@ class FoxWebSockets {
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Websocket error: {ex.Message}\r\n{ex.StackTrace}");
+                FoxLog.LogException(ex, $"Websocket error: {ex.Message}\r\n{ex.StackTrace}");
             }
         }
 
@@ -255,7 +255,7 @@ class FoxWebSockets {
         {
             FoxWebSession? session = await FoxWebSession.LoadFromContext(context, createNew: false);
 
-            Console.WriteLine($"WebSocket Connected. User: {(session?.user?.Username ?? "(none)")}");
+            FoxLog.WriteLine($"WebSocket Connected. User: {(session?.user?.Username ?? "(none)")}");
         }
 
         protected override Task OnClientDisconnectedAsync(IWebSocketContext context)
@@ -265,7 +265,7 @@ class FoxWebSockets {
             // Print comma-delimited list of usernames or "(none)"
             var usernames = string.Join(", ", removedSessions.Select(s => s.user?.Username ?? "(none)"));
 
-            Console.WriteLine($"WebSocket disconnected! User: {usernames}");
+            FoxLog.WriteLine($"WebSocket disconnected! User: {usernames}");
             return Task.CompletedTask;
         }
     }
