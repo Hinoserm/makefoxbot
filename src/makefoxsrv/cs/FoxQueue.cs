@@ -24,6 +24,7 @@ using System.Runtime.CompilerServices;
 using PayPalCheckoutSdk.Orders;
 using System.Reflection.Metadata.Ecma335;
 using System.Numerics;
+using Stripe;
 
 namespace makefoxsrv
 {
@@ -1240,7 +1241,7 @@ namespace makefoxsrv
             return q;
         }
 
-        public static async Task<FoxQueue?> Get(ulong id)
+        public static async Task<FoxQueue?> Get(ulong id, bool noCache = false)
         {
             // Attempt to find the FoxQueue item in the fullQueue cache
             var cachedItem = fullQueue[id];
@@ -1278,7 +1279,7 @@ namespace makefoxsrv
             });
 
             // After loading, add the object to the fullQueue cache if it's not null
-            if (q is not null)
+            if (q is not null && !noCache)
                 fullQueue.Add(q.ID, q); // Add to queue cache
 
             return q;
