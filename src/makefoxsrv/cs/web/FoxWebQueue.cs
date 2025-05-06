@@ -3,6 +3,7 @@ using MySqlConnector;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -313,61 +314,71 @@ namespace makefoxsrv
 
             foreach (var (wsContext, session) in active)
             {
-                if (!session.user!.CheckAccessLevel(AccessLevel.ADMIN) &&
-                    session.user.UID != item.User?.UID)
-                    continue;
-
-                foreach (var sub in session.QueueSubscriptions)
-                {
-                    bool match = true;
-
-                    foreach (var kv in sub.Filters)
-                    {
-                        var key = kv.Key;
-                        var val = kv.Value!;
-                        if (NormalizedFieldMap.TryGetValue(key, out var norm))
-                        {
-                            var actual = GetFieldValue(item, norm);
-                            if (!FoxFilterHelper.Matches(val, actual))
-                            {
-                                match = false;
-                                break;
-                            }
-                        }
-                        else if (key.EndsWith("Contains", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var baseKey = key[..^"Contains".Length];
-                            if (!NormalizedFieldMap.TryGetValue(baseKey, out var normLike))
-                                throw new ArgumentException($"Unsupported filter field: {key}.");
-
-                            var actual = GetFieldValue(item, normLike)?.ToString() ?? "";
-                            if (!actual.Contains(val.ToString() ?? "", StringComparison.OrdinalIgnoreCase))
-                            {
-                                match = false;
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            throw new ArgumentException($"Unsupported filter field: {key}.");
-                        }
-                    }
-
-                    if (!match)
+                try {
+                    if (session is null || session.user is null)
                         continue;
 
-                    var payload = await BuildQueueJsonItem(item);
-                    var response = new
+                    if (!session.user!.CheckAccessLevel(AccessLevel.ADMIN) &&
+                        session.user.UID != item.User?.UID)
+                        continue;
+
+                    foreach (var sub in session.QueueSubscriptions)
                     {
-                        Command = "Queue:StatusUpdate",
-                        Channel = sub.Channel,
-                        Payload = payload
-                    };
+                        bool match = true;
 
-                    var json = JsonSerializer.Serialize(response);
-                    var buffer = Encoding.UTF8.GetBytes(json);
+                        foreach (var kv in sub.Filters)
+                        {
+                            var key = kv.Key;
+                            var val = kv.Value!;
+                            if (NormalizedFieldMap.TryGetValue(key, out var norm))
+                            {
+                                var actual = GetFieldValue(item, norm);
+                                if (!FoxFilterHelper.Matches(val, actual))
+                                {
+                                    match = false;
+                                    break;
+                                }
+                            }
+                            else if (key.EndsWith("Contains", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var baseKey = key[..^"Contains".Length];
+                                if (!NormalizedFieldMap.TryGetValue(baseKey, out var normLike))
+                                    throw new ArgumentException($"Unsupported filter field: {key}.");
 
-                    await wsContext.WebSocket.SendAsync(buffer, true);
+                                var actual = GetFieldValue(item, normLike)?.ToString() ?? "";
+                                if (!actual.Contains(val.ToString() ?? "", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    match = false;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                throw new ArgumentException($"Unsupported filter field: {key}.");
+                            }
+                        }
+
+                        if (!match)
+                            continue;
+
+                        var payload = await BuildQueueJsonItem(item);
+                        var response = new
+                        {
+                            Command = "Queue:StatusUpdate",
+                            Channel = sub.Channel,
+                            Payload = payload
+                        };
+
+                        var json = JsonSerializer.Serialize(response);
+                        var buffer = Encoding.UTF8.GetBytes(json);
+
+                        await wsContext.WebSocket.SendAsync(buffer, true);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Log the error
+                    FoxLog.LogException(ex, $"Error broadcasting queue update: {ex.Message}");
                 }
             }
         }
