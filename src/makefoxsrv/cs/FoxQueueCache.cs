@@ -73,7 +73,7 @@ namespace makefoxsrv
             await gate.WaitAsync();
 
             // Debug
-            FoxLog.WriteLine($"[LOCK] {id} acquired by {Environment.CurrentManagedThreadId}");
+            //FoxLog.WriteLine($"[LOCK] {id} acquired by {Environment.CurrentManagedThreadId}");
         }
 
         public static void Unlock(ulong id)
@@ -83,7 +83,7 @@ namespace makefoxsrv
                 gate.Release();
 
                 // Debug
-                FoxLog.WriteLine($"[UNLOCK] {id} released by {Environment.CurrentManagedThreadId}");
+                //FoxLog.WriteLine($"[UNLOCK] {id} released by {Environment.CurrentManagedThreadId}");
             }
             else
             {
