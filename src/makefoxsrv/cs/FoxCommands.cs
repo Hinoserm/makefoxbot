@@ -1476,7 +1476,6 @@ namespace makefoxsrv
         [CommandArguments("[<value>]")]
         private static async Task CmdSetSeed(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-
             int seed = 0;
 
             var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);

@@ -196,7 +196,7 @@ namespace makefoxsrv
                 while (await reader.ReadAsync())
                 {
                     var queueItemId = reader.GetUInt64("id");
-                    var queueItem = await FoxQueue.Get(queueItemId, noCache: true);
+                    var queueItem = await FoxQueue.Get(queueItemId, noCache: false);
                     if (queueItem != null)
                         queueItems.Add(queueItem);
                 }
