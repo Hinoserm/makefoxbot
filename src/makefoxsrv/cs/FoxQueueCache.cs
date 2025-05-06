@@ -71,12 +71,24 @@ namespace makefoxsrv
         {
             var gate = _locks.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
             await gate.WaitAsync();
+
+            // Debug
+            FoxLog.WriteLine($"[LOCK] {id} acquired by {Environment.CurrentManagedThreadId}");
         }
 
         public static void Unlock(ulong id)
         {
             if (_locks.TryGetValue(id, out var gate))
+            {
                 gate.Release();
+
+                // Debug
+                FoxLog.WriteLine($"[UNLOCK] {id} released by {Environment.CurrentManagedThreadId}");
+            }
+            else
+            {
+                FoxLog.WriteLine($"[UNLOCK] {id} not found in locks");
+            }
         }
 
         public static void Touch(ulong id)
