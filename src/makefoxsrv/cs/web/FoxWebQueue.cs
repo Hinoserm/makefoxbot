@@ -80,8 +80,8 @@ namespace makefoxsrv
         {
             long? id = FoxJsonHelper.GetLong(jsonMessage, "ID", true);
             long? uid = FoxJsonHelper.GetLong(jsonMessage, "UID", true);
-            string? action = FoxJsonHelper.GetString(jsonMessage, "action", true);
-            long? lastImageId = FoxJsonHelper.GetLong(jsonMessage, "lastImageId", true);
+            string? action = FoxJsonHelper.GetString(jsonMessage, "Action", true);
+            long? lastImageId = FoxJsonHelper.GetLong(jsonMessage, "LastImageId", true);
             int pageSize = FoxJsonHelper.GetInt(jsonMessage, "PageSize", true) ?? 50;
             string? statusFilter = FoxJsonHelper.GetString(jsonMessage, "Status", true);
             string? modelFilter = FoxJsonHelper.GetString(jsonMessage, "Model", true);
