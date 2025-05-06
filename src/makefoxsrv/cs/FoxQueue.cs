@@ -1148,15 +1148,16 @@ namespace makefoxsrv
         public static async Task<FoxQueue?> Get(ulong id, bool noCache = false)
         {
             // Attempt to find the FoxQueue item in the fullQueue cache
-            await FoxQueueCache.Lock(id);
-
-            var cached = FoxQueueCache.Get(id);
-            if (cached != null && !noCache)
-                return cached;
-
             FoxQueue? q = null;
 
-            try {
+            await FoxQueueCache.Lock(id);
+            try
+            {
+
+                var cached = FoxQueueCache.Get(id);
+                if (cached != null && !noCache)
+                    return cached;
+
                 var parameters = new Dictionary<string, object?>
                 {
                     { "@id", id }
