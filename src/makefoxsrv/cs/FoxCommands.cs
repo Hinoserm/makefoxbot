@@ -1382,7 +1382,7 @@ namespace makefoxsrv
                 {
                     sb.AppendLine();
                     sb.AppendLine("Cache Info:");
-                    sb.AppendLine($"  Queue: {FoxQueueCache.Count()}");
+                    sb.AppendLine($"  Queue: {FoxQueue.Cache.Count()}");
                     sb.AppendLine($"  Users: {FoxUser.CacheCount()}");
                 }
 
@@ -1712,7 +1712,7 @@ namespace makefoxsrv
 
             List<ulong> pendingIds = new List<ulong>();
 
-            var matchingItems = FoxQueueCache.FindAll(item => !item.IsFinished() && item.User?.UID == user.UID);
+            var matchingItems = FoxQueue.Cache.FindAll(item => !item.IsFinished() && item.User?.UID == user.UID);
 
             foreach (var q in matchingItems)
             {

@@ -158,17 +158,22 @@ namespace makefoxsrv
         private static ConcurrentQueue<FoxQueue> delayedTasks = new ConcurrentQueue<FoxQueue>();
         private static Timer? delayedTaskTimer = null;
 
+        public static readonly FoxCache<FoxQueue> Cache = new FoxCache<FoxQueue>(
+            idAccessor: q => q.ID,
+            strongLifetime: TimeSpan.FromHours(24),
+            maxSize: 20000,
+
+            // Retention predicate: don't evict unless CANCELLED or FINISHED
+            retentionPredicate: q => q.status != QueueStatus.CANCELLED &&
+                                     q.status != QueueStatus.FINISHED
+        );
+
         static FoxQueue()
         {
             FoxWorker.OnTaskCompleted += (sender, args) => _ = queueSemaphore.Release();
             FoxWorker.OnTaskCompleted += (sender, args) => _ = queueSemaphore.Release();
             FoxWorker.OnWorkerStart += (sender, args) => _ = queueSemaphore.Release();
             FoxWorker.OnWorkerOnline += (sender, args) => _ = queueSemaphore.Release();
-        }
-
-        public static long ClearCache()
-        {
-            return 0; //Not yet implemented.
         }
 
         public static void Enqueue(FoxQueue item, bool addToFront = false)
@@ -425,7 +430,7 @@ namespace makefoxsrv
                 var oneMinuteAgo = now.AddMinutes(-1);
 
                 // Look in the full queue for all tasks relevant to the same chat
-                var chatTasks = FoxQueueCache.Values
+                var chatTasks = Cache.Values
                     .Where(queueItem => queueItem != null
                             && queueItem.Telegram?.Chat?.ID == item.Telegram.Chat.ID
                             )
@@ -621,7 +626,7 @@ namespace makefoxsrv
 
                     q.Telegram = new FoxTelegram(teleUser, teleChat);
 
-                    FoxQueueCache.Add(q); // Add to queue cache
+                    Cache.Add(q); // Add to queue cache
 
                     count++;
                     
@@ -908,7 +913,7 @@ namespace makefoxsrv
 
             await FoxDB.SaveObjectAsync(q, "queue");
 
-            FoxQueueCache.Add(q); // Add to queue cache
+            Cache.Add(q); // Add to queue cache
 
             // Log this after saving the object so we have it's ID.
 
@@ -1150,11 +1155,11 @@ namespace makefoxsrv
             // Attempt to find the FoxQueue item in the fullQueue cache
             FoxQueue? q = null;
 
-            await FoxQueueCache.Lock(id);
+            await Cache.Lock(id);
             try
             {
 
-                var cached = FoxQueueCache.Get(id);
+                var cached = Cache.Get(id);
                 if (cached != null && !noCache)
                     return cached;
 
@@ -1186,11 +1191,11 @@ namespace makefoxsrv
 
                 // After loading, add the object to the fullQueue cache if it's not null
                 if (q is not null && !noCache)
-                    FoxQueueCache.Add(q);
+                    Cache.Add(q);
             }
             finally
             {
-                FoxQueueCache.Unlock(id);
+                Cache.Unlock(id);
             }
 
             return q;
@@ -1683,7 +1688,7 @@ namespace makefoxsrv
             }
 
             // For completed tasks, consider only FINISHED tasks that have both DateQueued and DateStarted.
-            var completedTasks = FoxQueueCache.Values
+            var completedTasks = Cache.Values
                 .Where(t => t.status == QueueStatus.FINISHED && t.DateQueued != null && t.DateStarted != null)
                 .OrderByDescending(t => t.DateStarted)
                 //.Take(50)
@@ -1705,7 +1710,7 @@ namespace makefoxsrv
                 completedLine = $"Of the last {completedTasks.Count()} completed images, the longest waited {FormatTimeSpan(completedLongest)} in queue.";
             }
 
-            var processingTasks = FoxQueueCache.Values
+            var processingTasks = Cache.Values
                 .Where(t => t.status == QueueStatus.PROCESSING && t.DateStarted != null)
                 .OrderByDescending(t => t.DateStarted)
                 .ToList();

@@ -99,7 +99,7 @@ namespace makefoxsrv
             if (string.IsNullOrEmpty(argument) || argument.ToLower().Split(' ').Contains("all"))
             {
                 long usersRemoved = FoxUser.ClearCache();
-                long queueRemoved = FoxQueue.ClearCache();
+                long queueRemoved = FoxQueue.Cache.Clear();
                 long modelsUpdated = FoxModel.ClearCache();
 
                 await t.SendMessageAsync(
@@ -121,7 +121,7 @@ namespace makefoxsrv
                             totalRemoved += FoxUser.ClearCache();
                             break;
                         case "queue":
-                            totalRemoved += FoxQueue.ClearCache();
+                            totalRemoved += FoxQueue.Cache.Clear(true);
                             break;
                         case "model":
                         case "models":
