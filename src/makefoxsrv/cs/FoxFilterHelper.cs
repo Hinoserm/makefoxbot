@@ -84,7 +84,7 @@ namespace makefoxsrv
                     return a.Contains(e, StringComparison.OrdinalIgnoreCase);
                 }
 
-                return Equals(actual, expected);
+                return ValuesEqual(actual, expected);
             }
 
             if (filter is JsonArray arr)
@@ -100,11 +100,11 @@ namespace makefoxsrv
                         includes.Add(vNode.GetValue<object>());
                 }
 
-                if (excludes.Any(e => Equals(actual, e)))
+                if (excludes.Any(e => ValuesEqual(actual, e)))
                     return false;
 
                 if (includes.Count > 0)
-                    return includes.Any(i => Equals(actual, i));
+                    return includes.Any(i => ValuesEqual(actual, i));
 
                 return true;
             }
@@ -119,19 +119,24 @@ namespace makefoxsrv
                     switch (op)
                     {
                         case "not":
-                            if (Equals(actual, v)) return false;
+                            if (ValuesEqual(actual, v))
+                                return false;
                             break;
                         case "lt":
-                            if (!Compare(actual, v, (l, r) => l < r)) return false;
+                            if (!Compare(actual, v, (l, r) => l < r))
+                                return false;
                             break;
                         case "lte":
-                            if (!Compare(actual, v, (l, r) => l <= r)) return false;
+                            if (!Compare(actual, v, (l, r) => l <= r))
+                                return false;
                             break;
                         case "gt":
-                            if (!Compare(actual, v, (l, r) => l > r)) return false;
+                            if (!Compare(actual, v, (l, r) => l > r))
+                                return false;
                             break;
                         case "gte":
-                            if (!Compare(actual, v, (l, r) => l >= r)) return false;
+                            if (!Compare(actual, v, (l, r) => l >= r))
+                                return false;
                             break;
                     }
                 }

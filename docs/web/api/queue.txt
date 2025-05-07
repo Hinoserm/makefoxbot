@@ -57,11 +57,9 @@ Queue:SubscribeUpdates
   Description:
     Subscribes the current websocket session to queue updates matching the provided filters.
   Expected Parameters:
-    type    : "Queue:SubscribeUpdates"
-    channel : (string) - arbitrary name for this subscription
-    payload : {
-      Filters: (object) - see filtering section below
-    }
+    Command : "Queue:SubscribeUpdates"
+    Channel : (string) - arbitrary name for this subscription
+    Filters : (object, optional) - see filtering section below
 
   Returns:
     Command : "Queue:SubscribeUpdates"

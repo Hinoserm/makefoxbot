@@ -33,7 +33,7 @@ namespace makefoxsrv
         public class QueueSubscription
         {
             public string Channel { get; set; } = default!;
-            public JsonObject Filters { get; set; } = default!;
+            public JsonObject? Filters { get; set; } = null;
         }
 
         public List<QueueSubscription> QueueSubscriptions { get; } = new();

@@ -225,24 +225,26 @@ namespace makefoxsrv
                 throw new ArgumentException("Missing or invalid 'channel'.");
 
             var filters = jsonMessage["Filters"] as JsonObject;
-            if (filters is null)
-                throw new ArgumentException("Missing or invalid 'Filters'.");
 
-            // validate
-            foreach (var kv in filters)
+            if (filters is not null)
             {
-                var key = kv.Key;
-                var value = kv.Value;
-                if (value is null)
-                    throw new ArgumentException($"Null filter value for: {key}");
+                // Only validate if filters are provided
 
-                if (NormalizedFieldMap.ContainsKey(key) ||
-                    key.EndsWith("Contains", StringComparison.OrdinalIgnoreCase) &&
-                    NormalizedFieldMap.ContainsKey(key[..^"Contains".Length]))
+                foreach (var kv in filters)
                 {
-                    continue;
+                    var key = kv.Key;
+                    var value = kv.Value;
+                    if (value is null)
+                        throw new ArgumentException($"Null filter value for: {key}");
+
+                    if (NormalizedFieldMap.ContainsKey(key) ||
+                        key.EndsWith("Contains", StringComparison.OrdinalIgnoreCase) &&
+                        NormalizedFieldMap.ContainsKey(key[..^"Contains".Length]))
+                    {
+                        continue;
+                    }
+                    throw new ArgumentException($"Unsupported filter field: {key}.");
                 }
-                throw new ArgumentException($"Unsupported filter field: {key}.");
             }
 
             lock (session)
@@ -314,11 +316,12 @@ namespace makefoxsrv
 
             foreach (var (wsContext, session) in active)
             {
-                try {
+                try
+                {
                     if (session is null || session.user is null)
                         continue;
 
-                    if (!session.user!.CheckAccessLevel(AccessLevel.ADMIN) &&
+                    if (!session.user.CheckAccessLevel(AccessLevel.ADMIN) &&
                         session.user.UID != item.User?.UID)
                         continue;
 
@@ -326,35 +329,38 @@ namespace makefoxsrv
                     {
                         bool match = true;
 
-                        foreach (var kv in sub.Filters)
+                        if (sub.Filters is not null)
                         {
-                            var key = kv.Key;
-                            var val = kv.Value!;
-                            if (NormalizedFieldMap.TryGetValue(key, out var norm))
+                            foreach (var kv in sub.Filters)
                             {
-                                var actual = GetFieldValue(item, norm);
-                                if (!FoxFilterHelper.Matches(val, actual))
+                                var key = kv.Key;
+                                var val = kv.Value!;
+                                if (NormalizedFieldMap.TryGetValue(key, out var norm))
                                 {
-                                    match = false;
-                                    break;
+                                    var actual = GetFieldValue(item, norm);
+                                    if (!FoxFilterHelper.Matches(val, actual))
+                                    {
+                                        match = false;
+                                        break;
+                                    }
                                 }
-                            }
-                            else if (key.EndsWith("Contains", StringComparison.OrdinalIgnoreCase))
-                            {
-                                var baseKey = key[..^"Contains".Length];
-                                if (!NormalizedFieldMap.TryGetValue(baseKey, out var normLike))
-                                    throw new ArgumentException($"Unsupported filter field: {key}.");
+                                else if (key.EndsWith("Contains", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var baseKey = key[..^"Contains".Length];
+                                    if (!NormalizedFieldMap.TryGetValue(baseKey, out var normLike))
+                                        throw new ArgumentException($"Unsupported filter field: {key}.");
 
-                                var actual = GetFieldValue(item, normLike)?.ToString() ?? "";
-                                if (!actual.Contains(val.ToString() ?? "", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    match = false;
-                                    break;
+                                    var actual = GetFieldValue(item, normLike)?.ToString() ?? "";
+                                    if (!actual.Contains(val.ToString() ?? "", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        match = false;
+                                        break;
+                                    }
                                 }
-                            }
-                            else
-                            {
-                                throw new ArgumentException($"Unsupported filter field: {key}.");
+                                else
+                                {
+                                    throw new ArgumentException($"Unsupported filter field: {key}.");
+                                }
                             }
                         }
 
@@ -382,5 +388,6 @@ namespace makefoxsrv
                 }
             }
         }
+
     }
 }
