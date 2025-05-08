@@ -13,7 +13,6 @@ using System.Text.Json;
 using Swan.Logging;
 using System.Runtime.InteropServices;
 using System.Collections.Concurrent;
-using NvAPIWrapper.GPU;
 
 namespace makefoxsrv;
 
@@ -29,7 +28,7 @@ public class FoxONNXImageTagger
         string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_fp16.onnx";
         //int gpuCount = PhysicalGPU.GetPhysicalGPUs().Count();
 
-        int gpuCount = 1; // For testing, force to 1 GPU
+        int gpuCount = (int)FoxNVMLWrapper.GetDeviceCount();
 
         FoxLog.WriteLine($"Initializing ONNX model on {gpuCount} GPU(s)...");
 
