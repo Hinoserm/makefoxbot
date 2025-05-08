@@ -304,6 +304,8 @@ namespace makefoxsrv
 
             await FoxCivitai.InitializeCacheAsync();
 
+            FoxONNXImageTagger.Start();
+
             await FoxLORAs.StartupLoad();
 
             Console.CancelKeyPress += (sender, e) =>

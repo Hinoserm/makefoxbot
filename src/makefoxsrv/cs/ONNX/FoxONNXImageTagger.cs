@@ -11,48 +11,95 @@ using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.Drawing.Processing;
 using System.Text.Json;
 using Swan.Logging;
+using System.Runtime.InteropServices;
+using System.Collections.Concurrent;
+using NvAPIWrapper.GPU;
 
 namespace makefoxsrv;
 
 public class FoxONNXImageTagger
 {
-    private static readonly InferenceSession _session;
-    // Maps index (int) -> tag (string) loaded from ONNX metadata key "tags_json"
+    private static readonly List<InferenceSession> _sessions;
     private static readonly Dictionary<int, string> _tags;
+    private static int _nextSessionIndex = 0;
+    private static readonly object _sessionLock = new();
 
     static FoxONNXImageTagger()
     {
         string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_fp16.onnx";
+        int gpuCount = PhysicalGPU.GetPhysicalGPUs().Count();
 
-        try
+        FoxLog.WriteLine($"Initializing ONNX model on {gpuCount} GPU(s)...");
+
+        var sessionList = new InferenceSession[gpuCount];
+        var workingSessions = new ConcurrentBag<InferenceSession>();
+
+        Parallel.For(0, gpuCount, i =>
         {
-            var options = new SessionOptions();
-            // Enable all graph optimizations
-            options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-            //options.LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_INFO;
-            //options.LogVerbosityLevel = 1;
-
-            options.AppendExecutionProvider_CUDA(); // Use CUDA
-            options.AppendExecutionProvider_CPU();  // Use CPU
-
-            // Set threading options for max performance
-            //options.IntraOpNumThreads = Environment.ProcessorCount;
-            //options.InterOpNumThreads = Environment.ProcessorCount;
-
-            _session = new InferenceSession(modelPath, options);
-
-            _tags = LoadTagsFromONNX(_session);
-            if (_tags == null || _tags.Count == 0)
+            try
             {
-                throw new Exception("Failed to load tags from ONNX model metadata.");
-            }
+                var options = new SessionOptions();
+                options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+                options.AppendExecutionProvider_CUDA(i);
+                options.AppendExecutionProvider_CPU(); // Optional fallback within GPU session
 
-            FoxLog.WriteLine($"ONNX Model Loaded: {modelPath}");
-        }
-        catch (Exception ex)
+                var session = new InferenceSession(modelPath, options);
+                workingSessions.Add(session);
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex, $"Failed to init ONNX session on GPU {i}: {ex.Message}");
+            }
+        });
+
+        if (workingSessions.Count == 0)
         {
-            FoxLog.WriteLine($"❌ Failed to load ONNX model: {ex.Message} \r\n {ex.InnerException?.Message} \r\n {ex.InnerException?.StackTrace}", LogLevel.ERROR);
-            throw;
+            FoxLog.WriteLine("No usable GPU sessions. Falling back to CPU-only inference.");
+
+            try
+            {
+                var options = new SessionOptions();
+                options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+                options.AppendExecutionProvider_CPU();
+
+                var cpuSession = new InferenceSession(modelPath, options);
+                workingSessions.Add(cpuSession);
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex, $"Failed to init CPU-only ONNX session: {ex.Message}");
+                throw;
+            }
+        }
+
+        _sessions = workingSessions.ToList();
+
+        // Use first successful session to load tags
+        _tags = LoadTagsFromONNX(_sessions[0]);
+        if (_tags == null || _tags.Count == 0)
+            throw new Exception("Failed to load tags from ONNX model metadata.");
+
+        FoxLog.WriteLine($"ONNX model loaded on {_sessions.Count} device(s): {modelPath}");
+    }
+
+
+
+    public static void Start()
+    {
+        // This method is intentionally left empty.
+        // Initialization is done in the static constructor.
+        // Any additional startup logic can be added here if needed.
+
+        FoxLog.WriteLine("ONNX Image Tagger initialized.");
+    }
+
+    private InferenceSession GetNextSession()
+    {
+        lock (_sessionLock)
+        {
+            var session = _sessions[_nextSessionIndex];
+            _nextSessionIndex = (_nextSessionIndex + 1) % _sessions.Count;
+            return session;
         }
     }
 
@@ -66,8 +113,10 @@ public class FoxONNXImageTagger
         float[] inputTensor = PreprocessImage(image);
 
         // Get model input metadata
-        string inputName = _session.InputMetadata.Keys.First();
-        var expectedType = _session.InputMetadata[inputName].ElementDataType; // Get ONNX-defined type
+        var session = GetNextSession();
+
+        var inputName = session.InputMetadata.Keys.First();
+        var expectedType = session.InputMetadata[inputName].ElementDataType; // Get ONNX-defined type
 
         Console.WriteLine($"🔍 Model expects input type: {expectedType}");
 
@@ -91,7 +140,7 @@ public class FoxONNXImageTagger
         var inputs = new List<NamedOnnxValue> { inputData };
 
         Console.WriteLine("🔍 Checking model outputs...");
-        foreach (var output in _session.OutputMetadata)
+        foreach (var output in session.OutputMetadata)
         {
             Console.WriteLine($"✅ Model Output Name: {output.Key}, Type: {output.Value.ElementType}");
         }
@@ -99,7 +148,7 @@ public class FoxONNXImageTagger
         // **Run inference**
 
         var startTime = DateTime.Now;
-        using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results = _session.Run(new List<NamedOnnxValue> { inputData });
+        using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results = session.Run(new List<NamedOnnxValue> { inputData });
         var elapsedTime = DateTime.Now - startTime;
 
         FoxLog.Write($"Inference completed in {elapsedTime.TotalMilliseconds:F2} ms. ", LogLevel.INFO);
