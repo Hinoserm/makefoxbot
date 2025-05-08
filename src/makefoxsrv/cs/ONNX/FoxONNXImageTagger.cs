@@ -18,10 +18,22 @@ namespace makefoxsrv;
 
 public class FoxONNXImageTagger
 {
-    private static readonly List<InferenceSession> _sessions;
+    private static readonly List<ONNXSession> _sessions;
     private static readonly Dictionary<int, string> _tags;
     private static int _nextSessionIndex = 0;
     private static readonly object _sessionLock = new();
+
+    record ONNXSession
+    {
+        public InferenceSession Session;
+        public FoxNVMLWrapper.GpuDevice? GPU;
+
+        public ONNXSession(InferenceSession session, FoxNVMLWrapper.GpuDevice? gpu)
+        {
+            Session = session;
+            GPU = gpu;
+        }
+    };
 
     static FoxONNXImageTagger()
     {
@@ -33,14 +45,20 @@ public class FoxONNXImageTagger
 
         FoxLog.WriteLine($"Initializing ONNX model on {gpuCount} GPU(s)...");
 
-        var sessionList = new InferenceSession[gpuCount];
-        var workingSessions = new ConcurrentBag<InferenceSession>();
+        var sessionList = new ONNXSession[gpuCount];
+        var workingSessions = new ConcurrentBag<ONNXSession>();
 
         Parallel.ForEach(gpuList, (gpu) =>
         {
             try
             {
                 var gpuName = gpu.Name;
+
+                if (gpu.Memory.Total < (10UL * 1024 * 1024 * 1024)) // 10GB
+                {
+                    FoxLog.WriteLine($"Skipping GPU {gpu.Index} ({gpuName}) due to insufficient memory.");
+                    return;
+                }
 
                 FoxLog.WriteLine($"Initializing ONNX session on GPU {gpu.Index}: {gpuName}");
 
@@ -51,7 +69,8 @@ public class FoxONNXImageTagger
                 options.AppendExecutionProvider_CPU(); // Optional fallback within GPU session
 
                 var session = new InferenceSession(modelPath, options);
-                workingSessions.Add(session);
+                var onnxSession = new ONNXSession(session, gpu);
+                workingSessions.Add(onnxSession);
             }
             catch (Exception ex)
             {
@@ -69,7 +88,7 @@ public class FoxONNXImageTagger
                 options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
                 options.AppendExecutionProvider_CPU();
 
-                var cpuSession = new InferenceSession(modelPath, options);
+                var cpuSession = new ONNXSession(new InferenceSession(modelPath, options), null);
                 workingSessions.Add(cpuSession);
             }
             catch (Exception ex)
@@ -81,8 +100,10 @@ public class FoxONNXImageTagger
 
         _sessions = workingSessions.ToList();
 
+        var firstSession = _sessions.First();
+
         // Use first successful session to load tags
-        _tags = LoadTagsFromONNX(_sessions[0]);
+        _tags = LoadTagsFromONNX(firstSession.Session);
         if (_tags == null || _tags.Count == 0)
             throw new Exception("Failed to load tags from ONNX model metadata.");
 
@@ -100,7 +121,7 @@ public class FoxONNXImageTagger
         FoxLog.WriteLine("ONNX Image Tagger initialized.");
     }
 
-    private InferenceSession GetNextSession()
+    private ONNXSession GetNextSession()
     {
         lock (_sessionLock)
         {
@@ -120,7 +141,8 @@ public class FoxONNXImageTagger
         float[] inputTensor = PreprocessImage(image);
 
         // Get model input metadata
-        var session = GetNextSession();
+        var onnxSession = GetNextSession();
+        var session = onnxSession.Session;
 
         var inputName = session.InputMetadata.Keys.First();
         var expectedType = session.InputMetadata[inputName].ElementDataType; // Get ONNX-defined type
