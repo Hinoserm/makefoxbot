@@ -28,7 +28,9 @@ public class FoxONNXImageTagger
         string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_fp16.onnx";
         //int gpuCount = PhysicalGPU.GetPhysicalGPUs().Count();
 
-        int gpuCount = (int)FoxNVMLWrapper.GetDeviceCount();
+        //int gpuCount = (int)FoxNVMLWrapper.GetDeviceCount();
+
+        int gpuCount = 1;
 
         FoxLog.WriteLine($"Initializing ONNX model on {gpuCount} GPU(s)...");
 
