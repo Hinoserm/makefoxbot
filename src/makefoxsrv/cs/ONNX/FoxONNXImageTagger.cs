@@ -28,22 +28,26 @@ public class FoxONNXImageTagger
         string modelPath = "../models/JTP_PILOT2-e3-vit_so400m_patch14_siglip_384_fp16.onnx";
         //int gpuCount = PhysicalGPU.GetPhysicalGPUs().Count();
 
-        //int gpuCount = (int)FoxNVMLWrapper.GetDeviceCount();
-
-        int gpuCount = 1;
+        var gpuList = FoxNVMLWrapper.GetAllDevices();
+        var gpuCount = gpuList.Count();
 
         FoxLog.WriteLine($"Initializing ONNX model on {gpuCount} GPU(s)...");
 
         var sessionList = new InferenceSession[gpuCount];
         var workingSessions = new ConcurrentBag<InferenceSession>();
 
-        Parallel.For(0, gpuCount, i =>
+        Parallel.ForEach(gpuList, (gpu) =>
         {
             try
             {
+                var gpuName = gpu.Name;
+
+                FoxLog.WriteLine($"Initializing ONNX session on GPU {gpu.Index}: {gpuName}");
+
+                // Set GPU device ID for this session
                 var options = new SessionOptions();
                 options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-                options.AppendExecutionProvider_CUDA(i);
+                options.AppendExecutionProvider_CUDA((int)gpu.Index);
                 options.AppendExecutionProvider_CPU(); // Optional fallback within GPU session
 
                 var session = new InferenceSession(modelPath, options);
@@ -51,7 +55,7 @@ public class FoxONNXImageTagger
             }
             catch (Exception ex)
             {
-                FoxLog.LogException(ex, $"Failed to init ONNX session on GPU {i}: {ex.Message}");
+                FoxLog.LogException(ex, $"Failed to init ONNX session on GPU {gpu.Index}: {ex.Message}");
             }
         });
 
