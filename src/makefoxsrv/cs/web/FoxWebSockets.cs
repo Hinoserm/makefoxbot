@@ -167,8 +167,10 @@ class FoxWebSockets {
 
                             try
                             {
+                                var foxContext = new FoxWebContext() { webSocketContext = context, session = session };
+
                                 // Use the CallMethod function to invoke the method dynamically
-                                JsonObject? output = await MethodLookup.CallMethod(command, session, jsonMessage);
+                                JsonObject? output = await MethodLookup.CallMethod(command, foxContext, jsonMessage);
 
                                 if (output is null)
                                 {

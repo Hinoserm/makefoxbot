@@ -29,7 +29,7 @@ namespace makefoxsrv
     {
         [WebFunctionName("CalcRewardDays")]
         [WebLoginRequired(false)]
-        public static async Task<JsonObject?> CalcRewardDays(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject?> CalcRewardDays(FoxWebContext context, JsonObject jsonMessage)
         {
             int amount = FoxJsonHelper.GetInt(jsonMessage, "Amount", false)!.Value;
 
@@ -47,7 +47,7 @@ namespace makefoxsrv
 
         [WebFunctionName("Process")]
         [WebLoginRequired(false)]
-        public static async Task<JsonObject?> Process(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject?> Process(FoxWebContext context, JsonObject jsonMessage)
         {
             string chargeID = FoxJsonHelper.GetString(jsonMessage, "ChargeID", false)!;
             string sessionUUID = FoxJsonHelper.GetString(jsonMessage, "PaymentUUID", false)!;

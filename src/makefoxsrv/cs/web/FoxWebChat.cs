@@ -33,13 +33,15 @@ namespace makefoxsrv
         [WebFunctionName("GetMessages")]    // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject?> GetMessages(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject?> GetMessages(FoxWebContext context, JsonObject jsonMessage)
         {
+            var session = context.session;
+
             long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false)!.Value;
 
             int msgCount = FoxJsonHelper.GetInt(jsonMessage, "Count", true) ?? 30;
 
-            if (session.user is null)
+            if (session?.user is null)
                 throw new Exception("User not logged in.");
 
             FoxUser fromUser = session.user;
@@ -164,8 +166,11 @@ namespace makefoxsrv
         [WebFunctionName("SendMessage")]    // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject?> SendMessage(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject?> SendMessage(FoxWebContext context, JsonObject jsonMessage)
         {
+            var session = context.session;
+
+
             long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false).Value;
             string message = FoxJsonHelper.GetString(jsonMessage, "Message", false);
 
@@ -218,8 +223,9 @@ namespace makefoxsrv
         [WebFunctionName("Delete")]         // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject?> Delete(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject?> Delete(FoxWebContext context, JsonObject jsonMessage)
         {
+            var session = context.session;
             var fromUser = session.user;
 
             long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false).Value;
@@ -251,8 +257,10 @@ namespace makefoxsrv
         [WebFunctionName("Get")]            // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject> Get(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject> Get(FoxWebContext context, JsonObject jsonMessage)
         {
+            var session = context.session;
+
             long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false)!.Value;
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
@@ -318,8 +326,10 @@ namespace makefoxsrv
         [WebFunctionName("New")]    // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject?> New(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject?> New(FoxWebContext context, JsonObject jsonMessage)
         {
+            var session = context.session;
+
             string username = FoxJsonHelper.GetString(jsonMessage, "Username", false)!;
 
             var fromUser = session.user;
@@ -374,8 +384,10 @@ namespace makefoxsrv
         [WebFunctionName("List")]    // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(true)]            // User must be logged in to use this function
         [WebAccessLevel(AccessLevel.ADMIN)] // Minimum access level required to use this function
-        public static async Task<JsonObject> List(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject> List(FoxWebContext context, JsonObject jsonMessage)
         {
+            var session = context.session;
+
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
@@ -467,7 +479,7 @@ namespace makefoxsrv
                                     };
 
                                     string jsonMessage = JsonSerializer.Serialize(response);
-                                    await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
+                                    await context.wsContext.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
                                 }
                             }
                         }
@@ -534,7 +546,7 @@ namespace makefoxsrv
                                     };
 
                                     string jsonMessage = JsonSerializer.Serialize(response);
-                                    await context.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
+                                    await context.wsContext.WebSocket.SendAsync(Encoding.UTF8.GetBytes(jsonMessage), true);
                                 }
                             }
                         }

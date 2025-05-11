@@ -70,6 +70,9 @@ public class FoxONNXImageTagger
 
                 var session = new InferenceSession(modelPath, options);
                 var onnxSession = new ONNXSession(session, gpu);
+
+                
+
                 workingSessions.Add(onnxSession);
             }
             catch (Exception ex)

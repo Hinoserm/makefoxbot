@@ -22,8 +22,11 @@ namespace makefoxsrv
         [WebFunctionName("Get")]
         [WebLoginRequired(true)]
         [WebAccessLevel(AccessLevel.BASIC)]
-        public static async Task<JsonObject?> Get(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject?> Get(FoxWebContext context, JsonObject jsonMessage)
         {
+            var session = context.session;
+
+
             long imageId = FoxJsonHelper.GetLong(jsonMessage, "ImageID", false).Value;
             int? maxSize = FoxJsonHelper.GetInt(jsonMessage, "MaxSize", true);
 

@@ -76,8 +76,10 @@ namespace makefoxsrv
         [WebFunctionName("List")]
         [WebLoginRequired(true)]
         [WebAccessLevel(AccessLevel.BASIC)]
-        public static async Task<JsonObject?> List(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject?> List(FoxWebContext context, JsonObject jsonMessage)
         {
+            var session = context.session;
+
             long? id = FoxJsonHelper.GetLong(jsonMessage, "ID", true);
             long? uid = FoxJsonHelper.GetLong(jsonMessage, "UID", true);
             string? action = FoxJsonHelper.GetString(jsonMessage, "Action", true);
@@ -218,8 +220,10 @@ namespace makefoxsrv
         [WebFunctionName("SubscribeUpdates")]
         [WebLoginRequired(true)]
         [WebAccessLevel(AccessLevel.BASIC)]
-        public static async Task<JsonObject?> SubscribeUpdates(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject?> SubscribeUpdates(FoxWebContext context, JsonObject jsonMessage)
         {
+            var session = context.session;
+
             var channel = FoxJsonHelper.GetString(jsonMessage, "channel", false);
             if (string.IsNullOrWhiteSpace(channel))
                 throw new ArgumentException("Missing or invalid 'channel'.");
@@ -249,11 +253,15 @@ namespace makefoxsrv
 
             lock (session)
             {
-                var existing = session.QueueSubscriptions.FirstOrDefault(s => s.Channel == channel);
+                var connection = session.Websockets.FirstOrDefault(w => w.wsContext == context.webSocketContext);
+                if (connection is null)
+                    throw new Exception("WebSocket connection not found.");
+
+                var existing = connection.QueueSubscriptions.FirstOrDefault(s => s.Channel == channel);
                 if (existing != null)
                     existing.Filters = filters;
                 else
-                    session.QueueSubscriptions.Add(new FoxWebSession.QueueSubscription
+                    connection.QueueSubscriptions.Add(new FoxWebSession.QueueSubscription
                     {
                         Channel = channel,
                         Filters = filters
@@ -314,7 +322,7 @@ namespace makefoxsrv
         {
             var active = FoxWebSession.GetActiveWebSocketSessions();
 
-            foreach (var (wsContext, session) in active)
+            foreach (var (websocket, session) in active)
             {
                 try
                 {
@@ -325,7 +333,7 @@ namespace makefoxsrv
                         session.user.UID != item.User?.UID)
                         continue;
 
-                    foreach (var sub in session.QueueSubscriptions)
+                    foreach (var sub in websocket.QueueSubscriptions)
                     {
                         bool match = true;
 
@@ -378,7 +386,7 @@ namespace makefoxsrv
                         var json = JsonSerializer.Serialize(response);
                         var buffer = Encoding.UTF8.GetBytes(json);
 
-                        await wsContext.WebSocket.SendAsync(buffer, true);
+                        await websocket.wsContext.WebSocket.SendAsync(buffer, true);
                     }
                 }
                 catch (Exception ex)

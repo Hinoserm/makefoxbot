@@ -26,8 +26,12 @@ namespace makefoxsrv
         //This function deletes a chat tab from the database
         [WebFunctionName("UserLogin")]      // Function name as seen in the URL or WebSocket command
         [WebLoginRequired(false)]           // User must be logged in to use this function
-        public static async Task<JsonObject?> UserLogin(FoxWebSession session, JsonObject jsonMessage)
+        public static async Task<JsonObject?> UserLogin(FoxWebContext context, JsonObject jsonMessage)
         {
+            var session = context.session;
+            if (session is null)
+                throw new Exception("Session is null.");
+
             string Username = FoxJsonHelper.GetString(jsonMessage, "Username", false)!;
             string Password = FoxJsonHelper.GetString(jsonMessage, "Password", false)!;
 

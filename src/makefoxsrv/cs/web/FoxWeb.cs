@@ -26,6 +26,13 @@ using System.Text.Json.Nodes;
 using JsonObject = System.Text.Json.Nodes.JsonObject;
 using JsonArray = System.Text.Json.Nodes.JsonArray;
 
+public class FoxWebContext
+{
+    public FoxWebSession? session = null;
+    public IWebSocketContext? webSocketContext = null;
+    public IHttpContext? httpContext = null;
+}
+
 class FoxWeb
 {
     private static WebServer? server = null;
@@ -350,7 +357,7 @@ class FoxWeb
             }
         }
 
-        public static async Task<JsonObject?> CallMethod(string command, FoxWebSession session, JsonObject jsonParameters)
+        public static async Task<JsonObject?> CallMethod(string command, FoxWebContext context, JsonObject jsonParameters)
         {
             string key = command.ToLower();
 
@@ -358,19 +365,19 @@ class FoxWeb
             {
                 // Check if user login is required and if the user is logged in
                 // Setting the AccessLevel implies the login check is also required
-                if ((details.LoginRequired || details.AccessLevel is not null) && session.user is null)
+                if ((details.LoginRequired || details.AccessLevel is not null) && context.session?.user is null)
                 {
                     throw new Exception("User must be logged in to use this function.");
                 }
 
                 // Check if the user meets the required access level
                 // Make sure to only check the AccessLevel if it's set
-                if (details.AccessLevel is not null && (session.user is null || !session.user.CheckAccessLevel(details.AccessLevel.Value)))
+                if (details.AccessLevel is not null && (context.session?.user is null || !context.session.user.CheckAccessLevel(details.AccessLevel.Value)))
                 {
                     throw new Exception($"User does not have the required access level. Required: {details.AccessLevel}");
                 }
 
-                object[] args = new object[] { session, jsonParameters };
+                object[] args = new object[] { context, jsonParameters };
 
                 object? result = details.MethodInfo.IsStatic
                     ? details.MethodInfo.Invoke(null, args)

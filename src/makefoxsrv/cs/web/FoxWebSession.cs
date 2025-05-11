@@ -12,7 +12,6 @@ using EmbedIO.WebSockets;
 using System.Runtime.CompilerServices;
 using EmbedIO.Sessions;
 using static System.Collections.Specialized.BitVector32;
-using System.Text;
 using System.Text.Json.Nodes;
 
 #pragma warning disable CS1998
@@ -25,7 +24,24 @@ namespace makefoxsrv
         public FoxUser? user { get; private set; } = null;
 
         public List<IHttpContext> HttpContexts { get; private set; } = new List<IHttpContext>();
-        public List<IWebSocketContext> WsContexts { get; private set; } = new List<IWebSocketContext>();
+
+        public class WebsocketConnection
+        {
+            public IWebSocketContext wsContext { get; set; } = default!;
+            public List<QueueSubscription> QueueSubscriptions { get; } = new();
+
+            public WebsocketConnection()
+            {
+                // Do nothing
+            }
+
+            public WebsocketConnection(IWebSocketContext wsContext)
+            {
+                this.wsContext = wsContext;
+            }
+        }
+
+        public List<WebsocketConnection> Websockets { get; private set; } = new List<WebsocketConnection>();
 
         private static readonly LinkedList<FoxWebSession> sessions = new LinkedList<FoxWebSession>();
         private static readonly object sessionLock = new object();
@@ -36,7 +52,7 @@ namespace makefoxsrv
             public JsonObject? Filters { get; set; } = null;
         }
 
-        public List<QueueSubscription> QueueSubscriptions { get; } = new();
+        
 
         public FoxWebSession(string sessionId)
         {
@@ -88,7 +104,7 @@ namespace makefoxsrv
         {
             lock (sessionLock)
             {
-                return sessions.FirstOrDefault(s => s.WsContexts.Contains(wsContext));
+                return sessions.FirstOrDefault(s => s.Websockets.Any(w => w.wsContext == wsContext));
             }
         }
 
@@ -154,10 +170,10 @@ namespace makefoxsrv
             if (session is null)
                 return null;
 
-            if (!session.WsContexts.Contains(context))
-                session.WsContexts.Add(context);
+            if (!session.Websockets.Any(w => w.wsContext == context))
+                session.Websockets.Add(new WebsocketConnection { wsContext = context });
 
-                return session;
+            return session;
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "CS1998:Async method lacks 'await'", Justification = "Designed for potential asynchronous extension.")]
@@ -273,24 +289,24 @@ namespace makefoxsrv
             if (createNew && session is null)
                 session = await FoxWebSession.CreateNewSession();
 
-            if (session is not null && !session.WsContexts.Contains(context))
+            if (session is not null && !session.Websockets.Any(w => w.wsContext == context))
             {
-                session.WsContexts.Add(context);
+                session.Websockets.Add(new WebsocketConnection(context));
             }
 
             return session;
         }
 
-        public static List<(IWebSocketContext, FoxWebSession)> GetActiveWebSocketSessions()
+        public static List<(WebsocketConnection, FoxWebSession)> GetActiveWebSocketSessions()
         {
             lock (sessionLock)
             {
-                var activeSessions = new List<(IWebSocketContext, FoxWebSession)>();
+                var activeSessions = new List<(WebsocketConnection, FoxWebSession)>();
                 foreach (var session in sessions)
                 {
-                    foreach (var wsContext in session.WsContexts)
+                    foreach (var webSocket in session.Websockets)
                     {
-                        activeSessions.Add((wsContext, session));
+                        activeSessions.Add((webSocket, session));
                     }
                 }
                 return activeSessions;
@@ -305,12 +321,12 @@ namespace makefoxsrv
             {
                 foreach (var session in sessions.ToList())
                 {
-                    if (session.WsContexts.Contains(wsContext))
+                    if (session.Websockets.Any(w => w.wsContext == wsContext))
                     {
-                        session.WsContexts.Remove(wsContext);
+                        session.Websockets.RemoveAll(w => w.wsContext == wsContext);
 
                         // If no contexts remain, remove the session
-                        if (!session.HttpContexts.Any() && !session.WsContexts.Any())
+                        if (!session.HttpContexts.Any() && !session.Websockets.Any())
                         {
                             sessions.Remove(session);
                         }
@@ -332,6 +348,7 @@ namespace makefoxsrv
 
             return removedSessions;
         }
+
 
         public async Task Save()
         {
@@ -382,7 +399,7 @@ namespace makefoxsrv
             lock (sessionLock)
             {
                 HttpContexts.Clear();
-                WsContexts.Clear();
+                Websockets.Clear();
                 var node = sessions.FirstOrDefault(s => s.Id == this.Id);
 
                 if (node is not null)
