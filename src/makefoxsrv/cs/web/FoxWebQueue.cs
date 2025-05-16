@@ -314,7 +314,12 @@ namespace makefoxsrv
                 ["DateCreated"] = item.DateCreated,
                 ["DateStarted"] = item.DateStarted,
                 ["DateSent"] = item.DateSent,
-                ["DateFinished"] = item.DateFinished
+                ["DateFinished"] = item.DateFinished,
+                ["VariationStrenth"] = item.Settings.variation_strength,
+                ["VariationSeed"] = item.Settings.variation_seed,
+                ["InputImageID"] = item.Settings.SelectedImage,
+                ["Enhanced"] = item.Enhanced,
+                ["Complexity"] = item.Complexity
             };
         }
 
