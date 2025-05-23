@@ -857,7 +857,7 @@ namespace makefoxsrv
 
             if (type == QueueType.TXT2IMG && (settings.Width > 1024 || settings.Height > 1024))
             {
-                settings.hires_denoising_strength = 0.45M;
+                settings.hires_denoising_strength = 0.33M;
                 settings.hires_steps = 15;
                 settings.hires_enabled = true;
 
