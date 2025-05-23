@@ -874,8 +874,6 @@ namespace makefoxsrv
                 return;
             }
 
-            await t.SendCallbackAnswer(query.query_id, 0, "Transferring, please wait...");
-
             var img = await q.GetOutputImage();
 
             if (img is null || img.Image is null)
@@ -906,6 +904,8 @@ namespace makefoxsrv
                                replyToTopicId: q.ReplyTopicID ?? 0,
                                media: new InputMediaUploadedDocument(inputImage, "image/png")
             );
+
+            await t.SendCallbackAnswer(query.query_id, 10);
 
             //await img.SaveFullTelegramFileIds(message.Document.FileId, message.Document.FileUniqueId);
         }
