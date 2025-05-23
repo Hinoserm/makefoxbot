@@ -44,14 +44,16 @@ namespace makefoxsrv
         {
             var rootDir = FoxSettings.Get<string?>("LoraPath");
 
-            if (String.IsNullOrEmpty(rootDir) || !Directory.Exists(rootDir))
+            if (string.IsNullOrEmpty(rootDir) || !Directory.Exists(rootDir))
             {
                 FoxLog.WriteLine("[LORA] LoraPath is not set or does not exist. Skipping LORA loading.");
                 LorasLoaded = false;
                 return;
             }
 
-            // Step 1: Load from MySQL
+            var imageLoadSemaphore = new SemaphoreSlim(25);
+            var imageLoadTasks = new List<Task>();
+
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
@@ -77,11 +79,28 @@ namespace makefoxsrv
                         TriggerWords = reader.IsDBNull("trigger_words")
                             ? null
                             : reader.GetString("trigger_words").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
-
                         Workers = new(FoxWorkerComparer.Instance)
                     };
 
-                    await LoadLoraImageUrlsFromDB(lora);
+                    await imageLoadSemaphore.WaitAsync();
+
+                    var imageTask = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await LoadLoraImageUrlsFromDB(lora);
+                        }
+                        catch (Exception ex)
+                        {
+                            FoxLog.WriteLine($"[LORA] Failed to load image URLs for {lora.Filename}: {ex.Message}");
+                        }
+                        finally
+                        {
+                            imageLoadSemaphore.Release();
+                        }
+                    });
+
+                    imageLoadTasks.Add(imageTask);
 
                     lock (_hashLock)
                     {
@@ -102,9 +121,12 @@ namespace makefoxsrv
                 }
             }
 
+            await Task.WhenAll(imageLoadTasks);
+
             LorasLoaded = true;
-            _= LoadHashes();
+            _ = LoadHashes();
         }
+
 
         public static string NormalizeLoraTags(string prompt, out List<string> missingLoras)
         {

@@ -173,42 +173,48 @@ namespace makefoxsrv
                 return null;
             }
 
-            var modelAllowed = await model.IsUserAllowed(user);
+            if (!isPremium) {
 
-            if (!modelAllowed)
-            {
-                var reason = modelAllowed.Reason;
-                string message = "❌ The selected model is not available right now.  Please try a different /model.";
+                var modelAllowed = await model.IsUserAllowed(user);
 
-                if (reason.HasFlag(DenyReason.RestrictedModel))
+                if (!modelAllowed)
                 {
-                    message = "❌ This model is currently restricted and cannot be used.  Please try a different /model.";
-                }
-                else if (reason.HasFlag(DenyReason.WeeklyLimitReached))
-                {
-                    message =
-                        "❌ You've hit your weekly quota for premium models.\r\n\r\n" +
-                        "ℹ️ Free users are limited to 100 images across all premium models per week. " +
-                        "Your quota resets every Monday at midnight Central Time (GMT-6).\r\n\r\n" +
-                        "✨ Consider a /membership to unlock additional features, or try a free /model.";
-                }
-                else if (reason.HasFlag(DenyReason.DailyLimitReached))
-                {
-                    message =
-                        "❌ You've reached today's limit for this model.\r\n\r\n" +
-                        "ℹ️ Each premium model is limited to 10 images per day for free users. " +
-                        "This limit resets at midnight Central Time (GMT-6).\r\n\r\n" +
-                        "✨ Consider a /membership to unlock additional features, or try a free /model.";
-                }
+                    var dailyLimit = modelAllowed.dailyLimit;
+                    var weeklyLimit = modelAllowed.weeklyLimit;
 
-                await t.SendMessageAsync(
-                    text: message,
-                    replyToMessage: replyToMessage
-                );
+                    var reason = modelAllowed.Reason;
+                    string message = "❌ The selected model is not available right now.  Please try a different /model.";
 
-                FoxLog.WriteLine($"User {user.UID} attempted to use restricted model {model.Name}");
+                    if (reason.HasFlag(DenyReason.RestrictedModel))
+                    {
+                        message = "❌ This model is currently restricted and cannot be used.  Please try a different /model.";
+                    }
+                    else if (reason.HasFlag(DenyReason.WeeklyLimitReached))
+                    {
+                        message =
+                            "❌ You've hit your weekly quota for premium models.\r\n\r\n" +
+                            $"ℹ️ Free users are limited to {weeklyLimit} images across all premium models per week. " +
+                            "Your quota resets every Monday at midnight Central Time (GMT-6).\r\n\r\n" +
+                            "✨ Consider a /membership to unlock additional features, or try a free /model.";
+                    }
+                    else if (reason.HasFlag(DenyReason.DailyLimitReached))
+                    {
+                        message =
+                            "❌ You've reached today's limit for this model.\r\n\r\n" +
+                            $"ℹ️ Each premium model is limited to {dailyLimit} images per day for free users. " +
+                            "This limit resets at midnight Central Time (GMT-6).\r\n\r\n" +
+                            "✨ Consider a /membership to unlock additional features, or try a free /model.";
+                    }
 
-                return null;
+                    await t.SendMessageAsync(
+                        text: message,
+                        replyToMessage: replyToMessage
+                    );
+
+                    FoxLog.WriteLine($"User {user.UID} attempted to use restricted model {model.Name}");
+
+                    return null;
+                }
             }
 
             settings.Prompt = FoxLORAs.NormalizeLoraTags(settings.Prompt ?? "", out var missingLoras);

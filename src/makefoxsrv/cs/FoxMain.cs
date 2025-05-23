@@ -304,8 +304,6 @@ namespace makefoxsrv
 
             await FoxCivitai.InitializeCacheAsync();
 
-            FoxONNXImageTagger.Start();
-
             await FoxLORAs.StartupLoad();
 
             Console.CancelKeyPress += (sender, e) =>
@@ -352,15 +350,20 @@ namespace makefoxsrv
             //{
             try
             {
-                FoxWeb.StartWebServer(cancellationToken: cts.Token);
-
                 //Load workers BEFORE processing input from telegram.
                 //This is important in order to handle queued messages properly, otherwise users will be told the workers are offline.
-                await FoxWorker.LoadWorkers(cts.Token);
+                var foxLoadTask = FoxWorker.LoadWorkers(cts.Token);
+                var foxTaggerTask = Task.Run(() => FoxONNXImageTagger.Start());
+                var webServerTask = Task.Run(() => FoxWeb.StartWebServer(cancellationToken: cts.Token));
+
+                await Task.WhenAll(foxLoadTask, foxTaggerTask, webServerTask);
+
 
                 await FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
 
                 //await Task.Delay(1000); //Wait a bit for telegram to settle.
+
+                
 
                 FoxWorker.StartWorkers();
 

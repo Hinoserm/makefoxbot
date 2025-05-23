@@ -295,7 +295,7 @@ namespace makefoxsrv
             RestrictedModel = 1 << 2,
         }
 
-        public record LimitCheckResult(bool IsAllowed, DenyReason Reason)
+        public record LimitCheckResult(bool IsAllowed, DenyReason Reason, int dailyLimit, int weeklyLimit)
         {
             public static implicit operator bool(LimitCheckResult result) => result.IsAllowed;
 
@@ -304,22 +304,24 @@ namespace makefoxsrv
 
         public async Task<LimitCheckResult> IsUserAllowed(FoxUser user)
         {
+            var dailyLimit = 30;
+            var weeklyLimit = 200;
 
             if (!this.IsPremium || user.CheckAccessLevel(AccessLevel.PREMIUM))
-                return new(true, DenyReason.None);
+                return new(true, DenyReason.None, 0, 0);
 
             var reason = DenyReason.None;
 
             var userDailyCount = await GetUserDailyCount(user);
             var userWeeklyCount = await GetUserWeeklyCount(user);
 
-            if (userDailyCount >= 10)
+            if (userDailyCount >= dailyLimit)
                 reason |= DenyReason.DailyLimitReached;
 
-            if (userWeeklyCount >= 100)
+            if (userWeeklyCount >= weeklyLimit)
                 reason |= DenyReason.WeeklyLimitReached;
 
-            return new(reason == DenyReason.None, reason);
+            return new(reason == DenyReason.None, reason, dailyLimit, weeklyLimit);
         }
 
         public static FoxModel? GetModelByName(string modelName) =>
