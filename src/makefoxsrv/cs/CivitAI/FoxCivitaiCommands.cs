@@ -128,6 +128,8 @@ namespace makefoxsrv
                         {
                             FoxLog.LogException(ex);
                             sb.AppendLine($"Error downloading: {downloadItem.FileName}");
+
+                            await Task.Delay(15000); // Wait before moving on to prevent triggering flood protection
                         }
                         finally
                         {
