@@ -62,8 +62,16 @@ namespace makefoxsrv
             if (pSession.DateCharged is not null)
                 throw new Exception("Payment session already charged.");
 
+            if (pSession.Amount is not null && pSession.Amount != amount)
+            {
+                FoxLog.WriteLine($"PAYMENT ALARM: Received amount differed from invoice amount on invoice {pSession.UUID}. Recalculating reward.", LogLevel.ERROR);
+                pSession.Days = FoxPayments.CalculateRewardDays(amount);
+            }
+
             pSession.Amount = amount;
-            pSession.Days = FoxPayments.CalculateRewardDays(amount);
+
+            if (pSession.Days is null)
+                pSession.Days = FoxPayments.CalculateRewardDays(amount);
 
             PaymentTypes providerType;
 

@@ -589,6 +589,8 @@ namespace makefoxsrv
 
             await t.SendCallbackAnswer(query.query_id, 0);
 
+            List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
+
             switch (argument)
             {
                 case "cancel":
@@ -607,11 +609,36 @@ namespace makefoxsrv
                             id: query.msg_id
                         );
                     break;
+                case "promo50":
+
+                    var invoice = await FoxPayments.Invoice.Create(user);
+                    invoice.Days = 365;    // 1 Year Membership
+                    invoice.Amount = 5000; // $50 USD
+                    invoice.Currency = "USD";
+                    await invoice.Save();
+
+                    buttonRows.Add(new TL.KeyboardButtonRow
+                    {
+                        buttons = new TL.KeyboardButtonWebView[]
+                        {
+                            new() { text = "💳 Pay Now", url = $"{FoxMain.settings.WebRootUrl}tgapp/membership.php?id={invoice.UUID}" }
+                        }
+                    });
+
+                    var sentMessage = await t.SendMessageAsync(
+                        text: "For a limited time, purchase 365 days of membership at HALF OFF the normal price!",
+                        replyInlineMarkup: new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() },
+                        disableWebPagePreview: true,
+                        replyToMessageId: query.msg_id
+                    );
+
+                    invoice.TelegramMessageId = sentMessage.ID;
+                    invoice.TelegramPeerId = sentMessage.peer_id;
+                    await invoice.Save();
+
+                    break;
 
                 case "stars":
-
-                    List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
-
                     // Add "Stars" button
                     buttonRows.Add(new TL.KeyboardButtonRow
                     {
@@ -650,7 +677,7 @@ namespace makefoxsrv
 
                     var inlineKeyboard = new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() };
 
-                    var sentMessage = await t.SendMessageAsync(
+                    await t.SendMessageAsync(
                         media: inputInvoice,
                         text: "30 Days Membership",
                         replyInlineMarkup: inlineKeyboard,

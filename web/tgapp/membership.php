@@ -36,7 +36,14 @@ if (!isset($s['user_id'])) {
     die('Invalid payment session data.');
 }
 
-if (isset($_GET['amount']))
+if (isset($s['days']))
+    $days = $s['days'];
+else
+    $days = 0;
+
+if (isset($s['amount']))
+    $amount = $s['amount'];
+elseif (isset($_GET['amount']))
     $amount = (int) $_GET['amount'];
 else
     $amount = 0;
@@ -213,7 +220,7 @@ $currency = "USD";
                 const uuid = '<?php echo $uuid; ?>';
                 const uid = <?php echo $uid; ?>;
                 const currency = '<?php echo $currency; ?>';
-                let days;
+                let days = <?php echo $days; ?>;
 
                 if (price <= 0) {
                     // Add input field for user to enter the amount
@@ -245,7 +252,8 @@ $currency = "USD";
                         }
                     });
                 } else {
-                    days = await CalcRewardDays(price);
+                    if (days <= 0)
+                        days = await CalcRewardDays(price);
                     document.getElementById('confirm-details-text').textContent = `You will be charged $${(price / 100).toFixed(2)} ${currency} for ${days} days of membership. Would you like to proceed?`;
                     document.getElementById('confirm-details').classList.remove('hidden');
                 }
