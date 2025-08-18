@@ -762,13 +762,13 @@ namespace makefoxsrv
             //});
 
             // Add sale button
-            buttonRows.Add(new TL.KeyboardButtonRow
-            {
-                buttons = new TL.KeyboardButtonCallback[]
-                {
-                    new() { text = "✨💰 💳 $50 (356 Days) SALE 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate promo50") }
-                }
-            });
+            //buttonRows.Add(new TL.KeyboardButtonRow
+            //{
+            //    buttons = new TL.KeyboardButtonCallback[]
+            //    {
+            //        new() { text = "✨💰 💳 $50 (356 Days) SALE 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate promo50") }
+            //    }
+            //});
 
             buttonRows.Add(new TL.KeyboardButtonRow
             {

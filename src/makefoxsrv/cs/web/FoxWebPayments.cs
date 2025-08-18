@@ -73,6 +73,8 @@ namespace makefoxsrv
             if (pSession.Days is null)
                 pSession.Days = FoxPayments.CalculateRewardDays(amount);
 
+            await pSession.Save();
+
             PaymentTypes providerType;
 
             switch (provider.ToUpper())
