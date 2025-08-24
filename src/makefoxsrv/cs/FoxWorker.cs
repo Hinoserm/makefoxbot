@@ -831,6 +831,8 @@ namespace makefoxsrv
 
                                 OnTaskProgress?.Invoke(this, new ProgressUpdateEventArgs(qItem, progress));
                                 _= qItem.Progress(this, progressPercent);
+
+                                this.Progress = p;
                             }
                             else
                                 break;

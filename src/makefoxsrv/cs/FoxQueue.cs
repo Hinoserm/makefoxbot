@@ -47,6 +47,23 @@ namespace makefoxsrv
             IMG2IMG,
             TXT2IMG
         }
+
+        [Flags]
+        public enum QueueDelayReason
+        {
+            None = 0,
+            TooManyGroupTasks   = 1 << 0, // 1
+            UserTaskLimit       = 1 << 1, // 2
+            UserComplexityLimit = 1 << 2, // 4
+            WaitSpecificWorker  = 1 << 3, // 8
+            WaitSpecificGPU     = 1 << 4, // 16
+            EnforceModelWait    = 1 << 5, // 32
+            ModelUnavailable    = 1 << 6, // 64
+            UserIsInvalid         = 1 << 7  // 128
+        }
+
+        public QueueDelayReason delayReason { get; private set; } = QueueDelayReason.None;
+
         private static readonly SemaphoreSlim semaphore = new SemaphoreSlim(0);
 
         [DbColumn("status")]
@@ -404,11 +421,16 @@ namespace makefoxsrv
 
             // If no such model or no workers running it, return
             if (model == null || model.GetWorkersRunningModel().Count < 1)
+            {
+                item.delayReason |= QueueDelayReason.ModelUnavailable;
                 return null;
+            }
 
             if (item.User is null)
             {
                 FoxLog.WriteLine($"Task {item.ID} - Skipping because user is null.", LogLevel.DEBUG);
+
+                item.delayReason |= QueueDelayReason.UserIsInvalid;
                 return null;
             }
 
@@ -449,6 +471,7 @@ namespace makefoxsrv
                 // Skip the task if flood-limiting rules are violated
                 if (messagesLastMinute >= 10)
                 {
+                    item.delayReason |= QueueDelayReason.TooManyGroupTasks;
                     return null; // Signal to skip this task
                 }
             }
@@ -465,11 +488,15 @@ namespace makefoxsrv
                 if (userWorkers.Count() >= 1 && !isUserPremium)
                 {
                     // Only allow 1 task per free user.
+                    item.delayReason |= QueueDelayReason.UserTaskLimit;
+
                     return null;
                 }
                 else if (userWorkers.Count() >= 3 && isUserPremium)
                 {
                     // Only allow 3 tasks per premium user.
+                    item.delayReason |= QueueDelayReason.UserTaskLimit;
+                    
                     return null;
                 }
                 
@@ -487,6 +514,8 @@ namespace makefoxsrv
                     // 3. Block if the complexity is too high
                     if (userQueueComplexity > 3.0)
                     {
+                        item.delayReason |= QueueDelayReason.UserComplexityLimit;
+
                         return null;
                     }
                 }
@@ -506,11 +535,24 @@ namespace makefoxsrv
 
                     if (gpuType is null)
                     {
-                        return suitableWorkers.FirstOrDefault(worker => worker.ID == item.WorkerID);
+                        var PossibleWorker = suitableWorkers.FirstOrDefault(worker => worker.ID == item.WorkerID);
+
+                        if (PossibleWorker is null)
+                        {
+                            item.delayReason |= QueueDelayReason.WaitSpecificWorker;
+                        }
+                        else
+                            return PossibleWorker;
                     }
                     else
                     {
-                        return suitableWorkers.FirstOrDefault(worker => worker.GPUType == gpuType);
+                        var PossibleWorker = suitableWorkers.FirstOrDefault(worker => worker.GPUType == gpuType);
+
+                        if (PossibleWorker is null)
+                        {
+                            item.delayReason |= QueueDelayReason.WaitSpecificGPU;
+                        } else 
+                            return PossibleWorker;
                     }
                 }
             }
@@ -557,6 +599,9 @@ namespace makefoxsrv
             if (modelWaitingTime.TotalSeconds < waitTime)
             {
                 //FoxLog.WriteLine($"Task {item.ID} - Delaying to wait for available model {model.Name}. ({modelWaitingTime.TotalSeconds}s)", LogLevel.DEBUG);
+
+                item.delayReason |= QueueDelayReason.EnforceModelWait;
+
                 return null;
             }
 
@@ -1116,6 +1161,10 @@ namespace makefoxsrv
                     {
                         // Do nothing; ignore this error
                     }
+                    catch (WTException ex) when (ex.Message == "INPUT_USER_DEACTIVATED")
+                    {
+                        await item.Cancel();
+                    }
                     catch (Exception ex)
                     {
                         FoxLog.LogException(ex);
@@ -1617,132 +1666,159 @@ namespace makefoxsrv
 
         public static string GenerateQueueStatusMessage()
         {
-            // Helper to format a TimeSpan as "m:ss"
-            string FormatTimeSpan(TimeSpan ts) => $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
+            try {
+                // Helper to format a TimeSpan as "m:ss"
+                string FormatTimeSpan(TimeSpan ts) => $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}";
 
-            DateTime now = DateTime.Now;
+                DateTime now = DateTime.Now;
 
-            // Get waiting tasks: only those with status PENDING or ERROR that actually entered the queue.
-            List<FoxQueue> waitingTasks;
-            lock (lockObj)
-            {
-                waitingTasks = taskList
-                    .Where(x => (x.task.status == QueueStatus.PENDING || x.task.status == QueueStatus.ERROR)
-                                && x.task.DateQueued != null)
-                    .Select(x => x.task)
-                    .ToList();
-            }
-
-            // Overall waiting stats.
-            int overallUniqueUsers = waitingTasks.Select(t => t.User.UID).Distinct().Count();
-            int overallImagesCount = waitingTasks.Count;
-            TimeSpan overallLongest = TimeSpan.Zero;
-            foreach (var task in waitingTasks)
-            {
-                if (task.DateQueued is DateTime queued)
+                // Get waiting tasks: only those with status PENDING or ERROR that actually entered the queue.
+                List<FoxQueue> waitingTasks;
+                lock (lockObj)
                 {
-                    TimeSpan waitingTime = now - queued;
-                    if (waitingTime > overallLongest)
-                        overallLongest = waitingTime;
+                    waitingTasks = taskList
+                        .Where(x => (x.task.status == QueueStatus.PENDING || x.task.status == QueueStatus.ERROR)
+                                    && (x.task.DateQueued != null)
+                                    && (x.task.status != QueueStatus.PAUSED))
+                        .Select(x => x.task)
+                        .ToList();
                 }
-            }
-            string overallLine = $"{overallUniqueUsers} users are waiting for {overallImagesCount} images (longest waiting {FormatTimeSpan(overallLongest)})";
 
-            // Group waiting tasks using the priority field from priorityMap.
-            // We want to display only groups with tasks and convert:
-            // 4 => ADMIN, 3 => PREMIUM, 2 => FREE. (We'll include BANNED (1) if present.)
-            var groups = waitingTasks.GroupBy(t => priorityMap[t.User.GetAccessLevel()])
-                                       .OrderByDescending(g => g.Key);
+                // Overall waiting stats.
+                int overallUniqueUsers = waitingTasks.Select(t => t.User.UID).Distinct().Count();
+                int overallImagesCount = waitingTasks.Count;
+                TimeSpan overallLongest = TimeSpan.Zero;
 
-            // Helper to convert priority value into a display name.
-            string GetAccountTypeName(int priority) => priority switch
-            {
-                4 => "ADMIN",
-                3 => "PREMIUM",
-                2 => "FREE",
-                1 => "BANNED",
-                _ => "UNKNOWN"
-            };
+                string taskListStr = "";
 
-            List<string> groupLines = new();
-            foreach (var group in groups)
-            {
-                int count = group.Count();
-                if (count == 0)
-                    continue; // Skip empty groups.
-                int uniqueUsers = group.Select(t => t.User.UID).Distinct().Count();
-                TimeSpan groupLongest = TimeSpan.Zero;
-
-                foreach (var task in group)
+                foreach (var task in waitingTasks)
                 {
                     if (task.DateQueued is DateTime queued)
                     {
                         TimeSpan waitingTime = now - queued;
+                        if (waitingTime > overallLongest)
+                            overallLongest = waitingTime;
 
-                        if (waitingTime > groupLongest)
-                            groupLongest = waitingTime;
+                        taskListStr += $"{task.ID} {task.User.UID} {task.delayReason}\r\n";
                     }
                 }
-                string accountType = GetAccountTypeName(group.Key);
-                groupLines.Add($"{uniqueUsers} {accountType} users waiting for {count} images (longest waiting {FormatTimeSpan(groupLongest)})");
-            }
+                string overallLine = $"{overallUniqueUsers} users are waiting for {overallImagesCount} images (longest waiting {FormatTimeSpan(overallLongest)})";
 
-            // For completed tasks, consider only FINISHED tasks that have both DateQueued and DateStarted.
-            var completedTasks = Cache.Values
-                .Where(t => t.status == QueueStatus.FINISHED && t.DateQueued != null && t.DateStarted != null)
-                .OrderByDescending(t => t.DateStarted)
-                //.Take(50)
-                .ToList();
-
-            string completedLine = "";
-            if (completedTasks.Any())
-            {
-                TimeSpan completedLongest = TimeSpan.Zero;
-                foreach (var task in completedTasks)
+                List<FoxQueue> processingTasks2;
+                lock (lockObj)
                 {
-                    if (task.DateQueued is DateTime queued && task.DateStarted is DateTime started)
-                    {
-                        TimeSpan waitingTime = started - queued;
-                        if (waitingTime > completedLongest)
-                            completedLongest = waitingTime;
-                    }
+                    processingTasks2 = Cache
+                        .Where(x => (x.status == QueueStatus.PROCESSING)
+                                    && (x.Worker != null))
+                        .ToList();
                 }
-                completedLine = $"Of the last {completedTasks.Count()} completed images, the longest waited {FormatTimeSpan(completedLongest)} in queue.";
-            }
 
-            var processingTasks = Cache.Values
-                .Where(t => t.status == QueueStatus.PROCESSING && t.DateStarted != null)
-                .OrderByDescending(t => t.DateStarted)
-                .ToList();
+                foreach (var task in processingTasks2)
+                {
 
-            var workerList = FoxWorker.GetWorkers().Values
-                .Where(w => w.Online == true)
-                .ToList();
+                    int progressPercent = (int)((task.Worker?.Progress?.Progress ?? 0) * 100);
 
-            string processingMessage = "";
-            if (processingTasks.Any())
+                    taskListStr += $"{task.ID} {task.User.UID} {task.delayReason} {task.Worker?.name} {progressPercent}%\r\n";
+                }
+
+                // Group waiting tasks using the priority field from priorityMap.
+                // We want to display only groups with tasks and convert:
+                // 4 => ADMIN, 3 => PREMIUM, 2 => FREE. (We'll include BANNED (1) if present.)
+                var groups = waitingTasks.GroupBy(t => priorityMap[t.User.GetAccessLevel()])
+                                           .OrderByDescending(g => g.Key);
+
+                // Helper to convert priority value into a display name.
+                string GetAccountTypeName(int priority) => priority switch
+                {
+                    4 => "ADMIN",
+                    3 => "PREMIUM",
+                    2 => "FREE",
+                    1 => "BANNED",
+                    _ => "UNKNOWN"
+                };
+
+                List<string> groupLines = new();
+                foreach (var group in groups)
+                {
+                    int count = group.Count();
+                    if (count == 0)
+                        continue; // Skip empty groups.
+                    int uniqueUsers = group.Select(t => t.User.UID).Distinct().Count();
+                    TimeSpan groupLongest = TimeSpan.Zero;
+
+                    foreach (var task in group)
+                    {
+                        if (task.DateQueued is DateTime queued)
+                        {
+                            TimeSpan waitingTime = now - queued;
+
+                            if (waitingTime > groupLongest)
+                                groupLongest = waitingTime;
+                        }
+                    }
+                    string accountType = GetAccountTypeName(group.Key);
+                    groupLines.Add($"{uniqueUsers} {accountType} users waiting for {count} images (longest waiting {FormatTimeSpan(groupLongest)})");
+                }
+
+                // For completed tasks, consider only FINISHED tasks that have both DateQueued and DateStarted.
+                var completedTasks = Cache.Values
+                    .Where(t => t.status == QueueStatus.FINISHED && t.DateQueued != null && t.DateStarted != null)
+                    .OrderByDescending(t => t.DateStarted)
+                    //.Take(50)
+                    .ToList();
+
+                string completedLine = "";
+                if (completedTasks.Any())
+                {
+                    TimeSpan completedLongest = TimeSpan.Zero;
+                    foreach (var task in completedTasks)
+                    {
+                        if (task.DateQueued is DateTime queued && task.DateStarted is DateTime started)
+                        {
+                            TimeSpan waitingTime = started - queued;
+                            if (waitingTime > completedLongest)
+                                completedLongest = waitingTime;
+                        }
+                    }
+                    completedLine = $"Of the last {completedTasks.Count()} completed images, the longest waited {FormatTimeSpan(completedLongest)} in queue.";
+                }
+
+                var processingTasks = Cache.Values
+                    .Where(t => t.status == QueueStatus.PROCESSING && t.DateStarted != null)
+                    .OrderByDescending(t => t.DateStarted)
+                    .ToList();
+
+                var workerList = FoxWorker.GetWorkers().Values
+                    .Where(w => w.Online == true)
+                    .ToList();
+
+                string processingMessage = "";
+                if (processingTasks.Any())
+                {
+                    var longestProcessing = processingTasks
+                        .Select(t => DateTime.Now - t.DateStarted!.Value)
+                        .Max();
+                    processingMessage = $"Processing {processingTasks.Count} tasks on {workerList.Count()} workers. (longest {FormatTimeSpan(longestProcessing)})";
+                }
+
+                // Build the final message using only non-empty lines.
+                List<string> lines = new() { overallLine };
+
+                lines.AddRange(groupLines);
+
+                if (!string.IsNullOrEmpty(completedLine))
+                    lines.Add(completedLine);
+
+                if (!string.IsNullOrEmpty(processingMessage))
+                    lines.Add(processingMessage);
+
+                return string.Join("\n\n", lines) + "\n\n" + taskListStr;
+            } catch (Exception ex)
             {
-                var longestProcessing = processingTasks
-                    .Select(t => DateTime.Now - t.DateStarted!.Value)
-                    .Max();
-                processingMessage = $"Processing {processingTasks.Count} tasks on {workerList.Count()} workers. (longest {FormatTimeSpan(longestProcessing)})";
+                FoxLog.LogException(ex, "Error generating queue status message");
+                return "Error generating queue status message.\r\n" + ex.Message;
             }
-
-            // Build the final message using only non-empty lines.
-            List<string> lines = new() { overallLine };
-
-            lines.AddRange(groupLines);
-
-            if (!string.IsNullOrEmpty(completedLine))
-                lines.Add(completedLine);
-
-            if (!string.IsNullOrEmpty(processingMessage))
-                lines.Add(processingMessage);
-
-            return string.Join("\n\n", lines);
         }
-
-
 
     }
 }
