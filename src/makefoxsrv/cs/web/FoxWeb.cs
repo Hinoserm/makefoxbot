@@ -98,7 +98,7 @@ class FoxWeb
                 if (command == "info:loras")
                 {
                     var loras = FoxLORAs.GetAllLORAs()
-                        .OrderBy(kv => (kv.Name ?? kv.Filename).TrimStart('"', '\'', '_', '-', ' '), StringComparer.CurrentCultureIgnoreCase) // alphabetize by title, otherwise filename
+                        .OrderBy(kv => (kv.Name ?? kv.Filename).TrimStart('"', '\'', '_', '-', '[', '{', '(', ' '), StringComparer.CurrentCultureIgnoreCase) // alphabetize by title, otherwise filename
                         .Select(kv => new JsonObject
                         {
                             ["Hash"] = kv.Hash,
