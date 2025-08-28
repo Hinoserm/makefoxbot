@@ -98,6 +98,7 @@ class FoxWeb
                 if (command == "info:loras")
                 {
                     var loras = FoxLORAs.GetAllLORAs()
+                        .OrderBy(kv => kv.Filename) // alphabetize by filename
                         .Select(kv => new JsonObject
                         {
                             ["Hash"] = kv.Hash,
@@ -124,7 +125,8 @@ class FoxWeb
                                         ["Name"] = w.name
                                     }).ToArray()
                             )
-                        }).ToList();
+                        })
+                        .ToList();
 
                     var response = new JsonObject
                     {

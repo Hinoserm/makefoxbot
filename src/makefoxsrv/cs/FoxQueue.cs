@@ -320,8 +320,8 @@ namespace makefoxsrv
                             DateTime now = DateTime.Now;
 
                             // Separate tasks into prioritized (waiting > 3 minutes) and non-prioritized
-                            var prioritizedTasks = taskList.Where(t => t.task != null && t.task.DateQueued is not null && (now - t.task.DateQueued.Value).TotalMinutes > 3).ToList();
-                            var nonPrioritizedTasks = taskList.Where(t => t.task != null && (t.task.DateQueued is null || (now - t.task.DateQueued.Value).TotalMinutes <= 3)).ToList();
+                            var prioritizedTasks = taskList.Where(t => t.task != null && t.task.DateQueued is not null && (now - t.task.DateQueued.Value).TotalMinutes >= 5).ToList();
+                            var nonPrioritizedTasks = taskList.Where(t => t.task != null && (t.task.DateQueued is null || (now - t.task.DateQueued.Value).TotalMinutes < 5)).ToList();
 
                             // Combine prioritized tasks first
                             var orderedTasks = prioritizedTasks.Concat(nonPrioritizedTasks).ToList();
@@ -381,7 +381,6 @@ namespace makefoxsrv
                                 {
                                     // Found a suitable worker for the task
                                     FoxContextManager.Current.Worker = suitableWorker;
-
 
                                     if (suitableWorker.AssignTask(itemToAssign))
                                     {
@@ -1699,7 +1698,7 @@ namespace makefoxsrv
                         if (waitingTime > overallLongest)
                             overallLongest = waitingTime;
 
-                        taskListStr += $"{task.ID} {task.User.UID} {task.delayReason}\r\n";
+                        taskListStr += $"{(int)task.User.GetAccessLevel()} {task.ID} {task.User.UID} {task.delayReason}\r\n";
                     }
                 }
                 string overallLine = $"{overallUniqueUsers} users are waiting for {overallImagesCount} images (longest waiting {FormatTimeSpan(overallLongest)})";
@@ -1718,7 +1717,7 @@ namespace makefoxsrv
 
                     int progressPercent = (int)((task.Worker?.Progress?.Progress ?? 0) * 100);
 
-                    taskListStr += $"{task.ID} {task.User.UID} {task.delayReason} {task.Worker?.name} {progressPercent}%\r\n";
+                    taskListStr += $"{(int)task.User.GetAccessLevel()} {task.ID} {task.User.UID} {task.delayReason} {task.Worker?.name} {progressPercent}%\r\n";
                 }
 
                 // Group waiting tasks using the priority field from priorityMap.
