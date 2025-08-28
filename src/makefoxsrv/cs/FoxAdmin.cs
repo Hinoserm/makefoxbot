@@ -100,7 +100,7 @@ namespace makefoxsrv
             {
                 long usersRemoved = FoxUser.ClearCache();
                 long queueRemoved = FoxQueue.Cache.Clear();
-                long modelsUpdated = FoxModel.ClearCache();
+                long modelsUpdated = await FoxModel.ClearCache();
 
                 await t.SendMessageAsync(
                     text: $"✅ Cleared all caches. Removed {usersRemoved + queueRemoved + modelsUpdated} items.",
@@ -125,7 +125,7 @@ namespace makefoxsrv
                             break;
                         case "model":
                         case "models":
-                            totalRemoved += FoxModel.ClearCache();
+                            totalRemoved += await FoxModel.ClearCache();
                             break;
                         default:
                             await t.SendMessageAsync(

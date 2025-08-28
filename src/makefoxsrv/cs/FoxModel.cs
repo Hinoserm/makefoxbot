@@ -1,6 +1,8 @@
 ﻿using MySqlConnector;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Data;
 using System.Globalization;
 using System.Linq;
@@ -13,7 +15,7 @@ namespace makefoxsrv
     public class FoxModel
     {
         // Static dictionary to hold all global models by name
-        private static Dictionary<string, FoxModel> globalModels = new Dictionary<string, FoxModel>();
+        private static readonly ConcurrentDictionary<string, FoxModel> globalModels = new(StringComparer.OrdinalIgnoreCase);
 
         // Core model identity properties
         public string Name { get; private set; }
@@ -43,7 +45,7 @@ namespace makefoxsrv
         private static readonly object _modelLock = new();
 
         // Workers that are running this model
-        private HashSet<int> workersRunningModel;
+        private ImmutableHashSet<int> workersRunningModel;
 
         // Constructor (private, because we want to control creation via GetOrCreateModel)
         private FoxModel(string name, string hash, string sha256, string title, string fileName, string config)
@@ -54,49 +56,52 @@ namespace makefoxsrv
             Title = title;
             FileName = fileName;
             Config = config;
-            workersRunningModel = new HashSet<int>();
+            workersRunningModel = ImmutableHashSet<int>.Empty;
         }
 
         public void AddWorker(int workerId)
         {
-            workersRunningModel.Add(workerId);
+            ImmutableInterlocked.Update(ref workersRunningModel, set => set.Add(workerId));
         }
 
         public static async Task<FoxModel> GetOrCreateModel(string name, string hash, string sha256, string title, string fileName, string config)
         {
-            lock (_modelLock)
-            {
-                if (globalModels.TryGetValue(name, out var existing))
-                    return existing;
-            }
-
-            // Create and load outside the lock
-            var newModel = new FoxModel(name, hash, sha256, title, fileName, config);
-            await newModel.LoadAllSettingsAsync();
-
-            lock (_modelLock)
-            {
-                // Double-check insert in case another thread beat us to it while we loaded
-                if (!globalModels.ContainsKey(name))
-                {
-                    globalModels[name] = newModel;
-                }
-
-                return globalModels[name];
-            }
+            var model = globalModels.GetOrAdd(name, _ => new FoxModel(name, hash, sha256, title, fileName, config));
+            await model.LoadAllSettingsAsync(); // make Load idempotent
+            return model;
         }
 
-        public static long ClearCache()
+        public static async Task<long> ClearCache(int batchSize = 10, CancellationToken ct = default)
         {
-            long count = 0;
+            var models = globalModels.Values.ToList();
+            int total = models.Count;
 
-            foreach (var model in globalModels.Values)
+            for (int i = 0; i < total; i += batchSize)
             {
-                _ = model.LoadAllSettingsAsync(); // Fire-and-forget refresh
-                count++;
+                ct.ThrowIfCancellationRequested();
+
+                int end = Math.Min(i + batchSize, total);
+                var tasks = new List<Task>(end - i);
+
+                for (int j = i; j < end; j++)
+                {
+                    var m = models[j];
+                    tasks.Add(Task.Run(async () =>
+                    {
+                        try {
+                            await m.LoadAllSettingsAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new InvalidOperationException($"Error loading settings for model '{m.Name}'.", ex);
+                        }
+                    }, ct));
+                }
+
+                await Task.WhenAll(tasks);
             }
 
-            return count;
+            return total;
         }
 
         public async Task LoadAllSettingsAsync()

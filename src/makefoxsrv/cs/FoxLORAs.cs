@@ -3,7 +3,9 @@
 using MySqlConnector;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Data;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -33,8 +35,8 @@ namespace makefoxsrv
             public HashSet<FoxWorker> Workers { get; set; } = new(FoxWorkerComparer.Instance);
         }
 
-        private static readonly Dictionary<(string Hash, string Filename), LoraInfo> _lorasByHash = new();
-        private static readonly Dictionary<string, List<LoraInfo>> _lorasByFilename = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<(string Hash, string Filename), LoraInfo> _lorasByHash = new();
+        private static readonly ConcurrentDictionary<string, List<LoraInfo>> _lorasByFilename = new(StringComparer.OrdinalIgnoreCase);
         public static bool LorasLoaded = false;
 
         private static readonly object _hashLock = new();
@@ -704,7 +706,7 @@ namespace makefoxsrv
             }
         }
 
-        public static IReadOnlyCollection<LoraInfo> GetAllLORAs() => _lorasByHash.Values;
+        public static IReadOnlyCollection<LoraInfo> GetAllLORAs() => _lorasByHash.Values.ToImmutableArray();
 
         public static IEnumerable<LoraInfo> GetLorasByHash(string hash) =>
             _lorasByHash
