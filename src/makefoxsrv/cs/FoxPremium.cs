@@ -16,19 +16,19 @@ namespace makefoxsrv
             List<string> premiumFeatures = new List<string>();
 
             if (settings.Width > 1088)
-                premiumFeatures.Add("width > 1088");
+                premiumFeatures.Add("width above 1088");
 
             if (settings.Height > 1088)
-                premiumFeatures.Add("height > 1088");
+                premiumFeatures.Add("height above 1088");
 
             if (settings.steps > 20)
-                premiumFeatures.Add("steps > 20");
+                premiumFeatures.Add("steps above 20");
 
             // Return the array of premium features if any, or null if none
             return premiumFeatures.Count > 0 ? premiumFeatures.ToArray() : null;
         }
 
-        [Cron (minutes: 5)]
+        [Cron (hours: 1)]
         public async Task ProcessPremiumNotificationsAsync()
         {
             // Get current system time (always use local time)
