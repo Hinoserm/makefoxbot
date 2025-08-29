@@ -961,7 +961,7 @@ namespace makefoxsrv
 
             // Log this after saving the object so we have it's ID.
 
-            FoxLog.WriteLine($"Complexity: {normalizedComplexity:F3}", LogLevel.INFO);
+            //FoxLog.WriteLine($"Complexity: {normalizedComplexity:F3}", LogLevel.INFO);
 
             return q;
         }

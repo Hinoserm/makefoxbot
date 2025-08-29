@@ -477,7 +477,7 @@ namespace makefoxsrv
         {
             // Only process text messages
 
-            FoxLog.WriteLine($"{msg.ID}: Message: {t.User}" + (t.Chat is not null ? $" in {t.Chat}" : "") + $"> {ReplaceNonPrintableCharacters(msg.message)}");
+            FoxLog.WriteLine($"{msg.ID}: Message: {t.User}" + (t.Chat is not null ? $" in {t.Chat}" : "") + $"> {ReplaceNonPrintableCharacters(msg.message)}", LogLevel.DEBUG);
 
             var message = FoxTelegram.Client.EntitiesToHtml(msg.message, msg.entities);
 
