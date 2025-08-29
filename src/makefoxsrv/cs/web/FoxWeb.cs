@@ -104,7 +104,7 @@ class FoxWeb
                             ["Hash"] = kv.Hash,
                             ["Filename"] = kv.Filename,
                             ["Name"] = kv.Name,
-                            ["BaseModel"] = kv.BaseModel,
+                            ["BaseModel"] = kv.BaseModel ?? "Unknown",
                             ["TriggerWords"] = kv.TriggerWords is null
                                 ? JsonValue.Create<string?>(null)
                                 : new JsonArray(kv.TriggerWords.Select(w => JsonValue.Create(w)).ToArray()),
