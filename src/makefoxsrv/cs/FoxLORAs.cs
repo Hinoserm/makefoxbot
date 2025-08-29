@@ -32,15 +32,12 @@ namespace makefoxsrv
                 : null;
             public List<string>? ImageURLs { get; set; }
 
-            public HashSet<FoxWorker> Workers { get; set; } = new(FoxWorkerComparer.Instance);
+            public ConcurrentDictionary<int, FoxWorker> Workers { get; set; } = new();
         }
 
         private static readonly ConcurrentDictionary<(string Hash, string Filename), LoraInfo> _lorasByHash = new();
-        private static readonly ConcurrentDictionary<string, List<LoraInfo>> _lorasByFilename = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, ImmutableList<LoraInfo>> _lorasByFilename = new();
         public static bool LorasLoaded = false;
-
-        private static readonly object _hashLock = new();
-        private static readonly object _filenameLock = new();
 
         public static async Task StartupLoad()
         {
@@ -81,7 +78,6 @@ namespace makefoxsrv
                         TriggerWords = reader.IsDBNull("trigger_words")
                             ? null
                             : reader.GetString("trigger_words").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
-                        Workers = new(FoxWorkerComparer.Instance)
                     };
 
                     await imageLoadSemaphore.WaitAsync();
@@ -104,22 +100,11 @@ namespace makefoxsrv
 
                     imageLoadTasks.Add(imageTask);
 
-                    lock (_hashLock)
-                    {
-                        _lorasByHash[(hash, lora.Filename)] = lora;
-                    }
+                    _lorasByHash[(hash, lora.Filename)] = lora;
 
-                    lock (_filenameLock)
-                    {
-                        var filenameKey = lora.Filename;
-                        if (!_lorasByFilename.TryGetValue(filenameKey, out var list))
-                        {
-                            list = new List<LoraInfo>();
-                            _lorasByFilename[filenameKey] = list;
-                        }
 
-                        list.Add(lora);
-                    }
+                    var filenameKey = lora.Filename;
+                    _lorasByFilename.AddOrUpdate(filenameKey, _ => ImmutableList.Create(lora), (_, existing) => existing.Add(lora));
                 }
             }
 
@@ -146,10 +131,10 @@ namespace makefoxsrv
 
                 string? normalizedKey = null;
 
-                lock (_filenameLock)
-                {
-                    normalizedKey = _lorasByFilename.Keys.FirstOrDefault(k => string.Equals(k, originalName, StringComparison.OrdinalIgnoreCase));
-                }
+                //normalizedKey = _lorasByFilename.Keys.FirstOrDefault(k => string.Equals(k, originalName, StringComparison.OrdinalIgnoreCase));
+
+                if (_lorasByFilename.ContainsKey(originalName))
+                    normalizedKey = originalName;
 
                 if (normalizedKey != null)
                 {
@@ -159,7 +144,7 @@ namespace makefoxsrv
 
                     replacements[match.Value] = normalizedTag;
                 }
-                else if (!missingLoras.Contains(originalName, StringComparer.OrdinalIgnoreCase))
+                else if (!missingLoras.Contains(originalName))
                 {
                     missingLoras.Add(originalName);
                 }
@@ -187,9 +172,6 @@ namespace makefoxsrv
                 .Where(f => f.EndsWith(".safetensors", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
-            using var insertConn = new MySqlConnection(FoxMain.sqlConnectionString);
-            await insertConn.OpenAsync();
-
             var semaphore = new SemaphoreSlim(8); // limit to 4 concurrent workers
             var tasks = new List<Task>();
 
@@ -199,14 +181,8 @@ namespace makefoxsrv
                 var nameWithoutExt = Path.GetFileNameWithoutExtension(file);
 
                 // Skip hashing if filename already known
-                lock (_filenameLock)
-                {
-                    if (_lorasByFilename.TryGetValue(nameWithoutExt, out var existingList) &&
-                        existingList.Any(l => l.Filename.Equals(nameWithoutExt, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        continue;
-                    }
-                }
+                if (_lorasByFilename.ContainsKey(nameWithoutExt))
+                    continue;
 
                 await semaphore.WaitAsync();
 
@@ -214,13 +190,13 @@ namespace makefoxsrv
                 {
                     try
                     {
+                        using var insertConn = new MySqlConnection(FoxMain.sqlConnectionString);
+                        await insertConn.OpenAsync();
+
                         var hash = ComputeSHA256(file);
 
-                        lock (_hashLock)
-                        {
-                            if (_lorasByHash.ContainsKey((hash, nameWithoutExt)))
-                                return;
-                        }
+                        if (_lorasByHash.ContainsKey((hash, nameWithoutExt)))
+                            return;
 
                         var lora = new LoraInfo
                         {
@@ -232,47 +208,31 @@ namespace makefoxsrv
                             CivitaiModelId = null,
                             Description = null,
                             TriggerWords = null,
-                            Workers = new(FoxWorkerComparer.Instance)
                         };
 
                         await DownloadCivitaiInfo(lora);
 
                         FoxLog.WriteLine($"[LORA] Found New LORA: {lora.Filename} ({lora.CivitaiUrl})");
 
-                        // Lock sequential DB access
-                        lock (insertConn)
-                        {
-                            using var insertCmd = new MySqlCommand(@"
-                            INSERT INTO lora_info (hash, filename, base_model, trigger_words, name, description, civitai_id, civitai_model_id)
-                            VALUES (@hash, @filename, @base_model, @trigger_words, @name, @description, @civitai_id, @civitai_model_id)", insertConn);
+                        using var insertCmd = new MySqlCommand(@"
+                        INSERT INTO lora_info (hash, filename, base_model, trigger_words, name, description, civitai_id, civitai_model_id)
+                        VALUES (@hash, @filename, @base_model, @trigger_words, @name, @description, @civitai_id, @civitai_model_id)", insertConn);
 
-                            insertCmd.Parameters.AddWithValue("@hash", lora.Hash);
-                            insertCmd.Parameters.AddWithValue("@filename", lora.Filename);
-                            insertCmd.Parameters.AddWithValue("@base_model", (object?)lora.BaseModel ?? DBNull.Value);
-                            insertCmd.Parameters.AddWithValue("@name", (object?)lora.Name ?? DBNull.Value);
-                            insertCmd.Parameters.AddWithValue("@description", (object?)lora.Description ?? DBNull.Value);
-                            insertCmd.Parameters.AddWithValue("@civitai_id", (object?)lora.CivitaiId ?? DBNull.Value);
-                            insertCmd.Parameters.AddWithValue("@civitai_model_id", (object?)lora.CivitaiModelId ?? DBNull.Value);
-                            insertCmd.Parameters.AddWithValue("@trigger_words", lora.TriggerWords is { Count: > 0 } ? string.Join(", ", lora.TriggerWords) : DBNull.Value);
+                        insertCmd.Parameters.AddWithValue("@hash", lora.Hash);
+                        insertCmd.Parameters.AddWithValue("@filename", lora.Filename);
+                        insertCmd.Parameters.AddWithValue("@base_model", (object?)lora.BaseModel ?? DBNull.Value);
+                        insertCmd.Parameters.AddWithValue("@name", (object?)lora.Name ?? DBNull.Value);
+                        insertCmd.Parameters.AddWithValue("@description", (object?)lora.Description ?? DBNull.Value);
+                        insertCmd.Parameters.AddWithValue("@civitai_id", (object?)lora.CivitaiId ?? DBNull.Value);
+                        insertCmd.Parameters.AddWithValue("@civitai_model_id", (object?)lora.CivitaiModelId ?? DBNull.Value);
+                        insertCmd.Parameters.AddWithValue("@trigger_words", lora.TriggerWords is { Count: > 0 } ? string.Join(", ", lora.TriggerWords) : DBNull.Value);
 
-                            insertCmd.ExecuteNonQuery();
-                        }
+                        insertCmd.ExecuteNonQuery();
 
-                        lock (_hashLock)
-                        {
-                            _lorasByHash[(hash, lora.Filename)] = lora;
-                        }
 
-                        lock (_lorasByFilename)
-                        {
-                            if (!_lorasByFilename.TryGetValue(nameWithoutExt, out var list))
-                            {
-                                list = new List<LoraInfo>();
-                                _lorasByFilename[nameWithoutExt] = list;
-                            }
+                        _lorasByHash[(hash, lora.Filename)] = lora;
 
-                            list.Add(lora);
-                        }
+                        _lorasByFilename.AddOrUpdate(nameWithoutExt, _ => ImmutableList.Create(lora), (_, existing) => existing.Add(lora));
                     }
                     catch (Exception ex)
                     {
@@ -474,6 +434,9 @@ namespace makefoxsrv
             int successCount = 0;
             int failureCount = 0;
 
+            using var http = new HttpClient();
+            http.Timeout = TimeSpan.FromSeconds(30);
+
             foreach (var (id, url) in pendingDownloads)
             {
                 if (cancellationToken.IsCancellationRequested)
@@ -495,9 +458,6 @@ namespace makefoxsrv
                             FoxLog.WriteLine($"[LORA] Skipping non-image URL: {url}");
                             return;
                         }
-
-                        using var http = new HttpClient();
-                        http.Timeout = TimeSpan.FromSeconds(30);
 
                         // Download the image
                         byte[] imageData = await http.GetByteArrayAsync(url, cancellationToken);
@@ -554,7 +514,7 @@ namespace makefoxsrv
             const int maxScore = 22; // Lower = stricter
             const int minTokenOverlap = 1;
 
-            var suggestions = new Dictionary<string, List<LoraInfo>>(StringComparer.OrdinalIgnoreCase);
+            var suggestions = new Dictionary<string, List<LoraInfo>>();
 
             foreach (var rawMissing in missingLoraNames)
             {
@@ -563,67 +523,59 @@ namespace makefoxsrv
 
                 var scored = new List<(int Score, LoraInfo Info)>();
 
-                List<List<LoraInfo>> loraSnapshot;
-
-                lock (_filenameLock)
-                {
-                    loraSnapshot = _lorasByFilename.Values
-                        .Select(l => new List<LoraInfo>(l)) // clone each list to be safe
-                        .ToList();
-                }
-
-                foreach (var loraList in loraSnapshot)
-                {
-                    foreach (var info in loraList)
-                    {
-                        var candidates = new List<(string? Field, int Weight)>
-                {
-                    (info.Filename, 3),
-                    (info.Alias, 3),
-                    (info.Name, 2),
-                    (info.Description, 1)
-                };
-
-                        if (info.TriggerWords != null)
-                            candidates.AddRange(info.TriggerWords.Select(t => (t, 1)));
-
-                        int bestScore = int.MaxValue;
-
-                        foreach (var (field, weight) in candidates)
-                        {
-                            if (string.IsNullOrWhiteSpace(field))
-                                continue;
-
-                            var norm = NormalizeForMatching(field);
-                            var tokens = Tokenize(field);
-
-                            int score = LevenshteinDistance(missingNorm, norm);
-
-                            if (norm.Contains(missingNorm))
-                                score -= 20;
-
-                            int tokenOverlap = missingTokens.Intersect(tokens).Count();
-                            score -= tokenOverlap * 5 * weight;
-
-                            // Require at least 1 overlapping token unless it's a substring
-                            if (tokenOverlap < minTokenOverlap && !norm.Contains(missingNorm))
-                                continue;
-
-                            if (score < bestScore)
-                                bestScore = score;
-                        }
-
-                        if (bestScore <= maxScore)
-                            scored.Add((bestScore, info));
-                    }
-                }
-
-                var top = scored
-                    .OrderBy(x => x.Score)
-                    .Select(x => x.Info)
-                    .Distinct()
-                    .Take(maxSuggestionsPerMissing)
+                var loraList = _lorasByHash.Values
+                    .Where(l => l.Workers.Count > 0)
                     .ToList();
+
+                foreach (var info in loraList)
+                {
+                    var candidates = new List<(string? Field, int Weight)>
+                    {
+                        (info.Filename, 3),
+                        (info.Alias, 3),
+                        (info.Name, 2),
+                        (info.Description, 1)
+                    };
+
+                    if (info.TriggerWords != null)
+                        candidates.AddRange(info.TriggerWords.Select(t => (t, 1)));
+
+                    int bestScore = int.MaxValue;
+
+                    foreach (var (field, weight) in candidates)
+                    {
+                        if (string.IsNullOrWhiteSpace(field))
+                            continue;
+
+                        var norm = NormalizeForMatching(field);
+                        var tokens = Tokenize(field);
+
+                        int score = LevenshteinDistance(missingNorm, norm);
+
+                        if (norm.Contains(missingNorm))
+                            score -= 20;
+
+                        int tokenOverlap = missingTokens.Intersect(tokens).Count();
+                        score -= tokenOverlap * 5 * weight;
+
+                        // Require at least 1 overlapping token unless it's a substring
+                        if (tokenOverlap < minTokenOverlap && !norm.Contains(missingNorm))
+                            continue;
+
+                        if (score < bestScore)
+                            bestScore = score;
+                    }
+
+                    if (bestScore <= maxScore)
+                        scored.Add((bestScore, info));
+                }
+
+                var top = scored.OrderBy(x => x.Score)
+                                .Select(x => x.Info)
+                                .GroupBy(i => (i.Hash, i.Filename))
+                                .Select(g => g.First())
+                                .Take(maxSuggestionsPerMissing)
+                                .ToList();
 
                 if (top.Count > 0)
                     suggestions[rawMissing] = top;
@@ -631,8 +583,6 @@ namespace makefoxsrv
 
             return suggestions;
         }
-
-
 
 
         private static string NormalizeForMatching(string input)
@@ -689,7 +639,7 @@ namespace makefoxsrv
                 foreach (var lora in loras)
                 {
                     lora.Alias ??= alias; // Set alias if not already set
-                    lora.Workers.Add(worker);
+                    lora.Workers[worker.ID] = worker;
                 }
             }
             else
@@ -702,7 +652,7 @@ namespace makefoxsrv
         {
             foreach (var lora in _lorasByHash.Values)
             {
-                lora.Workers.Remove(worker);
+                lora.Workers.TryRemove(worker.ID, out _);
             }
         }
 
@@ -715,21 +665,9 @@ namespace makefoxsrv
 
         public static IReadOnlyList<LoraInfo> GetLorasByFilename(string filenameWithoutExtension)
         {
-            lock (_filenameLock)
-            {
-                return _lorasByFilename.TryGetValue(filenameWithoutExtension, out var list)
-                    ? list
-                    : Array.Empty<LoraInfo>();
-            }
-        }
-
-        private class FoxWorkerComparer : IEqualityComparer<FoxWorker>
-        {
-            public static readonly FoxWorkerComparer Instance = new();
-
-            public bool Equals(FoxWorker? x, FoxWorker? y) => x is not null && y is not null && x.ID == y.ID;
-
-            public int GetHashCode(FoxWorker obj) => obj.ID.GetHashCode();
+            return _lorasByFilename.TryGetValue(filenameWithoutExtension, out var list)
+                ? list
+                : Array.Empty<LoraInfo>();
         }
     }
 }

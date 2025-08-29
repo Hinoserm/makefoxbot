@@ -117,7 +117,7 @@ class FoxWeb
                                 ? JsonValue.Create<string?>(null)
                                 : new JsonArray(kv.ImageURLs.Select(w => JsonValue.Create(w)).ToArray()),
                             ["Workers"] = new JsonArray(
-                                (kv.Workers ?? Enumerable.Empty<FoxWorker>())
+                                kv.Workers.Values
                                     .Where(w => w is not null)
                                     .OrderBy(w => w.ID)
                                     .Select(w => new JsonObject
