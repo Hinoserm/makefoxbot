@@ -40,7 +40,7 @@ namespace makefoxsrv
 
         private DateTime? _settingsCacheTime = null;
         private static readonly TimeSpan _settingsCacheDuration = TimeSpan.FromHours(1);
-        private Dictionary<string, string>? _settingsCache = null;
+        private ImmutableDictionary<string, string>? _settingsCache = null;
 
         private static readonly object _modelLock = new();
 
@@ -106,7 +106,7 @@ namespace makefoxsrv
 
         public async Task LoadAllSettingsAsync()
         {
-            _settingsCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var settings = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.OrdinalIgnoreCase);
 
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
             await SQL.OpenAsync();
@@ -126,9 +126,10 @@ namespace makefoxsrv
                 string setting = reader.GetString("setting");
                 string value = reader.IsDBNull("value") ? "" : reader.GetString("value").Trim();
 
-                _settingsCache[setting] = value;
+                settings[setting] = value;
             }
 
+            _settingsCache = settings.ToImmutable();
             _settingsCacheTime = DateTime.Now;
 
             // Populate cached values
