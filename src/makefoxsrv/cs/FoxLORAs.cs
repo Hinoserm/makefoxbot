@@ -630,21 +630,25 @@ namespace makefoxsrv
             return dp[s.Length, t.Length];
         }
 
-
-
         public static void RegisterWorkerByFilename(FoxWorker worker, string filenameWithoutExtension, string? alias = null)
         {
-            if (_lorasByFilename.TryGetValue(filenameWithoutExtension, out var loras))
-            {
-                foreach (var lora in loras)
-                {
-                    lora.Alias ??= alias; // Set alias if not already set
-                    lora.Workers[worker.ID] = worker;
-                }
-            }
-            else
+            if (!_lorasByFilename.TryGetValue(filenameWithoutExtension, out var loras))
             {
                 FoxLog.WriteLine($"[LORA] Worker {worker.ID} reported unknown LORA: {filenameWithoutExtension}");
+                return;
+            }
+
+            // local copies for JIT friendliness
+            var w = worker;
+            var hasAlias = !string.IsNullOrEmpty(alias);
+
+            foreach (var lora in loras)
+            {
+                // Only set alias if caller provided one and this LORA doesn't already have one
+                if (hasAlias && lora.Alias is null)
+                    lora.Alias = alias;
+
+                lora.Workers[w.ID] = w;
             }
         }
 
