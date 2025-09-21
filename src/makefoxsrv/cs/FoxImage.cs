@@ -76,6 +76,14 @@ namespace makefoxsrv
 
         public byte[]? Image = null;
 
+        public Image<Rgba32> GetRGBAImage()
+        {
+            if (this.Image is null)
+                throw new Exception("Image data is null");
+
+            return SixLabors.ImageSharp.Image.Load<Rgba32>(Image);
+        }
+
         private void PopulateDimensions()
         {
             if (Image == null || Image.Length == 0)

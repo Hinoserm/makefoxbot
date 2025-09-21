@@ -113,8 +113,6 @@ public class FoxONNXImageTagger
         FoxLog.WriteLine($"ONNX model loaded on {_sessions.Count} device(s): {modelPath}");
     }
 
-
-
     public static void Start()
     {
         // This method is intentionally left empty.
@@ -207,7 +205,7 @@ public class FoxONNXImageTagger
         Dictionary<string, float> predictions = new();
         foreach (int idx in sortedIndices)
         {
-            if (finalScores[idx] >= weightThreshold && _tags.TryGetValue(idx, out string tag))
+            if (finalScores[idx] >= weightThreshold && _tags.TryGetValue(idx, out string? tag))
             {
                 predictions[tag] = finalScores[idx];
             }
@@ -215,8 +213,6 @@ public class FoxONNXImageTagger
 
         return predictions;
     }
-
-
 
     /// <summary>
     /// Preprocesses an Image<Rgba32> exactly as in the original demo:

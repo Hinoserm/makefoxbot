@@ -40,6 +40,12 @@ namespace makefoxsrv
 
                 if (OutputImage is not null && OutputImage.Image is not null)
                 {
+                    FoxONNXImageTagger tagger = new FoxONNXImageTagger();
+                    var imageTags = tagger.ProcessImage(OutputImage.GetRGBAImage(), 0.2f);
+
+                    //Store the tags in the database for later retrieval.
+                    await InsertImageTagsAsync(q.ID, imageTags);
+
                     var t = q.Telegram;
 
                     if (t is null)
@@ -233,6 +239,50 @@ namespace makefoxsrv
                 outputStream.Position = 0;
 
                 return outputStream;
+            }
+        }
+
+        public static async Task InsertImageTagsAsync(ulong qid, Dictionary<string, float> tags)
+        {
+            if (tags == null || tags.Count == 0)
+                return;
+
+            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
+            using var tx = await conn.BeginTransactionAsync();
+
+            try
+            {
+                const string sql = @"
+                    INSERT INTO queue_image_tags (qid, tag, probability)
+                    VALUES (@qid, @tag, @prob)
+                    ON DUPLICATE KEY UPDATE probability = @prob;
+                ";
+
+                using var cmd = new MySqlCommand(sql, conn, tx);
+
+                var pQid = cmd.Parameters.Add("@qid", MySqlDbType.Int64);
+                var pTag = cmd.Parameters.Add("@tag", MySqlDbType.VarChar);
+                var pProb = cmd.Parameters.Add("@prob", MySqlDbType.Float);
+
+                foreach (var kv in tags)
+                {
+                    pQid.Value = qid;
+                    pTag.Value = kv.Key;
+                    pProb.Value = kv.Value;
+
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                await tx.CommitAsync();
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                FoxLog.LogException(ex);
+
+                //Throwing here would be bad, so we just log and move on.
             }
         }
     }
