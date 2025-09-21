@@ -63,6 +63,40 @@ namespace makefoxsrv
                         await Task.Delay(500 * sendingItemsCount);
                     }
 
+                    if (!ImageSafetyCheck(imageTags))
+                    {
+                        FoxLog.WriteLine($"Task {q.ID} - Image failed safety check; cancelling.");
+                        await q.SetCancelled(true);
+                        
+                        try
+                        {
+                            await FoxTelegram.Client.DeleteMessages(t.Peer, new int[] { q.MessageID });
+                        }
+                        catch { } //We don't care if deleting fails.
+
+                        try
+                        {
+                            if (q.ReplyMessageID is not null && q.Telegram is not null)
+                            {
+                                await q.Telegram.SendMessageAsync(
+                                    replyToMessageId: q.ReplyMessageID ?? 0,
+                                    replyToTopicId: q.ReplyTopicID ?? 0,
+                                    text: $"❌ Image was detected as prohibited content and has been removed.\r\n\r\nIf you believe this was in error, please contact support at @makefoxhelpbot."
+                                );
+                            }
+                        }
+                        catch { } //We don't care if editing fails.
+
+
+                        var modMsg = $"User {q.User?.UID} had an image automatically removed due to unsafe content detection.\r\n\r\n";
+
+                        modMsg += $"https://makefox.bot/ui/images.php?id={q.ID}";
+
+                        _ = FoxContentFilter.SendModerationNotification(modMsg);
+
+                        return;
+                    }
+
                     try
                     {
                         await t.EditMessageAsync(
@@ -240,6 +274,25 @@ namespace makefoxsrv
 
                 return outputStream;
             }
+        }
+
+        public static bool ImageSafetyCheck(Dictionary<string, float> imageTags)
+        { 
+            if (imageTags is null || imageTags.Count == 0)
+                return true; // No tags, assume safe.
+
+            // Check for explicit content tags with high probability.
+
+            if (imageTags.ContainsKey("human") && (imageTags.ContainsKey("child") || imageTags.ContainsKey("young")))
+            {
+                if (imageTags.ContainsKey("penis") || imageTags.ContainsKey("vagina"))
+                    return false;
+
+                if (imageTags.ContainsKey("nude") && (imageTags.ContainsKey("shota") || imageTags.ContainsKey("loli")))
+                    return false;
+            }
+            
+            return true;
         }
 
         public static async Task InsertImageTagsAsync(ulong qid, Dictionary<string, float> tags)
