@@ -88,9 +88,9 @@ namespace makefoxsrv
                         catch { } //We don't care if editing fails.
 
 
-                        var modMsg = $"User {q.User?.UID} had an image automatically removed due to unsafe content detection.\r\n\r\n";
+                        var modMsg = $"User {q.User?.UID} had an image {q.ID} automatically removed due to unsafe content detection.\r\n\r\n";
 
-                        modMsg += $"https://makefox.bot/ui/images.php?id={q.ID}";
+                        modMsg += $"https://makefox.bot/api/get-image.php?id={q.OutputImageID}";
 
                         _ = FoxContentFilter.SendModerationNotification(modMsg);
 
