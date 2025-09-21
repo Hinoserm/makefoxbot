@@ -938,16 +938,19 @@ namespace makefoxsrv
                                 if (newOnlineStatus)
                                 {
                                     //Coming back online
-                                    await Task.Delay(8000, cts.Token);
+                                    FoxLog.WriteLine($"Worker {ID} reconnecting...");
 
-                                    FoxLog.WriteLine($"Worker {ID} is back online!");
-                                    await SetOnlineStatus(true);
+                                    await Task.Delay(8000, cts.Token);                            
 
                                     await LoadModelInfo(); //Reload in case it changed.
-                                    _ = LoadLoRAInfo();
+                                    await LoadLoRAInfo();
+
+                                    await SetOnlineStatus(true);
 
                                     Online = true;
                                     waitMs = 2000;
+
+                                    FoxLog.WriteLine($"Worker {ID} is back online!");
                                 }
                                 else
                                 {
