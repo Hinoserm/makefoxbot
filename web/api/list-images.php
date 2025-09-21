@@ -34,7 +34,7 @@ LEFT JOIN users u ON q.uid = u.id
 LEFT JOIN telegram_users tu ON u.telegram_id = tu.id
 LEFT JOIN workers w ON q.worker = w.id
 WHERE
-    q.status = 'FINISHED' OR (q.status = 'CANCELLED' AND q.image_id IS NOT NULL)
+    q.status = 'FINISHED'
 ";
 
 if ($user['access_level'] != 'ADMIN') {
