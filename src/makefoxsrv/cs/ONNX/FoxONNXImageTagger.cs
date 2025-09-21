@@ -148,8 +148,6 @@ public class FoxONNXImageTagger
         var inputName = session.InputMetadata.Keys.First();
         var expectedType = session.InputMetadata[inputName].ElementDataType; // Get ONNX-defined type
 
-        Console.WriteLine($"🔍 Model expects input type: {expectedType}");
-
         // ✅ Correctly detect FP16 model
         bool isFp16Model = (expectedType == TensorElementType.Float16);
 
@@ -159,21 +157,13 @@ public class FoxONNXImageTagger
         {
             Float16[] halfTensor = Array.ConvertAll(inputTensor, f => (Float16)f);
             inputData = NamedOnnxValue.CreateFromTensor(inputName, new DenseTensor<Float16>(halfTensor, new int[] { 1, 3, 384, 384 }));
-            Console.WriteLine("✅ Using FP16 (Half) input tensor.");
         }
         else
         {
             inputData = NamedOnnxValue.CreateFromTensor(inputName, new DenseTensor<float>(inputTensor, new int[] { 1, 3, 384, 384 }));
-            Console.WriteLine("✅ Using FP32 (Float) input tensor.");
         }
 
         var inputs = new List<NamedOnnxValue> { inputData };
-
-        Console.WriteLine("🔍 Checking model outputs...");
-        foreach (var output in session.OutputMetadata)
-        {
-            Console.WriteLine($"✅ Model Output Name: {output.Key}, Type: {output.Value.ElementType}");
-        }
 
         // **Run inference**
 
@@ -181,7 +171,7 @@ public class FoxONNXImageTagger
         using IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results = session.Run(new List<NamedOnnxValue> { inputData });
         var elapsedTime = DateTime.Now - startTime;
 
-        FoxLog.Write($"Inference completed in {elapsedTime.TotalMilliseconds:F2} ms. ", LogLevel.INFO);
+        FoxLog.WriteLine($"Tag prediction completed in {elapsedTime.TotalMilliseconds:F2} ms. ", LogLevel.DEBUG);
 
         // ✅ Convert FP16 output back to FP32 if necessary
         float[] finalScores = isFp16Model
@@ -368,11 +358,11 @@ public class FoxONNXImageTagger
         var metadata = session.ModelMetadata.CustomMetadataMap;
         if (metadata.TryGetValue("tags_json", out string jsonTags))
         {
-            Console.WriteLine("✅ Metadata 'tags_json' found.");
+            FoxLog.WriteLine("✅ Metadata 'tags_json' found.");
             var tagDict = JsonSerializer.Deserialize<Dictionary<string, int>>(jsonTags);
             return tagDict.ToDictionary(kvp => kvp.Value, kvp => kvp.Key.Replace("_", " "));
         }
-        Console.WriteLine("⚠ Metadata 'tags_json' NOT found.");
+        FoxLog.WriteLine("⚠ Metadata 'tags_json' NOT found.");
         return new Dictionary<int, string>();
     }
 }
