@@ -81,7 +81,7 @@ namespace makefoxsrv
                                 await q.Telegram.SendMessageAsync(
                                     replyToMessageId: q.ReplyMessageID ?? 0,
                                     replyToTopicId: q.ReplyTopicID ?? 0,
-                                    text: $"❌ Image was detected as prohibited content and has been removed.\r\n\r\nIf you believe this was in error, please contact support at @makefoxhelpbot."
+                                    text: $"❌ Image was detected as prohibited content and has been removed.\r\n\r\nIf you believe this was in error, please contact support at @makefoxhelpbot.\r\n\r\nYou can review our rules and content policy by typing /start"
                                 );
                             }
                         }
