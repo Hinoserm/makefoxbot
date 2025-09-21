@@ -63,7 +63,7 @@ namespace makefoxsrv
                         await Task.Delay(500 * sendingItemsCount);
                     }
 
-                    if (!ImageSafetyCheck(imageTags))
+                    if (!ImageTagsSafetyCheck(imageTags))
                     {
                         FoxLog.WriteLine($"Task {q.ID} - Image failed safety check; cancelling.");
                         await q.SetCancelled(true);
@@ -276,16 +276,16 @@ namespace makefoxsrv
             }
         }
 
-        public static bool ImageSafetyCheck(Dictionary<string, float> imageTags)
+        public static bool ImageTagsSafetyCheck(Dictionary<string, float> imageTags)
         { 
             if (imageTags is null || imageTags.Count == 0)
                 return true; // No tags, assume safe.
 
             // Check for explicit content tags with high probability.
 
-            if (imageTags.ContainsKey("human") && (imageTags.ContainsKey("child") || imageTags.ContainsKey("young")))
+            if (imageTags.ContainsKey("human") && !imageTags.ContainsKey("anthro") && (imageTags.ContainsKey("child") || imageTags.ContainsKey("young")))
             {
-                if (imageTags.ContainsKey("penis") || imageTags.ContainsKey("vagina"))
+                if (imageTags.ContainsKey("penis") || imageTags.ContainsKey("pussy"))
                     return false;
 
                 if (imageTags.ContainsKey("nude") && (imageTags.ContainsKey("shota") || imageTags.ContainsKey("loli")))
