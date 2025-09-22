@@ -29,6 +29,18 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
     $imageModel = "";
 }
 
+if (isset($_GET['violations']) && strlen($_GET['violations']) > 0) {
+    $violations = $_GET['violations'];
+} else {
+    $violations = "";
+}
+
+if (isset($_GET['vioall']) && strlen($_GET['vioall']) > 0) {
+    $vioall = $_GET['vioall'];
+} else {
+    $vioall = "";
+}
+
 
 //-----------------------------------------
 
@@ -404,7 +416,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
 				if (isLoading) return reject('Already loading images.');
 				isLoading = true;
 				let queryParam = `lastImageId=${action === 'new' ? highestImageId : lastImageId}`;
-				fetch(`/api/list-images.php?action=${action}&${queryParam}&uid=<?php echo $uid; ?>&model=<?php echo $imageModel; ?>`)
+                fetch(`/api/list-images.php?action=${action}&${queryParam}&uid=<?php echo $uid; ?>&model=<?php echo $imageModel; ?><?php echo ($violations !== "" ? "&violations=$violations" : ""); ?><?php echo ($vioall !== "" ? "&vioall=$vioall" : ""); ?>`)
                     .then(response => response.json())
                     .then(data => {
                         if (data && data.images) {
@@ -430,7 +442,7 @@ if (isset($_GET['model']) && strlen($_GET['model']) > 0) {
 
         function showOneImage(idx) {
             return new Promise((resolve, reject) => {
-                fetch(`/api/list-images.php?id=${idx}&uid=<?php echo $uid; ?>`)
+                fetch(`/api/list-images.php?id=${idx}&uid=<?php echo $uid; ?><?php echo ($violations !== "" ? "&violations=$violations" : ""); ?><?php echo ($vioall !== "" ? "&vioall=$vioall" : ""); ?>`)
                     .then(response => response.json())
                     .then(data => {
                         if (data && data.images) {

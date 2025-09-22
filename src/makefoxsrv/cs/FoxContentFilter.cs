@@ -509,7 +509,7 @@ namespace makefoxsrv
                     {
                         buttons = new TL.KeyboardButtonUrl[]
                         {
-                            new() { text = "🔗 Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={uid}"}
+                            new() { text = "Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={uid}&violations=1&vioall=0"}
                         }
                     });
 
@@ -519,7 +519,7 @@ namespace makefoxsrv
                         {
                             buttons = new TL.KeyboardButtonUrl[]
                             {
-                                new() { text = $"{queueId}", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?id={queueId}" }
+                                new() { text = $"{queueId}", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?id={queueId}&violations=1&vioall=1" }
                             }
                         });
                     }

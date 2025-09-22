@@ -16,6 +16,9 @@ $lastImageId = isset($_GET['lastImageId']) ? (int) $_GET['lastImageId'] : 0;
 $action = isset($_GET['action']) ? $_GET['action'] : 'old';
 $all = isset($_GET['all']) ? (int) $_GET['all'] : 0;
 
+$violations = isset($_GET['violations']) ? (int) $_GET['violations'] : 0;
+$vioall = isset($_GET['vioall']) ? (int) $_GET['vioall'] : 0;
+
 // Define the limit based on the action
 $limit = $action === 'new' ? 25 : 10;
 
@@ -33,9 +36,23 @@ FROM
 LEFT JOIN users u ON q.uid = u.id
 LEFT JOIN telegram_users tu ON u.telegram_id = tu.id
 LEFT JOIN workers w ON q.worker = w.id
-WHERE
-    q.status = 'FINISHED'
 ";
+
+if ($violations !== 0) {
+    $sql .= "
+    INNER JOIN content_filter_violations cf
+        ON cf.queue_id = q.id
+    ";
+
+    if ($vioall == 0) {
+        $sql .= "   AND cf.acknowledged IS NULL\n";
+    }
+} else {
+    $sql .= "
+    WHERE
+        q.status = 'FINISHED'
+    ";
+}
 
 if ($user['access_level'] != 'ADMIN') {
     $sql .= " AND q.uid = " . $user['id'];
