@@ -90,7 +90,7 @@ namespace makefoxsrv
 
                         modMsg += $"https://makefox.bot/api/get-image.php?id={q.OutputImageID}";
 
-                        _ = FoxContentFilter.SendModerationNotification(modMsg);
+                        await FoxContentFilter.RecordViolationsAsync(q.ID, new List<ulong> { 0 });
 
                         return;
                     }

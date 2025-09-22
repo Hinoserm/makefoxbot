@@ -33,13 +33,14 @@ namespace makefoxsrv
             {"GetFullChat",     true },
             {"GetChatPhoto",    false },
             {"GetChatAdmins",   false },
-            {"ModerationGroupID", 0 },
+            {"ModerationGroupID", 0L },
         };
 
         private static object ConvertToType(string key, string value, Type type)
         {
             object? result = Type.GetTypeCode(type) switch
             {
+                TypeCode.Int64 when long.TryParse(value, out var longResult) => longResult,
                 TypeCode.Int32 when int.TryParse(value, out var intResult) => intResult,
                 TypeCode.Decimal when decimal.TryParse(value, out var decimalResult) => decimalResult,
                 TypeCode.Boolean when bool.TryParse(value, out var boolResult) => boolResult,

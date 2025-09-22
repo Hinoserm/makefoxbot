@@ -445,8 +445,7 @@ namespace makefoxsrv
 
         public record ViolationRecord(ulong QueueId, ulong RuleId, ulong Uid);
 
-
-        [Cron(minutes: 5)]
+        [Cron(minutes: 10)]
         public static async Task CronNotifyPendingViolations()
         {
             List<ViolationRecord> violations = new List<ViolationRecord>();
@@ -467,9 +466,9 @@ namespace makefoxsrv
                 string sql = @"
                     SELECT q.uid, cf.queue_id, cf.rule_id
                     FROM content_filter_violations cf
-                    JOIN makefoxbot.queue q ON cf.queue_id = q.id
+                    JOIN queue q ON cf.queue_id = q.id
                     WHERE cf.acknowledged IS NULL
-                    AND q.status NOT IN ('PAUSED', 'CANCELLED')";
+                    AND q.status NOT IN ('PAUSED')";
 
                 using (var selectCmd = new MySqlCommand(sql, connection))
                 {
@@ -492,42 +491,68 @@ namespace makefoxsrv
                     return;
                 }
 
-                // Group violations by uid and build a notification message string.
-                var grouped = violations.GroupBy(v => v.Uid)
-                                        .Select(g => $"User {g.Key} had {g.Count()} violations")
-                                        .ToArray();
+                // Group violations by uid and send notifications to moderation group.
+                var grouped = violations.GroupBy(v => v.Uid);
 
-                string notificationMessage = string.Join("\r\n", grouped);
-                Console.WriteLine("Notification message to be sent to moderation group:");
-                Console.WriteLine(notificationMessage);
-
-                // Try sending the notification message.
-                try
+                foreach (var group in grouped)
                 {
-                    await SendModerationNotification(notificationMessage);
 
-                    // If the notification succeeded, mark each violation as acknowledged using C#'s DateTime.Now.
-                    foreach (var violation in violations)
+                    ulong uid = group.Key;                            // the user id
+                    int count = group.Count();                        // how many violations
+                    var rules = group.Select(v => v.RuleId).ToList(); // which rules they broke
+
+                    var message = $"User {uid} has {count} violations.";
+
+                    List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
+
+                    buttonRows.Add(new TL.KeyboardButtonRow
                     {
-                        using (var updateCmd = new MySqlCommand(
-                            "UPDATE content_filter_violations SET acknowledged = @ackTime WHERE queue_id = @queueId AND rule_id = @ruleId", connection))
+                        buttons = new TL.KeyboardButtonUrl[]
                         {
-                            updateCmd.Parameters.Add("@ackTime", MySqlDbType.DateTime).Value = DateTime.Now;
-                            updateCmd.Parameters.Add("@queueId", MySqlDbType.UInt64).Value = violation.QueueId;
-                            updateCmd.Parameters.Add("@ruleId", MySqlDbType.UInt64).Value = violation.RuleId;
-                            await updateCmd.ExecuteNonQueryAsync();
+                            new() { text = "🔗 Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={uid}"}
+                        }
+                    });
+
+                    foreach (var violation in group.ToList())
+                    {
+                        buttonRows.Add(new TL.KeyboardButtonRow
+                        {
+                            buttons = new TL.KeyboardButtonUrl[]
+                            {
+                                new() { text = $"{violation.QueueId}", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?id={violation.QueueId}" }
+                            }
+                        });
+                    }
+
+                    try
+                    {
+                        await SendModerationNotification(message, new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() });
+
+                        // Acknowledge each queue_id once
+                        foreach (var queueId in group.Select(v => v.QueueId).Distinct())
+                        {
+                            using (var updateCmd = new MySqlCommand(
+                                "UPDATE content_filter_violations " +
+                                "SET acknowledged = @ackTime " +
+                                "WHERE queue_id = @queueId", connection))
+                            {
+                                updateCmd.Parameters.Add("@ackTime", MySqlDbType.DateTime).Value = DateTime.Now;
+                                updateCmd.Parameters.Add("@queueId", MySqlDbType.UInt64).Value = queueId;
+
+                                await updateCmd.ExecuteNonQueryAsync();
+                            }
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    FoxLog.WriteLine($"Failed to send moderation notification: {ex.Message}", LogLevel.ERROR);
+                    catch (Exception ex)
+                    {
+                        FoxLog.LogException(ex, $"Error processing violations: {ex.Message}");
+                    }
                 }
             }
         }
 
         // Stub method: implement your actual message-sending logic here.
-        public static async Task SendModerationNotification(string messageText)
+        public static async Task SendModerationNotification(string messageText, TL.ReplyInlineMarkup? replyKeyboardMarkup = null)
         {
             var moderationGroupId = FoxSettings.Get<long>("ModerationGroupID");
 
@@ -542,15 +567,19 @@ namespace makefoxsrv
             if (moderationGroup is null)
                 throw new Exception("Moderation group not found");
 
-            int moderationTopicId = FoxSettings.Get<int>("ModerationGroupTopicID");
-        
-            var inputReplyToMessage = new InputReplyToMessage { reply_to_msg_id = moderationTopicId, top_msg_id = moderationTopicId };
+            InputReplyToMessage? inputReplyToMessage = null;
+
+            var moderationTopicId = FoxSettings.Get<int?>("ModerationGroupTopicID");
+
+            if (moderationTopicId is not null)
+                inputReplyToMessage = new InputReplyToMessage { reply_to_msg_id = moderationTopicId.Value, top_msg_id = moderationTopicId.Value };
 
             await FoxTelegram.Client.Messages_SendMessage(
                 peer: moderationGroup,
                 random_id: Helpers.RandomLong(),
                 message: messageText,
-                reply_to: inputReplyToMessage
+                reply_to: inputReplyToMessage,
+                reply_markup: replyKeyboardMarkup
             );
         }
     }
