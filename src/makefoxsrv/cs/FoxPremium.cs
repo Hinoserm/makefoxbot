@@ -143,7 +143,7 @@ namespace makefoxsrv
                         try
                         {
                             // Locate and create user object
-                            var fUser = await FoxUser.GetByUID(user.id);
+                            var fUser = await FoxUser.GetByUID((ulong)user.id);
 
                             if (fUser is null)
                                 throw new Exception("User not found!");

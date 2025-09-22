@@ -694,7 +694,7 @@ namespace makefoxsrv
             {
                 try
                 {
-                    var user = await FoxUser.GetByUID(uid);
+                    var user = await FoxUser.GetByUID((ulong)uid);
                     FoxContextManager.Current.User = user;
 
                     var teleUser = user?.TelegramID is not null ? await FoxTelegram.GetUserFromID(user.TelegramID.Value) : null;

@@ -396,7 +396,7 @@ namespace makefoxsrv
 
                 string payload = System.Text.Encoding.ASCII.GetString(payment.payload);
                 string[] parts = payload.Split('_');
-                if (parts.Length != 3 || parts[0] != "PAY" || !long.TryParse(parts[1], out long recvUID))
+                if (parts.Length != 3 || parts[0] != "PAY" || !ulong.TryParse(parts[1], out ulong recvUID))
                 {
                     throw new System.Exception("Malformed payment request!");
                 }

@@ -139,7 +139,7 @@ namespace makefoxsrv
                         if (await r.ReadAsync())
                         {
                             if (r["uid"] is not DBNull)
-                                session.user = await FoxUser.GetByUID(r.GetInt64("uid"));
+                                session.user = await FoxUser.GetByUID(r.GetUInt64("uid"));
                         }
                         else
                             return null;
@@ -231,7 +231,7 @@ namespace makefoxsrv
                     {
                         if (await r.ReadAsync())
                         {
-                            long UID = r.GetInt64("uid");
+                            var UID = r.GetUInt64("uid");
 
                             FoxUser? fUser = await FoxUser.GetByUID(UID);
 

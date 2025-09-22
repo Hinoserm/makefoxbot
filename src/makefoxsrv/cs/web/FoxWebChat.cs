@@ -71,7 +71,7 @@ namespace makefoxsrv
                     {
                         while (await reader.ReadAsync())
                         {
-                            var user = await FoxUser.GetByUID(reader.GetInt64("from_uid"));
+                            var user = await FoxUser.GetByUID(reader.GetUInt64("from_uid"));
 
                             var username = user?.Username ?? ($"#{reader.GetUInt64("from_uid")}");
 
@@ -151,7 +151,7 @@ namespace makefoxsrv
                     {
                         if (await reader.ReadAsync())
                         {
-                            var userId = reader.GetInt64("to_uid");
+                            var userId = reader.GetUInt64("to_uid");
 
                             return await FoxUser.GetByUID(userId);
                         }
@@ -278,9 +278,9 @@ namespace makefoxsrv
                     {
                         if (await reader.ReadAsync())
                         {
-                            var fromUID = reader.GetInt64("to_uid");
+                            var fromUID = reader.GetUInt64("to_uid");
 
-                            if ((ulong)fromUID != session.user.UID)
+                            if (fromUID != session.user.UID)
                             { 
                                 return new JsonObject
                                 {
@@ -290,7 +290,7 @@ namespace makefoxsrv
                                 };
                             }
 
-                            var chatUser = await FoxUser.GetByUID(reader.GetInt64("to_uid"));
+                            var chatUser = await FoxUser.GetByUID(reader.GetUInt64("to_uid"));
 
                             var displayName = chatUser?.Username ?? ($"#{reader.GetUInt64("to_uid")}");
 
@@ -404,7 +404,7 @@ namespace makefoxsrv
 
                         while (await reader.ReadAsync())
                         {
-                            var chatUser = await FoxUser.GetByUID(reader.GetInt64("to_uid"));
+                            var chatUser = await FoxUser.GetByUID(reader.GetUInt64("to_uid"));
 
                             var displayName = chatUser?.Username ?? ($"#{reader.GetUInt64("to_uid")}");
 
@@ -520,7 +520,7 @@ namespace makefoxsrv
                     {
                         while (await reader.ReadAsync())
                         {
-                            var fromUser = await FoxUser.GetByUID(reader.GetInt64("from_uid"));
+                            var fromUser = await FoxUser.GetByUID(reader.GetUInt64("from_uid"));
                             var chatId = reader.GetUInt64("id");
 
                             foreach (var (context, connectedSession) in FoxWebSession.GetActiveWebSocketSessions())

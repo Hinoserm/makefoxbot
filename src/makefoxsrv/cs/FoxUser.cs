@@ -47,10 +47,10 @@ namespace makefoxsrv
             }
         }
 
-        private static Dictionary<ulong, FoxUser> userCacheByUID = new Dictionary<ulong, FoxUser>();
-        //private static Dictionary<long, FoxUser> userCacheByTelegramID = new Dictionary<long, FoxUser>();
+        private static FoxCache<FoxUser> _userCacheByUID = new(TimeSpan.FromHours(24));
 
-        private static readonly object cacheLock = new object();
+        // Alias dictionary, thread-safe, just maps Telegram IDs to UIDs
+        private static readonly ConcurrentDictionary<long, ulong> _telegramToUid = new ConcurrentDictionary<long, ulong>();
 
         private static readonly ConcurrentDictionary<ulong, SemaphoreSlim> UserSemaphores = new();
         private static readonly ConcurrentDictionary<ulong, ConcurrentQueue<(DateTime LockTime, string OriginInfo, Task LockingTask)>> LockMetadata = new();
@@ -79,8 +79,7 @@ namespace makefoxsrv
             this.Strings = new FoxLocalization(this, PreferredLanguage ?? "en");
         }
 
-        public static int CacheCount() =>
-            userCacheByUID.Count();
+        public static int CacheCount() => _userCacheByUID.Count;
 
         public void RecordError(Exception ex)
         {
@@ -148,73 +147,7 @@ namespace makefoxsrv
 
         public static long ClearCache()
         {
-            lock (cacheLock)
-            {
-                long count = userCacheByUID.Count;
-
-                userCacheByUID.Clear();
-
-                return count;
-            }
-        }
-
-        private static FoxUser AddToCache(FoxUser user)
-        {
-            user.cachedTime = DateTime.Now;
-
-            lock (cacheLock)
-            {
-                var cachedUser = GetFromCacheByUID(user.UID);
-
-                if (cachedUser is not null)
-                {
-                    FoxLog.WriteLine($"User with UID {user.UID} already exists in cache.", LogLevel.DEBUG);
-                    return cachedUser;
-                }
-
-                if (!userCacheByUID.TryAdd(user.UID, user))
-                    throw new InvalidOperationException($"Failed to cache UID {user.UID}.");
-            }
-
-            return user;
-        }
-
-
-        private static FoxUser? GetFromCacheByUsername(string username)
-        {
-            string lowerUsername = username.ToLowerInvariant();
-            lock (cacheLock)
-            {
-                foreach (var entry in userCacheByUID)
-                {
-                    var user = entry.Value;
-                    if (user.Username is not null && user.Username.ToLowerInvariant() == lowerUsername)
-                        return user;
-                }
-
-                return null;
-            }
-        }
-
-        private static FoxUser? GetFromCacheByUID(ulong uid)
-        {
-            lock (cacheLock)
-            {
-                if (userCacheByUID.TryGetValue(uid, out var user))
-                    return user;
-
-                return null;
-            }
-        }
-
-        private static FoxUser? GetFromCacheByTelegramID(long telegramID)
-        {
-            lock (cacheLock)
-            {
-                // Return the first user with a matching TelegramID
-                return userCacheByUID.Values
-                    .FirstOrDefault(u => u.TelegramID == telegramID);
-            }
+            return 0;
         }
 
         //private static bool CheckIfCacheExpired(FoxUser user)
@@ -364,21 +297,21 @@ namespace makefoxsrv
                 user.accessLevel = accessLevel;
             }
 
-            return AddToCache(user);
+            _userCacheByUID.Put(user.UID, user);
+
+            return user;
         }
 
-        public static async Task<FoxUser?> GetByUID(long uid)
+        public static async Task<FoxUser?> GetByUID(ulong uid)
         {
-            var cachedUser = GetFromCacheByUID((ulong)uid);
-            if (cachedUser != null)
-            {
-                cachedUser.lastAccessed = DateTime.Now;
+            FoxUser? user = _userCacheByUID.Get(uid);
 
-                return cachedUser;
+            if (user is not null) {
+                user.lastAccessed = DateTime.Now;
+
+                return user;
             }
-
-            FoxUser? user = null;
-
+            
             try
             {
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
@@ -403,6 +336,13 @@ namespace makefoxsrv
             {
                 // In case of any error, return null.
                 return null;
+            }
+
+            if (user is not null)
+            {
+                _userCacheByUID.Put((ulong)uid, user);
+                if (user.TelegramID is not null && user.TelegramID != 0)
+                    _telegramToUid[user.TelegramID.Value] = user.UID;
             }
 
             return user;
@@ -432,39 +372,40 @@ namespace makefoxsrv
 
         public static async Task<FoxUser?> GetByTelegramUser(User tuser, bool autoCreateUser = false)
         {
-            var user = GetFromCacheByTelegramID(tuser.ID);
-            if (user is null)
+            // First check alias dictionary
+            if (_telegramToUid.TryGetValue(tuser.ID, out var uid))
+                return await GetByUID(uid);
+
+            FoxUser? user = null;
+
+            // Load from database
+            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
-                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                await SQL.OpenAsync();
+
+                using (var cmd = new MySqlCommand("SELECT id FROM users WHERE telegram_id = @id LIMIT 1", SQL))
                 {
-                    await SQL.OpenAsync();
+                    cmd.Parameters.AddWithValue("@id", tuser.ID);
 
-                    using (var cmd = new MySqlCommand("SELECT * FROM users WHERE telegram_id = @id", SQL))
+                    var result = await cmd.ExecuteScalarAsync();
+                    if (result != null && result != DBNull.Value)
                     {
-                        cmd.Parameters.AddWithValue("@id", tuser.ID);
-
-                        using (var r = await cmd.ExecuteReaderAsync())
-                        {
-                            if (await r.ReadAsync())
-                            {
-                                user = CreateFromRow(r);
-                            }
-                        }
+                        user = await GetByUID(Convert.ToUInt64(result)); // ensures cache hit or DB load
                     }
+                }
 
-                    if (user != null && user.Username != tuser.username)
+                if (user != null && user.Username != tuser.username)
+                {
+                    // Telegram username changed, a db update is required
+                    FoxLog.WriteLine($"Username change: {user.Username} > {tuser.username}");
+
+                    using (var updateCmd = new MySqlCommand("UPDATE users SET username = @username WHERE id = @uid", SQL))
                     {
-                        // Telegram username changed, a db update is required
-                        FoxLog.WriteLine($"Username change: {user.Username} > {tuser.username}");
+                        updateCmd.Parameters.AddWithValue("@username", tuser.username);
+                        updateCmd.Parameters.AddWithValue("@uid", user.UID);
+                        await updateCmd.ExecuteNonQueryAsync();
 
-                        using (var updateCmd = new MySqlCommand("UPDATE users SET username = @username WHERE id = @uid", SQL))
-                        {
-                            updateCmd.Parameters.AddWithValue("@username", tuser.username);
-                            updateCmd.Parameters.AddWithValue("@uid", user.UID);
-                            await updateCmd.ExecuteNonQueryAsync();
-
-                            user.Username = tuser.username; // Update the user object with the new username
-                        }
+                        user.Username = tuser.username; // Update the user object with the new username
                     }
                 }
             }
@@ -484,68 +425,81 @@ namespace makefoxsrv
 
         public static async Task<FoxUser?> GetByTelegramUserID(long tuserid)
         {
-            var cachedUser = GetFromCacheByTelegramID(tuserid);
-            if (cachedUser is not null)
+            // Step 1: Check alias dictionary
+            if (_telegramToUid.TryGetValue(tuserid, out var uid))
             {
-                cachedUser.lastAccessed = DateTime.Now;
-
-                return cachedUser;
+                var cachedUser = await GetByUID(uid);
+                if (cachedUser is not null)
+                {
+                    cachedUser.lastAccessed = DateTime.Now;
+                    return cachedUser;
+                }
             }
 
+            FoxUser? user = null;
+
+            // Step 2: Fall back to DB
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
-                using (var cmd = new MySqlCommand("SELECT * FROM users WHERE telegram_id = @id", SQL))
+                using (var cmd = new MySqlCommand("SELECT id FROM users WHERE telegram_id = @id LIMIT 1", SQL))
                 {
                     cmd.Parameters.AddWithValue("@id", tuserid);
 
-                    using (var r = await cmd.ExecuteReaderAsync())
+                    var result = await cmd.ExecuteScalarAsync();
+                    if (result != null && result != DBNull.Value)
                     {
-                        if (await r.ReadAsync())
-                        {
-                            return CreateFromRow(r);
-                        }
+                        user = await GetByUID(Convert.ToUInt64(result));
                     }
                 }
             }
 
-            return null;
+            // Step 3: Update alias dictionary if we got a match
+            if (user is not null)
+            {
+                user.lastAccessed = DateTime.Now;
+            }
+
+            return user;
         }
 
         public static async Task<FoxUser?> GetByUsername(string username)
         {
             if (string.IsNullOrEmpty(username))
                 return null;
-             
-            var cachedUser = GetFromCacheByUsername(username);
-            if (cachedUser != null)
+
+            // First try the cache via LINQ
+            var cachedUser = _userCacheByUID.Values
+                .FirstOrDefault(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
+
+            if (cachedUser is not null)
             {
                 cachedUser.lastAccessed = DateTime.Now;
-
                 return cachedUser;
             }
 
+            // Fallback: database lookup
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
 
-                using (var cmd = new MySqlCommand("SELECT * FROM users WHERE username = @username", SQL))
+                using (var cmd = new MySqlCommand("SELECT id FROM users WHERE username = @username LIMIT 1", SQL))
                 {
                     cmd.Parameters.AddWithValue("@username", username);
 
-                    using (var r = await cmd.ExecuteReaderAsync())
+                    var result = await cmd.ExecuteScalarAsync();
+                    if (result != null && result != DBNull.Value)
                     {
-                        if (await r.ReadAsync())
-                        {
-                            return CreateFromRow(r);
-                        }
+                        var uid = Convert.ToUInt64(result);
+                        return await GetByUID(uid); // ensures cache hit or DB load
                     }
                 }
             }
 
             return null;
         }
+
 
         public static async Task<FoxUser?> CreateFromTelegramUser(User tuser)
         {
@@ -558,9 +512,10 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "INSERT INTO users (telegram_id, username, type, date_last_seen, date_added) VALUES (@telegram_id, @username, 'TELEGRAM_USER', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())";
+                    cmd.CommandText = "INSERT INTO users (telegram_id, username, type, date_last_seen, date_added) VALUES (@telegram_id, @username, 'TELEGRAM_USER', @now, @now)";
                     cmd.Parameters.AddWithValue("telegram_id", tuser.ID);
                     cmd.Parameters.AddWithValue("username", tuser.username);
+                    cmd.Parameters.AddWithValue("now", DateTime.Now);
 
                     try
                     {
@@ -572,7 +527,7 @@ namespace makefoxsrv
                     {
                         FoxLog.WriteLine($"createUserFromTelegramID({tuser.ID}, \"{tuser.username}\"): Duplicate telegram_id, fetching existing user.");
                         // If a duplicate user is attempted to be created, fetch the existing user instead
-                        return await GetByTelegramUser(tuser);
+                        return await GetByTelegramUser(tuser, false);
                     }
                 }
             }
@@ -580,7 +535,7 @@ namespace makefoxsrv
             if (user_id > 0)
             {
                 // Fetch to read the defaults configured on the table
-                var newUser = await GetByTelegramUser(tuser);
+                var newUser = await GetByTelegramUser(tuser, false);
 
                 return newUser;
             }
@@ -593,7 +548,7 @@ namespace makefoxsrv
 
         static public async Task<FoxUser?> ParseUser(string input)
         {
-            if (long.TryParse(input.Trim(), out long uid))
+            if (ulong.TryParse(input.Trim(), out ulong uid))
             {
                 // Handle input that is a valid long number
                 return await GetByUID(uid);

@@ -19,6 +19,8 @@ using SixLabors.Fonts.Unicode;
 using EmbedIO.Utilities;
 using System.Security.Policy;
 using SixLabors.ImageSharp.PixelFormats;
+using System.Collections.Concurrent;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace makefoxsrv
 {
@@ -30,6 +32,14 @@ namespace makefoxsrv
             OUTPUT,
             OTHER,
             UNKNOWN
+        }
+
+        private static readonly FoxCache<FoxImage> _cache = new FoxCache<FoxImage>(TimeSpan.FromHours(1));
+        private static readonly ConcurrentDictionary<ulong, SemaphoreSlim> _cacheLocks = new();
+
+        public static int CacheCount()
+        {
+            return _cache.Count;
         }
 
         [DbColumn("type")]
@@ -394,6 +404,9 @@ namespace makefoxsrv
 
             await img.Save();
 
+            // seed the cache so future Load() calls reuse this object
+            _cache.Put(img.ID, img);
+
             return img;
         }
 
@@ -470,17 +483,37 @@ namespace makefoxsrv
             return null;
         }
 
-        public static async Task<FoxImage?> Load(ulong image_id)
+        public static async Task<FoxImage?> Load(ulong id)
         {
+            var cached = _cache.Get(id);
+            if (cached is not null)
+                return cached;
 
-            var img = await FoxDB.LoadObjectAsync<FoxImage>("images", "id = @id", new Dictionary<string, object?> { { "id", image_id } });
+            var sem = _cacheLocks.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
+            await sem.WaitAsync();
 
-            if (img is not null)
+            try
             {
-                img._isDirty = false;
-            }
+                cached = _cache.Get(id);
+                if (cached is not null)
+                    return cached;
 
-            return img;
+                var img = await FoxDB.LoadObjectAsync<FoxImage>("images", "id = @id", new Dictionary<string, object?> { { "id", id } });
+
+                if (img != null)
+                {
+                    img._isDirty = false;
+                    _cache.Put(id, img);
+                }
+
+                return img;
+            }
+            finally
+            {
+                sem.Release();
+                if (sem.CurrentCount == 1)
+                    _cacheLocks.TryRemove(id, out _);
+            }
         }
 
         private static string GenerateSHA1Hash(byte[] input)

@@ -175,7 +175,7 @@ namespace makefoxsrv
         private static ConcurrentQueue<FoxQueue> delayedTasks = new ConcurrentQueue<FoxQueue>();
         private static Timer? delayedTaskTimer = null;
 
-        public static readonly FoxCache<FoxQueue> Cache = new FoxCache<FoxQueue>(
+        public static readonly FoxCacheOld<FoxQueue> Cache = new FoxCacheOld<FoxQueue>(
             idAccessor: q => q.ID,
             strongLifetime: TimeSpan.FromHours(24),
             maxSize: 20000,
@@ -647,7 +647,7 @@ namespace makefoxsrv
                 {
                     var q = FoxDB.LoadObject<FoxQueue>(r);
 
-                    long? uid = r["uid"] is DBNull ? null : Convert.ToInt64(r["uid"]);
+                    ulong? uid = r["uid"] is DBNull ? null : Convert.ToUInt64(r["uid"]);
 
                     if (uid is null)
                         continue; //Something went wrong, skip this one.
@@ -1218,7 +1218,7 @@ namespace makefoxsrv
 
                 q = await FoxDB.LoadObjectAsync<FoxQueue>("queue", "id = @id", parameters, async (o, r) =>
                 {
-                    long uid = Convert.ToInt64(r["uid"]);
+                    var uid = Convert.ToUInt64(r["uid"]);
 
                     var user = await FoxUser.GetByUID(uid);
 
@@ -1615,16 +1615,26 @@ namespace makefoxsrv
             if (OutputImageID is null)
                 throw new Exception("Output image ID not set");
 
-            if (_outputImage == null)
-            {
-                _outputImage = await FoxImage.Load(OutputImageID.Value);
+            // FoxImage handles it's own caching now, so we don't need to hold it here
 
-                if (_outputImage is null)
-                    throw new Exception("Output image could not be loaded");
-            }
+            var img = await FoxImage.Load(OutputImageID.Value);
 
-            return _outputImage;
+            if (img is null)
+                throw new Exception("Output image could not be loaded");
+
+            return img;
+
+            //if (_outputImage == null)
+            //{
+            //    _outputImage = await FoxImage.Load(OutputImageID.Value);
+
+            //    if (_outputImage is null)
+            //        throw new Exception("Output image could not be loaded");
+            //}
+
+            //return _outputImage;
         }
+
         public async Task SaveOutputImage(byte[] img, string? fileName = null)
         {
             var finalFileName = fileName;

@@ -64,7 +64,7 @@ namespace makefoxsrv
                     GROUP BY q.uid
                     HAVING COUNT(q.uid) >= 10 AND COUNT(un.news_id) = 0;";
 
-                var activeUsers = new List<long>();
+                var activeUsers = new List<ulong>();
 
                 using (var userCommand = new MySqlCommand(userQuery, connection))
                 {
@@ -74,7 +74,7 @@ namespace makefoxsrv
                     {
                         while (await reader.ReadAsync())
                         {
-                            activeUsers.Add(reader.GetInt64("uid"));
+                            activeUsers.Add(reader.GetUInt64("uid"));
                         }
                     }
                 }

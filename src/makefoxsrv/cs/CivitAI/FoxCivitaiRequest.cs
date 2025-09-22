@@ -351,7 +351,7 @@ namespace makefoxsrv
                 if (civitaiInfo == null)
                     continue;
 
-                var user = await FoxUser.GetByUID((long)uid);
+                var user = await FoxUser.GetByUID(uid);
 
                 if (user == null)
                     continue;
@@ -362,9 +362,9 @@ namespace makefoxsrv
                     InfoItem = civitaiInfo,
                     RequestedBy = user,
                     DateRequested = dateRequested,
-                    ApprovedBy = approvedByUid.HasValue ? await FoxUser.GetByUID((long)approvedByUid.Value) : null,
+                    ApprovedBy = approvedByUid.HasValue ? await FoxUser.GetByUID(approvedByUid.Value) : null,
                     DateApproved = dateApproved,
-                    InstalledBy = installedByUid.HasValue ? await FoxUser.GetByUID((long)installedByUid.Value) : null,
+                    InstalledBy = installedByUid.HasValue ? await FoxUser.GetByUID(installedByUid.Value) : null,
                     DateInstalled = dateInstalled
                 };
 

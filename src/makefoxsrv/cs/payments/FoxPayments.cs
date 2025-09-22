@@ -217,7 +217,7 @@ namespace makefoxsrv
                     await this.Save();
                     await Invoice.Save();
 
-                    var user = await FoxUser.GetByUID((long)this.UserId);
+                    var user = await FoxUser.GetByUID(this.UserId);
 
                     if (user is null)
                         throw new Exception("Unable to load user.");

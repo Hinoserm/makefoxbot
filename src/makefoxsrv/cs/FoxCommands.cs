@@ -1392,6 +1392,8 @@ namespace makefoxsrv
                     sb.AppendLine("Cache Info:");
                     sb.AppendLine($"  Queue: {FoxQueue.Cache.Count()}");
                     sb.AppendLine($"  Users: {FoxUser.CacheCount()}");
+                    sb.AppendLine($"  Images: {FoxImage.CacheCount()}");
+
                 }
 
                 sb.AppendLine("\nUser Info:\n");
