@@ -523,8 +523,6 @@ namespace makefoxsrv
 
         private static async Task HandleDeleteMessagesAsync(int[] messages, long? channel_id = null)
         {
-            
-
             try
             {
                 FoxLog.WriteLine("Deleting messages (" + string.Join(",", messages) + ") channel_id = " + channel_id?.ToString() ?? "null");

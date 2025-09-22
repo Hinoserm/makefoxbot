@@ -8,6 +8,9 @@ using System.Threading.Tasks;
 using MySqlConnector;
 
 using makefoxsrv;
+using TL;
+using static System.Net.Mime.MediaTypeNames;
+using WTelegram;
 
 namespace makefoxsrv
 {
@@ -524,7 +527,7 @@ namespace makefoxsrv
         }
 
         // Stub method: implement your actual message-sending logic here.
-        public static async Task SendModerationNotification(string message)
+        public static async Task SendModerationNotification(string messageText)
         {
             var moderationGroupId = FoxSettings.Get<long>("ModerationGroupID");
 
@@ -532,14 +535,23 @@ namespace makefoxsrv
                 return;
 
             // For example, send this message via email, a messaging API, or log it as needed.
-            FoxLog.WriteLine($"Sending moderation notification:\r\n{message}");
+            FoxLog.WriteLine($"Sending moderation notification:\r\n{messageText}");
 
             var moderationGroup = await FoxTelegram.GetChatFromID(moderationGroupId);
 
             if (moderationGroup is null)
                 throw new Exception("Moderation group not found");
 
-            await FoxTelegram.Client.SendMessageAsync(moderationGroup, message);
+            int moderationTopicId = FoxSettings.Get<int>("ModerationGroupTopicID");
+        
+            var inputReplyToMessage = new InputReplyToMessage { reply_to_msg_id = moderationTopicId, top_msg_id = moderationTopicId };
+
+            await FoxTelegram.Client.Messages_SendMessage(
+                peer: moderationGroup,
+                random_id: Helpers.RandomLong(),
+                message: messageText,
+                reply_to: inputReplyToMessage
+            );
         }
     }
 }
