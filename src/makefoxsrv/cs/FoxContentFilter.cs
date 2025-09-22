@@ -445,7 +445,7 @@ namespace makefoxsrv
 
         public record ViolationRecord(ulong QueueId, ulong RuleId, ulong Uid);
 
-        [Cron(minutes: 10)]
+        [Cron(seconds: 10)]
         public static async Task CronNotifyPendingViolations()
         {
             List<ViolationRecord> violations = new List<ViolationRecord>();
@@ -509,7 +509,15 @@ namespace makefoxsrv
                     {
                         buttons = new TL.KeyboardButtonUrl[]
                         {
-                            new() { text = "Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={uid}&violations=1&vioall=0"}
+                            new() { text = "Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={uid}"}
+                        }
+                    });
+
+                    buttonRows.Add(new TL.KeyboardButtonRow
+                    {
+                        buttons = new TL.KeyboardButtonUrl[]
+                        {
+                            new() { text = "View Violations", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={uid}&violations=1&vioall=1"}
                         }
                     });
 
