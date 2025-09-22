@@ -730,8 +730,6 @@ namespace makefoxsrv
 
             try
             {
-                FoxLog.WriteLine($"{this.GetHashCode()}: Loading tags for image {this.ID}");
-
                 using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
                 await conn.OpenAsync();
 
@@ -752,6 +750,8 @@ namespace makefoxsrv
 
                     tags[tag] = prob;
                 }
+
+                FoxLog.WriteLine($"{this.GetHashCode()}: Loaded {tags.Count} tags for image {this.ID}");
             }
             catch (Exception ex)
             {
