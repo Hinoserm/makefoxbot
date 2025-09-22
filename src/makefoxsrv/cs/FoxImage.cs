@@ -730,6 +730,8 @@ namespace makefoxsrv
 
             try
             {
+                FoxLog.WriteLine($"{this.GetHashCode()}: Loading tags for image {this.ID}");
+
                 using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
                 await conn.OpenAsync();
 
@@ -778,7 +780,7 @@ namespace makefoxsrv
             if (_imageTags is null || _imageTags.Count == 0)
                 return; // nothing to save
 
-            FoxLog.WriteLine($"{this.GetHashCode}: Saving {_imageTags.Count} tags for image {this.ID}");
+            FoxLog.WriteLine($"{this.GetHashCode()}: Saving {_imageTags.Count} tags for image {this.ID}");
 
             const int maxRetries = 10;
 
