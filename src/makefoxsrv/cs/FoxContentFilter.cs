@@ -445,7 +445,7 @@ namespace makefoxsrv
 
         public record ViolationRecord(ulong QueueId, ulong RuleId, ulong Uid);
 
-        [Cron(seconds: 10)]
+        [Cron(minutes: 10)]
         public static async Task CronNotifyPendingViolations()
         {
             List<ViolationRecord> violations = new List<ViolationRecord>();
