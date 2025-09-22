@@ -1447,9 +1447,24 @@ namespace makefoxsrv
                 sb.AppendLine($"Total Users: {userCount}");
             }
 
+            List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
+
+            if (selectedUser is not null)
+            {
+                buttonRows.Add(new TL.KeyboardButtonRow
+                {
+                    buttons = new TL.KeyboardButtonUrl[]
+                    {
+                        new() { text = "🔗 Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={selectedUser.UID}" }
+                    }
+                });
+            }
+
+
             await t.SendMessageAsync(
                 text: sb.ToString(),
-                replyToMessage: message
+                replyToMessage: message,
+                replyInlineMarkup: new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() }
             );
         }
 
