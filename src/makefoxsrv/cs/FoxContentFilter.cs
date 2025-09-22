@@ -513,13 +513,13 @@ namespace makefoxsrv
                         }
                     });
 
-                    foreach (var violation in group.ToList())
+                    foreach (var queueId in group.Select(v => v.QueueId).Distinct())
                     {
                         buttonRows.Add(new TL.KeyboardButtonRow
                         {
                             buttons = new TL.KeyboardButtonUrl[]
                             {
-                                new() { text = $"{violation.QueueId}", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?id={violation.QueueId}" }
+                                new() { text = $"{queueId}", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?id={queueId}" }
                             }
                         });
                     }
