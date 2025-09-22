@@ -32,32 +32,147 @@ namespace makefoxsrv
             UNKNOWN
         }
 
+        [DbColumn("type")]
         public ImageType Type = ImageType.UNKNOWN;
 
-        public ulong ID;
+        [DbColumn("id")]
+        public ulong ID { get; private set; }
+
+        [DbColumn("user_id")]
         public ulong UserID;
-        public string? Filename = null;
-        public string? SHA1Hash = null;
-        public string? TelegramFileID = null;
-        public string? TelegramUniqueID = null;
-        public string? TelegramFullFileID = null;
-        public string? TelegramFullUniqueID = null;
-        public long? TelegramChatID = null;
-        public long? TelegramMessageID = null;
+
+        [DbColumn("sha1hash")]
+        public string? _sha1Hash = null;
+
+        [DbColumn("date_added")]
         public DateTime DateAdded = DateTime.MinValue;
 
+        [DbColumn("width")]
         private int? _width = null;
+
+        [DbColumn("height")]
         private int? _height = null;
+
+        [DbColumn("filename")]
+        private string? _originalFilename = null;
+
+        [DbColumn("filesize")]
+        private long? _fileSize = null;
+
+        [DbColumn("image_file")]
+        private string _filePath = "";
+
+        [DbColumn("hidden")]
+        public bool Hidden = false;
+
+        [DbColumn("flagged")]
+        public bool Flagged = false;
+
+        private byte[]? _imageDataRaw = null;
+
+        private bool _isDirty = true; //Image was altered
+
+        private Dictionary<string, float>? _imageTags = null;
+
+        private readonly object _lock = new();
+
+        public class TgInfo
+        {
+            [DbColumn("id")]
+            private ulong _imageId;
+
+            [DbColumn("telegram_chatid")]
+            public long? TelegramChatID = null;
+            [DbColumn("telegram_msgid")]
+            public long? TelegramMessageID = null;
+            [DbColumn("telegram_topicid")]
+            public int? TelegramTopicID = null;
+            [DbColumn("telegram_userid")]
+            public long? TelegramUserID = null;
+
+            public TgInfo() {
+
+            }
+
+            public TgInfo(FoxTelegram tg, Message? msg = null)
+            {
+                if (msg is not null)
+                {
+                    TelegramMessageID = msg?.ID;
+                    TelegramTopicID = msg?.ReplyHeader?.TopicID ?? null;
+                    TelegramUserID = msg?.From?.ID;
+                }
+                else
+                {
+                    TelegramUserID = tg?.User?.ID;
+                }
+
+                TelegramChatID = tg?.Chat?.ID;
+            }
+
+            public async Task Save(ulong ImageID)
+            {
+                this._imageId = ImageID;
+
+                await FoxDB.SaveObjectAsync(this, "images_tg_info");
+            }
+
+            public static async Task<TgInfo?> Load(ulong ImageID)
+            {
+                var tgInfo = await FoxDB.LoadObjectAsync<TgInfo>("images_tg_info", "id = @id", new Dictionary<string, object?> { { "id", ImageID } });
+
+                return tgInfo;
+            }
+        }
+
+        private TgInfo? _telegramInfo = null;
+
+        public async Task<TgInfo> GetTelegramInfoAsync()
+        {
+            if (_telegramInfo is null) {
+                _telegramInfo = await TgInfo.Load(this.ID);
+            }
+
+            return _telegramInfo ?? new TgInfo();
+        }
+
+        class TgFileIds
+        {
+            [DbColumn("telegram_fileid")]
+            public string? TelegramFileID = null;
+            [DbColumn("telegram_uniqueid")]
+            public string? TelegramUniqueID = null;
+            [DbColumn("telegram_full_fileid")]
+            public string? TelegramFullFileID = null;
+            [DbColumn("telegram_full_uniqueid")]
+            public string? TelegramFullUniqueID = null;
+        }
+
+        public string Filename
+        {
+            get => _originalFilename ?? "";
+        }
 
         public int Width
         {
             get
             {
-                if (_width == null || _height == null)
-                {
-                    PopulateDimensions();
-                }
+                PopulateDimensions();
                 return _width ?? 0; // Default to 0 if somehow still null (should not happen).
+            }
+        }
+
+        public string SHA1Hash
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    if (_sha1Hash is null)
+                        _sha1Hash = GenerateSHA1Hash(Image);
+
+                    return _sha1Hash;
+                }
             }
         }
 
@@ -65,571 +180,72 @@ namespace makefoxsrv
         {
             get
             {
-                if (_width == null || _height == null)
-                {
-                    PopulateDimensions();
-                }
+                PopulateDimensions();
                 return _height ?? 0; // Default to 0 if somehow still null (should not happen).
             }
         }
 
+        public byte[] Image
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    if (_imageDataRaw is null)
+                        ReadImageFromFile(); //Load image from disk
 
-        public byte[]? Image = null;
+                    if (_imageDataRaw is null)
+                        throw new InvalidOperationException("Image data is null");
 
+                    return (byte[])_imageDataRaw.Clone(); // defensive copy
+                }
+            }
+            set
+            {
+                lock (_lock)
+                {
+                    if (_imageDataRaw is not null)
+                        throw new Exception("Image data is already set. FoxImage instances are immutable once created.");
+
+                    _imageDataRaw = (byte[])value.Clone();
+                    _sha1Hash = GenerateSHA1Hash(_imageDataRaw);
+                    _fileSize = _imageDataRaw.Length;
+                    _filePath = GenerateImagePath();
+                    PopulateDimensions();
+                    _isDirty = true;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Loads a new Image<Rgba32> from raw data.
+        /// Caller is responsible for disposing.
+        /// </summary>
         public Image<Rgba32> GetRGBAImage()
         {
-            if (this.Image is null)
-                throw new Exception("Image data is null");
+            lock (_lock)
+            {
+                if (this.Image is null)
+                    throw new InvalidOperationException("Image data is null");
 
-            return SixLabors.ImageSharp.Image.Load<Rgba32>(Image);
+                return SixLabors.ImageSharp.Image.Load<Rgba32>(Image);
+            }
         }
 
         private void PopulateDimensions()
         {
-            if (Image == null || Image.Length == 0)
+            lock (_lock)
             {
-                throw new InvalidOperationException("Image data is null or empty.");
-            }
-
-            using (var image = SixLabors.ImageSharp.Image.Load<Rgba32>(Image))
-            {
-                _width = image.Width;
-                _height = image.Height;
-            }
-        }
-
-        public static async Task ConvertOldImages()
-        {
-            int count = 0;
-
-            while (true)
-            {
-                try
+                if (_width is null || _height is null)
                 {
-                    using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+                    var imgProperties = SixLabors.ImageSharp.Image.Identify(Image);
 
-                    await SQL.OpenAsync();
-
-                    using (var cmd = new MySqlCommand())
-                    {
-                        cmd.Connection = SQL;
-                        cmd.CommandText = "SELECT id FROM images WHERE image_file IS NULL ORDER BY date_added DESC LIMIT 1000";
-
-                        using var r = await cmd.ExecuteReaderAsync();
-
-                        if (!r.HasRows)
-                            break;
-
-                        while (await r.ReadAsync())
-                        {
-                            try
-                            {
-                                long id = System.Convert.ToInt64(r["id"]);
-
-                                var img = await FoxImage.Load((ulong)id);
-
-                                await img.Save();
-
-                                count++;
-
-                                if (count % 100 == 0)
-                                {
-                                    FoxLog.WriteLine($"Converted {count} images.");
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                FoxLog.WriteLine($"Error converting image: {ex.Message}\r\n{ex.StackTrace}");
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    FoxLog.WriteLine($"Error converting images: {ex.Message}\r\n{ex.StackTrace}");
-                }
-            }
-            FoxLog.WriteLine($"Finished converting {count} images.");
-        }
-
-        private static async Task UpdatePath(long imageId, string? imagePath)
-        {
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
-            await SQL.OpenAsync();
-
-            using (var cmd = new MySqlCommand())
-            {
-                cmd.Connection = SQL;
-                cmd.CommandText = $"UPDATE images SET image_file = @imgpath WHERE id = @id";
-                cmd.Parameters.AddWithValue("id", imageId);
-                cmd.Parameters.AddWithValue("imgpath", imagePath?.Replace('\\', '/'));
-
-                await cmd.ExecuteNonQueryAsync();
-            }
-        }
-
-        private static void DeleteEmptyDirectories(string startDirectory, string? rootDirectory = null)
-        {
-            // If we're at the top-level call, rootDirectory is null. Set it.
-            if (rootDirectory == null)
-                rootDirectory = startDirectory;
-
-            // Recurse into subdirectories first
-            foreach (var directory in Directory.GetDirectories(startDirectory))
-            {
-                DeleteEmptyDirectories(directory, rootDirectory);
-            }
-
-            // Check if empty
-            var entries = Directory.GetFileSystemEntries(startDirectory);
-            // If empty AND it's not our original root, delete it
-            if (entries.Length == 0 &&
-                !string.Equals(startDirectory, rootDirectory, StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    Directory.Delete(startDirectory);
-                    Console.WriteLine($"Deleted empty directory: {startDirectory}");
-                }
-                catch (IOException ex)
-                {
-                    Console.WriteLine($"Failed to delete {startDirectory}: {ex.Message}");
-                }
-                catch (UnauthorizedAccessException ex)
-                {
-                    Console.WriteLine($"No permission to delete {startDirectory}: {ex.Message}");
+                    _width = imgProperties.Width;
+                    _height = imgProperties.Height;
                 }
             }
         }
 
-        private static readonly HashSet<long> _missingFiles = new HashSet<long>();
-
-        [Cron(hours: 1)]
-        public static async Task CronImageArchiver(CancellationToken cancellationToken)
-        {
-            int count = 0;
-
-            var dataPath = Path.GetFullPath("../data");
-            var archivePath = Path.Combine(dataPath, "archive");
-
-            // Find the cutoff date/time for what "old enough" means.
-            // For instance, 30 days ago:
-            int days = FoxSettings.Get<int?>("ImageArchiveDays") ?? 30;
-            var cutoff = DateTime.Now.AddDays(-days);
-
-            try
-            {
-                if (!Directory.Exists(archivePath))
-                {
-                    FoxLog.WriteLine("Archive directory does not exist.  Archiving disabled.");
-
-                    return;
-                }
-
-                FoxLog.WriteLine($"Archiving images older than {cutoff} ({days} days)...");
-
-                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
-                await SQL.OpenAsync(cancellationToken);
-
-                // Record the start time
-                var startTime = DateTime.Now;
-
-                while ((DateTime.Now - startTime).Minutes < 30 && !cancellationToken.IsCancellationRequested)
-                {
-
-                    if (_missingFiles.Count() >= 2000)
-                        throw new Exception("Too many missing files, aborting.");
-
-                    using (var cmd = new MySqlCommand())
-                    {
-                        cmd.Connection = SQL;
-                        cmd.CommandText = @"SELECT id,image_file
-                                            FROM images 
-                                            WHERE
-                                                image_file IS NOT NULL 
-                                                AND date_added < @cutoff 
-                                                AND image_file NOT LIKE 'archive/%' 
-                                            ORDER BY date_added ASC
-                                            LIMIT 2000";
-
-                        cmd.Parameters.AddWithValue("@cutoff", cutoff);
-
-                        using var r = await cmd.ExecuteReaderAsync(cancellationToken);
-
-                        if (!r.HasRows)
-                            break; // Exit the loop early
-
-                        FoxLog.WriteLine($"Found images to archive...");
-
-                        while (await r.ReadAsync(cancellationToken) && !cancellationToken.IsCancellationRequested)
-                        {
-                            try
-                            {
-                                long id = System.Convert.ToInt64(r["id"]);
-                                string? imagePath = System.Convert.ToString(r["image_file"]);
-
-                                if (_missingFiles.Contains(id))
-                                    continue; // No point processing files we know are missing
-
-                                if (imagePath is null)
-                                    throw new Exception($"Null image path for image #{id}");
-
-                                var newPath = Path.Combine("archive/", imagePath);
-
-                                var destFile = Path.Combine(dataPath, newPath);
-                                var srcFile = Path.Combine(dataPath, imagePath);
-
-                                if (File.Exists(srcFile) && !File.Exists(destFile))
-                                {
-                                    string? directoryPath = Path.GetDirectoryName(destFile);
-
-                                    if (directoryPath is null)
-                                        throw new Exception($"Invalid directory path for image #{id}: {destFile}");
-
-                                    if (!Directory.Exists(directoryPath))
-                                    {
-                                        Directory.CreateDirectory(directoryPath);
-                                    }
-
-                                    File.Move(srcFile, destFile);
-
-                                    await UpdatePath(id, newPath);
-                                }
-                                else if (!File.Exists(srcFile) && File.Exists(destFile))
-                                {
-                                    // Assume it has an identical hash as a previous file, so just update path.
-
-                                    await UpdatePath(id, newPath);
-
-                                    FoxLog.WriteLine($"Reusing existing file for {id}: {imagePath}");
-                                }
-                                else if (File.Exists(srcFile) && File.Exists(destFile))
-                                {
-                                    // Assume it has an identical hash as a previous file, so just update path.
-
-                                    File.Delete(srcFile);
-                                    await UpdatePath(id, newPath);
-
-                                    FoxLog.WriteLine($"Reusing existing file for, deleting original {id}: {imagePath}");
-                                }
-                                else
-                                {
-                                    FoxLog.WriteLine($"File is missing in both source and destination for {id}: {imagePath}.");
-                                    _missingFiles.Add(id); // Save the file as missing so we don't process it again later.
-                                    await UpdatePath(id, null);
-                                }
-                                count++;
-                            }
-                            catch (OperationCanceledException)
-                            {
-                                //End gracefully
-                                throw;
-                            }
-                            catch (Exception ex)
-                            {
-                                FoxLog.WriteLine($"Error archiving image: {ex.Message}\r\n{ex.StackTrace}");
-                            }
-                        }
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                //End gracefully
-            }
-            catch (Exception ex)
-            {
-                FoxLog.LogException(ex);
-            }
-
-            if (!cancellationToken.IsCancellationRequested)
-                count += await RunOrphanedImageFileCleanup(cutoff - TimeSpan.FromHours(1), cancellationToken);
-
-            FoxLog.WriteLine($"Finished archiving {count} images.");
-
-            // Leave this off for now
-            //if (!cancellationToken.IsCancellationRequested)
-            //    count += await RunDuplicateImageFinder(cutoff, cancellationToken);
-
-            if (!cancellationToken.IsCancellationRequested && count > 0)
-            {
-                FoxLog.WriteLine($"Removing empty directories...");
-                DeleteEmptyDirectories(Path.Combine(dataPath, "images", "input"));
-                DeleteEmptyDirectories(Path.Combine(dataPath, "images", "output"));
-            }
-        }
-
-        public static async Task<int> RunOrphanedImageFileCleanup(DateTime cutoff, CancellationToken cancellationToken)
-        {
-            var dataPath = Path.GetFullPath("../data");
-            var imagesPath = Path.Combine(dataPath, "images");
-            var processedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var startTime = DateTime.UtcNow;
-
-            try
-            {
-                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-                await SQL.OpenAsync(cancellationToken);
-
-                // Run for up to 15 minutes
-                while ((DateTime.UtcNow - startTime).TotalMinutes < 15 && !cancellationToken.IsCancellationRequested)
-                {
-                    try
-                    {
-                        FoxLog.WriteLine("Enumerating image files...");
-                        var inputOutputDirectories = new[]
-                        {
-                            Path.Combine(imagesPath, "input"),
-                            Path.Combine(imagesPath, "output")
-                        }.Where(Directory.Exists);
-
-                        var dayDirectories = inputOutputDirectories.SelectMany(baseDir =>
-                            Directory.EnumerateDirectories(baseDir, "*", SearchOption.AllDirectories)
-                                     .Where(dir =>
-                                     {
-                                         var relativePath = Path.GetRelativePath(imagesPath, dir).Replace('\\', '/');
-                                         return relativePath.Split('/').Length >= 3; // Ensure it's "year/month/day" deep
-                                     }));
-
-                        var fileBatch = dayDirectories.AsParallel()
-                                                      .WithDegreeOfParallelism(6) // Adjust degree of parallelism
-                                                      .SelectMany(dayDir =>
-                                                          Directory.EnumerateFiles(dayDir, "*.*", SearchOption.AllDirectories)
-                                                                   .Where(path =>
-                                                                   {
-                                                                       // Filter by LastWriteTime early
-                                                                       if (File.GetLastWriteTime(path) >= cutoff)
-                                                                           return false;
-
-                                                                       // Normalize path and check against processed files
-                                                                       var relativePath = Path.GetRelativePath(imagesPath, path)
-                                                                                              .Replace('\\', '/');
-                                                                       return !processedFiles.Contains(relativePath);
-                                                                   }))
-                                                      .Take(2000) // Limit to 2000 files across all day groups
-                                                      .ToList();
-
-                        FoxLog.WriteLine($"Processing batch of {fileBatch.Count} files.");
-
-                        if (fileBatch.Count == 0)
-                            break; // No more files to process
-
-                        // 1) Create a temporary table (if not exists).
-                        //    We'll recreate it each iteration so we start with a clean slate.
-                        using (var cmd = new MySqlCommand(@"
-                            CREATE TEMPORARY TABLE IF NOT EXISTS TempFileBatch (
-                                sha1hash VARCHAR(255) NOT NULL,
-                                rel_path VARCHAR(1024) NOT NULL
-                            );
-                            CREATE INDEX idx_sha1hash ON TempFileBatch (sha1hash);
-                        ", SQL))
-                        {
-                            await cmd.ExecuteNonQueryAsync(cancellationToken);
-                        }
-
-                        // 2) Insert the batch of files into the temporary table.
-                        //    We'll store the hash and the relative path for each file.
-                        using (var insertCmd = new MySqlCommand(@"
-                            INSERT INTO TempFileBatch (sha1hash, rel_path)
-                            VALUES (@hash, @relPath)", SQL))
-                        {
-                            foreach (var fileFullPath in fileBatch)
-                            {
-                                if (cancellationToken.IsCancellationRequested)
-                                    break;
-
-                                // Extract the hash and the relative path
-                                var hash = Path.GetFileNameWithoutExtension(fileFullPath);
-                                if (string.IsNullOrWhiteSpace(hash))
-                                    continue;
-
-                                var relativePath = fileFullPath.Substring(dataPath.Length)
-                                                               .TrimStart(Path.DirectorySeparatorChar)
-                                                               .Replace('\\', '/'); // Normalize to forward slashes
-
-                                // Insert into TempFileBatch
-                                insertCmd.Parameters.Clear();
-                                insertCmd.Parameters.AddWithValue("@hash", hash);
-                                insertCmd.Parameters.AddWithValue("@relPath", relativePath);
-                                await insertCmd.ExecuteNonQueryAsync(cancellationToken);
-                            }
-                        }
-
-                        FoxLog.WriteLine($"Table created, checking image database...");
-
-                        // 3) Query the images table by joining with TempFileBatch.
-                        //    This will return rows that match the hash AND whose image_file
-                        //    ends with the relative path (like '%rel_path').
-                        using (var selectCmd = new MySqlCommand(@"
-                            SELECT i.id,
-                                   i.date_added,
-                                   i.image_file,
-                                   t.rel_path
-                            FROM images i
-                            JOIN TempFileBatch t
-                              ON i.sha1hash = t.sha1hash
-                            WHERE i.date_added < @cutoff
-                              AND i.image_file IS NOT NULL
-                              AND i.image_file LIKE CONCAT('%', t.rel_path)
-                        ", SQL))
-                        {
-                            selectCmd.Parameters.AddWithValue("@cutoff", cutoff);
-
-                            using var reader = await selectCmd.ExecuteReaderAsync(cancellationToken);
-
-                            if (!reader.HasRows)
-                                break;
-
-                            while (await reader.ReadAsync(cancellationToken) && !cancellationToken.IsCancellationRequested)
-                            {
-                                var imageId = reader.GetInt64("id");
-                                var dateAdded = reader.GetDateTime("date_added");
-                                var oldPath = reader["image_file"] as string;
-                                var srcPath = reader["rel_path"] as string;
-
-                                if (oldPath is null || srcPath is null)
-                                    continue; // Shouldn't be possible.
-
-                                processedFiles.Add(srcPath);
-                                try
-                                {
-                                    if (oldPath.StartsWith("archive/", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        // Image is already archived.  Confirm the file exists.
-
-                                        var archivePath = Path.Combine(dataPath, "archive", srcPath);
-                                        srcPath = Path.Combine(dataPath, srcPath);
-
-                                        if (File.Exists(archivePath))
-                                        {
-                                            // If the file exists in the archive, delete the orphaned source file.
-                                            FoxLog.WriteLine($"Orphaned image #{imageId} was found in archive: {srcPath}");
-                                            File.Delete(srcPath);
-                                        }
-                                        else
-                                        {
-                                            // If the file doesn't exist but should, copy it into the archive from the source file.
-                                            FoxLog.WriteLine($"File for image #{imageId} was missing in archive, copying: {srcPath} -> {archivePath}");
-
-                                            string? directoryPath = Path.GetDirectoryName(archivePath);
-
-                                            if (directoryPath is null)
-                                                throw new Exception($"Invalid directory path for image #{imageId}: {archivePath}");
-
-                                            if (!Directory.Exists(directoryPath))
-                                            {
-                                                Directory.CreateDirectory(directoryPath);
-                                            }
-                                            File.Move(srcPath, archivePath);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        var archivePath = Path.Combine(dataPath, "archive", srcPath);
-
-                                        string? directoryPath = Path.GetDirectoryName(archivePath);
-
-                                        if (directoryPath is null)
-                                            throw new Exception($"Invalid directory path for image #{imageId}: {archivePath}");
-
-                                        if (!Directory.Exists(directoryPath))
-                                        {
-                                            Directory.CreateDirectory(directoryPath);
-                                        }
-
-                                        if (!File.Exists(archivePath))
-                                            File.Move(Path.Combine(dataPath, srcPath), archivePath);
-
-                                        //FoxLog.WriteLine($"Archiving file for image #{imageId}: {srcPath} -> {archivePath}");
-                                        await UpdatePath(imageId, Path.Combine("archive", srcPath));
-                                    }
-                                }
-                                catch (OperationCanceledException)
-                                {
-                                    // End gracefully
-                                    throw;
-                                }
-                                catch (Exception ex)
-                                {
-                                    FoxLog.WriteLine($"Error processing image #{imageId}: {ex.Message}\r\n{ex.StackTrace}");
-                                }
-                            }
-                        }
-
-                        foreach (var file in fileBatch)
-                        {
-                            var orphanedFilePath = file.Substring(dataPath.Length)
-                                                            .TrimStart(Path.DirectorySeparatorChar)
-                                                            .Replace('\\', '/'); // Normalize to forward slashes
-
-                            if (!processedFiles.Contains(orphanedFilePath))
-                            {
-                                processedFiles.Add(orphanedFilePath);
-
-                                // We need to double check the database for any files that weren't processed.
-
-                                using (var selectCmd = new MySqlCommand(@"
-                                    SELECT COUNT(*)
-                                    FROM images i
-                                    WHERE 
-                                        i.image_file = CONCAT('archive/', @filepath)
-                                        OR i.image_file = @filepath
-                                ", SQL))
-                                {
-                                    selectCmd.Parameters.AddWithValue("@filepath", orphanedFilePath);
-
-                                    var result = Convert.ToInt64(await selectCmd.ExecuteScalarAsync(cancellationToken) ?? 0);
-
-                                    if (result < 1)
-                                    {
-                                        // Not found anywhere in the database, delete the file.
-                                        FoxLog.WriteLine($"Deleting orphaned image file: {orphanedFilePath}");
-                                        //File.Delete(file);
-                                    }
-                                    else
-                                    {
-                                        FoxLog.WriteLine($"Orphaned image file found in database: {orphanedFilePath}");
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // End gracefully
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        FoxLog.LogException(ex);
-                    }
-                    finally
-                    {
-                        // 4) Drop the temp table to clean up. 
-                        //    (MySQL automatically drops temp tables on connection close, but let's be explicit here.)
-                        using (var dropCmd = new MySqlCommand("DROP TEMPORARY TABLE IF EXISTS TempFileBatch", SQL))
-                        {
-                            await dropCmd.ExecuteNonQueryAsync(cancellationToken);
-                        }
-                    }
-                }
-
-            }
-            catch (OperationCanceledException)
-            {
-                // End gracefully
-            }
-            catch (Exception ex)
-            {
-                FoxLog.LogException(ex);
-            }
-
-            FoxLog.WriteLine($"Finished orphaned image file cleanup for {processedFiles.Count()} files.");
-
-            return processedFiles.Count();
-        }
         public static (int, int) NormalizeImageSize(int width, int height)
         {
             const int MaxWidthHeight = 1280;
@@ -680,7 +296,7 @@ namespace makefoxsrv
 
             await SQL.OpenAsync();
 
-            using (var cmd = new MySqlCommand("SELECT COUNT(*) FROM images WHERE id = @id", SQL))
+            using (var cmd = new MySqlCommand("SELECT COUNT(id) FROM images WHERE id = @id", SQL))
             {
                 cmd.Parameters.AddWithValue("id", imageID);
 
@@ -691,31 +307,41 @@ namespace makefoxsrv
         }
 
         // Reads an image file and returns its content as a byte array
-        public static byte[] ReadImageFromFile(string relativeImagePath)
+        private void ReadImageFromFile()
         {
-            // Compute the absolute path from the executable location and the relative path provided
-            string fullPath = Path.GetFullPath(Path.Combine("../data", relativeImagePath));
+            lock (_lock)
+            {
+                // Compute the absolute path from the executable location and the relative path provided
+                string fullPath = Path.GetFullPath(Path.Combine("../data", _filePath));
 
-            // Read all bytes from the image file
-            byte[] imageData = File.ReadAllBytes(fullPath);
-            return imageData;
+                // Read all bytes from the image file
+                byte[] imageData = File.ReadAllBytes(fullPath);
+
+                _imageDataRaw = imageData;
+            }
         }
 
         // Writes a byte array to an image file
-        public static void WriteImageToFile(byte[] imageData, string relativeImagePath)
+        private void WriteImageToFile()
         {
-            // Compute the absolute path from the executable location and the relative path provided
-            string fullPath = Path.GetFullPath(Path.Combine("../data", relativeImagePath));
-
-            // Ensure the directory exists before writing the file
-            string directoryPath = Path.GetDirectoryName(fullPath);
-            if (!Directory.Exists(directoryPath))
+            lock (_lock)
             {
-                Directory.CreateDirectory(directoryPath);
-            }
+                if (_imageDataRaw is null)
+                    throw new InvalidOperationException("Image data is null");
 
-            // Write all bytes to the image file
-            File.WriteAllBytes(fullPath, imageData);
+                // Compute the absolute path from the executable location and the relative path provided
+                string fullPath = Path.GetFullPath(Path.Combine("../data", _filePath));
+
+                // Ensure the directory exists before writing the file
+                string? directoryPath = Path.GetDirectoryName(fullPath);
+                if (directoryPath is not null && !Directory.Exists(directoryPath))
+                {
+                    Directory.CreateDirectory(directoryPath);
+                }
+
+                // Write all bytes to the image file
+                File.WriteAllBytes(fullPath, _imageDataRaw);
+            }
         }
 
         private string GenerateImagePath()
@@ -753,13 +379,20 @@ namespace makefoxsrv
             return Math.Min(roundedValue, limit);
         }
 
-        public static async Task<FoxImage> Create(ulong user_id, byte[] image, ImageType type, string? filename = null, string ? tele_fileid = null, string? tele_uniqueid = null, long? tele_chatid = null, long? tele_msgid = null)
+        public static async Task<FoxImage> Create(ulong user_id, byte[] image, ImageType type, string? filename = null, TgInfo? tgInfo = null)
         {
             var img = new FoxImage();
 
             img.UserID = user_id;
+            img.Type = type;
+            img.DateAdded = DateTime.Now;
+            img.Image = image;
+            
+            img._originalFilename = filename ?? $"{img.SHA1Hash}.jpg";
 
-            img.ID = await img.Save(type, image, filename, tele_fileid, tele_uniqueid, tele_chatid, tele_msgid);
+            img._telegramInfo = tgInfo;
+
+            await img.Save();
 
             return img;
         }
@@ -778,99 +411,24 @@ namespace makefoxsrv
             return format.FileExtensions.FirstOrDefault() ?? throw new InvalidOperationException("Format detected, but no extension found");
         }
 
-        public async Task<ulong> Save(ImageType? type = null, byte[]? image = null, string? filename = null, string? tele_fileid = null, string? tele_uniqueid = null, long? tele_chatid = null, long? tele_msgid = null)
+        public async Task Save()
         {
-            if (type is not null)
-                this.Type = type.Value;
-            if (filename is not null)
-                this.Filename = filename;
-            if (tele_fileid is not null)
-                this.TelegramFileID = tele_fileid;
-            if (tele_uniqueid is not null)
-                this.TelegramUniqueID = tele_uniqueid;
-            if (tele_chatid is not null)
-                this.TelegramChatID = tele_chatid;
-            if (tele_msgid is not null)
-                this.TelegramMessageID = tele_msgid;
+            lock (_lock) {
+                if (this.DateAdded == DateTime.MinValue)
+                    this.DateAdded = DateTime.Now;
 
-            if (image is not null)
-                this.Image = image;
+                if (_isDirty)
+                    WriteImageToFile();
 
-            if (image is not null || SHA1Hash is null)
-            {
-                //If the image changed, or, if the hash is missing, regenerate it.
-                this.SHA1Hash = sha1hash(image);
+                PopulateDimensions();
             }
 
-            if (this.Image is null)
-                throw new Exception("Image must not be null");
+            await FoxDB.SaveObjectAsync(this, "images");
 
-            if (this.DateAdded == DateTime.MinValue)
-                this.DateAdded = DateTime.Now;
+            if (this._telegramInfo is not null)
+                await this._telegramInfo.Save(this.ID);
 
-            var imagePath = this.GenerateImagePath();
-
-            WriteImageToFile(this.Image, imagePath);
-
-            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
-            {
-                await SQL.OpenAsync();
-                using (var cmd = new MySqlCommand())
-                {
-                    cmd.Connection = SQL;
-                    cmd.CommandText = @"
-                        INSERT INTO images 
-                            (id, type, user_id, filename, filesize, image, image_file, sha1hash, date_added, 
-                             telegram_fileid, telegram_uniqueid, telegram_chatid, telegram_msgid) 
-                        VALUES 
-                            (@id, @type, @user_id, @filename, @filesize, @image, @image_file, @hash, @now, 
-                             @tele_fileid, @tele_uniqueid, @tele_chatid, @tele_msgid)
-                        ON DUPLICATE KEY UPDATE 
-                            type = VALUES(type), 
-                            user_id = VALUES(user_id), 
-                            filename = VALUES(filename), 
-                            filesize = VALUES(filesize),
-                            image = VALUES(image),
-                            image_file = VALUES(image_file), 
-                            sha1hash = VALUES(sha1hash), 
-                            date_added = VALUES(date_added), 
-                            telegram_fileid = VALUES(telegram_fileid), 
-                            telegram_uniqueid = VALUES(telegram_uniqueid), 
-                            telegram_chatid = VALUES(telegram_chatid), 
-                            telegram_msgid = VALUES(telegram_msgid);
-                    ";
-
-                    if (this.ID > 0)
-                    {
-                        cmd.Parameters.AddWithValue("id", this.ID);
-                    }
-                    else
-                    {
-                        cmd.Parameters.AddWithValue("id", DBNull.Value);
-                    }
-                    cmd.Parameters.AddWithValue("type", this.Type.ToString());
-                    cmd.Parameters.AddWithValue("user_id", this.UserID);
-                    cmd.Parameters.AddWithValue("filename", this.Filename);
-                    cmd.Parameters.AddWithValue("filesize", this.Image.LongLength);
-                    cmd.Parameters.AddWithValue("image", "");
-                    cmd.Parameters.AddWithValue("image_file", imagePath);
-                    cmd.Parameters.AddWithValue("hash", this.SHA1Hash);
-                    cmd.Parameters.AddWithValue("tele_fileid", this.TelegramFileID);
-                    cmd.Parameters.AddWithValue("tele_uniqueid", this.TelegramUniqueID);
-                    cmd.Parameters.AddWithValue("tele_chatid", this.TelegramChatID);
-                    cmd.Parameters.AddWithValue("tele_msgid", this.TelegramMessageID);
-                    cmd.Parameters.AddWithValue("now", this.DateAdded);
-
-                    await cmd.ExecuteNonQueryAsync();
-
-                    if (this.ID == 0)
-                    {
-                        this.ID = (ulong)cmd.LastInsertedId;
-                    }
-
-                    return this.ID;
-                }
-            }
+            _isDirty = false;
         }
 
         public static async Task<FoxImage?> LoadFromTelegramUniqueId(ulong userId, string telegramUniqueID, long telegramChatID)
@@ -912,128 +470,20 @@ namespace makefoxsrv
             return null;
         }
 
-        public async Task SaveTelegramFileIds(string? telegramFileId = null, string? telegramUniqueId = null)
-        {
-            if (telegramFileId is not null)
-                this.TelegramFileID = telegramFileId;
-
-            if (telegramUniqueId is not null)
-                this.TelegramUniqueID = telegramUniqueId;
-
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
-            await SQL.OpenAsync();
-
-            using (var cmd = new MySqlCommand())
-            {
-                cmd.Connection = SQL;
-                cmd.CommandText = $"UPDATE images SET telegram_fileid = @fileid, telegram_uniqueid = @uniqueid WHERE id = @id";
-                cmd.Parameters.AddWithValue("id", this.ID);
-                cmd.Parameters.AddWithValue("fileid", this.TelegramFileID);
-                cmd.Parameters.AddWithValue("uniqueid", this.TelegramUniqueID);
-
-                await cmd.ExecuteNonQueryAsync();
-            }
-        }
-
-        public async Task SaveFullTelegramFileIds(string? telegramFileId = null, string? telegramUniqueId = null)
-        {
-            if (telegramFileId is not null)
-                this.TelegramFullFileID = telegramFileId;
-
-            if (telegramUniqueId is not null)
-                this.TelegramFullUniqueID = telegramUniqueId;
-
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
-            await SQL.OpenAsync();
-
-            using (var cmd = new MySqlCommand())
-            {
-                cmd.Connection = SQL;
-                cmd.CommandText = $"UPDATE images SET telegram_full_fileid = @fileid, telegram_full_uniqueid = @uniqueid WHERE id = @id";
-                cmd.Parameters.AddWithValue("id", this.ID);
-                cmd.Parameters.AddWithValue("fileid", this.TelegramFullFileID);
-                cmd.Parameters.AddWithValue("uniqueid", this.TelegramFullUniqueID);
-
-                await cmd.ExecuteNonQueryAsync();
-            }
-        }
-
         public static async Task<FoxImage?> Load(ulong image_id)
         {
-            var img = new FoxImage();
 
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+            var img = await FoxDB.LoadObjectAsync<FoxImage>("images", "id = @id", new Dictionary<string, object?> { { "id", image_id } });
 
-            await SQL.OpenAsync();
-
-            using (var cmd = new MySqlCommand("SELECT * FROM images WHERE id = @id", SQL))
+            if (img is not null)
             {
-                cmd.Parameters.AddWithValue("id", image_id);
-
-                using var r = await cmd.ExecuteReaderAsync();
-                if (r.HasRows && await r.ReadAsync())
-                {
-                    var userId = r["user_id"];
-                    var type = r["type"];
-                    var image = r["image"];
-                    var image_file = r["image_file"];
-                    var sha1hash = r["sha1hash"];
-                    var dateAdded = r["date_added"];
-
-                    if (userId is null || userId is DBNull)
-                        throw new Exception("DB: image.user_id must never be null");
-                    else
-                        img.UserID = Convert.ToUInt64(userId);
-
-                    if (dateAdded is null || dateAdded is DBNull)
-                        throw new Exception("DB: image.date_added must never be null");
-                    else
-                        img.DateAdded = Convert.ToDateTime(dateAdded);
-
-                    if (type is null || type is DBNull)
-                        throw new Exception("DB: image.type must never be null");
-                    else
-                        img.Type = (ImageType)Enum.Parse(typeof(ImageType), Convert.ToString(type) ?? "", true);
-
-                    if (image is null || image is DBNull || ((byte[])image).Length < 1)
-                        if (image_file is null || image_file is DBNull)
-                            throw new Exception("DB: Both 'image' and 'image_file' are null");
-                        else
-                            img.Image = ReadImageFromFile(Convert.ToString(image_file));
-                    else
-                        img.Image = (byte[])image;
-
-                    if (sha1hash is null || sha1hash is DBNull)
-                        throw new Exception("DB: image.sha1hash must never be null");
-                    else
-                        img.SHA1Hash = Convert.ToString(sha1hash);  // Assuming Sha1Hash is the correct property name
-
-                    if (!(r["telegram_fileid"] is DBNull))
-                        img.TelegramFileID = Convert.ToString(r["telegram_fileid"]);
-                    if (!(r["telegram_uniqueid"] is DBNull))
-                        img.TelegramUniqueID = Convert.ToString(r["telegram_uniqueid"]);
-                    if (!(r["telegram_full_fileid"] is DBNull))
-                        img.TelegramFullFileID = Convert.ToString(r["telegram_full_fileid"]);
-                    if (!(r["telegram_full_uniqueid"] is DBNull))
-                        img.TelegramFullUniqueID = Convert.ToString(r["telegram_full_uniqueid"]);
-                    if (!(r["telegram_chatid"] is DBNull))
-                        img.TelegramChatID = Convert.ToInt64(r["telegram_chatid"]);
-                    if (!(r["telegram_msgid"] is DBNull))
-                        img.TelegramMessageID = Convert.ToInt64(r["telegram_msgid"]);
-                    if (!(r["filename"] is DBNull))
-                        img.Filename = Convert.ToString(r["filename"]);
-                    img.ID = image_id;
-
-                    return img;
-                }
+                img._isDirty = false;
             }
 
-            return null;
+            return img;
         }
 
-        private static string sha1hash(byte[] input)
+        private static string GenerateSHA1Hash(byte[] input)
         {
             using var sha1 = SHA1.Create();
             return Convert.ToHexString(sha1.ComputeHash(input));
@@ -1041,123 +491,151 @@ namespace makefoxsrv
 
         public static async Task<FoxImage?> SaveImageFromReply(FoxTelegram t, Message message)
         {
-
             if (message is null)
                 return null; //Nothing we can do.
 
             TL.Message? newMessage = await t.GetReplyMessage(message);
 
             if (newMessage is not null && newMessage.media is MessageMediaPhoto { photo: Photo photo })
-                return await SaveImageFromTelegram(t, message, photo, true);
+                return await SaveImageFromTelegram(t, message, photo, true, true);
 
             return null;
         }
-        
-        public static async Task<FoxImage?> SaveImageFromTelegram(FoxTelegram t, Message message, Photo photo, bool Silent = false)
+
+        public static async Task<FoxImage?> CreateFromTgFile(FoxUser user, FoxTelegram t, Message message, Photo photo)
         {
-            FoxLog.WriteLine($"Got a photo from {t.User} ({message.ID})!");
+            MemoryStream memoryStream = new MemoryStream();
 
-            FoxUser? user = null;
+            var fileType = await FoxTelegram.Client.DownloadFileAsync(photo, memoryStream, photo.LargestPhotoSize);
+            var fileName = $"{photo.id}.jpg";
 
+            if (fileType is not Storage_FileType.unknown and not Storage_FileType.partial)
+                fileName = $"{photo.id}.{fileType}";
+
+            var tgInfo = new FoxImage.TgInfo(t, message);
+            var newImg = await FoxImage.Create(user.UID, memoryStream.ToArray(), FoxImage.ImageType.INPUT, fileName, tgInfo);
+
+            return newImg;
+        }
+
+        public static async Task<FoxImage?> SaveImageFromTelegram(FoxTelegram t, Message message, Photo photo, bool Silent = false, bool forceSaveImage = false)
+        {
             try
             {
-                user = await FoxUser.GetByTelegramUser(t.User, true);
+                FoxLog.WriteLine($"Got a photo from {t.User} ({message.ID})!");
 
-                if (user is not null)
+                var user = await FoxUser.GetByTelegramUser(t.User, true);
+
+                if (user is null)
+                    return null; // User not found, ignore.
+
+                if (user.GetAccessLevel() == AccessLevel.BANNED)
+                    return null; // Silently ignore banned users.
+
+                var saveImage = false; // Whether we should save the image or not.
+
+                if (forceSaveImage)
                 {
-                    await user.UpdateTimestamps();
+                    saveImage = true; // select command uses this
+                }
+                if (t.Chat is null) //Only save & notify outside of groups.
+                {
+                    saveImage = true;
+                }
+                else if (t.Chat is not null)
+                {
+                    // We need to check if the user replied to one of our messages or tagged us.
 
-                    MemoryStream memoryStream = new MemoryStream();
-
-                    var fileType = await FoxTelegram.Client.DownloadFileAsync(photo, memoryStream, photo.LargestPhotoSize);
-                    var fileName = $"{photo.id}.jpg";
-                    if (fileType is not Storage_FileType.unknown and not Storage_FileType.partial)
-                        fileName = $"{photo.id}.{fileType}";
-                    //var fileHash = sha1hash(memoryStream.ToArray());
-
-                    var newImg = await FoxImage.Create(user.UID, memoryStream.ToArray(), FoxImage.ImageType.INPUT, fileName, null, null, t.Chat is null ? null : t.Chat.ID, message.ID);
-
-                    if (user.GetAccessLevel() == AccessLevel.BANNED)
-                        return null; // Silently ignore banned users.
-
-                    if (!Silent)
+                    if (message.ReplyTo is not null && message.ReplyTo is MessageReplyHeader mrh)
                     {
-                        if (t.Chat is null) //Only save & notify outside of groups.
+                        long userId = 0;
+                        try
                         {
-                            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+                            switch (t.Chat)
+                            {
+                                case Channel channel:
+                                    var rmsg = await FoxTelegram.Client.Channels_GetMessages(channel, new InputMessage[] { mrh.reply_to_msg_id });
 
-                            settings.SelectedImage = newImg.ID;
+                                    if (rmsg is not null && rmsg.Messages is not null && rmsg.Messages.First() is not null && rmsg.Messages.First().From is not null)
+                                        userId = rmsg.Messages.First().From;
+                                    break;
+                                case Chat chat:
+                                    var crmsg = await FoxTelegram.Client.Messages_GetMessages(new InputMessage[] { mrh.reply_to_msg_id });
 
-                            await settings.Save();
+                                    if (crmsg is not null && crmsg.Messages is not null && crmsg.Messages.First() is not null && crmsg.Messages.First().From is not null)
+                                        userId = crmsg.Messages.First().From;
+                                    break;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            FoxLog.LogException(ex, "Error fetching replied message: " + ex.Message);
+                        }
 
+                        if (userId == FoxTelegram.Client.UserId)
+                            saveImage = true;
+                    }
+                    else if (message.entities is not null)
+                    {
+                        foreach (var entity in message.entities)
+                        {
+                            if (entity is MessageEntityMention)
+                            {
+                                var username = message.message.Substring(entity.offset, entity.length);
+
+                                if (username == $"@{FoxTelegram.Client.User.username}")
+                                    saveImage = true;
+                            }
+                        }
+                    }
+                }
+
+                if (saveImage)
+                {
+                    var newImg = await CreateFromTgFile(user, t, message, photo);
+
+                    if (newImg is null)
+                    {
+                        if (!Silent)
+                        {
                             await t.SendMessageAsync(
-                                text: "✅ Image saved and selected as input for /img2img",
+                                text: "❌ Failed to save image.",
                                 replyToMessage: message
                             );
                         }
-                        else if (t.Chat is not null)
+                        return null;
+                    }
+
+                    if (!FoxContentFilter.ImageTagsSafetyCheck(await newImg.GetImageTagsAsync()))
+                    {
+                        newImg.Flagged = true;
+                        await newImg.Save();
+
+                        if (!Silent && (t.Chat is null))
                         {
-                            // We need to check if the user replied to one of our messages or tagged us.
-
-                            if (message.ReplyTo is not null && message.ReplyTo is MessageReplyHeader mrh)
-                            {
-                                long userId = 0;
-
-                                switch (t.Chat)
-                                {
-                                    case Channel channel:
-                                        var rmsg = await FoxTelegram.Client.Channels_GetMessages(channel, new InputMessage[] { mrh.reply_to_msg_id });
-
-                                        if (rmsg is not null && rmsg.Messages is not null && rmsg.Messages.First() is not null && rmsg.Messages.First().From is not null)
-                                            userId = rmsg.Messages.First().From;
-                                        break;
-                                    case Chat chat:
-                                        var crmsg = await FoxTelegram.Client.Messages_GetMessages(new InputMessage[] { mrh.reply_to_msg_id });
-
-                                        if (crmsg is not null && crmsg.Messages is not null && crmsg.Messages.First() is not null && crmsg.Messages.First().From is not null)
-                                            userId = crmsg.Messages.First().From;
-                                        break;
-                                }
-
-                                if (userId == FoxTelegram.Client.UserId)
-                                {
-                                    var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-                                    settings.SelectedImage = newImg.ID;
-
-                                    await settings.Save();
-
-                                    await t.SendMessageAsync(
-                                        text: "✅ Image saved as input for /img2img",
-                                        replyToMessage: message
-                                    );
-                                }
-                            }
-                            else if (message.entities is not null)
-                            {
-                                foreach (var entity in message.entities)
-                                {
-                                    if (entity is MessageEntityMention)
-                                    {
-                                        var username = message.message.Substring(entity.offset, entity.length);
-
-                                        if (username == $"@{FoxTelegram.Client.User.username}")
-                                        {
-                                            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-                                            settings.SelectedImage = newImg.ID;
-
-                                            await settings.Save();
-
-                                            await t.SendMessageAsync(
-                                                text: "✅ Image saved and selected as input for /img2img",
-                                                replyToMessage: message
-                                                );
-                                        }
-                                    }
-                                }
-                            }
+                            await t.SendMessageAsync(
+                                text: "⚠️ The image you uploaded was flagged by the content filter and will not be used.\r\n\r\nIf you believe this is a mistake, please contact support via @makefoxhelpbot.",
+                                replyToMessage: message
+                            );
                         }
+                        else
+                            throw new Exception("Image was rejected by content filter.");
+
+                        return null; // Image was flagged, do not proceed.
+                    }
+
+                    var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+
+                    settings.SelectedImage = newImg.ID;
+
+                    await settings.Save();
+
+                    if (!Silent)
+                    {
+                        await t.SendMessageAsync(
+                            text: "✅ Image saved and selected as input for /img2img",
+                            replyToMessage: message
+                        );
                     }
 
                     return newImg;
@@ -1166,6 +644,7 @@ namespace makefoxsrv
             catch (Exception ex)
             {
                 FoxLog.LogException(ex, $"Error with input image: {ex.Message}");
+                throw;
             }
 
             return null;
@@ -1209,5 +688,105 @@ namespace makefoxsrv
 
             return (newWidth, newHeight);
         }
+        public async Task<Dictionary<string, float>> GetImageTagsAsync()
+        {
+            if (_imageTags is not null)
+                return _imageTags; // Already loaded
+
+            var tags = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+
+            try
+            {
+                using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                await conn.OpenAsync();
+
+                const string sql = @"
+                    SELECT tag, probability
+                    FROM images_tags
+                    WHERE id = @id;
+                ";
+
+                using var cmd = new MySqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@id", this.ID);
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    string tag = reader["tag"].ToString() ?? string.Empty;
+                    float prob = Convert.ToSingle(reader["probability"]);
+
+                    tags[tag] = prob;
+                }
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex, "Error loading image tags: " + ex.Message);
+            }
+
+            if (tags.Count < 1)
+            {
+                // Generate the tags and save them
+                FoxONNXImageTagger tagger = new FoxONNXImageTagger();
+
+                _imageTags = tagger.ProcessImage(this.GetRGBAImage(), 0.2f);
+
+                await SaveImageTagsAsync();
+            }
+            else
+            {
+                _imageTags = tags;
+            }
+
+            return _imageTags ?? new Dictionary<string, float>();
+        }
+
+        private async Task SaveImageTagsAsync()
+        {
+            if (_imageTags is null || _imageTags.Count == 0)
+                return; // nothing to save
+
+            try
+            {
+                using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                await conn.OpenAsync();
+
+                using var tx = await conn.BeginTransactionAsync();
+
+                // Step 1: delete all existing tags for this image
+                using (var deleteCmd = new MySqlCommand(
+                    "DELETE FROM images_tags WHERE id = @id;", conn, tx))
+                {
+                    deleteCmd.Parameters.AddWithValue("@id", this.ID);
+                    await deleteCmd.ExecuteNonQueryAsync();
+                }
+
+                // Step 2: insert the new tags
+                const string insertSql = @"
+                    INSERT INTO images_tags (id, tag, probability)
+                    VALUES (@id, @tag, @prob);
+                ";
+
+                using var insertCmd = new MySqlCommand(insertSql, conn, tx);
+                var pId = insertCmd.Parameters.Add("@id", MySqlDbType.Int64);
+                var pTag = insertCmd.Parameters.Add("@tag", MySqlDbType.VarChar);
+                var pProb = insertCmd.Parameters.Add("@prob", MySqlDbType.Float);
+
+                foreach (var kv in _imageTags)
+                {
+                    pId.Value = this.ID;
+                    pTag.Value = kv.Key;
+                    pProb.Value = kv.Value;
+
+                    await insertCmd.ExecuteNonQueryAsync();
+                }
+
+                await tx.CommitAsync();
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex, "Error saving image tags: " + ex.Message);
+            }
+        }
+
     }
 }

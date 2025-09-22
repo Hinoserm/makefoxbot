@@ -937,7 +937,7 @@ namespace makefoxsrv
             {
                 Message waitMsg = await t.SendMessageAsync(
                     text: "✅ Image saved and selected as input for /img2img",
-                    replyToMessageId: (int)(img.TelegramMessageID ?? message.ID)
+                    replyToMessage: message
                 );
             }
             catch

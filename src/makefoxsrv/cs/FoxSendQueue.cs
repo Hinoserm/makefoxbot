@@ -14,6 +14,7 @@ using makefoxsrv;
 using TL;
 using System.Security.Policy;
 using SixLabors.ImageSharp.PixelFormats;
+using System.Drawing.Imaging;
 
 //This isn't properly implemented yet; we really need a way to handle Telegram's rate limits by using a proper message queue.
 // For now we just push the message to the user and hope for the best.
@@ -40,12 +41,6 @@ namespace makefoxsrv
 
                 if (OutputImage is not null && OutputImage.Image is not null)
                 {
-                    FoxONNXImageTagger tagger = new FoxONNXImageTagger();
-                    var imageTags = tagger.ProcessImage(OutputImage.GetRGBAImage(), 0.2f);
-
-                    //Store the tags in the database for later retrieval.
-                    await InsertImageTagsAsync(q.ID, imageTags);
-
                     var t = q.Telegram;
 
                     if (t is null)
@@ -63,11 +58,14 @@ namespace makefoxsrv
                         await Task.Delay(500 * sendingItemsCount);
                     }
 
-                    if (!ImageTagsSafetyCheck(imageTags))
+                    if (!FoxContentFilter.ImageTagsSafetyCheck(await OutputImage.GetImageTagsAsync()))
                     {
                         FoxLog.WriteLine($"Task {q.ID} - Image failed safety check; cancelling.");
                         await q.SetCancelled(true);
-                        
+
+                        OutputImage.Flagged = true;
+                        await OutputImage.Save();
+
                         try
                         {
                             await FoxTelegram.Client.DeleteMessages(t.Peer, new int[] { q.MessageID });
@@ -273,69 +271,6 @@ namespace makefoxsrv
                 outputStream.Position = 0;
 
                 return outputStream;
-            }
-        }
-
-        public static bool ImageTagsSafetyCheck(Dictionary<string, float> imageTags)
-        { 
-            if (imageTags is null || imageTags.Count == 0)
-                return true; // No tags, assume safe.
-
-            // Check for explicit content tags with high probability.
-
-            if (imageTags.ContainsKey("human") && !imageTags.ContainsKey("anthro") && (imageTags.ContainsKey("child") || imageTags.ContainsKey("young")))
-            {
-                if (imageTags.ContainsKey("penis") || imageTags.ContainsKey("pussy"))
-                    return false;
-
-                if (imageTags.ContainsKey("nude") && (imageTags.ContainsKey("shota") || imageTags.ContainsKey("loli")))
-                    return false;
-            }
-            
-            return true;
-        }
-
-        public static async Task InsertImageTagsAsync(ulong qid, Dictionary<string, float> tags)
-        {
-            if (tags == null || tags.Count == 0)
-                return;
-
-            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
-            await conn.OpenAsync();
-
-            using var tx = await conn.BeginTransactionAsync();
-
-            try
-            {
-                const string sql = @"
-                    INSERT INTO queue_image_tags (qid, tag, probability)
-                    VALUES (@qid, @tag, @prob)
-                    ON DUPLICATE KEY UPDATE probability = @prob;
-                ";
-
-                using var cmd = new MySqlCommand(sql, conn, tx);
-
-                var pQid = cmd.Parameters.Add("@qid", MySqlDbType.Int64);
-                var pTag = cmd.Parameters.Add("@tag", MySqlDbType.VarChar);
-                var pProb = cmd.Parameters.Add("@prob", MySqlDbType.Float);
-
-                foreach (var kv in tags)
-                {
-                    pQid.Value = qid;
-                    pTag.Value = kv.Key;
-                    pProb.Value = kv.Value;
-
-                    await cmd.ExecuteNonQueryAsync();
-                }
-
-                await tx.CommitAsync();
-            }
-            catch (Exception ex)
-            {
-                await tx.RollbackAsync();
-                FoxLog.LogException(ex);
-
-                //Throwing here would be bad, so we just log and move on.
             }
         }
     }

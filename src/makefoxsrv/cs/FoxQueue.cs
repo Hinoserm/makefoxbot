@@ -1635,7 +1635,16 @@ namespace makefoxsrv
             if (this.User is null)
                 throw new Exception("User not loaded");
 
-            var outputImage = await FoxImage.Create(this.User.UID, img, FoxImage.ImageType.OUTPUT, finalFileName);
+            FoxImage.TgInfo? tgInfo = null;
+
+            if (this.Telegram is not null)
+            {
+                tgInfo = new FoxImage.TgInfo(this.Telegram);
+                tgInfo.TelegramTopicID = this.ReplyTopicID;
+                tgInfo.TelegramMessageID = this.ReplyMessageID;
+            }
+
+            var outputImage = await FoxImage.Create(this.User.UID, img, FoxImage.ImageType.OUTPUT, finalFileName, tgInfo);
 
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 

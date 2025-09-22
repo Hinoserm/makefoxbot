@@ -13,6 +13,25 @@ namespace makefoxsrv
 {
     public static class FoxContentFilter
     {
+        public static bool ImageTagsSafetyCheck(Dictionary<string, float> imageTags)
+        {
+            if (imageTags is null || imageTags.Count == 0)
+                return true; // No tags, assume safe.
+
+            // Check for explicit content tags with high probability.
+
+            if (imageTags.ContainsKey("human") && !imageTags.ContainsKey("anthro") && (imageTags.ContainsKey("child") || imageTags.ContainsKey("young")))
+            {
+                if (imageTags.ContainsKey("penis") || imageTags.ContainsKey("pussy"))
+                    return false;
+
+                if (imageTags.ContainsKey("nude") && (imageTags.ContainsKey("shota") || imageTags.ContainsKey("loli")))
+                    return false;
+            }
+
+            return true;
+        }
+
         private static List<ContentFilterRule> _rules = new List<ContentFilterRule>();
 
         /// <summary>
