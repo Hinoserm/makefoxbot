@@ -28,6 +28,76 @@ namespace makefoxsrv
             return null;
         }
 
+        private static async Task<(FoxEmbedding promptEmbedding, FoxEmbedding tagsEmbedding)> DoEmbeddingAndStoreAsync(FoxQueue q)
+        {
+            try
+            {
+                // So that both entries have the same time
+                var now = DateTime.Now;
+
+                // Kick off the prompt embedding right away
+                var promptTask = FoxEmbedding.CreateAsync(q.Settings.Prompt);
+
+                // Meanwhile get the image + tags
+                var image = await q.GetOutputImage();
+                var tags = await image.GetImageTagsAsync();
+
+                // Kick off the tags embedding at the same time
+                var tagsTask = FoxEmbedding.CreateAsync(string.Join(", ", tags.Keys));
+
+                // Wait for both to finish in parallel
+                var promptEmbedding = await promptTask;
+
+                using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                await conn.OpenAsync();
+
+                // Insert prompt embedding
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"
+                        INSERT INTO queue_embeddings (qid, type, embedding, date_generated)
+                        VALUES (@qid, 'USER_PROMPT', VEC_FromText(@vec), @now)";
+
+                    cmd.Parameters.AddWithValue("@qid", q.ID);
+                    cmd.Parameters.AddWithValue("@vec", promptEmbedding.ToString());
+                    cmd.Parameters.AddWithValue("@now", now);
+
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                var tagsEmbedding = await tagsTask;
+
+                // Insert tags embedding
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"
+                        INSERT INTO queue_embeddings (qid, type, embedding, date_generated)
+                        VALUES (@qid, 'PREDICTED_TAGS', VEC_FromText(@vec), @now)";
+
+                    cmd.Parameters.AddWithValue("@qid", q.ID);
+                    cmd.Parameters.AddWithValue("@vec", tagsEmbedding.ToString());
+                    cmd.Parameters.AddWithValue("@now", now);
+
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                // Log similarity for debugging
+                var similarity = FoxEmbedding.CosineSimilarity(promptEmbedding, tagsEmbedding);
+
+                FoxLog.WriteLine($"{q.ID}: User prompt: {q.Settings.Prompt}");
+                FoxLog.WriteLine($"{q.ID}: Image tags : {string.Join(", ", tags.Keys)}");
+                FoxLog.WriteLine($"{q.ID}: Cosine similarity: {similarity}");
+
+                return (promptEmbedding, tagsEmbedding);
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex, $"Embedding failed for {q.ID}: {ex.Message}");
+                throw;
+            }
+        }
+
+
         public static async Task Send(FoxQueue q)
         {
             FoxLog.WriteLine($"Sending task {q.ID} to Telegram...", LogLevel.DEBUG);
@@ -39,12 +109,17 @@ namespace makefoxsrv
 
                 var OutputImage = await q.GetOutputImage();
 
+
                 if (OutputImage is not null && OutputImage.Image is not null)
                 {
                     var t = q.Telegram;
 
                     if (t is null)
                         throw new Exception("Telegram object not initalized!");
+
+                    // Fetch and store embeddings for the image.
+
+                    var embeddingTask = DoEmbeddingAndStoreAsync(q);
 
                     // If the user already has queue items that are sending, we need to add a brief delay so they don't overlap.
                     // Make sure we don't count this one.
@@ -60,6 +135,26 @@ namespace makefoxsrv
 
                     if (!FoxContentFilter.ImageTagsSafetyCheck(await OutputImage.GetImageTagsAsync()))
                     {
+                        // Wait until we've fetch'd our embeddings before continuing.
+                        // We wait up to 3 seconds, but if it takes longer than that we just move on.
+
+                        //var embeddingTest = false;
+
+                        //var finishedTask = await Task.WhenAny(embeddingTask, Task.Delay(TimeSpan.FromSeconds(3)));
+                        //if (finishedTask == embeddingTask)
+                        //{
+                        //    // completed in time
+                        //    var (userPrompt, imageTags) = await embeddingTask; // safe to await again
+
+                        //    //Check embedding-related stuff here.
+                        //}
+                        //else
+                        //{
+                        //    embeddingTest = false; // We didn't have embeddings in time; assume the test would have failed.
+                        //}
+
+                        // Pretend we check the embedding testing here.
+
                         FoxLog.WriteLine($"Task {q.ID} - Image failed safety check; cancelling.");
                         await q.SetCancelled(true);
 
