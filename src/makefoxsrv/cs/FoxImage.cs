@@ -791,86 +791,78 @@ namespace makefoxsrv
 
         private async Task SaveImageTagsAsync()
         {
-            await _tagsLock.WaitAsync();
-            try
+            if (_imageTags is null || _imageTags.Count == 0)
+                return; // nothing to save
+
+            FoxLog.WriteLine($"{this.ID}: {this.GetHashCode()}: Saving {_imageTags.Count} tags for image");
+
+            const int maxRetries = 10;
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                if (_imageTags is null || _imageTags.Count == 0)
-                    return; // nothing to save
-
-                FoxLog.WriteLine($"{this.ID}: {this.GetHashCode()}: Saving {_imageTags.Count} tags for image");
-
-                const int maxRetries = 10;
-
-                for (int attempt = 1; attempt <= maxRetries; attempt++)
+                try
                 {
-                    try
+                    using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                    await conn.OpenAsync();
+
+                    using var tx = await conn.BeginTransactionAsync();
+
+                    // grab a row-level lock for this id
+                    using (var lockCmd = new MySqlCommand(
+                        "SELECT 1 FROM images_tags WHERE id = @id FOR UPDATE;", conn, tx))
                     {
-                        using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
-                        await conn.OpenAsync();
-
-                        using var tx = await conn.BeginTransactionAsync();
-
-                        // grab a row-level lock for this id
-                        using (var lockCmd = new MySqlCommand(
-                            "SELECT 1 FROM images_tags WHERE id = @id FOR UPDATE;", conn, tx))
-                        {
-                            lockCmd.Parameters.AddWithValue("@id", this.ID);
-                            await lockCmd.ExecuteScalarAsync();
-                        }
-
-                        // clear old tags
-                        using (var deleteCmd = new MySqlCommand(
-                            "DELETE FROM images_tags WHERE id = @id;", conn, tx))
-                        {
-                            deleteCmd.Parameters.AddWithValue("@id", this.ID);
-                            await deleteCmd.ExecuteNonQueryAsync();
-                        }
-
-                        // build one big multi-row insert
-                        var sb = new StringBuilder("INSERT INTO images_tags (id, tag, probability) VALUES ");
-                        var insertCmd = new MySqlCommand();
-                        insertCmd.Connection = conn;
-                        insertCmd.Transaction = tx;
-
-                        int i = 0;
-                        foreach (var kv in _imageTags)
-                        {
-                            if (i > 0) sb.Append(", ");
-                            sb.Append($"(@id{i}, @tag{i}, @prob{i})");
-
-                            insertCmd.Parameters.AddWithValue($"@id{i}", this.ID);
-                            insertCmd.Parameters.AddWithValue($"@tag{i}", kv.Key);
-                            insertCmd.Parameters.AddWithValue($"@prob{i}", kv.Value);
-
-                            i++;
-                        }
-                        sb.Append(";");
-
-                        insertCmd.CommandText = sb.ToString();
-                        await insertCmd.ExecuteNonQueryAsync();
-
-                        await tx.CommitAsync();
-                        return; // success
+                        lockCmd.Parameters.AddWithValue("@id", this.ID);
+                        await lockCmd.ExecuteScalarAsync();
                     }
-                    catch (MySqlException ex) when (ex.Number == 1213) // deadlock victim
+
+                    // clear old tags
+                    using (var deleteCmd = new MySqlCommand(
+                        "DELETE FROM images_tags WHERE id = @id;", conn, tx))
                     {
-                        FoxLog.LogException(ex, $"Deadlock saving image tags (attempt {attempt})");
-
-                        if (attempt == maxRetries)
-                            return; // after 10 failures, give up silently (regen later)
-
-                        await Task.Delay(50 * attempt); // simple backoff
+                        deleteCmd.Parameters.AddWithValue("@id", this.ID);
+                        await deleteCmd.ExecuteNonQueryAsync();
                     }
-                    catch (Exception ex)
+
+                    // build one big multi-row insert
+                    var sb = new StringBuilder("INSERT INTO images_tags (id, tag, probability) VALUES ");
+                    var insertCmd = new MySqlCommand();
+                    insertCmd.Connection = conn;
+                    insertCmd.Transaction = tx;
+
+                    int i = 0;
+                    foreach (var kv in _imageTags)
                     {
-                        FoxLog.LogException(ex, "Error saving image tags: " + ex.Message);
-                        return;
+                        if (i > 0) sb.Append(", ");
+                        sb.Append($"(@id{i}, @tag{i}, @prob{i})");
+
+                        insertCmd.Parameters.AddWithValue($"@id{i}", this.ID);
+                        insertCmd.Parameters.AddWithValue($"@tag{i}", kv.Key);
+                        insertCmd.Parameters.AddWithValue($"@prob{i}", kv.Value);
+
+                        i++;
                     }
+                    sb.Append(";");
+
+                    insertCmd.CommandText = sb.ToString();
+                    await insertCmd.ExecuteNonQueryAsync();
+
+                    await tx.CommitAsync();
+                    return; // success
                 }
-            }
-            finally
-            {
-                _tagsLock.Release();
+                catch (MySqlException ex) when (ex.Number == 1213) // deadlock victim
+                {
+                    FoxLog.LogException(ex, $"Deadlock saving image tags (attempt {attempt})");
+
+                    if (attempt == maxRetries)
+                        return; // after 10 failures, give up silently (regen later)
+
+                    await Task.Delay(50 * attempt); // simple backoff
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.LogException(ex, "Error saving image tags: " + ex.Message);
+                    return;
+                }
             }
         }
     }
