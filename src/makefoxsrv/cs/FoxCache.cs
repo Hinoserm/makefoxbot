@@ -4,6 +4,11 @@ using System.Threading;
 
 namespace makefoxsrv
 {
+    /// <summary>
+    /// Thread-safe in-memory cache with optional sliding or absolute expiration.
+    /// Entries are strongly referenced until expiry, then fall back to weak references
+    /// until garbage collected or removed by cleanup.
+    /// </summary>
     public class FoxCache<T> where T : class
     {
         private class CacheEntry
@@ -23,12 +28,12 @@ namespace makefoxsrv
                 _expiry = DateTime.Now.Add(ttl);
             }
 
-            public T? GetValue()
+            public T? GetValue(bool slide)
             {
                 if (DateTime.Now <= _expiry)
                 {
                     // accessed while still alive → refresh sliding window
-                    if (_sliding)
+                    if (_sliding && slide)
                         _expiry = DateTime.Now.Add(_ttl);
                     return StrongRef;
                 }
@@ -60,6 +65,17 @@ namespace makefoxsrv
         private readonly bool _sliding;
         private readonly Timer _cleanupTimer;
 
+
+        /// <summary>
+        /// Creates a new cache.
+        /// </summary>
+        /// <param name="ttl">
+        /// Time-to-live for each entry. Defaults to one hour if not specified.
+        /// </param>
+        /// <param name="sliding">
+        /// If true, each successful <see cref="Get"/> resets the expiry window (sliding expiration).
+        /// If false, entries expire a fixed interval after insertion regardless of access.
+        /// </param>
         public FoxCache(TimeSpan? ttl = null, bool sliding = true)
         {
             _ttl = ttl ?? TimeSpan.FromHours(1);
@@ -67,49 +83,89 @@ namespace makefoxsrv
             _cleanupTimer = new Timer(_ => Cleanup(), null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
         }
 
-        public T? Get(ulong id)
+        /// <summary>
+        /// Retrieves an item from the cache and counts as an access. 
+        /// If sliding expiration is enabled, this call will refresh the expiry.
+        /// Returns <c>null</c> if the item is expired or missing.
+        /// </summary>
+        public T? Get(ulong id) => GetInternal(id, slide: true);
+
+        /// <summary>
+        /// Retrieves an item from the cache without extending its lifetime. 
+        /// Useful for inspection (e.g., enumeration) where you don't want 
+        /// iteration itself to keep entries alive. 
+        /// Returns <c>null</c> if the item is expired or missing.
+        /// </summary>
+        public T? Peek(ulong id) => GetInternal(id, slide: false);
+
+
+        private T? GetInternal(ulong id, bool slide)
         {
             if (_cache.TryGetValue(id, out var entry))
             {
-                var value = entry.GetValue();
+                var value = entry.GetValue(slide);
                 if (value is not null)
                     return value;
 
-                _cache.TryRemove(id, out _); // dead, drop it
+                _cache.TryRemove(id, out _);
             }
             return null;
         }
 
+
+        /// <summary>
+        /// Adds or replaces a value in the cache with the given key.
+        /// Starts its lifetime window immediately.
+        /// </summary>
+        /// <param name="id">The cache key.</param>
+        /// <param name="value">The value to store.</param>
         public void Put(ulong id, T value)
         {
             _cache[id] = new CacheEntry(value, _ttl, _sliding);
         }
 
+
+        /// <summary>
+        /// Enumerates the values currently in the cache. 
+        /// Expired items are skipped, and enumeration does NOT 
+        /// count as access for sliding expiration.
+        /// </summary>
         public IEnumerable<T> Values
         {
             get
             {
                 foreach (var kv in _cache)
                 {
-                    var value = kv.Value.GetValue();
+                    var value = kv.Value.GetValue(false);
                     if (value is not null)
                         yield return value;
                 }
             }
         }
 
+        /// <summary>
+        /// Enumerates the key/value pairs currently in the cache. 
+        /// Expired items are skipped, and enumeration does NOT 
+        /// count as access for sliding expiration.
+        /// </summary>
         public IEnumerable<(ulong Key, T Value)> Entries
         {
             get
             {
                 foreach (var kv in _cache)
                 {
-                    var value = kv.Value.GetValue();
+                    var value = kv.Value.GetValue(false);
                     if (value is not null)
                         yield return (kv.Key, value);
                 }
             }
         }
+
+        /// <summary>
+        /// Gets the current number of entries stored in the cache. 
+        /// This count may include expired entries that have not yet been collected.
+        /// </summary>
+        public int Count => _cache.Count;
 
         private void Cleanup()
         {
@@ -120,6 +176,6 @@ namespace makefoxsrv
             }
         }
 
-        public int Count => _cache.Count;
+
     }
 }
