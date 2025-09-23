@@ -100,7 +100,8 @@ namespace makefoxsrv
             [DbColumn("telegram_userid")]
             public long? TelegramUserID = null;
 
-            public TgInfo() {
+            public TgInfo()
+            {
 
             }
 
@@ -139,7 +140,8 @@ namespace makefoxsrv
 
         public async Task<TgInfo> GetTelegramInfoAsync()
         {
-            if (_telegramInfo is null) {
+            if (_telegramInfo is null)
+            {
                 _telegramInfo = await TgInfo.Load(this.ID);
             }
 
@@ -397,7 +399,7 @@ namespace makefoxsrv
             img.Type = type;
             img.DateAdded = DateTime.Now;
             img.Image = image;
-            
+
             img._originalFilename = filename ?? $"{img.SHA1Hash}.jpg";
 
             img._telegramInfo = tgInfo;
@@ -426,7 +428,8 @@ namespace makefoxsrv
 
         public async Task Save()
         {
-            lock (_lock) {
+            lock (_lock)
+            {
                 if (this.DateAdded == DateTime.MinValue)
                     this.DateAdded = DateTime.Now;
 
@@ -721,134 +724,153 @@ namespace makefoxsrv
 
             return (newWidth, newHeight);
         }
+
+        private readonly SemaphoreSlim _tagsLock = new SemaphoreSlim(1, 1);
+
         public async Task<Dictionary<string, float>> GetImageTagsAsync()
         {
             if (_imageTags is not null)
                 return _imageTags; // Already loaded
 
-            var tags = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
-
+            await _tagsLock.WaitAsync();
             try
             {
-                using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
-                await conn.OpenAsync();
+                var tags = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
 
-                const string sql = @"
-                    SELECT tag, probability
-                    FROM images_tags
-                    WHERE id = @id;
-                ";
-
-                using var cmd = new MySqlCommand(sql, conn);
-                cmd.Parameters.AddWithValue("@id", this.ID);
-
-                using var reader = await cmd.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    string tag = reader["tag"].ToString() ?? string.Empty;
-                    float prob = Convert.ToSingle(reader["probability"]);
-
-                    tags[tag] = prob;
-                }
-
-                FoxLog.WriteLine($"{this.ID}: {this.GetHashCode()}: Loaded {tags.Count} tags for image");
-            }
-            catch (Exception ex)
-            {
-                FoxLog.LogException(ex, "Error loading image tags: " + ex.Message);
-            }
-
-            if (tags.Count < 1)
-            {
-                // Generate the tags and save them
-                FoxONNXImageTagger tagger = new FoxONNXImageTagger();
-
-                _imageTags = tagger.ProcessImage(this.GetRGBAImage(), 0.2f);
-
-                await SaveImageTagsAsync();
-            }
-            else
-            {
-                _imageTags = tags;
-            }
-
-            return _imageTags ?? new Dictionary<string, float>();
-        }
-
-        private async Task SaveImageTagsAsync()
-        {
-            if (_imageTags is null || _imageTags.Count == 0)
-                return; // nothing to save
-
-            FoxLog.WriteLine($"{this.ID}: {this.GetHashCode()}: Saving {_imageTags.Count} tags for image");
-
-            const int maxRetries = 10;
-
-            for (int attempt = 1; attempt <= maxRetries; attempt++)
-            {
                 try
                 {
                     using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
                     await conn.OpenAsync();
 
-                    using var tx = await conn.BeginTransactionAsync();
+                    const string sql = @"
+                        SELECT tag, probability
+                        FROM images_tags
+                        WHERE id = @id;
+                    ";
 
-                    // grab a row-level lock for this id
-                    using (var lockCmd = new MySqlCommand(
-                        "SELECT 1 FROM images_tags WHERE id = @id FOR UPDATE;", conn, tx))
+                    using var cmd = new MySqlCommand(sql, conn);
+                    cmd.Parameters.AddWithValue("@id", this.ID);
+
+                    using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
                     {
-                        lockCmd.Parameters.AddWithValue("@id", this.ID);
-                        await lockCmd.ExecuteScalarAsync();
+                        string tag = reader["tag"].ToString() ?? string.Empty;
+                        float prob = Convert.ToSingle(reader["probability"]);
+
+                        tags[tag] = prob;
                     }
 
-                    // clear old tags
-                    using (var deleteCmd = new MySqlCommand(
-                        "DELETE FROM images_tags WHERE id = @id;", conn, tx))
-                    {
-                        deleteCmd.Parameters.AddWithValue("@id", this.ID);
-                        await deleteCmd.ExecuteNonQueryAsync();
-                    }
-
-                    // build one big multi-row insert
-                    var sb = new StringBuilder("INSERT INTO images_tags (id, tag, probability) VALUES ");
-                    var insertCmd = new MySqlCommand();
-                    insertCmd.Connection = conn;
-                    insertCmd.Transaction = tx;
-
-                    int i = 0;
-                    foreach (var kv in _imageTags)
-                    {
-                        if (i > 0) sb.Append(", ");
-                        sb.Append($"(@id{i}, @tag{i}, @prob{i})");
-
-                        insertCmd.Parameters.AddWithValue($"@id{i}", this.ID);
-                        insertCmd.Parameters.AddWithValue($"@tag{i}", kv.Key);
-                        insertCmd.Parameters.AddWithValue($"@prob{i}", kv.Value);
-
-                        i++;
-                    }
-                    sb.Append(";");
-
-                    insertCmd.CommandText = sb.ToString();
-                    await insertCmd.ExecuteNonQueryAsync();
-
-                    await tx.CommitAsync();
-                    return; // success
-                }
-                catch (MySqlException ex) when (ex.Number == 1213) // deadlock victim
-                {
-                    FoxLog.LogException(ex, $"Deadlock saving image tags (attempt {attempt})");
-
-                    if (attempt == maxRetries)
-                        return; // after 10 failures, give up silently (regen later)
-
-                    await Task.Delay(50 * attempt); // simple backoff
+                    FoxLog.WriteLine($"{this.ID}: {this.GetHashCode()}: Loaded {tags.Count} tags for image");
                 }
                 catch (Exception ex)
                 {
-                    FoxLog.LogException(ex, "Error saving image tags: " + ex.Message);
-                    return;
+                    FoxLog.LogException(ex, "Error loading image tags: " + ex.Message);
                 }
+
+                if (tags.Count < 1)
+                {
+                    // Generate the tags and save them
+                    FoxONNXImageTagger tagger = new FoxONNXImageTagger();
+
+                    _imageTags = tagger.ProcessImage(this.GetRGBAImage(), 0.2f);
+
+                    await SaveImageTagsAsync();
+                }
+                else
+                {
+                    _imageTags = tags;
+                }
+
+                return _imageTags ?? new Dictionary<string, float>();
+            }
+            finally
+            {
+                _tagsLock.Release();
+            }
+        }
+
+        private async Task SaveImageTagsAsync()
+        {
+            await _tagsLock.WaitAsync();
+            try
+            {
+                if (_imageTags is null || _imageTags.Count == 0)
+                    return; // nothing to save
+
+                FoxLog.WriteLine($"{this.ID}: {this.GetHashCode()}: Saving {_imageTags.Count} tags for image");
+
+                const int maxRetries = 10;
+
+                for (int attempt = 1; attempt <= maxRetries; attempt++)
+                {
+                    try
+                    {
+                        using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                        await conn.OpenAsync();
+
+                        using var tx = await conn.BeginTransactionAsync();
+
+                        // grab a row-level lock for this id
+                        using (var lockCmd = new MySqlCommand(
+                            "SELECT 1 FROM images_tags WHERE id = @id FOR UPDATE;", conn, tx))
+                        {
+                            lockCmd.Parameters.AddWithValue("@id", this.ID);
+                            await lockCmd.ExecuteScalarAsync();
+                        }
+
+                        // clear old tags
+                        using (var deleteCmd = new MySqlCommand(
+                            "DELETE FROM images_tags WHERE id = @id;", conn, tx))
+                        {
+                            deleteCmd.Parameters.AddWithValue("@id", this.ID);
+                            await deleteCmd.ExecuteNonQueryAsync();
+                        }
+
+                        // build one big multi-row insert
+                        var sb = new StringBuilder("INSERT INTO images_tags (id, tag, probability) VALUES ");
+                        var insertCmd = new MySqlCommand();
+                        insertCmd.Connection = conn;
+                        insertCmd.Transaction = tx;
+
+                        int i = 0;
+                        foreach (var kv in _imageTags)
+                        {
+                            if (i > 0) sb.Append(", ");
+                            sb.Append($"(@id{i}, @tag{i}, @prob{i})");
+
+                            insertCmd.Parameters.AddWithValue($"@id{i}", this.ID);
+                            insertCmd.Parameters.AddWithValue($"@tag{i}", kv.Key);
+                            insertCmd.Parameters.AddWithValue($"@prob{i}", kv.Value);
+
+                            i++;
+                        }
+                        sb.Append(";");
+
+                        insertCmd.CommandText = sb.ToString();
+                        await insertCmd.ExecuteNonQueryAsync();
+
+                        await tx.CommitAsync();
+                        return; // success
+                    }
+                    catch (MySqlException ex) when (ex.Number == 1213) // deadlock victim
+                    {
+                        FoxLog.LogException(ex, $"Deadlock saving image tags (attempt {attempt})");
+
+                        if (attempt == maxRetries)
+                            return; // after 10 failures, give up silently (regen later)
+
+                        await Task.Delay(50 * attempt); // simple backoff
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.LogException(ex, "Error saving image tags: " + ex.Message);
+                        return;
+                    }
+                }
+            }
+            finally
+            {
+                _tagsLock.Release();
             }
         }
     }
