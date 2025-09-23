@@ -11,13 +11,15 @@ namespace makefoxsrv
             public T? StrongRef { get; private set; }
             public WeakReference<T> WeakRef { get; }
             private readonly TimeSpan _ttl;
+            private readonly bool _sliding;
             private DateTime _expiry;
 
-            public CacheEntry(T value, TimeSpan ttl)
+            public CacheEntry(T value, TimeSpan ttl, bool sliding)
             {
                 StrongRef = value;
                 WeakRef = new WeakReference<T>(value);
                 _ttl = ttl;
+                _sliding = sliding;
                 _expiry = DateTime.Now.Add(ttl);
             }
 
@@ -26,7 +28,8 @@ namespace makefoxsrv
                 if (DateTime.Now <= _expiry)
                 {
                     // accessed while still alive → refresh sliding window
-                    _expiry = DateTime.Now.Add(_ttl);
+                    if (_sliding)
+                        _expiry = DateTime.Now.Add(_ttl);
                     return StrongRef;
                 }
 
@@ -37,27 +40,30 @@ namespace makefoxsrv
 
             public void Refresh()
             {
-                if (StrongRef != null)
+                if (_sliding && StrongRef != null)
                     _expiry = DateTime.Now.Add(_ttl);
             }
 
             public bool IsDead()
             {
-                if (DateTime.Now <= _expiry && StrongRef != null)
-                    return false; // still strongly alive
+                if (DateTime.Now <= _expiry)
+                    return false; // still alive in sliding window
 
-                // after expiry, see if weak ref is gone
+                // expired → release strong reference
+                StrongRef = null;
                 return !WeakRef.TryGetTarget(out _);
             }
         }
 
         private readonly ConcurrentDictionary<ulong, CacheEntry> _cache = new();
         private readonly TimeSpan _ttl;
+        private readonly bool _sliding;
         private readonly Timer _cleanupTimer;
 
-        public FoxCache(TimeSpan? ttl = null)
+        public FoxCache(TimeSpan? ttl = null, bool sliding = true)
         {
             _ttl = ttl ?? TimeSpan.FromHours(1);
+            _sliding = sliding;
             _cleanupTimer = new Timer(_ => Cleanup(), null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
         }
 
@@ -76,7 +82,7 @@ namespace makefoxsrv
 
         public void Put(ulong id, T value)
         {
-            _cache[id] = new CacheEntry(value, _ttl);
+            _cache[id] = new CacheEntry(value, _ttl, _sliding);
         }
 
         public IEnumerable<T> Values
