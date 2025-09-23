@@ -217,20 +217,20 @@ namespace makefoxsrv
                             if (finished == embeddingTask)
                             {
                                 // Completed in time
-                                var (promptEmbedding, tagsEmbedding) = embeddingTask.Result;
+                                //var (promptEmbedding, tagsEmbedding) = embeddingTask.Result;
 
-                                using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
-                                await conn.OpenAsync();
+                                //using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                                //await conn.OpenAsync();
 
-                                using var cmd = conn.CreateCommand();
-                                cmd.CommandText = @"
-                                    UPDATE queue_embeddings
-                                    SET safety_status = 'UNSAFE'
-                                    WHERE qid = @qid";
+                                //using var cmd = conn.CreateCommand();
+                                //cmd.CommandText = @"
+                                //    UPDATE queue_embeddings
+                                //    SET safety_status = 'UNSAFE'
+                                //    WHERE qid = @qid";
 
-                                cmd.Parameters.AddWithValue("@qid", q.ID);
+                                //cmd.Parameters.AddWithValue("@qid", q.ID);
 
-                                await cmd.ExecuteNonQueryAsync();
+                                //await cmd.ExecuteNonQueryAsync();
 
                                 //falsePositive = await IsFalsePositiveAsync(tagsEmbedding, 0.8);
                             }

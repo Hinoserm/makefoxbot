@@ -678,9 +678,6 @@ namespace makefoxsrv
 
                     foreach (var queueId in queueIds)
                     {
-
-                        
-
                         var userFalsePosScore = await GetSafetyScoreAsync(queueId, EmbeddingType.USER_PROMPT, SafetyStatus.FALSE_POSITIVE);
                         var userUnsafeScore = await GetSafetyScoreAsync(queueId, EmbeddingType.USER_PROMPT, SafetyStatus.UNSAFE);
 
