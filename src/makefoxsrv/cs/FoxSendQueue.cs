@@ -28,6 +28,76 @@ namespace makefoxsrv
             return null;
         }
 
+        public enum SafetyCheckResult
+        {
+            None,
+            FalsePositive,
+            Unsafe
+        }
+
+        public static async Task<SafetyCheckResult> CheckPromptSafetyAsync(
+            FoxEmbedding candidate,
+            double threshold = 0.8,
+            int limit = 1000)
+        {
+            double avgFalsePos = 0.0;
+            double avgUnsafe = 0.0;
+
+            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
+            // Second: check against known UNSAFE
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT AVG(1 - VEC_DISTANCE_COSINE(embedding, VEC_FromText(@vec))) AS avg_similarity
+                    FROM (
+                        SELECT embedding
+                        FROM queue_embeddings
+                        WHERE type = 'USER_PROMPT'
+                          AND safety_status = 'UNSAFE'
+                        ORDER BY VEC_DISTANCE_COSINE(embedding, VEC_FromText(@vec)) ASC
+                        LIMIT @limit
+                    ) sub;";
+                cmd.Parameters.AddWithValue("@vec", candidate.ToString());
+                cmd.Parameters.AddWithValue("@limit", limit);
+
+                var result = await cmd.ExecuteScalarAsync();
+                if (result != null && result != DBNull.Value)
+                    avgUnsafe = Convert.ToDouble(result);
+            }
+
+            if (avgUnsafe >= threshold)
+                return SafetyCheckResult.Unsafe;
+
+
+            // First: check against known FALSE_POSITIVES
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT AVG(1 - VEC_DISTANCE_COSINE(embedding, VEC_FromText(@vec))) AS avg_similarity
+                    FROM (
+                        SELECT embedding
+                        FROM queue_embeddings
+                        WHERE type = 'USER_PROMPT'
+                          AND safety_status = 'FALSE_POSITIVE'
+                        ORDER BY VEC_DISTANCE_COSINE(embedding, VEC_FromText(@vec)) ASC
+                        LIMIT @limit
+                    ) sub;";
+                cmd.Parameters.AddWithValue("@vec", candidate.ToString());
+                cmd.Parameters.AddWithValue("@limit", limit);
+
+                var result = await cmd.ExecuteScalarAsync();
+                if (result != null && result != DBNull.Value)
+                    avgFalsePos = Convert.ToDouble(result);
+            }
+
+            if (avgFalsePos >= threshold)
+                return SafetyCheckResult.FalsePositive;
+
+            return SafetyCheckResult.None;
+        }
+
         private static async Task<(FoxEmbedding promptEmbedding, FoxEmbedding tagsEmbedding)> DoEmbeddingAndStoreAsync(FoxQueue q)
         {
             try
@@ -84,9 +154,9 @@ namespace makefoxsrv
                 // Log similarity for debugging
                 var similarity = FoxEmbedding.CosineSimilarity(promptEmbedding, tagsEmbedding);
 
-                FoxLog.WriteLine($"{q.ID}: User prompt: {q.Settings.Prompt}");
-                FoxLog.WriteLine($"{q.ID}: Image tags : {string.Join(", ", tags.Keys)}");
-                FoxLog.WriteLine($"{q.ID}: Cosine similarity: {similarity}");
+                //FoxLog.WriteLine($"{q.ID}: User prompt: {q.Settings.Prompt}");
+                //FoxLog.WriteLine($"{q.ID}: Image tags : {string.Join(", ", tags.Keys)}");
+                //FoxLog.WriteLine($"{q.ID}: Cosine similarity: {similarity}");
 
                 return (promptEmbedding, tagsEmbedding);
             }
@@ -138,56 +208,76 @@ namespace makefoxsrv
                         // Wait until we've fetch'd our embeddings before continuing.
                         // We wait up to 3 seconds, but if it takes longer than that we just move on.
 
-                        //var embeddingTest = false;
-
-                        //var finishedTask = await Task.WhenAny(embeddingTask, Task.Delay(TimeSpan.FromSeconds(3)));
-                        //if (finishedTask == embeddingTask)
-                        //{
-                        //    // completed in time
-                        //    var (userPrompt, imageTags) = await embeddingTask; // safe to await again
-
-                        //    //Check embedding-related stuff here.
-                        //}
-                        //else
-                        //{
-                        //    embeddingTest = false; // We didn't have embeddings in time; assume the test would have failed.
-                        //}
-
-                        // Pretend we check the embedding testing here.
-
-                        FoxLog.WriteLine($"Task {q.ID} - Image failed safety check; cancelling.");
-                        await q.SetCancelled(true);
-
-                        OutputImage.Flagged = true;
-                        await OutputImage.Save();
+                        var falsePositive = false;
 
                         try
                         {
-                            await FoxTelegram.Client.DeleteMessages(t.Peer, new int[] { q.MessageID });
-                        }
-                        catch { } //We don't care if deleting fails.
+                            var finished = await Task.WhenAny(embeddingTask, Task.Delay(TimeSpan.FromSeconds(3)));
 
-                        try
-                        {
-                            if (q.ReplyMessageID is not null && q.Telegram is not null)
+                            if (finished == embeddingTask)
                             {
-                                await q.Telegram.SendMessageAsync(
-                                    replyToMessageId: q.ReplyMessageID ?? 0,
-                                    replyToTopicId: q.ReplyTopicID ?? 0,
-                                    text: $"❌ Image was detected as prohibited content and has been removed.\r\n\r\nIf you believe this was in error, please contact support at @makefoxhelpbot.\r\n\r\nYou can review our rules and content policy by typing /start"
-                                );
+                                // Completed in time
+                                var (promptEmbedding, tagsEmbedding) = embeddingTask.Result;
+
+                                using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                                await conn.OpenAsync();
+
+                                using var cmd = conn.CreateCommand();
+                                cmd.CommandText = @"
+                                    UPDATE queue_embeddings
+                                    SET safety_status = 'UNSAFE'
+                                    WHERE qid = @qid";
+
+                                cmd.Parameters.AddWithValue("@qid", q.ID);
+
+                                await cmd.ExecuteNonQueryAsync();
+
+                                //falsePositive = await IsFalsePositiveAsync(tagsEmbedding, 0.8);
+                            }
+                            else
+                            {
+                                // Timed out
+                                // Decide what you want to do when embeddings are missing
+                                // e.g. assume unsafe, log, etc.
                             }
                         }
-                        catch { } //We don't care if editing fails.
+                        catch (Exception ex)
+                        {
+                            FoxLog.LogException(ex, $"Failed to mark unsafe embedding for {q.ID}: {ex.Message}");
+                        }
 
+                        if (!falsePositive)
+                        {
 
-                        var modMsg = $"User {q.User?.UID} had an image {q.ID} automatically removed due to unsafe content detection.\r\n\r\n";
+                            FoxLog.WriteLine($"Task {q.ID} - Image failed safety check; cancelling.");
+                            await q.SetCancelled(true);
 
-                        modMsg += $"https://makefox.bot/api/get-image.php?id={q.OutputImageID}";
+                            OutputImage.Flagged = true;
+                            await OutputImage.Save();
 
-                        await FoxContentFilter.RecordViolationsAsync(q.ID, new List<ulong> { 0 });
+                            try
+                            {
+                                await FoxTelegram.Client.DeleteMessages(t.Peer, new int[] { q.MessageID });
+                            }
+                            catch { } //We don't care if deleting fails.
 
-                        return;
+                            try
+                            {
+                                if (q.ReplyMessageID is not null && q.Telegram is not null)
+                                {
+                                    await q.Telegram.SendMessageAsync(
+                                        replyToMessageId: q.ReplyMessageID ?? 0,
+                                        replyToTopicId: q.ReplyTopicID ?? 0,
+                                        text: $"❌ Image was detected as prohibited content and has been removed.\r\n\r\nIf you believe this was in error, please contact support at @makefoxhelpbot.\r\n\r\nYou can review our rules and content policy by typing /start"
+                                    );
+                                }
+                            }
+                            catch { } //We don't care if editing fails.
+
+                            await FoxContentFilter.RecordViolationsAsync(q.ID, new List<ulong> { 0 });
+
+                            return;
+                        }
                     }
 
                     try

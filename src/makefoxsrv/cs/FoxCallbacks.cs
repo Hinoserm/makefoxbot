@@ -98,6 +98,9 @@ namespace makefoxsrv
                     case "/continue":
                         await CallbackCmdContinue(t, query, fUser, argument);
                         break;
+                    case "/admin_mod":
+                        await CallbackCmdAdminMod(t, query, fUser, argument);
+                        break;
                 }
             }
             catch (Exception ex)
@@ -113,6 +116,73 @@ namespace makefoxsrv
             {
                 fUser.Unlock();
                 FoxContextManager.Clear();
+            }
+        }
+
+        private static async Task CallbackCmdAdminMod(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
+        {
+            if (string.IsNullOrWhiteSpace(argument))
+                throw new Exception("Malformed request");
+
+            // Split into [status, ids...]
+            var parts = argument.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2)
+                throw new Exception("Malformed request");
+
+            await t.SendCallbackAnswer(query.query_id, 0);
+
+            string statusArg = parts[0].Trim().ToUpperInvariant();
+            string[] idStrings = parts[1].Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+            // Validate status
+            string status;
+            switch (statusArg)
+            {
+                case "FALSEPOS":
+                    status = "FALSE_POSITIVE";
+                    break;
+                case "SAFE":
+                    status = "SAFE";
+                    break;
+                case "UNSAFE":
+                    status = "UNSAFE";
+                    break;
+                default:
+                    throw new Exception("Unknown safety status: " + statusArg);
+            }
+
+            // Validate IDs
+            var ids = new List<long>();
+            foreach (var s in idStrings)
+            {
+                if (!long.TryParse(s.Trim(), out var id))
+                    throw new Exception($"Invalid ID: {s}");
+                ids.Add(id);
+            }
+
+            if (ids.Count == 0)
+                throw new Exception("No IDs provided");
+
+            // Run update
+            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = $@"
+                    UPDATE queue_embeddings
+                    SET safety_status = @status
+                    WHERE qid IN ({string.Join(",", ids)})
+                ";
+                cmd.Parameters.AddWithValue("@status", status);
+
+                int rows = await cmd.ExecuteNonQueryAsync();
+                FoxLog.WriteLine($"Admin updated {rows} rows to {status}", LogLevel.INFO);
+
+                await t.SendMessageAsync(
+                    text: $"✔️ Marked {rows} items as {status}.",
+                    replyToMessageId: query.msg_id
+                );
             }
         }
 
