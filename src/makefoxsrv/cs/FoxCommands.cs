@@ -1393,7 +1393,7 @@ namespace makefoxsrv
                     sb.AppendLine($"  Queue: {FoxQueue.Cache.Count()}");
                     sb.AppendLine($"  Users: {FoxUser.CacheCount()}");
                     sb.AppendLine($"  Images: {FoxImage.CacheCount()}");
-
+                    sb.AppendLine($"  Embeddings: {FoxEmbedding.CacheCount()}");
                 }
 
                 sb.AppendLine("\nUser Info:\n");

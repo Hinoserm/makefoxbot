@@ -98,7 +98,6 @@ namespace makefoxsrv
         /// </summary>
         public T? Peek(ulong id) => GetInternal(id, slide: false);
 
-
         private T? GetInternal(ulong id, bool slide)
         {
             if (_cache.TryGetValue(id, out var entry))
@@ -172,7 +171,7 @@ namespace makefoxsrv
             foreach (var kv in _cache.ToArray())
             {
                 if (kv.Value.IsDead())
-                    _cache.TryRemove(kv.Key, out _);
+                  _cache.TryRemove(kv.Key, out _);
             }
         }
 

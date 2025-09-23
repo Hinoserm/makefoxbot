@@ -25,6 +25,8 @@ namespace makefoxsrv
             SizeLimit = 30_000 // optional limit to keep memory sane
         });
 
+        public static int CacheCount() => _cache.Count;
+
         // Shared HttpClient setup
         static FoxEmbedding()
         {
@@ -51,7 +53,6 @@ namespace makefoxsrv
         /// Indexer for direct access to the underlying float values.
         /// </summary>
         public float this[int index] => _values[index];
-
 
         /// <summary>
         /// Returns a copy of the embedding values as a float array.
@@ -140,53 +141,74 @@ namespace makefoxsrv
             if (existingEmbedding is not null)
                 return existingEmbedding;
 
-            // 2. Not in DB → call OpenAI
-            var payload = new { model = "text-embedding-3-large", input = input };
-            var request = new HttpRequestMessage(HttpMethod.Post, "embeddings");
-
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", FoxMain.settings?.oaiApiKey);
-            request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-
-            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-
-            using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-            var doc = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
-
-            var embedding = doc.RootElement.GetProperty("data")[0].GetProperty("embedding");
-
-            int len = embedding.GetArrayLength();
-            var valuesNew = new float[len];
-            for (int i = 0; i < len; i++)
-                valuesNew[i] = embedding[i].GetSingle();
-
-            var foxEmbedding = new FoxEmbedding(valuesNew);
-
-            // 3. Store in DB
-            using (var conn = new MySqlConnection(FoxMain.sqlConnectionString))
+            // 2. Not in DB → call OpenAI (retry up to 3 times)
+            int maxAttempts = 3;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                await conn.OpenAsync();
-
-                using (var insertCmd = conn.CreateCommand())
+                try
                 {
-                    insertCmd.CommandText = @"
-                        INSERT IGNORE INTO cached_embeddings (hash, embedding, date_generated)
-                        VALUES (@hash, VEC_FromText(@vec), @now);";
-                    insertCmd.Parameters.Add("@hash", MySqlDbType.Binary, 32).Value = hashBytes;
-                    insertCmd.Parameters.AddWithValue("@vec", foxEmbedding.ToString());
-                    insertCmd.Parameters.AddWithValue("@now", DateTime.Now);
+                    var payload = new { model = "text-embedding-3-large", input = input };
+                    var request = new HttpRequestMessage(HttpMethod.Post, "embeddings");
 
-                    await insertCmd.ExecuteNonQueryAsync();
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", FoxMain.settings?.oaiApiKey);
+                    request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+
+                    using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+                    response.EnsureSuccessStatusCode();
+
+                    using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                    var doc = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
+
+                    var embedding = doc.RootElement.GetProperty("data")[0].GetProperty("embedding");
+
+                    int len = embedding.GetArrayLength();
+                    var valuesNew = new float[len];
+                    for (int i = 0; i < len; i++)
+                        valuesNew[i] = embedding[i].GetSingle();
+
+                    var foxEmbedding = new FoxEmbedding(valuesNew);
+
+                    // Store in DB
+                    using (var conn = new MySqlConnection(FoxMain.sqlConnectionString))
+                    {
+                        await conn.OpenAsync();
+
+                        using (var insertCmd = conn.CreateCommand())
+                        {
+                            insertCmd.CommandText = @"
+                                INSERT IGNORE INTO cached_embeddings (hash, embedding, date_generated)
+                                VALUES (@hash, VEC_FromText(@vec), @now);";
+                            insertCmd.Parameters.Add("@hash", MySqlDbType.Binary, 32).Value = hashBytes;
+                            insertCmd.Parameters.AddWithValue("@vec", foxEmbedding.ToString());
+                            insertCmd.Parameters.AddWithValue("@now", DateTime.Now);
+
+                            await insertCmd.ExecuteNonQueryAsync();
+                        }
+                    }
+
+                    _cache.Set(HashToString(hashBytes), foxEmbedding, new MemoryCacheEntryOptions
+                    {
+                        SlidingExpiration = TimeSpan.FromHours(24),
+                        Size = 1
+                    });
+
+                    return foxEmbedding;
+                }
+                catch (Exception ex) when (attempt < maxAttempts)
+                {
+                    FoxLog.LogException(ex, $"Embedding failed on attempt {attempt} (retrying): {ex.Message}");
+                    //await Task.Delay(TimeSpan.FromMilliseconds(Math.Pow(2, attempt) * 50));
+
+                    await Task.Delay(50 * attempt); // simple backoff
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.LogException(ex, $"Failed to create embedding after {attempt} attempts: {ex.Message}");
+                    throw;
                 }
             }
 
-            _cache.Set(HashToString(hashBytes), foxEmbedding, new MemoryCacheEntryOptions
-            {
-                SlidingExpiration = TimeSpan.FromHours(24),
-                Size = 1
-            });
-
-            return foxEmbedding;
+            throw new Exception($"Failed to create embedding after {maxAttempts} attempts.");
         }
 
 
