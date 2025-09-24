@@ -577,33 +577,16 @@ namespace makefoxsrv
                 response.EnsureSuccessStatusCode();
 
                 using var stream = await response.Content.ReadAsStreamAsync();
+                using var doc = await JsonDocument.ParseAsync(stream);
 
-                var buffer = new byte[8192];
-                var readState = new JsonReaderState();
-                var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                int bytesRead;
-                while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                foreach (var el in doc.RootElement.EnumerateArray())
                 {
-                    var span = new ReadOnlySpan<byte>(buffer, 0, bytesRead);
-                    var reader = new Utf8JsonReader(span, isFinalBlock: bytesRead == 0, readState);
-
-                    while (reader.Read())
+                    if (el.TryGetProperty("name", out var nameProp))
                     {
-                        if (reader.TokenType == JsonTokenType.PropertyName &&
-                            reader.ValueTextEquals("name"))
-                        {
-                            reader.Read(); // move to value
-                            if (reader.TokenType == JsonTokenType.String)
-                            {
-                                var name = reader.GetString();
-                                if (!string.IsNullOrEmpty(name))
-                                    LoadedLoras.Add(name);
-                            }
-                        }
+                        var name = nameProp.GetString();
+                        if (!string.IsNullOrEmpty(name))
+                            LoadedLoras.Add(name);
                     }
-
-                    readState = reader.CurrentState; // preserve state for next chunk
                 }
 
                 FoxLog.WriteLine($"  Worker {ID} - Loaded {LoadedLoras.Count} LORAs.");
