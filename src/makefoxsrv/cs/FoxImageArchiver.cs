@@ -238,6 +238,7 @@ namespace makefoxsrv
                     .OrderBy(d => d) // oldest first
                     .ToList();
 
+                _directoryCount = allHourDirs.Count;
 
                 int processed = 0;
                 foreach (var dir in allHourDirs)
@@ -245,10 +246,25 @@ namespace makefoxsrv
                     string relative = Path.GetRelativePath(_liveRoot, dir);
                     await ArchiveDirectoryAsync(relative);
 
+                    _currentDirectoryIndex++;
+
                     processed++;
                     if (processed >= maxHours)
                         break;
                 }
+
+                if (_telegram is not null && _telegramMessage is not null)
+                {
+                    try
+                    {
+                        var msgStr = $"Cleaning directory tree...";
+                        await _telegram.EditMessageAsync(_telegramMessage.ID, msgStr);
+                    }
+                    catch
+                    { /* ignore telegram errors */ }
+                }
+
+                CleanupEmptyTree();
 
                 if (_telegram is not null && _telegramMessage is not null)
                 {
@@ -260,8 +276,6 @@ namespace makefoxsrv
                     catch
                     { /* ignore telegram errors */ }
                 }
-
-                CleanupEmptyTree();
             }
             finally
             {
