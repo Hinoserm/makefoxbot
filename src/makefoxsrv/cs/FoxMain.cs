@@ -315,11 +315,6 @@ namespace makefoxsrv
             FoxLog.WriteLine("Initializing LORA cache...");
             await FoxCivitai.InitializeCacheAsync();
 
-            FoxLog.WriteLine("Loading LORA metadata...");
-            await FoxLORAs.StartupLoad();
-
-            _ = FoxLORAs.ConvertLoraImagesAsync();
-
             Console.CancelKeyPress += (sender, e) =>
             {
                 Console.CancelKeyPress += (sender, e) =>
@@ -369,15 +364,11 @@ namespace makefoxsrv
                 var foxLoadTask = FoxWorker.LoadWorkers(cts.Token);
                 var foxTaggerTask = Task.Run(() => FoxONNXImageTagger.Start());
                 var webServerTask = Task.Run(() => FoxWeb.StartWebServer(cancellationToken: cts.Token));
+                var loadLoras = FoxLORAs.StartupLoad();
+                var connectTelegram = FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
 
-                await Task.WhenAll(foxLoadTask, foxTaggerTask, webServerTask);
+                await Task.WhenAll(foxLoadTask, foxTaggerTask, webServerTask, loadLoras, connectTelegram);
 
-
-                await FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
-
-                //await Task.Delay(1000); //Wait a bit for telegram to settle.
-
-                
 
                 FoxWorker.StartWorkers();
 

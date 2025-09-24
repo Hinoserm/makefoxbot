@@ -554,12 +554,13 @@ namespace makefoxsrv
             FoxLog.WriteLine($"Worker {this.ID} - Loaded {modelCount} available models.");
         }
 
+        public HashSet<string> LoadedLoras = new HashSet<string>();
 
         public async Task LoadLoRAInfo()
         {
-            long lora_count = 0;
-
             using var httpClient = new HttpClient();
+
+            LoadedLoras.Clear();
 
             var refreshUrl = new Uri(new Uri(address), "/sdapi/v1/refresh-loras");
 
@@ -570,25 +571,25 @@ namespace makefoxsrv
 
             var apiUrl = new Uri(new Uri(address), "/sdapi/v1/loras");
 
-            if (!FoxLORAs.LorasLoaded)
-                return;
-
             try
             {
                 var response = await httpClient.GetAsync(apiUrl);
                 response.EnsureSuccessStatusCode();
-                var jsonString = await response.Content.ReadAsStringAsync();
-                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                var loras = JsonSerializer.Deserialize<List<Lora>>(jsonString, options);
 
-                foreach (var lora in loras)
+                using var stream = await response.Content.ReadAsStreamAsync();
+                using var doc = await JsonDocument.ParseAsync(stream);
+
+                foreach (var el in doc.RootElement.EnumerateArray())
                 {
-                    // Attempt to insert, or update if exists
-
-                    FoxLORAs.RegisterWorkerByFilename(this, lora.Name, lora.Alias);
-                    lora_count++;
+                    if (el.TryGetProperty("Name", out var nameProp))
+                    {
+                        var name = nameProp.GetString();
+                        if (!string.IsNullOrEmpty(name))
+                            LoadedLoras.Add(name);
+                    }
                 }
-                FoxLog.WriteLine($"  Worker {ID} - Loaded {lora_count} LORAs.");
+
+                FoxLog.WriteLine($"  Worker {ID} - Loaded {LoadedLoras.Count} LORAs.");
             }
             catch (HttpRequestException ex)
             {
