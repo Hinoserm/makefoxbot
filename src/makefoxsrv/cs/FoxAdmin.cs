@@ -22,10 +22,6 @@ namespace makefoxsrv
 {
     internal class FoxAdmin
     {
-
-        // Semaphore to ensure only one archiver runs at a time
-        private static readonly SemaphoreSlim _archiverSemaphore = new SemaphoreSlim(1, 1);
-
         public static async Task HandleRunArchiver(FoxTelegram t, Message message, string? argument)
         {
             if (!Directory.Exists("../data/archive/images"))
@@ -49,33 +45,18 @@ namespace makefoxsrv
                 return;
             }
 
-            // Use a semaphore to ensure only one archiver runs at a time
-            if (!await _archiverSemaphore.WaitAsync(100))
-            {
-                await t.SendMessageAsync(text: "❌ Archiver is already running.", replyToMessage: message);
-                return;
-            }
-            
             // Run the archiver in a separate thread so we don't block the main thread
             _ = Task.Run(async () =>
             {
-
                 try
                 {
-                    var archiver = new FoxImageArchiver("../data/images", "../data/archive/images");
-
-                    await archiver.ArchiveOlderThanAsync(DateTime.Now.AddDays(-archiveTime.Value));
+                    await FoxImageArchiver.ArchiveOlderThanAsync(DateTime.Now.AddDays(-archiveTime.Value), t, message);
                 }
                 catch (Exception ex)
                 {
                     FoxLog.LogException(ex);
                 }
-                finally
-                {
-                    _archiverSemaphore.Release();
-                }
             });
-            await t.SendMessageAsync(text: "✅ Archiver started.", replyToMessage: message);
         }
 
         public static async Task HandleQueueStatus(FoxTelegram t, Message message, string? argument)

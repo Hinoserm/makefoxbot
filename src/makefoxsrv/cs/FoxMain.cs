@@ -208,9 +208,13 @@ namespace makefoxsrv
             return attribute?.InformationalVersion ?? "Unknown"; // This will include the version and Git revision
         }
 
+        public static readonly CancellationTokenSource Cts = new CancellationTokenSource();
+
+        public static CancellationToken CancellationToken => Cts.Token;
+
         static async Task Main(string[] args)
         {
-            using CancellationTokenSource cts = new();
+            using CancellationTokenSource cts = FoxMain.Cts;
 
             //FoxONNX.Start();
 

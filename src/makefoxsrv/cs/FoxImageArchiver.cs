@@ -8,22 +8,61 @@ using System.Threading.Tasks;
 
 namespace makefoxsrv
 {
-    public class FoxImageArchiver
+    public static class FoxImageArchiver
     {
-        private readonly string _liveRoot;
-        private readonly string _archiveRoot;
+        private static readonly string _liveRoot = "../data/images";
+        private static readonly string _archiveRoot = "../data/archive/images";
         private static readonly Regex _hashRegex = new Regex("^[A-Fa-f0-9]{40}\\.[a-zA-Z0-9]+$", RegexOptions.Compiled);
 
-        public FoxImageArchiver(string liveRoot, string archiveRoot)
+
+        private static FoxTelegram? _telegram = null;
+        private static TL.Message? _telegramMessage = null;
+
+        private static int _directoryCount = 0;
+        private static int _currentDirectoryIndex = 0;
+
+        private static DateTime _lastStatusUpdate = DateTime.MinValue;
+
+        // Semaphore to ensure only one archiver runs at a time
+        private static readonly SemaphoreSlim _archiverSemaphore = new SemaphoreSlim(1, 1);
+
+
+        /// <summary>
+        /// Recursively removes empty directories under the live root.
+        /// Traverses depth-first so it clears children before parents.
+        /// Stops at _liveRoot itself (never deletes it).
+        /// </summary>
+        public static void CleanupEmptyTree()
         {
-            _liveRoot = liveRoot ?? throw new ArgumentNullException(nameof(liveRoot));
-            _archiveRoot = archiveRoot ?? throw new ArgumentNullException(nameof(archiveRoot));
+            CleanupEmptyTreeRecursive(new DirectoryInfo(_liveRoot));
+        }
+
+        private static void CleanupEmptyTreeRecursive(DirectoryInfo dir)
+        {
+            foreach (var sub in dir.GetDirectories())
+            {
+                CleanupEmptyTreeRecursive(sub);
+
+                // After cleaning children, check this subdir
+                if (sub.Exists && sub.GetFileSystemInfos().Length == 0)
+                {
+                    try
+                    {
+                        sub.Delete();
+                        FoxLog.WriteLine($"Deleted empty directory: {sub.FullName}");
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.LogException(ex, $"Failed to delete {sub.FullName}");
+                    }
+                }
+            }
         }
 
         /// <summary>
         /// Archive all files in one hour-directory.
         /// </summary>
-        private async Task ArchiveDirectoryAsync(string relativeHourPath)
+        private static async Task ArchiveDirectoryAsync(string relativeHourPath)
         {
             string sourceDir = Path.Combine(_liveRoot, relativeHourPath);
             string targetDir = Path.Combine(_archiveRoot, relativeHourPath);
@@ -39,6 +78,37 @@ namespace makefoxsrv
             if (validFiles.Count == 0)
                 return;
 
+            var cancellationToken = FoxMain.CancellationToken;
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                // Let the user know.
+                if (_telegram is not null && _telegramMessage is not null)
+                {
+                    try
+                    {
+                        var msgStr = $"Archive cancelled. Processed {_currentDirectoryIndex} of {_directoryCount} directories.";
+                        await _telegram.EditMessageAsync(_telegramMessage.ID, msgStr);
+                    }
+                    catch
+                    { /* ignore telegram errors */ }                   
+                }
+
+                FoxLog.WriteLine("Archiver cancelled.");
+
+                throw new OperationCanceledException();
+            }
+
+            if (_telegram is not null && _telegramMessage is not null)
+            {
+                if ((DateTime.UtcNow - _lastStatusUpdate).TotalSeconds >= 2)
+                {
+                    var msgStr = $"Archiving directory {_currentDirectoryIndex + 1} of {_directoryCount}\r\n\r\n{relativeHourPath}\r\n\r\n({validFiles.Count} files)";
+                    await _telegram.EditMessageAsync(_telegramMessage.ID, msgStr);
+                    _lastStatusUpdate = DateTime.UtcNow;
+                }
+            }
+
             try
             {
                 Directory.CreateDirectory(targetDir);
@@ -46,6 +116,9 @@ namespace makefoxsrv
                 // Copy files
                 foreach (var src in validFiles)
                 {
+                    if (cancellationToken.IsCancellationRequested)
+                        throw new OperationCanceledException();
+
                     string dest = Path.Combine(targetDir, Path.GetFileName(src));
                     File.Copy(src, dest, overwrite: true);
                 }
@@ -53,12 +126,15 @@ namespace makefoxsrv
                 // Update DB in batches
                 using (var conn = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
-                    await conn.OpenAsync();
-                    using var tx = await conn.BeginTransactionAsync();
+                    await conn.OpenAsync(cancellationToken);
+                    using var tx = await conn.BeginTransactionAsync(cancellationToken);
 
                     const int batchSize = 500; // tune as needed
                     for (int i = 0; i < validFiles.Count; i += batchSize)
                     {
+                        if (cancellationToken.IsCancellationRequested)
+                            throw new OperationCanceledException();
+
                         var batch = validFiles.Skip(i).Take(batchSize).ToList();
 
                         // build IN clause with parameters
@@ -81,10 +157,10 @@ namespace makefoxsrv
                             WHERE sha1hash IN ({string.Join(",", paramNames)})
                               AND image_file NOT LIKE 'archive/%';";
 
-                        await cmd.ExecuteNonQueryAsync();
+                        await cmd.ExecuteNonQueryAsync(cancellationToken);
                     }
 
-                    await tx.CommitAsync();
+                    await tx.CommitAsync(cancellationToken);
                 }
 
                 // Success: delete originals
@@ -95,66 +171,106 @@ namespace makefoxsrv
             {
                 FoxLog.LogException(ex, $"Archive failed for {sourceDir}");
                 // Rollback archive dir
-                if (Directory.Exists(targetDir))
-                {
-                    try { Directory.Delete(targetDir, recursive: true); }
-                    catch { /* ignore cleanup errors */ }
-                }
+                // actually don't, because we might have partial data
+                //if (Directory.Exists(targetDir))
+                //{
+                //    try {
+                //        Directory.Delete(targetDir, recursive: true);
+                //    }
+                //    catch { /* ignore cleanup errors */ }
+                //}
+                throw;
             }
         }
 
         /// <summary>
         /// Archives all directories older than the cutoff date.
         /// </summary>
-        public async Task ArchiveOlderThanAsync(DateTime cutoff, int maxHours = int.MaxValue)
+        public static async Task ArchiveOlderThanAsync(DateTime cutoff, FoxTelegram? telegram = null, TL.Message? replyToMessage = null, int maxHours = int.MaxValue)
         {
-            var allHourDirs = Directory.GetDirectories(_liveRoot, "*", SearchOption.AllDirectories)
-                .Where(d =>
+            if (!await _archiverSemaphore.WaitAsync(0))
+                throw new InvalidOperationException("Archiver is already running.");
+
+            try
+            {
+                _telegram = telegram;
+
+                if (_telegram is not null)
                 {
-                    // Example: /.../images/output/2025/august/10/05
-                    // parts: [images, output, 2025, august, 10, 05]
-                    var relative = Path.GetRelativePath(_liveRoot, d);
-                    var parts = relative.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+                    _telegramMessage = await _telegram.SendMessageAsync("Starting image archive...", replyToMessage: replyToMessage);
+                }
 
-                    if (parts.Length < 5)
-                        return false; // need at least input/output + YYYY/MMM/DD/HH
+                var allHourDirs = Directory.GetDirectories(_liveRoot, "*", SearchOption.AllDirectories)
+                    .Where(d =>
+                    {
+                        // Example: /.../images/output/2025/august/10/05
+                        // parts: [images, output, 2025, august, 10, 05]
+                        var relative = Path.GetRelativePath(_liveRoot, d);
+                        var parts = relative.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
 
-                    if (!int.TryParse(parts[^4], out int year))
-                        return false;
+                        if (parts.Length < 5)
+                            return false; // need at least input/output + YYYY/MMM/DD/HH
 
-                    var monthName = char.ToUpper(parts[^3][0]) + parts[^3].Substring(1).ToLower();
-                    if (!DateTime.TryParse($"{monthName} 1, {year}",
-                        System.Globalization.CultureInfo.InvariantCulture,
-                        System.Globalization.DateTimeStyles.None,
-                        out DateTime month)
-                    )
-                        return false;
+                        if (!int.TryParse(parts[^4], out int year))
+                            return false;
 
-                    if (!int.TryParse(parts[^2], out int day))
-                        return false;
+                        var monthName = char.ToUpper(parts[^3][0]) + parts[^3].Substring(1).ToLower();
+                        if (!DateTime.TryParse($"{monthName} 1, {year}",
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.None,
+                            out DateTime month)
+                        )
+                            return false;
 
-                    if (!int.TryParse(parts[^1], out int hour))
-                        return false;
+                        if (!int.TryParse(parts[^2], out int day))
+                            return false;
 
+                        if (!int.TryParse(parts[^1], out int hour))
+                            return false;
+
+                        try
+                        {
+                            var dt = new DateTime(year, month.Month, day, hour, 0, 0);
+                            return dt < cutoff;
+                        }
+                        catch { return false; }
+                    })
+                    .OrderBy(d => d) // oldest first
+                    .ToList();
+
+
+                int processed = 0;
+                foreach (var dir in allHourDirs)
+                {
+                    string relative = Path.GetRelativePath(_liveRoot, dir);
+                    await ArchiveDirectoryAsync(relative);
+
+                    processed++;
+                    if (processed >= maxHours)
+                        break;
+                }
+
+                if (_telegram is not null && _telegramMessage is not null)
+                {
                     try
                     {
-                        var dt = new DateTime(year, month.Month, day, hour, 0, 0);
-                        return dt < cutoff;
+                        var msgStr = $"Archive complete. Processed {processed} directories.";
+                        await _telegram.EditMessageAsync(_telegramMessage.ID, msgStr);
                     }
-                    catch { return false; }
-                })
-                .OrderBy(d => d) // oldest first
-                .ToList();
+                    catch
+                    { /* ignore telegram errors */ }
+                }
 
-            int processed = 0;
-            foreach (var dir in allHourDirs)
+                CleanupEmptyTree();
+            }
+            finally
             {
-                string relative = Path.GetRelativePath(_liveRoot, dir);
-                await ArchiveDirectoryAsync(relative);
-
-                processed++;
-                if (processed >= maxHours)
-                    break;
+                _archiverSemaphore.Release();
+                _telegram = null;
+                _telegramMessage = null;
+                _directoryCount = 0;
+                _currentDirectoryIndex = 0;
+                _lastStatusUpdate = DateTime.MinValue;
             }
         }
     }
