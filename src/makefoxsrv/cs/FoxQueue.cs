@@ -1654,7 +1654,7 @@ namespace makefoxsrv
                 tgInfo.TelegramMessageID = this.ReplyMessageID;
             }
 
-            var outputImage = await FoxImage.Create(this.User.UID, img, FoxImage.ImageType.OUTPUT, finalFileName, tgInfo);
+            var outputImage = await FoxImage.Create(img, FoxImage.ImageType.OUTPUT, finalFileName, this.User.UID, tgInfo);
 
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
 

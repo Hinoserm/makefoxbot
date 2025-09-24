@@ -308,11 +308,17 @@ namespace makefoxsrv
                 return;
             }
 
+
+            FoxLog.WriteLine("Initializing safety rules...");
             await FoxContentFilter.LoadRulesAsync();
 
+            FoxLog.WriteLine("Initializing LORA cache...");
             await FoxCivitai.InitializeCacheAsync();
 
+            FoxLog.WriteLine("Loading LORA metadata...");
             await FoxLORAs.StartupLoad();
+
+            _ = FoxLORAs.ConvertLoraImagesAsync();
 
             Console.CancelKeyPress += (sender, e) =>
             {

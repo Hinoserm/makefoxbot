@@ -50,7 +50,7 @@ namespace makefoxsrv
                 return;
             }
 
-            var imageLoadSemaphore = new SemaphoreSlim(25);
+            var imageLoadSemaphore = new SemaphoreSlim(5);
             var imageLoadTasks = new List<Task>();
 
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
@@ -80,10 +80,9 @@ namespace makefoxsrv
                             : reader.GetString("trigger_words").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
                     };
 
-                    await imageLoadSemaphore.WaitAsync();
-
                     var imageTask = Task.Run(async () =>
                     {
+                        await imageLoadSemaphore.WaitAsync();
                         try
                         {
                             await LoadLoraImageUrlsFromDB(lora);
@@ -381,7 +380,7 @@ namespace makefoxsrv
             {
                 using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
                 await conn.OpenAsync();
-
+                
                 using var cmd = new MySqlCommand("SELECT image_url FROM lora_image_urls WHERE lora_hash = @hash", conn);
                 cmd.Parameters.AddWithValue("@hash", lora.Hash);
 
@@ -411,7 +410,7 @@ namespace makefoxsrv
                 await conn.OpenAsync(cancellationToken);
 
                 using var cmd = new MySqlCommand(
-                    "SELECT id, image_url FROM lora_image_urls WHERE image IS NULL", conn);
+                    "SELECT id, image_url FROM lora_image_urls WHERE image IS NULL AND image_id is null", conn);
 
                 using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
                 while (await reader.ReadAsync(cancellationToken))
@@ -455,7 +454,7 @@ namespace makefoxsrv
                         if (!validExtensions.Contains(extension))
                         {
                             Interlocked.Increment(ref failureCount);
-                            FoxLog.WriteLine($"[LORA] Skipping non-image URL: {url}");
+                            FoxLog.WriteLine($"[LORA] Skipping non-image URL: {url}", LogLevel.DEBUG);
                             return;
                         }
 
@@ -473,10 +472,12 @@ namespace makefoxsrv
                         using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
                         await conn.OpenAsync(cancellationToken);
 
-                        using var cmd = new MySqlCommand("UPDATE lora_image_urls SET image = @image WHERE id = @id", conn);
+                        var img = await FoxImage.Create(imageData, FoxImage.ImageType.LORA, $"{id}{extension}");
+
+                        using var cmd = new MySqlCommand("UPDATE lora_image_urls SET image_id = @imgid WHERE id = @id", conn);
 
                         cmd.Parameters.AddWithValue("@id", id);
-                        cmd.Parameters.Add("@image", MySqlDbType.LongBlob).Value = imageData;
+                        cmd.Parameters.AddWithValue("@imgid", img.ID);
 
                         await cmd.ExecuteNonQueryAsync(cancellationToken);
                         Interlocked.Increment(ref successCount);
@@ -673,5 +674,58 @@ namespace makefoxsrv
                 ? list
                 : Array.Empty<LoraInfo>();
         }
+
+        public static async Task ConvertLoraImagesAsync()
+        {
+            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
+            const string selectSql = @"
+                SELECT id, image_url, image 
+                FROM lora_image_urls 
+                WHERE image IS NOT NULL AND OCTET_LENGTH(image) > 0";
+
+            using var selectCmd = new MySqlCommand(selectSql, conn);
+            using var reader = await selectCmd.ExecuteReaderAsync();
+
+            int count = 0;
+
+            while (await reader.ReadAsync())
+            {
+                long id = reader.GetInt64("id");
+                string url = reader.GetString("image_url");
+                byte[] imageData = (byte[])reader["image"];
+
+                string ext = Path.GetExtension(url).TrimStart('.').ToLowerInvariant();
+                if (string.IsNullOrWhiteSpace(ext)) ext = "png";
+                string filename = $"{id}.{ext}";
+
+                try
+                {
+                    var newImg = await FoxImage.Create(imageData, FoxImage.ImageType.LORA, filename);
+
+                    // Clear blob after successful conversion
+                    using var clearConn = new MySqlConnection(FoxMain.sqlConnectionString);
+                    await clearConn.OpenAsync();
+
+                    using var updateCmd = new MySqlCommand(
+                        "UPDATE lora_image_urls SET image_id = @imgid WHERE id = @id", 
+                        clearConn
+                    );
+                    updateCmd.Parameters.AddWithValue("@id", id);
+                    updateCmd.Parameters.AddWithValue("@imgid", newImg.ID);
+                    await updateCmd.ExecuteNonQueryAsync();
+
+                    count++;
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.WriteLine($"[LORA] Failed to process image ID {id}: {ex.Message}");
+                }
+            }
+
+            FoxLog.WriteLine($"[LORA] Converted {count} LORA images to FoxImage storage");
+        }
+
     }
 }

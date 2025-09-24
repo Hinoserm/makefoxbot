@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using TL;
 
 namespace makefoxsrv
 {
@@ -103,8 +104,20 @@ namespace makefoxsrv
             {
                 if ((DateTime.UtcNow - _lastStatusUpdate).TotalSeconds >= 10)
                 {
-                    var msgStr = $"Archiving directory {_currentDirectoryIndex + 1} of {_directoryCount}\r\n\r\n{relativeHourPath}\r\n\r\n({validFiles.Count} files)";
-                    await _telegram.EditMessageAsync(_telegramMessage.ID, msgStr);
+                    try
+                    {
+                        var msgStr = $"Archiving directory {_currentDirectoryIndex + 1} of {_directoryCount}\r\n\r\n{relativeHourPath}\r\n\r\n({validFiles.Count} files)";
+                        await _telegram.EditMessageAsync(_telegramMessage.ID, msgStr);
+
+                    }
+                    catch (RpcException rex) when (rex.Code == 420)
+                    {
+                        // Ignore X_FLOOD_WAIT errors.
+                    }
+                    catch (WTelegram.WTException tex) when (tex.Message == "X_FLOOD_WAIT")
+                    {
+                        // Ignore X_FLOOD_WAIT errors.
+                    }
                     _lastStatusUpdate = DateTime.UtcNow;
                 }
             }
@@ -210,6 +223,9 @@ namespace makefoxsrv
 
                         if (parts.Length < 5)
                             return false; // need at least input/output + YYYY/MMM/DD/HH
+
+                        if (parts[^5] != "input" && parts[^5] != "output")
+                            return false;
 
                         if (!int.TryParse(parts[^4], out int year))
                             return false;

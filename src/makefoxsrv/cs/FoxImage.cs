@@ -15,6 +15,7 @@ namespace makefoxsrv
         {
             INPUT,
             OUTPUT,
+            LORA,
             OTHER,
             UNKNOWN
         }
@@ -27,7 +28,6 @@ namespace makefoxsrv
             return _cache.Count;
         }
 
-
         [DbColumn("type")]
         public ImageType Type = ImageType.UNKNOWN;
 
@@ -35,7 +35,7 @@ namespace makefoxsrv
         public ulong ID { get; private set; }
 
         [DbColumn("user_id")]
-        public ulong UserID;
+        public ulong? UserID;
 
         [DbColumn("sha1hash")]
         public string? _sha1Hash = null;
@@ -406,7 +406,7 @@ namespace makefoxsrv
             return Math.Min(roundedValue, limit);
         }
 
-        public static async Task<FoxImage> Create(ulong user_id, byte[] image, ImageType type, string? filename = null, TgInfo? tgInfo = null)
+        public static async Task<FoxImage> Create(byte[] image, ImageType type, string? filename = null, ulong? user_id = null, TgInfo? tgInfo = null)
         {
             var img = new FoxImage();
 
@@ -568,7 +568,7 @@ namespace makefoxsrv
                 fileName = $"{photo.id}.{fileType}";
 
             var tgInfo = new FoxImage.TgInfo(t, message);
-            var newImg = await FoxImage.Create(user.UID, memoryStream.ToArray(), FoxImage.ImageType.INPUT, fileName, tgInfo);
+            var newImg = await FoxImage.Create(memoryStream.ToArray(), FoxImage.ImageType.INPUT, fileName, user.UID, tgInfo);
 
             return newImg;
         }
