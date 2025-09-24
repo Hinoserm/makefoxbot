@@ -581,7 +581,7 @@ namespace makefoxsrv
 
                 foreach (var el in doc.RootElement.EnumerateArray())
                 {
-                    if (el.TryGetProperty("Name", out var nameProp))
+                    if (el.TryGetProperty("name", out var nameProp))
                     {
                         var name = nameProp.GetString();
                         if (!string.IsNullOrEmpty(name))
