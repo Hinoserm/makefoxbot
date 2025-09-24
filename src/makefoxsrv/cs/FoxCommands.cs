@@ -1403,8 +1403,7 @@ namespace makefoxsrv
             sb.AppendLine(await FoxMessages.BuildUserInfoString(selectedUser));
 
 
-            long imageCount = 0;
-            long imageBytes = 0;
+            (ulong imageCount, ulong imageBytes) = await FoxImage.GetImageStatsAsync();
             long userCount = 0;
             DateOnly oldestImage = DateOnly.FromDateTime(DateTime.Now);
 
@@ -1419,18 +1418,6 @@ namespace makefoxsrv
                     await connection.OpenAsync();
 
                     MySqlCommand sqlcmd;
-
-                    sqlcmd = new MySqlCommand("SELECT COUNT(id) as image_count, MIN(date_added) as oldest_image, SUM(filesize) AS image_bytes FROM images WHERE type = 'OUTPUT'", connection);
-
-                    using (var reader = await sqlcmd.ExecuteReaderAsync())
-                    {
-                        if (await reader.ReadAsync())
-                        {
-                            imageCount = reader.IsDBNull(reader.GetOrdinal("image_count")) ? 0 : reader.GetInt64("image_count");
-                            imageBytes = reader.IsDBNull(reader.GetOrdinal("image_bytes")) ? 0 : reader.GetInt64("image_bytes");
-                            oldestImage = reader.IsDBNull(reader.GetOrdinal("oldest_image")) ? oldestImage : reader.GetDateOnly("oldest_image");
-                        }
-                    }
 
                     sqlcmd = new MySqlCommand("SELECT COUNT(id) as user_count FROM users", connection);
 

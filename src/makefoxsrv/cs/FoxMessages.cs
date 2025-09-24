@@ -152,8 +152,8 @@ namespace makefoxsrv
                 sb.AppendLine($"Username: {user.Username}");
             sb.AppendLine($"Access Level: {user.GetAccessLevel()}");
 
-            long imageCount = 0;
-            long imageBytes = 0;
+            ulong imageCount = 0;
+            ulong imageBytes = 0;
             decimal totalPaid = 0m;
 
             using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
@@ -169,8 +169,8 @@ namespace makefoxsrv
                 {
                     if (await reader.ReadAsync())
                     {
-                        imageCount = reader.IsDBNull(reader.GetOrdinal("image_count")) ? 0 : reader.GetInt64("image_count");
-                        imageBytes = reader.IsDBNull(reader.GetOrdinal("image_bytes")) ? 0 : reader.GetInt64("image_bytes");
+                        imageCount = reader.IsDBNull(reader.GetOrdinal("image_count")) ? 0 : reader.GetUInt64("image_count");
+                        imageBytes = reader.IsDBNull(reader.GetOrdinal("image_bytes")) ? 0 : reader.GetUInt64("image_bytes");
                     }
                 }
 
@@ -199,7 +199,7 @@ namespace makefoxsrv
             return sb.ToString();
         }
 
-        public static string FormatBytes(long bytes)
+        public static string FormatBytes(ulong bytes)
         {
             const long KiloByte = 1024;
             const long MegaByte = KiloByte * 1024;

@@ -28,6 +28,9 @@ namespace makefoxsrv
 {
     public class FoxUser
     {
+        private static readonly ConcurrentDictionary<ulong, SemaphoreSlim> _cacheLocks = new();
+        private static FoxCache<FoxUser> _userCacheByUID = new(TimeSpan.FromHours(24));
+
         public ulong UID;
         public string? Username;
         public long? TelegramID;
@@ -46,8 +49,6 @@ namespace makefoxsrv
                 TelegramID = value.User.ID;
             }
         }
-
-        private static FoxCache<FoxUser> _userCacheByUID = new(TimeSpan.FromHours(24));
 
         // Alias dictionary, thread-safe, just maps Telegram IDs to UIDs
         private static readonly ConcurrentDictionary<long, ulong> _telegramToUid = new ConcurrentDictionary<long, ulong>();
@@ -311,41 +312,62 @@ namespace makefoxsrv
 
                 return user;
             }
-            
+
+            var sem = _cacheLocks.GetOrAdd(uid, _ => new SemaphoreSlim(1, 1));
+            await sem.WaitAsync();
+
             try
             {
-                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                user = _userCacheByUID.Get(uid);
+
+                if (user is not null)
                 {
-                    await SQL.OpenAsync();
+                    user.lastAccessed = DateTime.Now;
 
-                    using (var cmd = new MySqlCommand("SELECT * FROM users WHERE id = @id", SQL))
+                    return user;
+                }
+
+                try
+                {
+                    using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                     {
-                        cmd.Parameters.AddWithValue("@id", uid);
+                        await SQL.OpenAsync();
 
-                        using (var r = await cmd.ExecuteReaderAsync())
+                        using (var cmd = new MySqlCommand("SELECT * FROM users WHERE id = @id", SQL))
                         {
-                            if (await r.ReadAsync())
+                            cmd.Parameters.AddWithValue("@id", uid);
+
+                            using (var r = await cmd.ExecuteReaderAsync())
                             {
-                                user = CreateFromRow(r);
+                                if (await r.ReadAsync())
+                                {
+                                    user = CreateFromRow(r);
+                                }
                             }
                         }
                     }
                 }
-            }
-            catch
-            {
-                // In case of any error, return null.
-                return null;
-            }
+                catch
+                {
+                    // In case of any error, return null.
+                    return null;
+                }
 
-            if (user is not null)
-            {
-                _userCacheByUID.Put((ulong)uid, user);
-                if (user.TelegramID is not null && user.TelegramID != 0)
-                    _telegramToUid[user.TelegramID.Value] = user.UID;
-            }
+                if (user is not null)
+                {
+                    _userCacheByUID.Put((ulong)uid, user);
+                    if (user.TelegramID is not null && user.TelegramID != 0)
+                        _telegramToUid[user.TelegramID.Value] = user.UID;
+                }
 
-            return user;
+                return user;
+            }
+            finally
+            {
+                sem.Release();
+                if (sem.CurrentCount == 1)
+                    _cacheLocks.TryRemove(uid, out _);
+            }
         }
 
         public async Task SetUsername(string? newUsername)

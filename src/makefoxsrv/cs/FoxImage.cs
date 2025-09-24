@@ -1,26 +1,11 @@
 ﻿using MySqlConnector;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Security.Cryptography;
-using System.Threading.Tasks;
-using System.Runtime.CompilerServices;
-using SixLabors.ImageSharp.Memory;
-using WTelegram;
-using makefoxsrv;
-using TL;
-using System.IO;
-using System.Globalization;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using System.Linq.Expressions;
-using SixLabors.Fonts.Unicode;
-using EmbedIO.Utilities;
-using System.Security.Policy;
 using SixLabors.ImageSharp.PixelFormats;
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Caching.Memory;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using TL;
 
 namespace makefoxsrv
 {
@@ -41,6 +26,7 @@ namespace makefoxsrv
         {
             return _cache.Count;
         }
+
 
         [DbColumn("type")]
         public ImageType Type = ImageType.UNKNOWN;
@@ -85,6 +71,35 @@ namespace makefoxsrv
         private Dictionary<string, float>? _imageTags = null;
 
         private readonly object _lock = new();
+
+
+        // Cache these so we don't have to keep hitting the db.
+        private static ulong? _totalImageCount = null;
+        private static ulong? _totalImageSize = null;
+
+        public static async Task<(ulong totalImages, ulong imageSizeMB)> GetImageStatsAsync()
+        {
+            if (_totalImageCount.HasValue && _totalImageSize.HasValue)
+                return (_totalImageCount.Value, _totalImageSize.Value);
+
+            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+            await SQL.OpenAsync();
+            using (var cmd = new MySqlCommand("SELECT COUNT(id) AS total_images, SUM(filesize) AS total_size FROM images", SQL))
+            {
+                using var reader = await cmd.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    _totalImageCount = Convert.ToUInt64(reader["total_images"]);
+                    _totalImageSize = Convert.ToUInt64(reader["total_size"]);
+                }
+                else
+                {
+                    _totalImageCount = 0;
+                    _totalImageSize = 0;
+                }
+            }
+            return (_totalImageCount.Value, _totalImageSize.Value);
+        }
 
         public class TgInfo
         {
@@ -405,6 +420,10 @@ namespace makefoxsrv
             img._telegramInfo = tgInfo;
 
             await img.Save();
+
+            // update global stats
+            _totalImageCount++;
+            _totalImageSize += (ulong)(image.Length);
 
             // seed the cache so future Load() calls reuse this object
             _cache.Put(img.ID, img);
