@@ -101,7 +101,7 @@ namespace makefoxsrv
 
             if (_telegram is not null && _telegramMessage is not null)
             {
-                if ((DateTime.UtcNow - _lastStatusUpdate).TotalSeconds >= 2)
+                if ((DateTime.UtcNow - _lastStatusUpdate).TotalSeconds >= 10)
                 {
                     var msgStr = $"Archiving directory {_currentDirectoryIndex + 1} of {_directoryCount}\r\n\r\n{relativeHourPath}\r\n\r\n({validFiles.Count} files)";
                     await _telegram.EditMessageAsync(_telegramMessage.ID, msgStr);
