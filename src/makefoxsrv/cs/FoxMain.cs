@@ -308,13 +308,6 @@ namespace makefoxsrv
                 return;
             }
 
-
-            FoxLog.WriteLine("Initializing safety rules...");
-            await FoxContentFilter.LoadRulesAsync();
-
-            FoxLog.WriteLine("Initializing LORA cache...");
-            await FoxCivitai.InitializeCacheAsync();
-
             Console.CancelKeyPress += (sender, e) =>
             {
                 Console.CancelKeyPress += (sender, e) =>
@@ -361,14 +354,19 @@ namespace makefoxsrv
             {
                 //Load workers BEFORE processing input from telegram.
                 //This is important in order to handle queued messages properly, otherwise users will be told the workers are offline.
-                var foxLoadTask = FoxWorker.LoadWorkers(cts.Token);
-                var foxTaggerTask = Task.Run(() => FoxONNXImageTagger.Start());
-                var webServerTask = Task.Run(() => FoxWeb.StartWebServer(cancellationToken: cts.Token));
-                var loadLoras = FoxLORAs.StartupLoad();
-                var connectTelegram = FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
 
-                await Task.WhenAll(foxLoadTask, foxTaggerTask, webServerTask, loadLoras, connectTelegram);
+                var startupTasks = new List<Task>();
 
+                startupTasks.Add(FoxWorker.LoadWorkers(cts.Token));
+                startupTasks.Add(Task.Run(() => FoxONNXImageTagger.Start()));
+                startupTasks.Add(Task.Run(() => FoxWeb.StartWebServer(cancellationToken: cts.Token)));
+                startupTasks.Add(FoxLORAs.StartupLoad());
+                startupTasks.Add(FoxCivitai.InitializeCacheAsync());
+                startupTasks.Add(FoxContentFilter.LoadRulesAsync());
+
+                await Task.WhenAll(startupTasks);
+
+                await FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
 
                 FoxWorker.StartWorkers();
 

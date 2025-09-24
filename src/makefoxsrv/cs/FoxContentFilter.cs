@@ -192,7 +192,7 @@ namespace makefoxsrv
             if (!string.IsNullOrEmpty(rule.NegativePrompt))
             {
                 string regexPattern = ConvertExpressionToRegex(rule.NegativePrompt);
-                Console.WriteLine($"Compiled negative pattern for rule {rule.Id}: {regexPattern}");
+                //Console.WriteLine($"Compiled negative pattern for rule {rule.Id}: {regexPattern}");
                 rule.CompiledNegativePromptRegex = new Regex(regexPattern,
                     RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
             }
@@ -205,7 +205,7 @@ namespace makefoxsrv
         {
             // Normalize the expression before parsing
             expression = expression.Trim();
-            Console.WriteLine($"Converting expression to regex: {expression}");
+            //Console.WriteLine($"Converting expression to regex: {expression}");
 
             try
             {
@@ -215,7 +215,7 @@ namespace makefoxsrv
                 // If we have multiple OR parts at the top level
                 if (orParts.Count > 1)
                 {
-                    Console.WriteLine($"Found top-level OR expression with {orParts.Count} parts: {string.Join(" | ", orParts)}");
+                    //Console.WriteLine($"Found top-level OR expression with {orParts.Count} parts: {string.Join(" | ", orParts)}");
 
                     // Process each OR part and combine with OR semantics
                     StringBuilder orBuilder = new StringBuilder();
@@ -237,7 +237,7 @@ namespace makefoxsrv
                     orBuilder.Append(")");
 
                     string regexPattern = orBuilder.ToString();
-                    Console.WriteLine($"Final regex pattern (OR): {regexPattern}");
+                    //Console.WriteLine($"Final regex pattern (OR): {regexPattern}");
                     return regexPattern;
                 }
                 else
@@ -248,7 +248,7 @@ namespace makefoxsrv
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error compiling rule expression: {expression}. Error: {ex.Message}");
+                //Console.WriteLine($"Error compiling rule expression: {expression}. Error: {ex.Message}");
                 // Return a regex that will never match if compilation fails
                 return "(?!.*)";
             }
@@ -263,7 +263,7 @@ namespace makefoxsrv
             List<string> andParts = SplitByTopLevelOperator(expression, '&');
             StringBuilder regexBuilder = new StringBuilder();
 
-            Console.WriteLine($"Split into {andParts.Count} AND parts: {string.Join(", ", andParts)}");
+            //Console.WriteLine($"Split into {andParts.Count} AND parts: {string.Join(", ", andParts)}");
 
             // Process each part separately and combine with AND semantics (all must match)
             foreach (string part in andParts)
@@ -272,11 +272,11 @@ namespace makefoxsrv
                 string trimmedPart = part.Trim();
                 string partRegex = ProcessExpression(trimmedPart);
                 regexBuilder.Append(partRegex);
-                Console.WriteLine($"Added AND part: {trimmedPart} -> {partRegex}");
+                //Console.WriteLine($"Added AND part: {trimmedPart} -> {partRegex}");
             }
 
             string regexPattern = regexBuilder.ToString();
-            Console.WriteLine($"Combined AND parts: {regexPattern}");
+            //Console.WriteLine($"Combined AND parts: {regexPattern}");
             return regexPattern;
         }
 
@@ -326,7 +326,7 @@ namespace makefoxsrv
         /// </summary>
         private static string ProcessExpression(string expression)
         {
-            Console.WriteLine($"Processing expression part: {expression}");
+            //Console.WriteLine($"Processing expression part: {expression}");
 
             // Strip outer parentheses if present
             if (expression.StartsWith("(") && expression.EndsWith(")"))
@@ -338,7 +338,7 @@ namespace makefoxsrv
                 {
                     // Split by '|' at top level
                     List<string> orParts = SplitByTopLevelOperator(inner, '|');
-                    Console.WriteLine($"Split into {orParts.Count} OR parts: {string.Join(", ", orParts)}");
+                    //Console.WriteLine($"Split into {orParts.Count} OR parts: {string.Join(", ", orParts)}");
 
                     List<string> positiveTerms = new List<string>();
                     List<string> negativeTerms = new List<string>();
@@ -351,13 +351,13 @@ namespace makefoxsrv
                             // Collect negative tokens (tokens that must NOT appear)
                             string term = trimmed.Substring(1).Trim();
                             negativeTerms.Add(term);
-                            Console.WriteLine($"Collected negated term: {term}");
+                            //Console.WriteLine($"Collected negated term: {term}");
                         }
                         else
                         {
                             // Collect positive tokens (tokens that must appear)
                             positiveTerms.Add(trimmed);
-                            Console.WriteLine($"Collected positive term: {trimmed}");
+                            //Console.WriteLine($"Collected positive term: {trimmed}");
                         }
                     }
 
@@ -379,14 +379,14 @@ namespace makefoxsrv
                     // Handle simple negation within parentheses
                     string term = inner.Substring(1).Trim();
                     string negatedRegex = $"(?!.*\\b{Regex.Escape(term)}\\b)";
-                    Console.WriteLine($"Processed negation: {inner} -> {negatedRegex}");
+                    //Console.WriteLine($"Processed negation: {inner} -> {negatedRegex}");
                     return negatedRegex;
                 }
                 else
                 {
                     // Handle simple positive term within parentheses
                     string positiveRegex = $"(?=.*\\b{Regex.Escape(inner)}\\b)";
-                    Console.WriteLine($"Processed parenthesized term: {inner} -> {positiveRegex}");
+                    //Console.WriteLine($"Processed parenthesized term: {inner} -> {positiveRegex}");
                     return positiveRegex;
                 }
             }
@@ -395,14 +395,14 @@ namespace makefoxsrv
                 // Handle simple negation outside of parentheses
                 string term = expression.Substring(1).Trim();
                 string negatedRegex = $"(?!.*\\b{Regex.Escape(term)}\\b)";
-                Console.WriteLine($"Processed negation: {expression} -> {negatedRegex}");
+                //Console.WriteLine($"Processed negation: {expression} -> {negatedRegex}");
                 return negatedRegex;
             }
             else
             {
                 // Handle simple term outside of parentheses
                 string positiveRegex = $"(?=.*\\b{Regex.Escape(expression)}\\b)";
-                Console.WriteLine($"Processed term: {expression} -> {positiveRegex}");
+                //Console.WriteLine($"Processed term: {expression} -> {positiveRegex}");
                 return positiveRegex;
             }
         }
@@ -639,10 +639,7 @@ namespace makefoxsrv
                 }
 
                 if (violations.Count == 0)
-                {
-                    Console.WriteLine("No pending violations found.");
                     return;
-                }
 
                 // Group violations by uid and send notifications to moderation group.
                 var grouped = violations.GroupBy(v => v.Uid);
