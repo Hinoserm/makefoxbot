@@ -779,7 +779,7 @@ namespace makefoxsrv
                         tags[tag] = prob;
                     }
 
-                    FoxLog.WriteLine($"{this.ID}: {this.GetHashCode()}: Loaded {tags.Count} tags for image");
+                    FoxLog.WriteLine($"{this.ID}: {this.GetHashCode()}: Loaded {tags.Count} tags for image", LogLevel.DEBUG);
                 }
                 catch (Exception ex)
                 {
@@ -813,7 +813,7 @@ namespace makefoxsrv
             if (_imageTags is null || _imageTags.Count == 0)
                 return; // nothing to save
 
-            FoxLog.WriteLine($"{this.ID}: {this.GetHashCode()}: Saving {_imageTags.Count} tags for image");
+            FoxLog.WriteLine($"{this.ID}: {this.GetHashCode()}: Saving {_imageTags.Count} tags for image", LogLevel.DEBUG);
 
             const int maxRetries = 10;
 
