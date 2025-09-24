@@ -399,6 +399,9 @@ namespace makefoxsrv
 
             switch (command.ToLower())
             {
+                case "#archive":
+                    await FoxAdmin.HandleRunArchiver(t, message, commandArgs);
+                    break;
                 case "#queue":
                     await FoxAdmin.HandleQueueStatus(t, message, commandArgs);
                     break;
@@ -408,11 +411,9 @@ namespace makefoxsrv
                 case "#uncache":
                     await FoxAdmin.HandleUncache(t, message, commandArgs);
                     break;
-
                 case "#ban":
                     await FoxAdmin.HandleBan(t, message, commandArgs);
                     break;
-
                 case "#unban":
                     await FoxAdmin.HandleUnban(t, message, commandArgs);
                     break;
