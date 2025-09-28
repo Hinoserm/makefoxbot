@@ -16,13 +16,16 @@ namespace makefoxsrv
     {
         private static readonly List<ONNXSession> _sessions = new();
         private static int _roundRobinIndex = -1;
+        private static int _gpuCount = 0;
 
         public static void Initialize(string modelPath = "../models/realesrgan-x2plus.onnx")
         {
+            var gpuList = FoxNVMLWrapper.GetAllDevices();
+            _gpuCount = gpuList.Count();
 
             return; // Do nothing for now
 
-            var gpuList = FoxNVMLWrapper.GetAllDevices();
+            //var gpuList = FoxNVMLWrapper.GetAllDevices();
             FoxLog.WriteLine($"Initializing ONNX model on {gpuList.Count()} GPU(s)...");
 
             var workingSessions = new ConcurrentBag<ONNXSession>();
@@ -83,24 +86,42 @@ namespace makefoxsrv
             return _sessions[index % _sessions.Count].Session;
         }
 
+        static int sessionGpuId = 0;
+
         public static Image<Rgba32> Upscale(Image<Rgba32> input)
         {
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                if (++sessionGpuId >= _gpuCount)
+                    sessionGpuId = 0;
 
-            var options = new SessionOptions();
-            options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-            options.AppendExecutionProvider_CUDA();
-            options.AppendExecutionProvider_CPU();
+                try
+                {
 
-            using var session = new InferenceSession("../models/realesrgan-x2plus.onnx", options);
+                    var options = new SessionOptions();
+                    options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+                    options.AppendExecutionProvider_CUDA(sessionGpuId);
+                    options.AppendExecutionProvider_CPU();
 
-            var inputTensor = ConvertImageToTensor(input);
+                    using var session = new InferenceSession("../models/realesrgan-x2plus.onnx", options);
 
-            var inputName = session.InputMetadata.Keys.First();
-            var inputs = new[] { NamedOnnxValue.CreateFromTensor<float>(inputName, inputTensor) };
-            using var results = session.Run(inputs);
+                    var inputTensor = ConvertImageToTensor(input);
 
-            var outputTensor = (DenseTensor<float>)results.First().Value;
-            return ConvertTensorToImage(outputTensor);
+                    var inputName = session.InputMetadata.Keys.First();
+                    var inputs = new[] { NamedOnnxValue.CreateFromTensor<float>(inputName, inputTensor) };
+                    using var results = session.Run(inputs);
+
+                    var outputTensor = (DenseTensor<float>)results.First().Value;
+
+                    return ConvertTensorToImage(outputTensor);
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.LogException(ex, "ONNX Upscale failed: " + ex.Message);
+                }
+            }
+
+            throw new Exception("Upscale failed after 3 attempts.");
         }
 
         private static Tensor<float> ConvertImageToTensor(Image<Rgba32> image)
