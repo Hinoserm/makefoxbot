@@ -19,6 +19,9 @@ namespace makefoxsrv
 
         public static void Initialize(string modelPath = "../models/realesrgan-x2plus.onnx")
         {
+
+            return; // Do nothing for now
+
             var gpuList = FoxNVMLWrapper.GetAllDevices();
             FoxLog.WriteLine($"Initializing ONNX model on {gpuList.Count()} GPU(s)...");
 
@@ -37,7 +40,7 @@ namespace makefoxsrv
                     options.AppendExecutionProvider_CUDA((int)gpu.Index);
                     options.AppendExecutionProvider_CPU();
 
-                    var session = new InferenceSession(modelPath, options);
+                    var session = new InferenceSession("modelPath", options);
                     var onnxSession = new ONNXSession(session, gpu);
 
                     workingSessions.Add(onnxSession);
@@ -82,7 +85,13 @@ namespace makefoxsrv
 
         public static Image<Rgba32> Upscale(Image<Rgba32> input)
         {
-            var session = GetNextSession();
+
+            var options = new SessionOptions();
+            options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+            options.AppendExecutionProvider_CUDA();
+            options.AppendExecutionProvider_CPU();
+
+            var session = new InferenceSession("../models/realesrgan-x2plus.onnx", options);
 
             var inputTensor = ConvertImageToTensor(input);
 
