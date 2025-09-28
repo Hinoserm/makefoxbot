@@ -14,102 +14,64 @@ namespace makefoxsrv
 {
     public static class FoxONNXImageUpscaler
     {
-        private static readonly List<ONNXSession> _sessions = new();
-        private static int _roundRobinIndex = -1;
-        private static int _gpuCount = 0;
+        //private static readonly List<ONNXSession> _sessions = new();
+        private static InferenceSession? _session = null;
+        //private static int _roundRobinIndex = -1;
+        //private static int _gpuCount = 0;
 
         public static void Initialize(string modelPath = "../models/realesrgan-x2plus.onnx")
         {
-            var gpuList = FoxNVMLWrapper.GetAllDevices();
-            _gpuCount = gpuList.Count();
 
-            return; // Do nothing for now
-
-            //var gpuList = FoxNVMLWrapper.GetAllDevices();
-            FoxLog.WriteLine($"Initializing ONNX model on {gpuList.Count()} GPU(s)...");
+            FoxLog.WriteLine($"Initializing ONNX model {modelPath}...");
 
             var workingSessions = new ConcurrentBag<ONNXSession>();
 
-            Parallel.ForEach(gpuList, gpu =>
+            try
             {
-                try
-                {
-                    var gpuName = gpu.Name;
+                var options = new SessionOptions();
+                options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+                //options.AppendExecutionProvider_CUDA((int)gpu.Index);
+                options.AppendExecutionProvider_CPU();
 
-                    FoxLog.WriteLine($"Initializing ONNX session on GPU {gpu.Index}: {gpuName}");
-
-                    var options = new SessionOptions();
-                    options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-                    options.AppendExecutionProvider_CUDA((int)gpu.Index);
-                    options.AppendExecutionProvider_CPU();
-
-                    var session = new InferenceSession("modelPath", options);
-                    var onnxSession = new ONNXSession(session, gpu);
-
-                    workingSessions.Add(onnxSession);
-                }
-                catch (Exception ex)
-                {
-                    FoxLog.LogException(ex, $"Failed to init ONNX session on GPU {gpu.Index}: {ex.Message}");
-                }
-            });
-
-            if (workingSessions.Count == 0)
-            {
-                FoxLog.WriteLine("No usable GPU sessions. Falling back to CPU-only inference.");
-
-                try
-                {
-                    var options = new SessionOptions();
-                    options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-                    options.AppendExecutionProvider_CPU();
-
-                    var cpuSession = new ONNXSession(new InferenceSession(modelPath, options), null);
-                    workingSessions.Add(cpuSession);
-                }
-                catch (Exception ex)
-                {
-                    FoxLog.LogException(ex, $"Failed to init CPU-only ONNX session: {ex.Message}");
-                    throw;
-                }
+                _session = new InferenceSession(modelPath, options);
             }
-
-            _sessions.Clear();
-            _sessions.AddRange(workingSessions);
-
-            FoxLog.WriteLine($"ONNX model loaded on {_sessions.Count} device(s): {modelPath}");
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex, $"Failed to init ONNX session: {ex.Message}");
+            }
         }
 
-        private static InferenceSession GetNextSession()
-        {
-            var index = Interlocked.Increment(ref _roundRobinIndex);
-            return _sessions[index % _sessions.Count].Session;
-        }
+        //private static InferenceSession GetNextSession()
+        //{
+        //    var index = Interlocked.Increment(ref _roundRobinIndex);
+        //    return _sessions[index % _sessions.Count].Session;
+        //}
 
-        static int sessionGpuId = 0;
+        //private static int _sessionGpuId = 0;
+        //private static Semaphore _sesSemaphore = new(1, 1);
 
         public static Image<Rgba32> Upscale(Image<Rgba32> input)
         {
             for (int attempt = 0; attempt < 3; attempt++)
             {
-                if (++sessionGpuId >= _gpuCount)
-                    sessionGpuId = 0;
+                //if (++_sessionGpuId >= _gpuCount)
+                //    _sessionGpuId = 0;
 
+                //_sesSemaphore.WaitOne();
                 try
                 {
+                    //var options = new SessionOptions();
+                    //options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
+                    ////options.AppendExecutionProvider_CUDA(_sessionGpuId);
+                    //options.AppendExecutionProvider_CPU();
 
-                    var options = new SessionOptions();
-                    options.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
-                    options.AppendExecutionProvider_CUDA(sessionGpuId);
-                    options.AppendExecutionProvider_CPU();
-
-                    using var session = new InferenceSession("../models/realesrgan-x2plus.onnx", options);
+                    //using var session = new InferenceSession("../models/realesrgan-x2plus.onnx", options);
 
                     var inputTensor = ConvertImageToTensor(input);
 
-                    var inputName = session.InputMetadata.Keys.First();
+                    var inputName = _session.InputMetadata.Keys.First();
                     var inputs = new[] { NamedOnnxValue.CreateFromTensor<float>(inputName, inputTensor) };
-                    using var results = session.Run(inputs);
+                    using var results = _session.Run(inputs);
 
                     var outputTensor = (DenseTensor<float>)results.First().Value;
 
@@ -118,6 +80,10 @@ namespace makefoxsrv
                 catch (Exception ex)
                 {
                     FoxLog.LogException(ex, "ONNX Upscale failed: " + ex.Message);
+                }
+                finally
+                {
+                    //_sesSemaphore.Release();
                 }
             }
 
