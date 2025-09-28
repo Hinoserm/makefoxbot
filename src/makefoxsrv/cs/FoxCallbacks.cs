@@ -310,51 +310,7 @@ namespace makefoxsrv
                 }
             }
 
-        (uint width, uint height) SnapDimensionsToMultiple((uint width, uint height) dimension, uint multiple = 8)
-        {
-            uint Snap(uint value) => (value / multiple) * multiple;
-            return (Snap(dimension.width), Snap(dimension.height));
-        }
-
-        FoxUserSettings settings = q.Settings.Copy();
-
-            if (true || q.Type == FoxQueue.QueueType.IMG2IMG)
-            {
-                if (q.OutputImageID is null)
-                    throw new Exception("Missing output image ID.");
-
-                //(settings.Width, settings.Height) = FoxImage.CalculateLimitedDimensions(settings.Width * 2, settings.Height * 2, 2048);
-
-                settings.Seed = -1;
-                settings.hires_denoising_strength = 0.30M;
-                settings.hires_steps = 15;
-                settings.hires_enabled = true;
-
-                settings.SelectedImage = q.OutputImageID.Value;
-
-                uint width = Math.Max(settings.Width, settings.hires_width);
-                uint height = Math.Max(settings.Height, settings.hires_height);
-
-                (settings.Width, settings.Height) = SnapDimensionsToMultiple(FoxImage.CalculateLimitedDimensions(width, height, 2048), 8);
-                (settings.hires_width, settings.hires_height) = SnapDimensionsToMultiple(FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 2048), 16);
-            }
-            //else if (q.Type == FoxQueue.QueueType.TXT2IMG)
-            //{
-            //    settings.hires_denoising_strength = 0.45M;
-            //    settings.hires_steps = 15;
-            //    settings.hires_enabled = true;
-
-            //    uint width = Math.Max(settings.Width, settings.hires_width);
-            //    uint height = Math.Max(settings.Height, settings.hires_height);
-
-            //    (settings.hires_width, settings.hires_height) = FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 2048);
-            //}
-            //else
-            //    throw new Exception("Invalid queue type");
-
-            settings.regionalPrompting = q.RegionalPrompting; //Have to copy this over manually
-
-            await FoxGenerate.Generate(t, settings, new TL.Message() { id = query.msg_id }, user, FoxQueue.QueueType.IMG2IMG, true, q);
+            await FoxGenerate.Enhance(t, user, new Message { id = query.msg_id }, q);
         }
 
         private static async Task CallbackCmdRecycle(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
@@ -973,10 +929,19 @@ namespace makefoxsrv
 
             var img = await q.GetOutputImage();
 
-            if (img is null || img.Image is null)
-                throw new Exception("Unable to locate image");
+            //if (img is null || img.Image is null)
+            //    throw new Exception("Unable to locate image");
+
+            //var upscaledImage = FoxONNXImageUpscaler.Upscale(img.GetRGBAImage());
+
+            //// create a stream and write PNG into it
+            //var imageData = new MemoryStream();
+            //upscaledImage.SaveAsPng(imageData);
 
             var imageData = new MemoryStream(img.Image);
+
+            // rewind the stream so the caller can read from the start
+            imageData.Position = 0;
 
             //bool addWatermark = !(q.User.CheckAccessLevel(AccessLevel.PREMIUM));
 
@@ -985,7 +950,7 @@ namespace makefoxsrv
             //    var outputStream = new MemoryStream();
 
             //    using Image<Rgba32> image = Image.Load<Rgba32>(new MemoryStream(img.Image));
-                
+
             //    using var outputImage = FoxWatermark.ApplyWatermark(image);
 
             //    outputImage.SaveAsPng(outputStream, new PngEncoder());
@@ -993,7 +958,7 @@ namespace makefoxsrv
 
             //    imageData =  outputStream;
             //}
-            
+
             var inputImage = await FoxTelegram.Client.UploadFileAsync(imageData, $"{FoxTelegram.Client.User.username}_full_image_{q.ID}.png");
 
             await t.SendMessageAsync(

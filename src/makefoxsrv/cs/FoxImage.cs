@@ -406,6 +406,16 @@ namespace makefoxsrv
             return Math.Min(roundedValue, limit);
         }
 
+        public static async Task<FoxImage> Create(Image<Rgba32> image, ImageType type, string? filename = null, ulong? user_id = null, TgInfo? tgInfo = null)
+        {
+            using var ms = new MemoryStream();
+
+            await image.SaveAsPngAsync(ms);
+
+            return await Create(ms.ToArray(), type, filename, user_id, tgInfo);
+
+        }
+
         public static async Task<FoxImage> Create(byte[] image, ImageType type, string? filename = null, ulong? user_id = null, TgInfo? tgInfo = null)
         {
             var img = new FoxImage();

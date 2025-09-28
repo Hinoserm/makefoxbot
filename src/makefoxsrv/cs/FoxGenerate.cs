@@ -15,7 +15,10 @@ using TL;
 using System.Collections;
 using System.Text.RegularExpressions;
 using System.Reflection.Metadata.Ecma335;
-using static makefoxsrv.FoxModel;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Drawing.Processing;
 
 // Functions and commands specific to generating images
 
@@ -112,26 +115,21 @@ namespace makefoxsrv
             await FoxGenerate.Generate(t, settings, message, user, imgType);
         }
 
-
-        public static async Task<FoxQueue?> Generate(FoxTelegram t, FoxUserSettings settings, Message replyToMessage, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG, bool enhanced = false, FoxQueue? originalTask = null)
+        private static async Task<bool> Check(FoxTelegram t, FoxUser user, Message replyToMessage, FoxUserSettings settings)
         {
-            if (originalTask is null)
-                settings.regionalPrompting = DetectRegionalPrompting(settings.Prompt ?? "") || DetectRegionalPrompting(settings.NegativePrompt ?? "");
-            else
-                settings.regionalPrompting = originalTask.Settings.regionalPrompting;
-
             //if (settings.regionalPrompting)
             //    throw new Exception("Regional prompting is currently unavailable due to a software issue.");
 
             bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM) || await FoxGroupAdmin.CheckGroupIsPremium(t.Chat);
 
-            if (settings.regionalPrompting && !isPremium) {
+            if (settings.regionalPrompting && !isPremium)
+            {
                 await t.SendMessageAsync(
                     text: "❌ Regional prompting is a premium feature.\n\nPlease consider a paid /membership",
                     replyToMessage: replyToMessage
                 );
 
-                return null;
+                return false;
             }
 
             if (user.GetAccessLevel() < AccessLevel.ADMIN)
@@ -147,7 +145,7 @@ namespace makefoxsrv
                         replyToMessage: replyToMessage
                     );
 
-                    return null;
+                    return false;
                 }
             }
 
@@ -160,7 +158,7 @@ namespace makefoxsrv
                     replyToMessage: replyToMessage
                 );
 
-                return null;
+                return false;
             }
 
             if (FoxQueue.CheckWorkerAvailability(settings) is null)
@@ -170,10 +168,11 @@ namespace makefoxsrv
                     replyToMessage: replyToMessage
                 );
 
-                return null;
+                return false;
             }
 
-            if (!isPremium) {
+            if (!isPremium)
+            {
 
                 var modelAllowed = await model.IsUserAllowed(user);
 
@@ -185,11 +184,11 @@ namespace makefoxsrv
                     var reason = modelAllowed.Reason;
                     string message = "❌ The selected model is not available right now.  Please try a different /model.";
 
-                    if (reason.HasFlag(DenyReason.RestrictedModel))
+                    if (reason.HasFlag(FoxModel.DenyReason.RestrictedModel))
                     {
                         message = "❌ This model is currently restricted and cannot be used.  Please try a different /model.";
                     }
-                    else if (reason.HasFlag(DenyReason.WeeklyLimitReached))
+                    else if (reason.HasFlag(FoxModel.DenyReason.WeeklyLimitReached))
                     {
                         message =
                             "❌ You've hit your weekly quota for premium models.\r\n\r\n" +
@@ -197,7 +196,7 @@ namespace makefoxsrv
                             "Your quota resets every Monday at midnight Central Time (GMT-6).\r\n\r\n" +
                             "✨ Consider a /membership to unlock additional features, or try a free /model.";
                     }
-                    else if (reason.HasFlag(DenyReason.DailyLimitReached))
+                    else if (reason.HasFlag(FoxModel.DenyReason.DailyLimitReached))
                     {
                         message =
                             "❌ You've reached today's limit for this model.\r\n\r\n" +
@@ -213,7 +212,7 @@ namespace makefoxsrv
 
                     FoxLog.WriteLine($"User {user.UID} attempted to use restricted model {model.Name}");
 
-                    return null;
+                    return false;
                 }
             }
 
@@ -236,9 +235,88 @@ namespace makefoxsrv
                     replyToMessage: replyToMessage
                 );
 
-                return null;
+                return false;
             }
 
+            return true;
+        }
+
+        public static async Task<FoxQueue?> Enhance(FoxTelegram t, FoxUser user, Message replyToMessage, FoxQueue originalTask)
+        {
+            (uint width, uint height) SnapDimensionsToMultiple((uint width, uint height) dimension, uint multiple = 8)
+            {
+                uint Snap(uint value) => (value / multiple) * multiple;
+                return (Snap(dimension.width), Snap(dimension.height));
+            }
+
+            FoxUserSettings settings = originalTask.Settings.Copy();
+
+            if (!await Check(t, user, replyToMessage, settings))
+                return null;
+
+            var msg = await t.SendMessageAsync(
+                text: "⏳ Upscaling...",
+                replyToMessage: replyToMessage
+            );
+
+            var srcImage = await originalTask.GetOutputImage();
+
+            if (srcImage is null)
+                throw new Exception("Unable to load source image");
+
+            var imgId = srcImage.ID;
+
+            (uint tgtWidth, uint tgtHeight) = SnapDimensionsToMultiple(FoxImage.CalculateLimitedDimensions((uint)srcImage.Width * 2, (uint)srcImage.Height * 2, 2048), 16);
+
+            if (srcImage.Width < 2048 && srcImage.Height < 2048)
+            {
+                var upscaledImage = FoxONNXImageUpscaler.Upscale(srcImage.GetRGBAImage());
+
+                if (upscaledImage.Width > tgtWidth || upscaledImage.Height > tgtHeight)
+                {
+                    upscaledImage.Mutate(x => x.Resize((int)tgtWidth, (int)tgtHeight));
+                }
+
+                var newImage = await FoxImage.Create(upscaledImage, FoxImage.ImageType.INPUT, $"{srcImage.ID}_upscaled.png", originalTask.User.UID);
+                imgId = newImage.ID;
+            }
+
+            //(settings.Width, settings.Height) = FoxImage.CalculateLimitedDimensions(settings.Width * 2, settings.Height * 2, 2048);
+
+            settings.Seed = -1;
+            settings.hires_denoising_strength = 0.33M;
+            settings.hires_steps = 15;
+            settings.hires_enabled = true;
+
+            (settings.hires_width, settings.hires_height) = SnapDimensionsToMultiple(FoxImage.CalculateLimitedDimensions((uint)srcImage.Width * 2, (uint)srcImage.Height * 2, 2048), 16);
+
+            settings.Width = (uint)srcImage.Width;
+            settings.Height = (uint)srcImage.Height;
+
+            //settings.SelectedImage = q.OutputImageID.Value;
+            settings.SelectedImage = imgId;
+
+            //uint width = Math.Max(settings.Width, settings.hires_width);
+            //uint height = Math.Max(settings.Height, settings.hires_height);
+
+            //(settings.Width, settings.Height) = SnapDimensionsToMultiple(FoxImage.CalculateLimitedDimensions(width, height, 2048), 8);
+            //(settings.hires_width, settings.hires_height) = SnapDimensionsToMultiple(FoxImage.CalculateLimitedDimensions(width * 2, height * 2, 2048), 16);
+
+            settings.regionalPrompting = originalTask.RegionalPrompting; //Have to copy this over manually
+
+            return await FoxGenerate.Generate(t, settings, replyToMessage, user, FoxQueue.QueueType.IMG2IMG, true, originalTask, msg);
+        }
+
+
+        public static async Task<FoxQueue?> Generate(FoxTelegram t, FoxUserSettings settings, Message replyToMessage, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG, bool enhanced = false, FoxQueue? originalTask = null, Message? editMessage = null)
+        {
+            if (originalTask is null)
+                settings.regionalPrompting = DetectRegionalPrompting(settings.Prompt ?? "") || DetectRegionalPrompting(settings.NegativePrompt ?? "");
+            else
+                settings.regionalPrompting = originalTask.Settings.regionalPrompting;
+
+            if (!await Check(t, user, replyToMessage, settings))
+                return null;
 
             // Check if the user is premium
             //bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM);
@@ -310,13 +388,34 @@ namespace makefoxsrv
                 else
                     messageText += "...";
 
-                var waitMsg = await t.SendMessageAsync(
-                    text: messageText,
-                    replyToMessage: replyToMessage,
-                    replyInlineMarkup: inlineKeyboardButtons
-                );
+                Message? waitMsg = null;
 
-                await q.SetStatus(FoxQueue.QueueStatus.PENDING, waitMsg.ID);
+                if (editMessage is not null)
+                {
+                    try
+                    {
+                        waitMsg = await t.EditMessageAsync(
+                            id: editMessage.ID,
+                            text: messageText,
+                            replyInlineMarkup: inlineKeyboardButtons
+                        );
+                    }
+                    catch
+                    {
+                        editMessage = null;
+                    }
+                }
+                
+                if (editMessage is null)
+                {
+                    waitMsg = await t.SendMessageAsync(
+                        text: messageText,
+                        replyToMessage: replyToMessage,
+                        replyInlineMarkup: inlineKeyboardButtons
+                    );
+                }
+
+                await q.SetStatus(FoxQueue.QueueStatus.PENDING, waitMsg!.ID);
                 FoxQueue.Enqueue(q);
 
                 return q;

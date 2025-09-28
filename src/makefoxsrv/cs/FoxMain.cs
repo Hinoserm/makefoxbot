@@ -359,6 +359,7 @@ namespace makefoxsrv
 
                 startupTasks.Add(FoxWorker.LoadWorkers(cts.Token));
                 startupTasks.Add(Task.Run(() => FoxONNXImageTagger.Start()));
+                startupTasks.Add(Task.Run(() => FoxONNXImageUpscaler.Initialize()));
                 startupTasks.Add(Task.Run(() => FoxWeb.StartWebServer(cancellationToken: cts.Token)));
                 startupTasks.Add(FoxLORAs.StartupLoad());
                 startupTasks.Add(FoxCivitai.InitializeCacheAsync());
