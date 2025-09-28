@@ -254,10 +254,10 @@ namespace makefoxsrv
             if (!await Check(t, user, replyToMessage, settings))
                 return null;
 
-            var msg = await t.SendMessageAsync(
-                text: "⏳ Upscaling...",
-                replyToMessage: replyToMessage
-            );
+            //var msg = await t.SendMessageAsync(
+            //    text: "⏳ Upscaling...",
+            //    replyToMessage: replyToMessage
+            //);
 
             var srcImage = await originalTask.GetOutputImage();
 
@@ -266,20 +266,20 @@ namespace makefoxsrv
 
             var imgId = srcImage.ID;
 
-            (uint tgtWidth, uint tgtHeight) = SnapDimensionsToMultiple(FoxImage.CalculateLimitedDimensions((uint)srcImage.Width * 2, (uint)srcImage.Height * 2, 2048), 16);
+            //(uint tgtWidth, uint tgtHeight) = SnapDimensionsToMultiple(FoxImage.CalculateLimitedDimensions((uint)srcImage.Width * 2, (uint)srcImage.Height * 2, 2048), 16);
 
-            if (srcImage.Width < 2048 && srcImage.Height < 2048)
-            {
-                var upscaledImage = FoxONNXImageUpscaler.Upscale(srcImage.GetRGBAImage());
+            //if (srcImage.Width < 2048 && srcImage.Height < 2048)
+            //{
+            //    var upscaledImage = FoxONNXImageUpscaler.Upscale(srcImage.GetRGBAImage());
 
-                if (upscaledImage.Width > tgtWidth || upscaledImage.Height > tgtHeight)
-                {
-                    upscaledImage.Mutate(x => x.Resize((int)tgtWidth, (int)tgtHeight));
-                }
+            //    if (upscaledImage.Width > tgtWidth || upscaledImage.Height > tgtHeight)
+            //    {
+            //        upscaledImage.Mutate(x => x.Resize((int)tgtWidth, (int)tgtHeight));
+            //    }
 
-                var newImage = await FoxImage.Create(upscaledImage, FoxImage.ImageType.INPUT, $"{srcImage.ID}_upscaled.png", originalTask.User.UID);
-                imgId = newImage.ID;
-            }
+            //    var newImage = await FoxImage.Create(upscaledImage, FoxImage.ImageType.INPUT, $"{srcImage.ID}_upscaled.png", originalTask.User.UID);
+            //    imgId = newImage.ID;
+            //}
 
             //(settings.Width, settings.Height) = FoxImage.CalculateLimitedDimensions(settings.Width * 2, settings.Height * 2, 2048);
 
@@ -304,7 +304,7 @@ namespace makefoxsrv
 
             settings.regionalPrompting = originalTask.RegionalPrompting; //Have to copy this over manually
 
-            return await FoxGenerate.Generate(t, settings, replyToMessage, user, FoxQueue.QueueType.IMG2IMG, true, originalTask, msg);
+            return await FoxGenerate.Generate(t, settings, replyToMessage, user, FoxQueue.QueueType.IMG2IMG, true, originalTask);
         }
 
 
