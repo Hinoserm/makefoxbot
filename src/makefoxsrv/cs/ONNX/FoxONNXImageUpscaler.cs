@@ -91,7 +91,7 @@ namespace makefoxsrv
             options.AppendExecutionProvider_CUDA();
             options.AppendExecutionProvider_CPU();
 
-            var session = new InferenceSession("../models/realesrgan-x2plus.onnx", options);
+            using var session = new InferenceSession("../models/realesrgan-x2plus.onnx", options);
 
             var inputTensor = ConvertImageToTensor(input);
 
