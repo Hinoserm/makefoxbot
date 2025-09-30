@@ -88,8 +88,7 @@ namespace makefoxsrv
             UNKNOWN, SD15, SDXL, OTHER
         }
 
-
-        static public async Task<FoxModel> Add(string modelName)
+        static public FoxModel Add(string modelName)
         {
             var model = new FoxModel
             {
@@ -105,19 +104,21 @@ namespace makefoxsrv
 
         static public async Task<FoxModel> GetOrAddFromWorker(FoxWorker worker, string modelName, string sha256Hash)
         {
-
             FoxModel? model = null;
 
-            if (!TryFind(modelName, out model))
-                model = await Add(modelName);
+            lock (_modelLock)
+            {
+                if (!TryFind(modelName, out model))
+                    model = Add(modelName);
 
-            if (model is null)
-                throw new InvalidOperationException("Failed to add or find model.");
+                if (model is null)
+                    throw new InvalidOperationException("Failed to add or find model.");
 
-            if (model._hash is not null && model._hash != sha256Hash)
-                throw new InvalidOperationException($"Hash mismatch for model '{modelName}'. Existing: {model._hash}, New: {sha256Hash}");
+                if (model._hash is not null && model._hash != sha256Hash)
+                    throw new InvalidOperationException($"Hash mismatch for model '{modelName}'. Existing: {model._hash}, New: {sha256Hash}");
 
-            model._workersRunningModel.TryAdd(worker.ID, worker);
+                model._workersRunningModel.TryAdd(worker.ID, worker);
+            }
 
             if (model._hash is null)
             {
