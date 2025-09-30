@@ -15,12 +15,14 @@ namespace makefoxsrv
         public string Cmd { get; }
         public string? Sub { get; }
         public bool AdminOnly { get; }
+        public bool Hidden { get; }
 
-        public BotCommandAttribute(string cmd, string? sub = null, bool adminOnly = false)
+        public BotCommandAttribute(string cmd, string? sub = null, bool adminOnly = false, bool hidden = false)
         {
             Cmd = cmd;
             Sub = sub;
             AdminOnly = adminOnly;
+            Hidden = hidden;
         }
     }
 
@@ -38,12 +40,14 @@ namespace makefoxsrv
     {
         public MethodInfo Method { get; }
         public bool AdminOnly { get; }
+        public bool Hidden { get; }
         public string? Description { get; }
 
-        public CommandEntry(MethodInfo method, bool adminOnly, string? description)
+        public CommandEntry(MethodInfo method, bool adminOnly, bool hidden, string? description)
         {
             Method = method;
             AdminOnly = adminOnly;
+            Hidden = hidden;
             Description = description;
         }
     }
@@ -51,12 +55,11 @@ namespace makefoxsrv
     public static class FoxCommandHandler
     {
         private static readonly Dictionary<string, Dictionary<string, CommandEntry>> _commands;
-        private static readonly Dictionary<MethodInfo, string?> _descriptions;
+        
 
         static FoxCommandHandler()
         {
             _commands = new Dictionary<string, Dictionary<string, CommandEntry>>(StringComparer.OrdinalIgnoreCase);
-            _descriptions = new Dictionary<MethodInfo, string?>();
 
             var methods = typeof(FoxCommandHandler).Assembly
                 .GetTypes()
@@ -80,30 +83,24 @@ namespace makefoxsrv
                     if (subs.ContainsKey(key))
                         throw new InvalidOperationException($"Duplicate command {attr.Cmd} {attr.Sub}");
 
-                    var entry = new CommandEntry(method, attr.AdminOnly, description);
+                    var entry = new CommandEntry(method, attr.AdminOnly, attr.Hidden, description);
                     subs[key] = entry;
                 }
-
-                _descriptions[method] = description;
             }
         }
 
         public static async Task SetBotCommands(Client client)
         {
             var commandList = _commands
-                .SelectMany(pair => pair.Value.Values)
-                .Where(entry => !string.IsNullOrWhiteSpace(entry.Description))
-                .GroupBy(entry => entry.Method, entry => entry)
-                .Select(group => new
-                {
-                    Command = group.Select(e =>
-                        string.IsNullOrEmpty(group.Key.GetCustomAttributes<BotCommandAttribute>().First().Sub)
-                            ? group.Key.GetCustomAttributes<BotCommandAttribute>().First().Cmd
-                            : $"{group.Key.GetCustomAttributes<BotCommandAttribute>().First().Cmd} {group.Key.GetCustomAttributes<BotCommandAttribute>().First().Sub}"
-                    ).OrderByDescending(c => c.Length).First(),
-                    Description = _descriptions[group.Key]
-                })
-                .Where(cmd => !string.IsNullOrWhiteSpace(cmd.Description))
+                .SelectMany(cmdPair => cmdPair.Value
+                    .Where(kvp => !kvp.Value.Hidden && !string.IsNullOrWhiteSpace(kvp.Value.Description))
+                    .Select(kvp => new
+                    {
+                        Command = string.IsNullOrEmpty(kvp.Key)
+                            ? cmdPair.Key
+                            : $"{cmdPair.Key} {kvp.Key}",
+                        kvp.Value.Description
+                    }))
                 .OrderBy(cmd => cmd.Command)
                 .Select(cmd => new TL.BotCommand
                 {
@@ -113,10 +110,9 @@ namespace makefoxsrv
                 .ToArray();
 
             if (commandList.Length > 0)
-            {
                 await client.Bots_SetBotCommands(new TL.BotCommandScopeUsers(), null, commandList);
-            }
         }
+
         public static async Task<bool> Dispatch(FoxTelegram t, TL.Message message, string text)
         {
             if (string.IsNullOrWhiteSpace(text) || !text.StartsWith("/"))

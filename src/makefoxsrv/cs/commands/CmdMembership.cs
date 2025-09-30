@@ -10,7 +10,7 @@ namespace makefoxsrv.commands
 {
     internal class FoxCmdMembership
     {
-        [BotCommand(cmd: "donate")]
+        [BotCommand(cmd: "donate", hidden: true)]
         [BotCommand(cmd: "membership")]
         [CommandDescription("Purchase a membership")]
         public static async Task CmdMembership(FoxTelegram t, FoxUser user, Message message)

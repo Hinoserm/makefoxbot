@@ -38,7 +38,7 @@ namespace makefoxsrv.commands
         //------------------------------------------------------
 
         [BotCommand(cmd: "setprompt")]
-        [BotCommand(cmd: "prompt")]
+        [BotCommand(cmd: "prompt", hidden: true)]
         [CommandDescription("Set or view your prompt for this chat or group.")]
         public static async Task CmdSetPrompt(FoxTelegram t, FoxUser user, TL.Message message, String? prompt)
         {
@@ -67,7 +67,7 @@ namespace makefoxsrv.commands
 
         //------------------------------------------------------
 
-        [BotCommand(cmd: "setsteps")]
+        [BotCommand(cmd: "setsteps", hidden: true)]
         [BotCommand(cmd: "steps")]
         [CommandDescription("Set or view your sampler steps for this chat or group.  Range varies based on load and account type.")]
         public static async Task CmdSetSteps(FoxTelegram t, FoxUser user, TL.Message message, int? numSteps)
@@ -123,7 +123,7 @@ namespace makefoxsrv.commands
         //------------------------------------------------------
 
         [BotCommand(cmd: "setdenoise")]
-        [BotCommand(cmd: "denoise")]
+        [BotCommand(cmd: "denoise", hidden: true)]
         [CommandDescription("Set or view your Denoise Strength for this chat or group, used only by img2img. Range 0 - 1.0.")]
         public static async Task CmdSetDenoise(FoxTelegram t, FoxUser user, TL.Message message, String? argument)
         {
@@ -217,8 +217,8 @@ namespace makefoxsrv.commands
 
         //------------------------------------------------------
 
-        [BotCommand(cmd: "setscale")]
-        [BotCommand(cmd: "setcfgscale")]
+        [BotCommand(cmd: "setscale", hidden: true)]
+        [BotCommand(cmd: "setcfg")]
         [BotCommand(cmd: "cfg")]
         [CommandDescription("Set or view your CFG Scale for this chat or group. Range 0 - 99.0.")]
         public static async Task CmdSetCFG(FoxTelegram t, FoxUser user, TL.Message message, String? argument)
