@@ -9,6 +9,7 @@ namespace makefoxsrv.commands
     internal class CmdAdminBan
     {
         [BotCommand(cmd: "admin", sub: "ban", adminOnly: true)]
+        [BotCommand(cmd: "ban", adminOnly: true)]
         public static async Task CmdBan(FoxTelegram t, FoxUser user, Message message, FoxUser targetUser, string? banReason)
         {
             await HandleBanAsync(t, user, message, targetUser, banReason);

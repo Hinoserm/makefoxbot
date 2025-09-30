@@ -18,7 +18,7 @@ namespace makefoxsrv.commands
 
 
         [BotCommand(cmd: "admin", sub: "info", adminOnly: true)]
-        [BotCommand(cmd: "info", adminOnly: false)]
+        [BotCommand(cmd: "info", adminOnly: true)]
         public static async Task CmdInfo(FoxTelegram t, FoxUser user, TL.Message message, FoxUser? targetUser)
         {
             if (targetUser is null)
