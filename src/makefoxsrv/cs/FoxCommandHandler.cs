@@ -72,21 +72,26 @@ namespace makefoxsrv
             if (string.IsNullOrWhiteSpace(text) || !text.StartsWith("/"))
                 return false;
 
+            // Strip leading slash
             text = text[1..];
-            var firstSpace = text.IndexOf(' ');
+
+            // Split command vs rest (space or newline are valid separators)
+            var firstWs = text.IndexOfAny(new[] { ' ', '\r', '\n' });
+
             string command;
             string rest;
-            if (firstSpace == -1)
+            if (firstWs == -1)
             {
                 command = text;
                 rest = string.Empty;
             }
             else
             {
-                command = text[..firstSpace];
-                rest = text[(firstSpace + 1)..].TrimStart();
+                command = text[..firstWs];
+                rest = text[(firstWs + 1)..]; // keep newlines intact
             }
 
+            // Handle @botname
             var c = command.Split('@', 2);
             if (c.Length == 2)
             {
@@ -98,23 +103,39 @@ namespace makefoxsrv
                 command = c[0];
             }
 
+            // Optional subcommand + args
             string? subInput = null;
             string? args = null;
+
             if (!string.IsNullOrEmpty(rest))
             {
-                var secondSpace = rest.IndexOf(' ');
-                if (secondSpace == -1)
-                    subInput = rest;
+                // If this command supports subcommands, try to extract one
+                if (_commands.TryGetValue(command, out var possibleSubs) &&
+                    possibleSubs.Keys.Any(k => k.Length > 0))
+                {
+                    // command has subcommands → split once on whitespace
+                    var firstSubWs = rest.IndexOfAny(new[] { ' ', '\r', '\n' });
+                    if (firstSubWs == -1)
+                    {
+                        subInput = rest;
+                    }
+                    else
+                    {
+                        subInput = rest[..firstSubWs];
+                        args = rest[(firstSubWs + 1)..]; // preserve newlines
+                    }
+                }
                 else
                 {
-                    subInput = rest[..secondSpace];
-                    args = rest[(secondSpace + 1)..];
+                    // command has no subcommands → everything is args
+                    args = rest;
                 }
             }
 
             if (subInput is not null && subInput.StartsWith("#"))
                 subInput = subInput[1..];
 
+            // Resolve command abbreviation with ambiguity check
             var matches = _commands.Keys
                 .Where(o => o.StartsWith(command, StringComparison.OrdinalIgnoreCase))
                 .ToList();
