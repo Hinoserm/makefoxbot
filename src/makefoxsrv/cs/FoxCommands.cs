@@ -1192,7 +1192,8 @@ namespace makefoxsrv
         [CommandArguments("")]
         private static async Task CmdModel(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
-            await FoxMessages.SendModelList(t, user, message);
+            await commands.CmdModels.Run(t, user, message);
+            //await FoxMessages.SendModelList(t, user, message);
         }
 
         private static async Task CmdBroadcast(FoxTelegram t, Message message, FoxUser user, String? argument)

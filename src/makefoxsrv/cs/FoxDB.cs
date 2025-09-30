@@ -441,6 +441,53 @@ namespace makefoxsrv
             return map;
         }
 
+        public static async Task<List<T>> LoadMultipleAsync<T>(
+            string tableName,
+            string? whereClause = null,
+            IDictionary<string, object?>? parameters = null,
+            Func<T, MySqlDataReader, Task>? postLoadAction = null)
+            where T : new()
+        {
+            var results = new List<T>();
+
+            using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
+            {
+                await connection.OpenAsync();
+
+                var commandText = $"SELECT * FROM {tableName}" +
+                                  (string.IsNullOrEmpty(whereClause) ? "" : $" WHERE {whereClause}");
+
+                using (var command = new MySqlCommand(commandText, connection))
+                {
+                    if (parameters != null)
+                    {
+                        foreach (var param in parameters)
+                        {
+                            command.Parameters.AddWithValue(param.Key, param.Value ?? DBNull.Value);
+                        }
+                    }
+
+                    using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            T obj = LoadObject<T>(reader);
+
+                            if (postLoadAction != null)
+                            {
+                                await postLoadAction(obj, reader);
+                            }
+
+                            results.Add(obj);
+                        }
+                    }
+                }
+            }
+
+            return results;
+        }
+
+
 
     }
 }

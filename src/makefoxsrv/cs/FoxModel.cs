@@ -15,206 +15,156 @@ namespace makefoxsrv
     public class FoxModel
     {
         // Static dictionary to hold all global models by name
-        private static readonly ConcurrentDictionary<string, FoxModel> globalModels = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, FoxModel> _globalModels = new(StringComparer.OrdinalIgnoreCase);
 
-        // Core model identity properties
-        public string Name { get; private set; }
-        public string Hash { get; private set; }
-        public string SHA256 { get; private set; }
-        public string Title { get; private set; }
-        public string FileName { get; private set; }
-        public string Config { get; private set; }
+        // Private fields
+
+
+        // From database
+        [DbColumn("name")]
+        private string? _name;
+
+        [DbColumn("is_premium")]
+        private bool _isPremium = false;
+
+        [DbColumn("notes")]
+        private string? _notes = null;
+
+        [DbColumn("description")]
+        private string? _description = null;
+
+        [DbColumn("info_url")]
+        private string? _infoUrl = null;
+
+        [DbColumn("type")]
+        private ModelType _type = ModelType.UNKNOWN;
+
+        [DbColumn("category")]
+        private string? _category = null;
+
+        [DbColumn("enabled")]
+        private bool _enabled = false;
+
+
+        // From workers
+
+        private string? _hash = null;
+        private string? _fileName = null;
+
+
+        // Used internally
+
+        // Timestamp when this model was last updated from the database
+        private DateTime _loadedDate = DateTime.UtcNow;
+
+        // Workers that are running this model
+        private ConcurrentDictionary<int, FoxWorker> _workersRunningModel = new();
+
+        // Lock for model updates
+        private static readonly object _modelLock = new();
+
+        // Public properties
+
+        public string Name => _name ?? throw new InvalidOperationException("Name has not been loaded from the database.");
+        public bool IsPremium => _isPremium;
+        public string? Notes => _notes;
+        public string? Description => _description;
+        public string? InfoUrl => _infoUrl;
+        public string? Category => _category;
+
+
+
 
         // Populated from settings cache
-        public bool IsPremium { get; private set; } = false;
-        public string? Notes { get; private set; }
-        public string? Description { get; private set; }
-        public string? InfoUrl { get; private set; }
-        public int PageNumber { get; private set; } = 1;
-
         public int MaxDimension { get; private set; } = 1024;
         public int DefaultSteps { get; private set; } = FoxSettings.Get<int>("DefaultSteps");
         public decimal DefaultCFG { get; private set; } = FoxSettings.Get<decimal>("DefaultCFGScale");
         public int HiresSteps { get; private set; } = 15;
         public decimal HiresDenoise { get; private set; } = 0.33M;
 
-        private DateTime? _settingsCacheTime = null;
-        private static readonly TimeSpan _settingsCacheDuration = TimeSpan.FromHours(1);
-        private ImmutableDictionary<string, string>? _settingsCache = null;
 
-        private static readonly object _modelLock = new();
-
-        // Workers that are running this model
-        private ImmutableHashSet<int> workersRunningModel;
-
-        // Constructor (private, because we want to control creation via GetOrCreateModel)
-        private FoxModel(string name, string hash, string sha256, string title, string fileName, string config)
+        enum ModelType
         {
-            Name = name;
-            Hash = hash;
-            SHA256 = sha256;
-            Title = title;
-            FileName = fileName;
-            Config = config;
-            workersRunningModel = ImmutableHashSet<int>.Empty;
+            UNKNOWN, SD15, SDXL, OTHER
         }
 
-        public void AddWorker(int workerId)
-        {
-            ImmutableInterlocked.Update(ref workersRunningModel, set => set.Add(workerId));
-        }
 
-        public static async Task<FoxModel> GetOrCreateModel(string name, string hash, string sha256, string title, string fileName, string config)
+        static public async Task<FoxModel> Add(string modelName)
         {
-            var model = globalModels.GetOrAdd(name, _ => new FoxModel(name, hash, sha256, title, fileName, config));
-            await model.LoadAllSettingsAsync(); // make Load idempotent
+            var model = new FoxModel
+            {
+                _name = modelName
+            };
+
+            if (!_globalModels.TryAdd(modelName, model))
+                throw new InvalidOperationException($"Model '{modelName}' already exists.");
+
             return model;
         }
 
-        public static async Task<long> ClearCache(int batchSize = 10, CancellationToken ct = default)
+
+        static public async Task<FoxModel> GetOrAddFromWorker(FoxWorker worker, string modelName, string sha256Hash)
         {
-            var models = globalModels.Values.ToList();
-            int total = models.Count;
 
-            for (int i = 0; i < total; i += batchSize)
+            FoxModel? model = null;
+
+            if (!TryFind(modelName, out model))
+                model = await Add(modelName);
+
+            if (model is null)
+                throw new InvalidOperationException("Failed to add or find model.");
+
+            if (model._hash is not null && model._hash != sha256Hash)
+                throw new InvalidOperationException($"Hash mismatch for model '{modelName}'. Existing: {model._hash}, New: {sha256Hash}");
+
+            model._workersRunningModel.TryAdd(worker.ID, worker);
+
+            if (model._hash is null)
             {
-                ct.ThrowIfCancellationRequested();
+                model._hash = sha256Hash;
 
-                int end = Math.Min(i + batchSize, total);
-                var tasks = new List<Task>(end - i);
-
-                for (int j = i; j < end; j++)
-                {
-                    var m = models[j];
-                    tasks.Add(Task.Run(async () =>
-                    {
-                        try {
-                            await m.LoadAllSettingsAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new InvalidOperationException($"Error loading settings for model '{m.Name}'.", ex);
-                        }
-                    }, ct));
-                }
-
-                await Task.WhenAll(tasks);
+                await model.Save(); // Save the model info to the database
             }
 
-            return total;
+            return model;
         }
 
-        public async Task LoadAllSettingsAsync()
+        public async Task Save()
         {
-            var settings = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.OrdinalIgnoreCase);
-
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-            await SQL.OpenAsync();
-
-            string query = @"
-                SELECT setting, value
-                FROM model_settings
-                WHERE model = @modelName";
-
-            using var cmd = new MySqlCommand(query, SQL);
-            cmd.Parameters.AddWithValue("@modelName", this.Name);
-
-            using var reader = await cmd.ExecuteReaderAsync();
-
-            while (await reader.ReadAsync())
-            {
-                string setting = reader.GetString("setting");
-                string value = reader.IsDBNull("value") ? "" : reader.GetString("value").Trim();
-
-                settings[setting] = value;
-            }
-
-            _settingsCache = settings.ToImmutable();
-            _settingsCacheTime = DateTime.Now;
-
-            // Populate cached values
-            IsPremium = TryConvertSetting<bool?>("IsPremium") ?? false;
-            Notes = TryConvertSetting<string?>("Notes");
-            Description = TryConvertSetting<string?>("Description");
-            InfoUrl = TryConvertSetting<string?>("InfoUrl");
-            PageNumber = TryConvertSetting<int?>("PageNumber") ?? 1;
-
-            MaxDimension = TryConvertSetting<int?>("MaxDimension") ?? 1024;
-            DefaultSteps = TryConvertSetting<int?>("DefaultSteps") ?? FoxSettings.Get<int>("DefaultSteps");
-            DefaultCFG = TryConvertSetting<decimal?>("DefaultCFGScale") ?? FoxSettings.Get<decimal>("DefaultCFGScale");
-            HiresSteps = TryConvertSetting<int?>("HiresSteps") ?? 15;
-            HiresDenoise = TryConvertSetting<decimal?>("HiresDenoise") ?? 0.33M;
+            await FoxDB.SaveObjectAsync(this, "model_info");
         }
 
-        public async Task RefreshModelSettingsAsync()
+        public static async Task Initialize()
         {
-            if (_settingsCache is null || _settingsCacheTime is null || (DateTime.Now - _settingsCacheTime) > _settingsCacheDuration)
+            var models = await FoxDB.LoadMultipleAsync<FoxModel>("model_info");
+
+            foreach (var model in models)
             {
-                await LoadAllSettingsAsync();
+                if (String.IsNullOrWhiteSpace(model._name))
+                    throw new InvalidOperationException("Model name cannot be null or empty.");
+
+                _globalModels[model._name] = model;
             }
         }
 
-        private T? TryConvertSetting<T>(string key)
+        public static bool TryFind(string name, out FoxModel? model)
         {
-            if (_settingsCache is null)
-                throw new InvalidOperationException("Model settings are not initialized.");
-
-            if (_settingsCache.TryGetValue(key, out var value))
-            {
-                try
-                {
-                    Type type = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
-                    object converted = Convert.ChangeType(value, type, CultureInfo.InvariantCulture);
-                    return (T)converted;
-                }
-                catch
-                {
-                    // Log conversion error if necessary
-                }
-            }
-            return default;
+            return _globalModels.TryGetValue(name, out model);
         }
 
-        //public class ModelCounts
-        //{
-        //    public record Counts(int Daily, int Weekly)
-        //    {
-        //        public Counts Increment() => this with
-        //        {
-        //            Daily = Daily + 1,
-        //            Weekly = Weekly + 1
-        //        };
+        public static FoxModel GetOrThrow(string name)
+        {
+            if (_globalModels.TryGetValue(name, out var model))
+                return model;
 
-        //        public Counts ResetDaily() => this with { Daily = 0 };
-        //        public Counts ResetWeekly() => this with { Weekly = 0 };
-        //    }
+            throw new KeyNotFoundException($"Model '{name}' not found.");
+        }
 
-        //    public Dictionary<FoxModel, Counts> Usage { get; } = new();
+        public static IEnumerable<FoxModel> Select(Func<FoxModel, bool> predicate)
+        {
+            return _globalModels.Values.Where(predicate);
+        }
 
-        //    public Counts Get(FoxModel model)
-        //    {
-        //        return Usage.TryGetValue(model, out var counts)
-        //            ? counts
-        //            : new Counts(0, 0);
-        //    }
-
-        //    public void Record(FoxModel model)
-        //    {
-        //        Usage[model] = Get(model).Increment();
-        //    }
-
-        //    public void ResetDaily()
-        //    {
-        //        foreach (var model in Usage.Keys.ToList())
-        //            Usage[model] = Usage[model].ResetDaily();
-        //    }
-
-        //    public void ResetWeekly()
-        //    {
-        //        foreach (var model in Usage.Keys.ToList())
-        //            Usage[model] = Usage[model].ResetWeekly();
-        //    }
-        //}
 
         public static async Task<int> GetUserWeeklyCount(FoxUser user)
         {
@@ -330,25 +280,27 @@ namespace makefoxsrv
             return new(reason == DenyReason.None, reason, dailyLimit, weeklyLimit);
         }
 
-        public static FoxModel? GetModelByName(string modelName) =>
-            globalModels.TryGetValue(modelName, out var model) ? model : null;
-
-        public static Dictionary<string, FoxModel> GetAvailableModels()
+        public bool IsAvailable()
         {
-            lock (_modelLock)
-            {
-                return globalModels.Values
-                    .Where(m => m.workersRunningModel.Any())
-                    .ToDictionary(m => m.Name, m => m);
-            }
+            return _enabled && _workersRunningModel.Values.Any(w => w.Online);
         }
 
-        public List<int> GetWorkersRunningModel() => workersRunningModel.ToList();
+        public List<int> GetWorkersRunningModel() => _workersRunningModel.Keys.ToList();
 
-        public static List<FoxModel> GetAllLoadedModels() => globalModels.Values.ToList();
+        public static FoxModel? GetModelByName(string modelName) =>
+            _globalModels.TryGetValue(modelName, out var model) ? model : null;
+
+        public static List<FoxModel> GetAvailableModels()
+        {
+            return _globalModels.Values
+                .Where(m => m.IsAvailable())
+                .ToList();
+        }
+
+        public static List<FoxModel> GetAllLoadedModels() => _globalModels.Values.ToList();
 
         public static List<FoxModel> GetModelsByParameter(Func<FoxModel, bool> filter) =>
-            globalModels.Values.Where(filter).ToList();
+            _globalModels.Values.Where(filter).ToList();
 
         public static void WorkerWentOffline(int workerId)
         {

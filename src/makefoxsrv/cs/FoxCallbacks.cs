@@ -101,6 +101,9 @@ namespace makefoxsrv
                     case "/admin_mod":
                         await CallbackCmdAdminMod(t, query, fUser, argument);
                         break;
+                    case "/x":
+                        await CallbackCmdHandler(t, query, fUser, argument);
+                        break;
                 }
             }
             catch (Exception ex)
@@ -117,6 +120,15 @@ namespace makefoxsrv
                 fUser.Unlock();
                 FoxContextManager.Clear();
             }
+        }
+
+        private static async Task CallbackCmdHandler(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
+        {
+            if (String.IsNullOrEmpty(argument))
+                throw new Exception("Malformed request");
+
+            await FoxCallbackHandler.Dispatch(argument, t, user, query);
+
         }
 
         private static async Task CallbackCmdAdminMod(FoxTelegram t, UpdateBotCallbackQuery query, FoxUser user, string? argument = null)
@@ -466,14 +478,14 @@ namespace makefoxsrv
 
             if (argument == "more")
             {
-                await FoxMessages.SendModelList(t, user, null, 2, query.msg_id);
+                //await FoxMessages.SendModelList(t, user, null, 2, query.msg_id);
 
                 return;
             }
 
             if (argument == "back")
             {
-                await FoxMessages.SendModelList(t, user, null, 1, query.msg_id);
+                //await FoxMessages.SendModelList(t, user, null, 1, query.msg_id);
 
                 return;
             }
@@ -505,8 +517,6 @@ namespace makefoxsrv
             settings.ModelName = model.Name;
 
             await settings.Save();
-
-            await model.RefreshModelSettingsAsync(); // Refresh info in case it changed.
 
             StringBuilder message = new StringBuilder();
 

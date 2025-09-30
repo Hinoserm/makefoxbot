@@ -352,6 +352,8 @@ namespace makefoxsrv
             //{
             try
             {
+                await FoxModel.Initialize();
+
                 //Load workers BEFORE processing input from telegram.
                 //This is important in order to handle queued messages properly, otherwise users will be told the workers are offline.
 

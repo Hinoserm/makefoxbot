@@ -531,23 +531,8 @@ namespace makefoxsrv
                     continue; // Skip if we're only loading a single model
 
                 // Try to get or create the model globally
-                var foxModel = await FoxModel.GetOrCreateModel(
-                    modelData.ModelName,
-                    modelData.Hash,
-                    modelData.SHA256,
-                    modelData.Title,
-                    modelData.FileName,
-                    modelData.Config
-                );
+                var foxModel = await FoxModel.GetOrAddFromWorker(this, modelData.ModelName, modelData.SHA256);
 
-                // Check if the hashes match, if not log a warning
-                //if (foxModel.Hash != modelData.Hash || foxModel.SHA256 != modelData.SHA256)
-                //{
-                //    FoxLog.WriteLine($"Warning: Model '{modelData.ModelName}' on worker {this.ID} has mismatched hashes.");
-                //}
-
-                // Add this worker to the model in memory (whether or not the hashes match)
-                foxModel.AddWorker(this.ID);
                 modelCount++;
             }
 
