@@ -1438,26 +1438,56 @@ namespace makefoxsrv
                 sb.AppendLine($"Total Users: {userCount}");
             }
 
-            List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
+            var showProfileButton = true;
 
-            if (selectedUser is not null)
-            {
-                buttonRows.Add(new TL.KeyboardButtonRow
+            while (true) {
+                List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
+
+                if (selectedUser is not null)
                 {
-                    buttons = new TL.KeyboardButtonBase[]
+                    buttonRows.Add(new TL.KeyboardButtonRow
                     {
-                        new KeyboardButtonUrl() { text = "🔗 Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={selectedUser.UID}" },
-                        new InputKeyboardButtonUserProfile() { text = "View Profile", user_id = selectedUser.Telegram.User }
+                        buttons = new TL.KeyboardButtonBase[]
+                        {
+                            new KeyboardButtonUrl() { text = "🔗 Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={selectedUser.UID}" }
+                        }
+                    });
+
+                    if (showProfileButton && selectedUser.Telegram is not null)
+                    {
+                        buttonRows.Add(new TL.KeyboardButtonRow
+                        {
+                            buttons = new TL.KeyboardButtonBase[]
+                            {
+                                new InputKeyboardButtonUserProfile() { text = "View Profile", user_id = selectedUser.Telegram.User }
+                            }
+                        });
                     }
-                });
+                }
+
+                try
+                {
+                    await t.SendMessageAsync(
+                        text: sb.ToString(),
+                        replyToMessage: message,
+                        replyInlineMarkup: new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() }
+                    );
+                }
+                catch (Exception ex)
+                {
+                    // Probably hit an error about the profile button
+                    
+                    FoxLog.LogException(ex);
+
+                    if (!showProfileButton)
+                        throw; // We already tried without the profile button, so give up.
+
+                    showProfileButton = false;
+                    continue;
+                }
+
+                break; // Exit the loop if successful
             }
-
-
-            await t.SendMessageAsync(
-                text: sb.ToString(),
-                replyToMessage: message,
-                replyInlineMarkup: new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() }
-            );
         }
 
         [CommandDescription("Set or view your prompt for this chat or group.")]
