@@ -18,16 +18,22 @@ namespace makefoxsrv.commands
 
 
         [BotCommand(cmd: "admin", sub: "info", adminOnly: true)]
-        [BotCommand(cmd: "info", adminOnly: true)]
+        [BotCommand(cmd: "info", adminOnly: false)]
         public static async Task CmdInfo(FoxTelegram t, FoxUser user, TL.Message message, FoxUser? targetUser)
         {
             if (targetUser is null)
-                throw new Exception("TODO");
+            {
+                // Use the old command for now
+                await FoxCommandHandlerOld.CmdInfo(t, message, user, null);
 
-            await HandleShowInfo(t, user, message, targetUser);
+                return;
+            } else if (!user.CheckAccessLevel(AccessLevel.ADMIN))
+                throw new Exception("You must be an admin to view other users' info.");
+
+            await HandleShowUserInfo(t, user, message, targetUser);
         }
 
-        public static async Task HandleShowInfo(FoxTelegram t, FoxUser user, TL.Message message, FoxUser targetUser)
+        public static async Task HandleShowUserInfo(FoxTelegram t, FoxUser user, TL.Message message, FoxUser targetUser)
         {
             var msgStr = await FoxMessages.BuildUserInfoString(targetUser);
 

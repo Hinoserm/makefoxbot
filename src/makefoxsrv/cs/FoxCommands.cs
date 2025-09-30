@@ -1019,7 +1019,7 @@ namespace makefoxsrv
             _ = FoxNews.BroadcastNewsItem(t, news_id, inputPhoto);
         }
 
-        private static async Task CmdInfo(FoxTelegram t, Message message, FoxUser user, String? argument)
+        public static async Task CmdInfo(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             var sb = new StringBuilder();
             var selectedUser = user;
