@@ -350,6 +350,9 @@ namespace makefoxsrv
 
             //_ = Task.Run(async () =>
             //{
+
+            await FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
+
             try
             {
                 await FoxModel.Initialize();
@@ -361,7 +364,6 @@ namespace makefoxsrv
 
                 startupTasks.Add(FoxWorker.LoadWorkers(cts.Token));
                 startupTasks.Add(Task.Run(() => FoxONNXImageTagger.Start()));
-                startupTasks.Add(Task.Run(() => FoxONNXImageUpscaler.Initialize()));
                 startupTasks.Add(Task.Run(() => FoxWeb.StartWebServer(cancellationToken: cts.Token)));
                 startupTasks.Add(FoxLORAs.StartupLoad());
                 startupTasks.Add(FoxCivitai.InitializeCacheAsync());
@@ -369,7 +371,7 @@ namespace makefoxsrv
 
                 await Task.WhenAll(startupTasks);
 
-                await FoxTelegram.Connect(settings.TelegramApiId.Value, settings.TelegramApiHash, settings.TelegramBotToken, "../conf/telegram.session");
+                FoxTelegram.SetReady();
 
                 FoxWorker.StartWorkers();
 

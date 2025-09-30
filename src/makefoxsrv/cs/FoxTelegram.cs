@@ -55,6 +55,15 @@ namespace makefoxsrv
 
         private static WTelegram.Client? _client;
 
+        private static readonly TaskCompletionSource _readyTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public static void SetReady()
+        {
+            _readyTcs.TrySetResult();
+        }
+        
+        internal static Task WaitUntilReadyAsync() => _readyTcs.Task;
+
         public FoxTelegram(User user, ChatBase? chat)
         {
             _user = user;
@@ -479,6 +488,8 @@ namespace makefoxsrv
 
             FoxLog.WriteLine($"{msg.ID}: Message: {t.User}" + (t.Chat is not null ? $" in {t.Chat}" : "") + $"> {ReplaceNonPrintableCharacters(msg.message)}", LogLevel.DEBUG);
 
+            await FoxTelegram.WaitUntilReadyAsync();
+
             var message = FoxTelegram.Client.EntitiesToHtml(msg.message, msg.entities);
 
             if (msg.message is not null)
@@ -774,6 +785,8 @@ namespace makefoxsrv
         private static async Task HandleUpdateAsync(UpdatesBase updates)
         {
             updates.CollectUsersChats(FoxTelegram.Users, FoxTelegram.Chats);
+
+            await FoxTelegram.WaitUntilReadyAsync();
 
             _ = Task.Run(async () =>
             {
