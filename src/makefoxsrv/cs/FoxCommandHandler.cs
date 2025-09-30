@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using TL;
+using WTelegram;
 
 namespace makefoxsrv
 {
@@ -23,25 +24,39 @@ namespace makefoxsrv
         }
     }
 
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+    public class CommandDescriptionAttribute : Attribute
+    {
+        public string Description { get; }
+        public CommandDescriptionAttribute(string description)
+        {
+            Description = description;
+        }
+    }
+
     internal sealed class CommandEntry
     {
         public MethodInfo Method { get; }
         public bool AdminOnly { get; }
+        public string? Description { get; }
 
-        public CommandEntry(MethodInfo method, bool adminOnly)
+        public CommandEntry(MethodInfo method, bool adminOnly, string? description)
         {
             Method = method;
             AdminOnly = adminOnly;
+            Description = description;
         }
     }
 
     public static class FoxCommandHandler
     {
         private static readonly Dictionary<string, Dictionary<string, CommandEntry>> _commands;
+        private static readonly Dictionary<MethodInfo, string?> _descriptions;
 
         static FoxCommandHandler()
         {
             _commands = new Dictionary<string, Dictionary<string, CommandEntry>>(StringComparer.OrdinalIgnoreCase);
+            _descriptions = new Dictionary<MethodInfo, string?>();
 
             var methods = typeof(FoxCommandHandler).Assembly
                 .GetTypes()
@@ -50,6 +65,9 @@ namespace makefoxsrv
 
             foreach (var method in methods)
             {
+                var descAttr = method.GetCustomAttribute<CommandDescriptionAttribute>();
+                var description = descAttr?.Description;
+
                 foreach (var attr in method.GetCustomAttributes<BotCommandAttribute>())
                 {
                     if (!_commands.TryGetValue(attr.Cmd, out var subs))
@@ -62,11 +80,43 @@ namespace makefoxsrv
                     if (subs.ContainsKey(key))
                         throw new InvalidOperationException($"Duplicate command {attr.Cmd} {attr.Sub}");
 
-                    subs[key] = new CommandEntry(method, attr.AdminOnly);
+                    var entry = new CommandEntry(method, attr.AdminOnly, description);
+                    subs[key] = entry;
                 }
+
+                _descriptions[method] = description;
             }
         }
 
+        public static async Task SetBotCommands(Client client)
+        {
+            var commandList = _commands
+                .SelectMany(pair => pair.Value.Values)
+                .Where(entry => !string.IsNullOrWhiteSpace(entry.Description))
+                .GroupBy(entry => entry.Method, entry => entry)
+                .Select(group => new
+                {
+                    Command = group.Select(e =>
+                        string.IsNullOrEmpty(group.Key.GetCustomAttributes<BotCommandAttribute>().First().Sub)
+                            ? group.Key.GetCustomAttributes<BotCommandAttribute>().First().Cmd
+                            : $"{group.Key.GetCustomAttributes<BotCommandAttribute>().First().Cmd} {group.Key.GetCustomAttributes<BotCommandAttribute>().First().Sub}"
+                    ).OrderByDescending(c => c.Length).First(),
+                    Description = _descriptions[group.Key]
+                })
+                .Where(cmd => !string.IsNullOrWhiteSpace(cmd.Description))
+                .OrderBy(cmd => cmd.Command)
+                .Select(cmd => new TL.BotCommand
+                {
+                    command = cmd.Command,
+                    description = cmd.Description!
+                })
+                .ToArray();
+
+            if (commandList.Length > 0)
+            {
+                await client.Bots_SetBotCommands(new TL.BotCommandScopeUsers(), null, commandList);
+            }
+        }
         public static async Task<bool> Dispatch(FoxTelegram t, TL.Message message, string text)
         {
             if (string.IsNullOrWhiteSpace(text) || !text.StartsWith("/"))

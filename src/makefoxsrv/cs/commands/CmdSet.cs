@@ -174,5 +174,189 @@ namespace makefoxsrv.commands
                 replyToMessage: message
             );
         }
+
+        //------------------------------------------------------
+
+        [BotCommand(cmd: "setseed")]
+        [BotCommand(cmd: "seed")]
+        [CommandDescription("Set the seed value for the next generation. Default: -1 (random)")]
+        public static async Task CmdSetSeed(FoxTelegram t, FoxUser user, TL.Message message, String? argument)
+        {
+            int seed = 0;
+
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+
+            if (argument is null || argument.Length <= 0)
+            {
+                await t.SendMessageAsync(
+                    text: "Current Seed: " + settings.Seed,
+                    replyToMessage: message
+                );
+                return;
+            }
+
+            if (!int.TryParse(argument, out seed))
+            {
+                await t.SendMessageAsync(
+                    text: "❌You must provide a numeric value.",
+                    replyToMessage: message
+                );
+
+                return;
+            }
+
+            settings.Seed = seed;
+
+            await settings.Save();
+
+            await t.SendMessageAsync(
+                text: $"✅ Seed set to {seed}.",
+                replyToMessage: message
+            );
+        }
+
+        //------------------------------------------------------
+
+        [BotCommand(cmd: "setscale")]
+        [BotCommand(cmd: "setcfgscale")]
+        [BotCommand(cmd: "cfg")]
+        [CommandDescription("Set or view your CFG Scale for this chat or group. Range 0 - 99.0.")]
+        public static async Task CmdSetCFG(FoxTelegram t, FoxUser user, TL.Message message, String? argument)
+        {
+
+            decimal cfgscale = 0;
+
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+
+            if (argument is null || argument.Length <= 0)
+            {
+                await t.SendMessageAsync(
+                    text: "Current CFG Scale: " + settings.CFGScale,
+                    replyToMessage: message
+                );
+                return;
+            }
+
+            if (!decimal.TryParse(argument, out cfgscale))
+            {
+                await t.SendMessageAsync(
+                    text: "❌You must provide a numeric value.",
+                    replyToMessage: message
+                );
+
+                return;
+            }
+
+            cfgscale = Math.Round(cfgscale, 2);
+
+            if (cfgscale < 0 || cfgscale > 99)
+            {
+                await t.SendMessageAsync(
+                    text: "❌Value must be between 0 and 99.0.",
+                    replyToMessage: message
+                );
+
+                return;
+            }
+
+            settings.CFGScale = cfgscale;
+
+            await settings.Save();
+
+            await t.SendMessageAsync(
+                text: $"✅ CFG Scale set to {cfgscale}.",
+                replyToMessage: message
+            );
+        }
+
+        //------------------------------------------------------
+
+        [BotCommand(cmd: "setsize")]
+        [BotCommand(cmd: "size")]
+        [CommandDescription("Change the size of the output, e.g. /setsize 768x768")]
+        public static async Task CmdSetSize(FoxTelegram t, FoxUser user, TL.Message message, String? argument)
+        {
+            int width;
+            int height;
+
+            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
+
+            if (argument is null || argument.Length <= 0)
+            {
+                await t.SendMessageAsync(
+                    text: "🖥️ Current size: " + settings.Width + "x" + settings.Height,
+                    replyToMessage: message
+                );
+                return;
+            }
+
+            var args = argument.ToLower().Split("x");
+
+            if (args.Length != 2 || args[0] is null || args[1] is null ||
+                !int.TryParse(args[0].Trim(), out width) || !int.TryParse(args[1].Trim(), out height))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Value must be in the format of [width]x[height].  Example: /setsize 768x768",
+                    replyToMessage: message
+                );
+                return;
+            }
+
+            bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM) || await FoxGroupAdmin.CheckGroupIsPremium(t.Chat);
+
+            if ((width < 512 || height < 512) && !user.CheckAccessLevel(AccessLevel.ADMIN))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Dimension should be at least 512 pixels.",
+                    replyToMessage: message
+                );
+                return;
+            }
+
+            if ((width > 1024 || height > 1024) && !isPremium)
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Only premium users can exceed 1024 pixels in any dimension.\n\nPlease consider becoming a premium member: /donate",
+                    replyToMessage: message
+                );
+                return;
+            }
+            else if ((width * height) > (2048 * 2048) && !user.CheckAccessLevel(AccessLevel.ADMIN))
+            {
+                await t.SendMessageAsync(
+                    text: "❌ Total image pixel count cannot be greater than 2048x2048",
+                    replyToMessage: message
+                );
+                return;
+            }
+
+            var msgString = "";
+
+            /*
+            (int normalizedWidth, int normalizedHeight) = FoxImage.NormalizeImageSize(width, height);
+
+            if (normalizedWidth != width || normalizedHeight != height)
+            {
+                msgString += $"⚠️ For optimal performance, your setting has been adjusted to: {normalizedWidth}x{normalizedHeight}.\r\n\r\n";
+                msgString += $"⚠️To override, type /setsize {width}x{height} force.  You may receive less favorable queue priority.\r\n\r\n";
+
+                width = normalizedWidth;
+                height = normalizedHeight;
+
+            } */
+
+            msgString += $"✅ Size set to: {width}x{height}";
+
+            settings.Width = (uint)width;
+            settings.Height = (uint)height;
+
+            await settings.Save();
+
+            await t.SendMessageAsync(
+                text: msgString,
+                replyToMessage: message
+            ); ;
+        }
+
     }
 }

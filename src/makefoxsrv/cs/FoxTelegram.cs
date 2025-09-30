@@ -144,7 +144,7 @@ namespace makefoxsrv
 
             FoxLog.WriteLine($"We are logged-in as {_client.User} (id {_client.User.ID})");
 
-            await FoxCommandHandlerOld.SetBotCommands(_client);
+            await FoxCommandHandler.SetBotCommands(_client);
         }
 
         private Peer? InputToPeer(InputPeer peer) => peer switch

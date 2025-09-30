@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TL;
-using static makefoxsrv.FoxCommandHandlerOld;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace makefoxsrv.commands
