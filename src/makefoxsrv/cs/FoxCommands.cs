@@ -1444,9 +1444,10 @@ namespace makefoxsrv
             {
                 buttonRows.Add(new TL.KeyboardButtonRow
                 {
-                    buttons = new TL.KeyboardButtonUrl[]
+                    buttons = new TL.KeyboardButtonBase[]
                     {
-                        new() { text = "🔗 Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={selectedUser.UID}" }
+                        new KeyboardButtonUrl() { text = "🔗 Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={selectedUser.UID}" },
+                        new InputKeyboardButtonUserProfile() { text = "View Profile", user_id = selectedUser.Telegram.User }
                     }
                 });
             }

@@ -70,7 +70,6 @@ namespace makefoxsrv
 
         public FoxLocalization Strings { get; set; }
 
-
         public DateTime? FloodWaitUntil { get; private set; } = null;
 
         public FoxUser(ulong ID, string language)
