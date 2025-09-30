@@ -1445,13 +1445,7 @@ namespace makefoxsrv
 
                 if (selectedUser is not null)
                 {
-                    buttonRows.Add(new TL.KeyboardButtonRow
-                    {
-                        buttons = new TL.KeyboardButtonBase[]
-                        {
-                            new KeyboardButtonUrl() { text = "🔗 Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={selectedUser.UID}" }
-                        }
-                    });
+
 
                     if (showProfileButton && selectedUser.Telegram is not null)
                     {
@@ -1459,7 +1453,18 @@ namespace makefoxsrv
                         {
                             buttons = new TL.KeyboardButtonBase[]
                             {
+                                new KeyboardButtonUrl() { text = "🔗 Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={selectedUser.UID}" },
                                 new InputKeyboardButtonUserProfile() { text = "View Profile", user_id = selectedUser.Telegram.User }
+                            }
+                        });
+                    }
+                    else
+                    {
+                        buttonRows.Add(new TL.KeyboardButtonRow
+                        {
+                            buttons = new TL.KeyboardButtonBase[]
+                            {
+                                new KeyboardButtonUrl() { text = "🔗 Image Viewer", url = $"{FoxMain.settings?.WebRootUrl}ui/images.php?uid={selectedUser.UID}" }
                             }
                         });
                     }
