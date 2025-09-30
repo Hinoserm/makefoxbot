@@ -5,33 +5,36 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TL;
+using static makefoxsrv.FoxCommandHandlerOld;
 using static System.Net.Mime.MediaTypeNames;
 
 namespace makefoxsrv.commands
 {
     internal class CmdModels
     {
-        private static int editMessageID;
-
-        public static async Task Run(FoxTelegram t, FoxUser user, TL.Message message)
+        [BotCommand(cmd: "model")]
+        [CommandDescription("Select a different AI model")]
+        public static async Task CmdSelectModel(FoxTelegram t, FoxUser user, TL.Message message)
         {
             await ShowModelFamilyList(t, user, message, null);
         }
 
         [BotCallable]
-        public static async Task CBShowFamilies(FoxTelegram t, FoxUser user, UpdateBotCallbackQuery query, ulong origUserId, bool hidePremium)
+        public static async Task cbShowFamilies(FoxTelegram t, FoxUser user, UpdateBotCallbackQuery query, ulong origUserId, bool hidePremium)
         {
             if (!user.CheckAccessLevel(AccessLevel.ADMIN) && user.UID != origUserId)
             {
                 await t.SendCallbackAnswer(query.query_id, 10, "❌ This is someone else's button.", alert: true);
                 return;
             }
+
+            await t.SendCallbackAnswer(query.query_id, 0);
 
             await ShowModelFamilyList(t, user, null, new TL.Message { id = query.msg_id }, hidePremium);
         }
 
         [BotCallable]
-        public static async Task CBShowModels(FoxTelegram t, FoxUser user, UpdateBotCallbackQuery query, ulong origUserId, bool hidePremium, string? modelFamily)
+        public static async Task cbShowModels(FoxTelegram t, FoxUser user, UpdateBotCallbackQuery query, ulong origUserId, bool hidePremium, string? modelFamily)
         {
             if (!user.CheckAccessLevel(AccessLevel.ADMIN) && user.UID != origUserId)
             {
@@ -39,11 +42,13 @@ namespace makefoxsrv.commands
                 return;
             }
 
+            await t.SendCallbackAnswer(query.query_id, 0);
+
             await ShowModelList(t, user, null, new TL.Message { id = query.msg_id }, modelFamily, hidePremium);
         }
 
         [BotCallable]
-        public static async Task CBSelectFamily(FoxTelegram t, FoxUser user, UpdateBotCallbackQuery query, ulong origUserId, bool hidePremium, string familyName)
+        public static async Task cbSelectFamily(FoxTelegram t, FoxUser user, UpdateBotCallbackQuery query, ulong origUserId, bool hidePremium, string familyName)
         {
             if (String.IsNullOrEmpty(familyName))
                 throw new ArgumentException("Model name cannot be null or empty.", nameof(familyName));
@@ -54,11 +59,13 @@ namespace makefoxsrv.commands
                 return;
             }
 
+            await t.SendCallbackAnswer(query.query_id, 0);
+
             await ShowModelList(t, user, null, new TL.Message { id = query.msg_id }, familyName, hidePremium);
         }
 
         [BotCallable]
-        public static async Task CBSelectModel(FoxTelegram t, FoxUser user, UpdateBotCallbackQuery query, ulong origUserId, string modelName)
+        public static async Task cbSelectModel(FoxTelegram t, FoxUser user, UpdateBotCallbackQuery query, ulong origUserId, string modelName)
         {
             if (String.IsNullOrEmpty(modelName))
                 throw new ArgumentException("Model name cannot be null or empty.", nameof(modelName));
@@ -171,7 +178,7 @@ namespace makefoxsrv.commands
             if (true || !isPremium)
             {
                 var premiumBtnText = hidePremium ? "⭐ Show Premium" : "⭐ Hide Premium";
-                var premiumBtnData = FoxCallbackHandler.BuildCallbackData(CBShowFamilies, user.UID, !hidePremium);
+                var premiumBtnData = FoxCallbackHandler.BuildCallbackData(cbShowFamilies, user.UID, !hidePremium);
                 keyboardRows.Add(new TL.KeyboardButtonRow
                 {
                     buttons = new TL.KeyboardButtonCallback[]
@@ -193,7 +200,7 @@ namespace makefoxsrv.commands
             // Build buttons with counts
             foreach (var category in categories)
             {
-                var buttonData = FoxCallbackHandler.BuildCallbackData(CBSelectFamily, user.UID, hidePremium, category.Name);
+                var buttonData = FoxCallbackHandler.BuildCallbackData(cbSelectFamily, user.UID, hidePremium, category.Name);
 
                 keyboardRows.Add(new TL.KeyboardButtonRow
                 {
@@ -267,7 +274,7 @@ namespace makefoxsrv.commands
             if (true || !isPremium)
             {
                 var premiumBtnText = hidePremium ? "⭐ Show Premium" : "⭐ Hide Premium";
-                var premiumBtnData = FoxCallbackHandler.BuildCallbackData(CBShowModels, user.UID, !hidePremium, modelFamily);
+                var premiumBtnData = FoxCallbackHandler.BuildCallbackData(cbShowModels, user.UID, !hidePremium, modelFamily);
                 keyboardRows.Add(new TL.KeyboardButtonRow
                 {
                     buttons = new TL.KeyboardButtonCallback[]
@@ -292,7 +299,7 @@ namespace makefoxsrv.commands
                 int workerCount = model.GetWorkersRunningModel().Count;
 
                 var buttonLabel = (modelName == settings.ModelName ? "✅ " : "") + (model.IsPremium ? "⭐" : "") + $"{modelName} ({workerCount})";
-                var buttonData = FoxCallbackHandler.BuildCallbackData(CBSelectModel, user.UID, modelName);
+                var buttonData = FoxCallbackHandler.BuildCallbackData(cbSelectModel, user.UID, modelName);
 
                 keyboardRows.Add(new TL.KeyboardButtonRow
                 {
@@ -305,7 +312,7 @@ namespace makefoxsrv.commands
 
             if (modelFamily is not null)
             {
-                var buttonData = FoxCallbackHandler.BuildCallbackData(CBShowFamilies, user.UID, hidePremium);
+                var buttonData = FoxCallbackHandler.BuildCallbackData(cbShowFamilies, user.UID, hidePremium);
 
                 keyboardRows.Add(new TL.KeyboardButtonRow
                 {

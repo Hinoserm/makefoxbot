@@ -27,39 +27,19 @@ using System.Text.RegularExpressions;
 
 namespace makefoxsrv
 {
-    internal class FoxCommandHandler
+    internal class FoxCommandHandlerOld
     {
         private static readonly Dictionary<string, Func<FoxTelegram, TL.Message, FoxUser, String?, Task>> CommandMap = new Dictionary<string, Func<FoxTelegram, TL.Message, FoxUser, String?, Task>>
         {
             { "/pizza",       CmdTest },
             { "/test",        CmdTest },
             //--------------- -----------------
-            { "/img2img",     CmdImg2Img  },
-            //--------------- -----------------
-            { "/generate",    CmdGenerate },
-            //--------------- -----------------
-            { "/setnegative", CmdSetNegative },
-            { "/negative",    CmdSetNegative },
-            //--------------- -----------------
-            { "/setprompt",   CmdSetPrompt },
-            { "/prompt",      CmdSetPrompt },
-            //--------------- -----------------
-            { "/setsteps",    CmdSetSteps },
-            { "/steps",       CmdSetSteps },
-            //--------------- -----------------
             { "/setscale",    CmdSetCFG },
             { "/setcfg",      CmdSetCFG },
             { "/cfg",         CmdSetCFG },
             //--------------- -----------------
-            { "/setdenoise",  CmdSetDenoise },
-            { "/denoise",     CmdSetDenoise },
-            { "/noise",       CmdSetDenoise },
-            //--------------- -----------------
             { "/setsize",     CmdSetSize },
             { "/size",        CmdSetSize },
-            //--------------- -----------------
-            { "/current",     CmdCurrent },
-            { "/select",      CmdSelect },
             //--------------- -----------------
             { "/start",       CmdStart },
             //--------------- -----------------
@@ -71,15 +51,8 @@ namespace makefoxsrv
             { "/seed",        CmdSetSeed },
             { "/setseed",     CmdSetSeed },
             //--------------- -----------------
-            { "/model",       CmdModel },
-            { "/sampler",     CmdSampler },
-            //--------------- -----------------
-            { "/cancel",      CmdCancel },
-            //--------------- -----------------
             { "/donate",      CmdDonate },
             { "/membership",  CmdDonate },
-            //--------------- -----------------
-            { "/ban",         CmdBan },
             { "/broadcast",   CmdBroadcast },
             //--------------- -----------------
             { "/info",        CmdInfo },
@@ -89,7 +62,6 @@ namespace makefoxsrv
             { "/styles",      CmdStyles },
             //--------------- -----------------
             { "/stickerify",  CmdStickerify },
-            { "/tags",        CmdTag },
             { "/request",     CmdRequest },
         };
 
@@ -122,6 +94,11 @@ namespace makefoxsrv
                 }
                 return; // Not a command, skip it.
             }
+
+            var newResult = await FoxCommandHandler.Dispatch(t, message, message.message);
+
+            if (newResult)
+                return;
 
             var command = args[0];
 
@@ -240,7 +217,7 @@ namespace makefoxsrv
 
         public static string GetCommandDescription(string commandName)
         {
-            var methodInfo = typeof(FoxCommandHandler).GetMethod(commandName, BindingFlags.NonPublic | BindingFlags.Static);
+            var methodInfo = typeof(FoxCommandHandlerOld).GetMethod(commandName, BindingFlags.NonPublic | BindingFlags.Static);
             if (methodInfo != null)
             {
                 var attribute = methodInfo.GetCustomAttribute<CommandDescriptionAttribute>();
@@ -401,36 +378,16 @@ namespace makefoxsrv
             {
                 case "#archive":
                     await FoxAdmin.HandleRunArchiver(t, message, commandArgs);
-                    break;
-                case "#queue":
-                    await FoxAdmin.HandleQueueStatus(t, message, commandArgs);
-                    break;
+                    break;;
                 case "#leave":
                     await FoxAdmin.HandleLeaveGroup(t, message, commandArgs);
                     break;
                 case "#uncache":
                     await FoxAdmin.HandleUncache(t, message, commandArgs);
                     break;
-                case "#ban":
-                    await FoxAdmin.HandleBan(t, message, commandArgs);
-                    break;
-                case "#unban":
-                    await FoxAdmin.HandleUnban(t, message, commandArgs);
-                    break;
-                case "#resetterms":
-                case "#resettos":
-                    await FoxAdmin.HandleResetTerms(t, message, commandArgs);
-                    break;
-                case "#premium":
-                    await FoxAdmin.HandlePremium(t, message, commandArgs);
-                    break;
                 case "#showgroups":
                 case "#groups":
                     await FoxAdmin.HandleShowGroups(t, message, commandArgs);
-                    break;
-                case "#payments":
-                case "#pay":
-                    await FoxAdmin.HandleShowPayments(t, message, commandArgs);
                     break;
                 case "#rotate":
                     await FoxLog.LogRotator.Rotate();
@@ -913,83 +870,6 @@ namespace makefoxsrv
             }
         }
 
-        [CommandDescription("Send this in a reply to any message containing an image to select it for /img2img")]
-        private static async Task CmdSelect(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            var img = await FoxImage.SaveImageFromReply(t, message);
-
-            if (img is null)
-            {
-                await t.SendMessageAsync(
-                        text: "❌ Error: That message doesn't contain an image.  You must send this command as a reply to a message containing an image.",
-                        replyToMessage: message
-                        );
-
-                return;
-            }
-
-            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-            settings.SelectedImage = img.ID;
-
-            await settings.Save();
-
-            try
-            {
-                Message waitMsg = await t.SendMessageAsync(
-                    text: "✅ Image saved and selected as input for /img2img",
-                    replyToMessage: message
-                );
-            }
-            catch
-            {
-                Message waitMsg = await t.SendMessageAsync(
-                    text: "✅ Image saved and selected as input for /img2img"
-                );
-            }
-
-        }
-
-        [CommandDescription("Send this in a reply to an image to get a list of AI-predicted E621 tags.")]
-        private static async Task CmdTag(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            var stickerImg = await FoxImage.SaveImageFromReply(t, message);
-
-            if (stickerImg is null)
-            {
-                await t.SendMessageAsync(
-                        text: "❌ Error: That message doesn't contain an image.  You must send this command as a reply to a message containing an image.",
-                        replyToMessage: message
-                        );
-
-                return;
-            }
-
-            using Image<Rgba32> image = Image.Load<Rgba32>(stickerImg.Image);
-
-            // Here we enable drop shadow with custom parameters. 
-            
-            var startTime = DateTime.Now;
-            FoxONNXImageTagger tagger = new FoxONNXImageTagger();
-            var predictions = tagger.ProcessImage(image, 0.2f);
-            var elapsedTime = DateTime.Now - startTime;
-
-
-            string msgText = predictions != null && predictions.Count > 0
-                ? "*Predicted Tags:*\r\n\r\n" + string.Join(", ", predictions.Select(p => $"`{p.Key}`"))
-                : "*No tags found.*";
-
-            msgText += $"\r\n\n*Processing time: {Math.Round(elapsedTime.TotalMilliseconds, 0)}ms*";
-
-            var msgEntities = FoxTelegram.Client.MarkdownToEntities(ref msgText);
-
-            await t.SendMessageAsync(
-                               replyToMessage: message,
-                               text: msgText,
-                               entities: msgEntities
-            );
-
-        }
 
         private static async Task CmdStickerify(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
@@ -1066,7 +946,7 @@ namespace makefoxsrv
         }
 
         [CommandDescription("Show helpful information")]
-        private static async Task CmdHelp(FoxTelegram t, Message message, FoxUser user, String? argument)
+        public static async Task CmdHelp(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
 
             var inlineKeyboardButtons = new ReplyInlineMarkup()
@@ -1087,113 +967,6 @@ namespace makefoxsrv
                 replyToMessage: message,
                 replyInlineMarkup: inlineKeyboardButtons
             );
-        }
-
-        [CommandDescription("Run an img2img generation.  Requires you to have previously uploaded an image.")]
-        [CommandArguments("[<prompt>]")]
-        private static async Task CmdImg2Img(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            await FoxGenerate.HandleCmdGenerate(t, message, user, argument, FoxQueue.QueueType.IMG2IMG);
-        }
-
-        [CommandDescription("Run a standard txt2img generation.")]
-        [CommandArguments("[<prompt>]")]
-        private static async Task CmdGenerate(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            await FoxGenerate.HandleCmdGenerate(t, message, user, argument, FoxQueue.QueueType.TXT2IMG);
-        }
-
-        [CommandDescription("Change current AI sampler.")]
-        [CommandArguments("")]
-        private static async Task CmdSampler(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            List<TL.KeyboardButtonRow> keyboardRows = new List<TL.KeyboardButtonRow>();
-
-            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-            bool userIsPremium = user.CheckAccessLevel(AccessLevel.PREMIUM) || await FoxGroupAdmin.CheckGroupIsPremium(t.Chat);
-
-
-            using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-
-            await SQL.OpenAsync();
-
-            var cmdText = "SELECT * FROM samplers";
-
-            MySqlCommand cmd = new MySqlCommand(cmdText, SQL);
-
-            using (var reader = await cmd.ExecuteReaderAsync())
-            {
-                while (await reader.ReadAsync())
-                {
-                    string samplerName = reader.GetString("sampler");
-                    bool isPremium = reader.GetBoolean("premium");
-
-                    var buttonLabel = $"{samplerName}";
-                    var buttonData = $"/sampler {samplerName}";
-
-                    if (isPremium)
-                    {
-                        if (!userIsPremium)
-                        {
-                            buttonLabel = "🔒 " + buttonLabel;
-                            buttonData = "/sampler premium";
-                        }
-                        else
-                            buttonLabel = "⭐ " + buttonLabel;
-                    }
-
-                    if (samplerName == settings.Sampler)
-                    {
-                        buttonLabel += " ✅";
-                    }
-
-                    keyboardRows.Add(new TL.KeyboardButtonRow
-                    {
-                        buttons = new TL.KeyboardButtonCallback[]
-                        {
-                            new TL.KeyboardButtonCallback { text = buttonLabel, data = System.Text.Encoding.UTF8.GetBytes(buttonData) }
-                        }
-                    });
-                }
-            }
-
-            keyboardRows.Add(new TL.KeyboardButtonRow
-            {
-                buttons = new TL.KeyboardButtonCallback[]
-                {
-                    new TL.KeyboardButtonCallback { text = "Default", data = System.Text.Encoding.UTF8.GetBytes("/sampler default") }
-                }
-            });
-
-            keyboardRows.Add(new TL.KeyboardButtonRow
-            {
-                buttons = new TL.KeyboardButtonCallback[]
-                {
-                    new TL.KeyboardButtonCallback { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/sampler cancel") }
-                }
-            });
-
-            var inlineKeyboard = new TL.ReplyInlineMarkup { rows = keyboardRows.ToArray() };
-
-            // Send the message with the inline keyboard
-
-            // Send the message with the inline keyboard
-
-            // Send the message with the inline keyboard
-            await t.SendMessageAsync(
-                text: "Select a sampler:",
-                replyInlineMarkup: inlineKeyboard,
-                replyToMessage: message
-            );
-        }
-
-        [CommandDescription("Change current AI model.")]
-        [CommandArguments("")]
-        private static async Task CmdModel(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            await commands.CmdModels.Run(t, user, message);
-            //await FoxMessages.SendModelList(t, user, message);
         }
 
         private static async Task CmdBroadcast(FoxTelegram t, Message message, FoxUser user, String? argument)
@@ -1246,96 +1019,6 @@ namespace makefoxsrv
             _ = FoxNews.BroadcastNewsItem(t, news_id, inputPhoto);
         }
 
-        private static async Task CmdBan(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            if (!user.CheckAccessLevel(AccessLevel.ADMIN))
-            {
-                await t.SendMessageAsync(
-                    text: "❌ You must be an admin to use this command.",
-                    replyToMessage: message
-                );
-
-                return;
-            }
-
-            if (String.IsNullOrEmpty(argument)) {
-                await t.SendMessageAsync(
-                    text: "❌ You must provide a user ID to ban.\r\n\r\nFormat:\r\n  /ban <uid>\r\n  /ban @username",
-                    replyToMessage: message
-                );
-
-                return;
-            }
-
-            var args = argument.Split(' ', 2);
-
-            if (args.Length < 1)
-                throw new ArgumentException("You must specify a username.");
-
-            var banUser = await FoxUser.ParseUser(args[0]);
-
-            if (banUser is null)
-            {
-                await t.SendMessageAsync(
-                    text: "❌ Unable to parse user ID.",
-                    replyToMessage: message
-                );
-
-                return;
-            }
-
-            string? banMessage = null;
-
-            if (args.Length == 2)
-                banMessage = args[1];
-
-            if (banUser.CheckAccessLevel(AccessLevel.PREMIUM) || banUser.CheckAccessLevel(AccessLevel.ADMIN))
-            {
-                await t.SendMessageAsync(
-                    text: "❌ You can't ban an admin or premium user!",
-                    replyToMessage: message
-                );
-
-                return;
-            }
-
-            if (banUser.GetAccessLevel() == AccessLevel.BANNED)
-            {
-                await t.SendMessageAsync(
-                    text: "❌ User is already banned.",
-                    replyToMessage: message
-                );
-
-                return;
-            }
-
-            await banUser.Ban(reasonMessage: banMessage);
-
-            await t.SendMessageAsync(
-                text: $"✅ User {banUser.UID} banned.",
-                replyToMessage: message
-            );
-        }
-
-        [CommandDescription("Set your negative prompt for this chat or group.  Leave blank to clear.")]
-        [CommandArguments("[<negative prompt>]")]
-        private static async Task CmdSetNegative(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-            if (!string.IsNullOrEmpty(argument))
-                settings.NegativePrompt = argument; //.Replace("\n", ", ");
-            else
-                settings.NegativePrompt = "";
-
-            await settings.Save();
-
-            await t.SendMessageAsync(
-                text: (settings.NegativePrompt.Length > 0 ? $"✅ Negative prompt set." : "✅ Negative prompt cleared."),
-                replyToMessage: message
-            );
-        }
-
         private static async Task CmdInfo(FoxTelegram t, Message message, FoxUser user, String? argument)
         {
             var sb = new StringBuilder();
@@ -1353,17 +1036,9 @@ namespace makefoxsrv
                     return;
                 }
 
-                selectedUser = await FoxUser.ParseUser(argument);
+                //await commands.CmdAdminInfo.CmdInfo(t, user, message, argument);
 
-                if (selectedUser is null)
-                {
-                    await t.SendMessageAsync(
-                        text: "❌ Unable to parse user ID.",
-                        replyToMessage: message
-                    );
-
-                    return;
-                }
+                return;
             }
             else
             {
@@ -1405,13 +1080,12 @@ namespace makefoxsrv
             sb.AppendLine(await FoxMessages.BuildUserInfoString(selectedUser));
 
 
-            (ulong imageCount, ulong imageBytes) = await FoxImage.GetImageStatsAsync();
-            long userCount = 0;
-            DateOnly oldestImage = DateOnly.FromDateTime(DateTime.Now);
-
             // Only show global stats if no user was specified
             if (string.IsNullOrEmpty(argument))
             {
+                (ulong imageCount, ulong imageBytes) = await FoxImage.GetImageStatsAsync();
+                long userCount = 0;
+                DateOnly oldestImage = DateOnly.FromDateTime(DateTime.Now);
 
                 sb.AppendLine("Global Stats:\n");
 
@@ -1495,32 +1169,6 @@ namespace makefoxsrv
             }
         }
 
-        [CommandDescription("Set or view your prompt for this chat or group.")]
-        [CommandArguments("[<prompt>]")]
-        private static async Task CmdSetPrompt(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-            if (!string.IsNullOrEmpty(argument))
-            {
-
-                settings.Prompt = argument; //.Replace("\n", ", ");
-
-                await settings.Save();
-
-                await t.SendMessageAsync(
-                    text: $"✅ Prompt set.",
-                    replyToMessage: message
-                );
-            }
-            else
-            {
-                await t.SendMessageAsync(
-                    text: $"🖤Current prompt: " + settings.Prompt,
-                    replyToMessage: message
-                );
-            }
-        }
 
         [CommandDescription("Set the seed value for the next generation. Default: -1 (random)")]
         [CommandArguments("[<value>]")]
@@ -1606,202 +1254,6 @@ namespace makefoxsrv
             await t.SendMessageAsync(
                 text: $"✅ CFG Scale set to {cfgscale}.",
                 replyToMessage: message
-            );
-        }
-
-        [CommandDescription("Set or view your Denoise Strength for this chat or group, used only by img2img. Range 0 - 1.0.")]
-        [CommandArguments("[<value>]")]
-        private static async Task CmdSetDenoise(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-
-            decimal cfgscale = 0;
-
-            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-            var stepstr = message.message.Split(' ');
-
-            if (stepstr.Count() < 2)
-            {
-                await t.SendMessageAsync(
-                    text: "Current Denoising Strength: " + settings.DenoisingStrength,
-                    replyToMessage: message
-                );
-                return;
-            }
-
-            if (stepstr.Count() > 2 || !decimal.TryParse(stepstr[1], out cfgscale))
-            {
-                await t.SendMessageAsync(
-                    text: "❌You must provide a numeric value.",
-                    replyToMessage: message
-                );
-
-                return;
-            }
-
-            cfgscale = Math.Round(cfgscale, 2);
-
-            if (cfgscale < 0 || cfgscale > 1)
-            {
-                await t.SendMessageAsync(
-                    text: "❌Value must be between 0 and 1.0.",
-                    replyToMessage: message
-                );
-
-                return;
-            }
-
-            settings.DenoisingStrength = cfgscale;
-
-            await settings.Save();
-
-            await t.SendMessageAsync(
-                text: $"✅ Denoising Strength set to {cfgscale}.",
-                replyToMessage: message
-            );
-        }
-
-        [CommandDescription("Set or view your sampler steps for this chat or group.  Range varies based on load and account type.")]
-        [CommandArguments("[<value>]")]
-        private static async Task CmdSetSteps(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-
-            int steps = 0;
-
-            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-
-            var stepstr = message.message.Split(' ');
-
-            if (stepstr.Count() < 2)
-            {
-                await t.SendMessageAsync(
-                    text: "Current steps value: " + settings.steps,
-                    replyToMessage: message
-                );
-                return;
-            }
-
-            if (stepstr.Count() > 2 || !stepstr[1].All(char.IsDigit))
-            {
-                await t.SendMessageAsync(
-                    text: "❌You must provide an integer value.",
-                    replyToMessage: message
-                );
-
-                return;
-            }
-
-            bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM) || await FoxGroupAdmin.CheckGroupIsPremium(t.Chat);
-
-            steps = Int16.Parse(stepstr[1]);
-
-            if (steps > 20 && !isPremium)
-            {
-                await t.SendMessageAsync(
-                    text: "❌ Only members can exceed 20 steps.\r\n\r\nPlease consider a /membership",
-                    replyToMessage: message
-                );
-
-                if (settings.steps > 20)
-                {
-                    settings.steps = 20;
-
-                    await settings.Save();
-                }
-                return;
-            }
-            else if (steps < 1 || (steps > 30 && !user.CheckAccessLevel(AccessLevel.ADMIN)))
-            {
-                await t.SendMessageAsync(
-                    text: "❌ Value must be above 1 and below 30.",
-                    replyToMessage: message
-                );
-
-                return;
-            }
-
-            settings.steps = steps;
-
-            await settings.Save();
-
-            await t.SendMessageAsync(
-                text: $"✅ Steps set to {steps}.",
-                replyToMessage: message
-            );
-        }
-
-        [CommandDescription("Show all of your currently configured settings for this chat or group.")]
-        private static async Task CmdCurrent(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            var settings = await FoxUserSettings.GetTelegramSettings(user, t.User, t.Chat);
-            await settings.Save(); // Save the settings just in case this is a new chat, to init the defaults so we don't look like a liar later.
-
-            Message waitMsg = await t.SendMessageAsync(
-                text: $"🖤Prompt: {settings.Prompt}\r\n" +
-                      $"🐊Negative: {settings.NegativePrompt}\r\n" +
-                      $"🖥️Size: {settings.Width}x{settings.Height}\r\n" +
-                      $"🪜Sampler: {settings.Sampler} ({settings.steps} steps)\r\n" +
-                      $"🧑‍🎨CFG Scale: {settings.CFGScale}\r\n" +
-                      $"👂Denoising Strength: {settings.DenoisingStrength}\r\n" +
-                      $"🧠Model: {settings.ModelName}\r\n" +
-                      $"🌱Seed: {settings.Seed}\r\n",
-                replyToMessage: message
-            );
-        }
-
-        [CommandDescription("Cancel all pending requests.")]
-        [CommandArguments("")]
-        private static async Task CmdCancel(FoxTelegram t, Message message, FoxUser user, String? argument)
-        {
-            int count = 0;
-
-            var cancelMsg = await t.SendMessageAsync(
-                text: $"⏳ Cancelling...",
-                replyToMessage: message
-            );
-
-            List<ulong> pendingIds = new List<ulong>();
-
-            var matchingItems = FoxQueue.Cache.FindAll(item => !item.IsFinished() && item.User?.UID == user.UID);
-
-            foreach (var q in matchingItems)
-            {
-                int msg_id = q.MessageID;
-
-                await q.Cancel();
-
-                try
-                {
-                    _ = t.EditMessageAsync(
-                        id: msg_id,
-                        text: "❌ Cancelled."
-                    );
-                }
-                catch (Exception ex)
-                {
-                    //Don't care about this failure.
-                    FoxLog.LogException(ex, $"Failed to edit message {msg_id.ToString()}: {ex.Message}");
-                }
-
-                count++;
-            }
-
-            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
-            {
-                await SQL.OpenAsync();
-
-                using (var cmd = new MySqlCommand())
-                {
-                    cmd.Connection = SQL;
-                    cmd.CommandText = $"UPDATE queue SET status = 'CANCELLED' WHERE uid = @uid AND (status = 'PENDING' OR status = 'ERROR' OR status = 'PROCESSING')";
-                    cmd.Parameters.AddWithValue("uid", user.UID);
-                    count += await cmd.ExecuteNonQueryAsync();
-                }
-            }
-
-            await t.EditMessageAsync(
-                text: $"✅ Cancelled {count} items.",
-                id: cancelMsg.ID
             );
         }
 

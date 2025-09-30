@@ -15,6 +15,7 @@ using System.Security.Cryptography;
 using System.Collections.Concurrent;
 using Newtonsoft.Json;
 using System.Runtime.CompilerServices;
+using System.Data.SqlTypes;
 
 public enum AccessLevel
 {
@@ -64,6 +65,8 @@ namespace makefoxsrv
         private AccessLevel accessLevel = AccessLevel.BANNED; //Default to BANNED, just in case.
 
         public DateTime? DateTermsAccepted { get; set; } = null;
+
+        private decimal? _totalPaid = null;
 
         // Set the default preferred language to English (United States)
         public string? PreferredLanguage { get; set; } = null;
@@ -646,6 +649,14 @@ namespace makefoxsrv
                     FoxLog.WriteLine($"recordPayment({this.UID}, {amount} {currency}, {days} days)");
                 }
 
+                if (_totalPaid is null)
+                    _totalPaid = 0m;
+
+                if (currency == "XTR")
+                    _totalPaid += (amount * 0.013m);
+                else
+                    _totalPaid += (amount / 100m);
+
                 //using (var cmd = new MySqlCommand())
                 //{
                 //    cmd.Connection = SQL;
@@ -835,11 +846,11 @@ namespace makefoxsrv
                     if (reasonMessage is null)
                     {
                         await t.SendMessageAsync(
-                            text: $"🚫 You have been banned from using this service due to a content policy violation.  I will no longer respond to your commands."
+                            text: $"⛔ You have been banned from using this service due to a content policy violation.  I will no longer respond to your commands.\r\n\r\n📞 You may contact @makefoxhelpbot for support."
                         );
                     } else {
                         await t.SendMessageAsync(
-                            text: $"🚫 You have been banned from using this service.  I will no longer respond to your commands.\n\nReason: {reasonMessage}"
+                            text: $"⛔ You have been banned from using this service.  I will no longer respond to your commands.\r\n\r\nReason: {reasonMessage}\r\n\r\n📞 You may contact @makefoxhelpbot for support."
                         );
                     }
                 }
@@ -865,13 +876,13 @@ namespace makefoxsrv
                     if (reasonMessage is null)
                     {
                         await t.SendMessageAsync(
-                            text: $"🚫 Your account restrictions have been lifted."
+                            text: $"🎉 Your account restrictions have been lifted."
                         );
                     }
                     else
                     {
                         await t.SendMessageAsync(
-                            text: $"🚫 Your account restrictions have been lifted.\n\nMessage from Admin: {reasonMessage}"
+                            text: $"🎉 Your account restrictions have been lifted.\n\nMessage from Admin: {reasonMessage}"
                         );
                     }
                 }
@@ -880,6 +891,28 @@ namespace makefoxsrv
             {
                 // Ignore any errors
             }
+        }
+
+        public async Task<decimal> GetTotalPaid()
+        {
+            if (_totalPaid is null)
+            {
+                using var sqlConn = new MySqlConnection(FoxMain.sqlConnectionString);
+                await sqlConn.OpenAsync();
+
+                var sqlcmd = new MySqlCommand("SELECT SUM(amount) as total_paid FROM user_payments WHERE uid = @uid", sqlConn);
+                sqlcmd.Parameters.AddWithValue("@uid", this.UID);
+
+                using (var reader = await sqlcmd.ExecuteReaderAsync())
+                {
+                    if (await reader.ReadAsync())
+                    {
+                        _totalPaid = reader.IsDBNull(reader.GetOrdinal("total_paid")) ? null : (reader.GetInt64("total_paid") / 100.0m);
+                    }
+                }
+            }
+
+            return _totalPaid ?? 0m;
         }
 
         public static int UserCount(DateTime? since = null)

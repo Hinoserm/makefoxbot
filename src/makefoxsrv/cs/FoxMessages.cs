@@ -68,7 +68,6 @@ namespace makefoxsrv
 
             ulong imageCount = 0;
             ulong imageBytes = 0;
-            decimal totalPaid = 0m;
 
             using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -87,18 +86,9 @@ namespace makefoxsrv
                         imageBytes = reader.IsDBNull(reader.GetOrdinal("image_bytes")) ? 0 : reader.GetUInt64("image_bytes");
                     }
                 }
-
-                sqlcmd = new MySqlCommand("SELECT SUM(amount) as total_paid FROM user_payments WHERE uid = @uid", connection);
-                sqlcmd.Parameters.AddWithValue("@uid", user.UID);
-
-                using (var reader = await sqlcmd.ExecuteReaderAsync())
-                {
-                    if (await reader.ReadAsync())
-                    {
-                        totalPaid = reader.IsDBNull(reader.GetOrdinal("total_paid")) ? 0 : (reader.GetInt64("total_paid") / 100.0m);
-                    }
-                }
             }
+
+            decimal totalPaid = await user.GetTotalPaid();
 
             sb.AppendLine($"Images Generated: {imageCount} ({FormatBytes(imageBytes)})");
 

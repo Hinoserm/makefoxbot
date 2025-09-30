@@ -178,155 +178,163 @@ namespace makefoxsrv
             FoxUser user,
             UpdateBotCallbackQuery query)
         {
-            var parts = callbackData.Split(':', 2);
-
-            if (parts.Length < 1)
-                throw new InvalidOperationException("Bad callbackData");
-
-            var funcId = int.Parse(parts[0]);
-
-            if (!_registry.TryGetValue(funcId, out var entry))
-                throw new InvalidOperationException("Unknown function");
-
-            var isAdmin = user.GetAccessLevel() >= AccessLevel.ADMIN;
-
-            if (entry.AdminOnly && !isAdmin)
-                throw new UnauthorizedAccessException("This action requires admin privileges.");
-
-            var method = entry.Method;
-            var paramInfos = method.GetParameters();
-            var args = new List<object?>();
-
-            // Must start with FoxTelegram, FoxUser, UpdateBotCallbackQuery
-            if (paramInfos.Length < 3 ||
-                paramInfos[0].ParameterType != typeof(FoxTelegram) ||
-                paramInfos[1].ParameterType != typeof(FoxUser) ||
-                paramInfos[2].ParameterType != typeof(UpdateBotCallbackQuery))
+            try
             {
-                throw new InvalidOperationException(
-                    $"BotCallable method {method.Name} must have (FoxTelegram, FoxUser, UpdateBotCallbackQuery) as its first 3 parameters.");
-            }
+                var parts = callbackData.Split(':', 2);
 
-            // Add those 3 first
-            args.Add(telegram);
-            args.Add(user);
-            args.Add(query);
+                if (parts.Length < 1)
+                    throw new InvalidOperationException("Bad callbackData");
 
-            // Any tokens after funcId
-            var argTokens = new Queue<string>();
+                var funcId = int.Parse(parts[0]);
 
-            if (parts.Length == 2 && !string.IsNullOrEmpty(parts[1]))
-            {
-                foreach (var tok in parts[1].Split(',', StringSplitOptions.RemoveEmptyEntries))
-                    argTokens.Enqueue(tok);
-            }
+                if (!_registry.TryGetValue(funcId, out var entry))
+                    throw new InvalidOperationException("Unknown function");
 
-            // Parse remaining method params (after the first 3)
-            for (int i = 3; i < paramInfos.Length; i++)
-            {
-                var p = paramInfos[i];
-                var pType = p.ParameterType;
+                var isAdmin = user.GetAccessLevel() >= AccessLevel.ADMIN;
 
-                if (pType.IsGenericType && pType.GetGenericTypeDefinition() == typeof(List<>))
+                if (entry.AdminOnly && !isAdmin)
+                    throw new UnauthorizedAccessException("This action requires admin privileges.");
+
+                var method = entry.Method;
+                var paramInfos = method.GetParameters();
+                var args = new List<object?>();
+
+                // Must start with FoxTelegram, FoxUser, UpdateBotCallbackQuery
+                if (paramInfos.Length < 3 ||
+                    paramInfos[0].ParameterType != typeof(FoxTelegram) ||
+                    paramInfos[1].ParameterType != typeof(FoxUser) ||
+                    paramInfos[2].ParameterType != typeof(UpdateBotCallbackQuery))
                 {
-                    if (argTokens.Count == 0)
-                        throw new InvalidOperationException("Missing list length");
+                    throw new InvalidOperationException(
+                        $"BotCallable method {method.Name} must have (FoxTelegram, FoxUser, UpdateBotCallbackQuery) as its first 3 parameters.");
+                }
 
-                    var lenToken = argTokens.Dequeue();
+                // Add those 3 first
+                args.Add(telegram);
+                args.Add(user);
+                args.Add(query);
 
-                    if (lenToken == "!")
-                    {
-                        args.Add(null);
-                        continue;
-                    }
+                // Any tokens after funcId
+                var argTokens = new Queue<string>();
 
-                    int len = int.Parse(lenToken);
+                if (parts.Length == 2 && !string.IsNullOrEmpty(parts[1]))
+                {
+                    foreach (var tok in parts[1].Split(',', StringSplitOptions.RemoveEmptyEntries))
+                        argTokens.Enqueue(tok);
+                }
 
-                    var list = (System.Collections.IList)Activator.CreateInstance(pType)!;
-                    var elemType = pType.GetGenericArguments()[0];
+                // Parse remaining method params (after the first 3)
+                for (int i = 3; i < paramInfos.Length; i++)
+                {
+                    var p = paramInfos[i];
+                    var pType = p.ParameterType;
 
-                    for (int j = 0; j < len; j++)
+                    if (pType.IsGenericType && pType.GetGenericTypeDefinition() == typeof(List<>))
                     {
                         if (argTokens.Count == 0)
-                            throw new InvalidOperationException("Missing list element");
+                            throw new InvalidOperationException("Missing list length");
 
-                        var tok = argTokens.Dequeue();
+                        var lenToken = argTokens.Dequeue();
 
-                        if (tok == "!")
+                        if (lenToken == "!")
                         {
-                            list.Add(null);
+                            args.Add(null);
+                            continue;
                         }
-                        else
+
+                        int len = int.Parse(lenToken);
+
+                        var list = (System.Collections.IList)Activator.CreateInstance(pType)!;
+                        var elemType = pType.GetGenericArguments()[0];
+
+                        for (int j = 0; j < len; j++)
                         {
-                            list.Add(ConvertToken(tok, elemType));
+                            if (argTokens.Count == 0)
+                                throw new InvalidOperationException("Missing list element");
+
+                            var tok = argTokens.Dequeue();
+
+                            if (tok == "!")
+                            {
+                                list.Add(null);
+                            }
+                            else
+                            {
+                                list.Add(ConvertToken(tok, elemType));
+                            }
                         }
+
+                        args.Add(list);
                     }
-
-                    args.Add(list);
-                }
-                else if (pType.IsArray)
-                {
-                    if (argTokens.Count == 0)
-                        throw new InvalidOperationException("Missing array length");
-
-                    var lenToken = argTokens.Dequeue();
-
-                    if (lenToken == "!")
-                    {
-                        args.Add(null);
-                        continue;
-                    }
-
-                    int len = int.Parse(lenToken);
-
-                    var elemType = pType.GetElementType()!;
-                    var array = Array.CreateInstance(elemType, len);
-
-                    for (int j = 0; j < len; j++)
+                    else if (pType.IsArray)
                     {
                         if (argTokens.Count == 0)
-                            throw new InvalidOperationException("Missing array element");
+                            throw new InvalidOperationException("Missing array length");
 
-                        var tok = argTokens.Dequeue();
+                        var lenToken = argTokens.Dequeue();
 
-                        if (tok == "!")
+                        if (lenToken == "!")
                         {
-                            array.SetValue(null, j);
+                            args.Add(null);
+                            continue;
                         }
-                        else
+
+                        int len = int.Parse(lenToken);
+
+                        var elemType = pType.GetElementType()!;
+                        var array = Array.CreateInstance(elemType, len);
+
+                        for (int j = 0; j < len; j++)
                         {
-                            array.SetValue(ConvertToken(tok, elemType), j);
+                            if (argTokens.Count == 0)
+                                throw new InvalidOperationException("Missing array element");
+
+                            var tok = argTokens.Dequeue();
+
+                            if (tok == "!")
+                            {
+                                array.SetValue(null, j);
+                            }
+                            else
+                            {
+                                array.SetValue(ConvertToken(tok, elemType), j);
+                            }
                         }
-                    }
 
-                    args.Add(array);
-                }
-                else
-                {
-                    if (argTokens.Count == 0)
-                        throw new InvalidOperationException("Missing argument");
-
-                    var tok = argTokens.Dequeue();
-
-                    if (tok == "!" && pType.IsGenericType && pType.GetGenericTypeDefinition() == typeof(Nullable<>))
-                    {
-                        args.Add(null);
+                        args.Add(array);
                     }
                     else
                     {
-                        args.Add(ConvertToken(tok, Nullable.GetUnderlyingType(pType) ?? pType));
+                        if (argTokens.Count == 0)
+                            throw new InvalidOperationException("Missing argument");
+
+                        var tok = argTokens.Dequeue();
+
+                        if (tok == "!" && pType.IsGenericType && pType.GetGenericTypeDefinition() == typeof(Nullable<>))
+                        {
+                            args.Add(null);
+                        }
+                        else
+                        {
+                            args.Add(ConvertToken(tok, Nullable.GetUnderlyingType(pType) ?? pType));
+                        }
                     }
                 }
+
+                var result = method.Invoke(null, args.ToArray());
+
+                if (result is Task t)
+                {
+                    await t.ConfigureAwait(false);
+                }
             }
-
-            var result = method.Invoke(null, args.ToArray());
-
-            if (result is Task t)
+            catch (Exception ex)
             {
-                await t.ConfigureAwait(false);
+                FoxLog.LogException(ex);
+
+                await telegram.SendCallbackAnswer(query.query_id, 0, $"❌ Error: {ex.Message}", null, true);
             }
         }
-
 
         private static bool IsListType(Type t)
         {

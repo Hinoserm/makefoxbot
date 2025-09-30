@@ -135,7 +135,7 @@ namespace makefoxsrv
 
             FoxLog.WriteLine($"We are logged-in as {_client.User} (id {_client.User.ID})");
 
-            await FoxCommandHandler.SetBotCommands(_client);
+            await FoxCommandHandlerOld.SetBotCommands(_client);
         }
 
         private Peer? InputToPeer(InputPeer peer) => peer switch
@@ -508,7 +508,7 @@ namespace makefoxsrv
                         await FoxWebChat.BroadcastMessageAsync(null, t.User, t.Peer, message);
                     });
 
-                    await FoxCommandHandler.HandleCommand(t, msg);
+                    await FoxCommandHandlerOld.HandleCommand(t, msg);
                     //FoxLog.WriteLine($"{msg.ID}: Finished processing input for {t.User.username}.");
 
                     //await DatabaseHandler.DisplayReceivedTelegramMessage(t.User.ID, message);
