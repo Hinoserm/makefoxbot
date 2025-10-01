@@ -669,6 +669,10 @@ namespace makefoxsrv
                     case UpdateChannelPinnedTopic ucpt:
                         tlPeerID = ucpt.channel_id;
                         break;
+                    case UpdateBotChatInviteRequester ubcir:
+                        tlPeerID = ubcir.peer.ID;
+                        tlFromID = ubcir.user_id;
+                        break;
                 }
 
                 using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
@@ -943,6 +947,43 @@ namespace makefoxsrv
 
                                 _ = HandleUpdateUsername(user, uun);
                                 break;
+                            case UpdateBotChatInviteRequester ubcir:
+                                // A user has requested to join a chat via an invite link
+
+                                if (ubcir.peer.ID == 2048609895 || ubcir.peer.ID == 2184471767)
+                                {
+                                    // This is @toomanyfoxes and @soupfoxgames (for testing)
+
+                                    updates.Users.TryGetValue(ubcir.user_id, out user);
+                                    updates.Chats.TryGetValue(ubcir.peer.ID, out chat);
+
+                                    if (user is null || chat is null)
+                                        return;
+
+                                    var targetUser = await FoxUser.GetByTelegramUser(user, false);
+
+                                    if (targetUser is not null)
+                                    {
+                                        bool isBanned = (targetUser.GetAccessLevel() == AccessLevel.BANNED);
+
+                                        try
+                                        {
+                                            if (!isBanned)
+                                                await targetUser.Telegram.SendMessageAsync($"🦊 Welcome to @{chat.MainUsername}!  You have been automatically approved.");
+                                            else
+                                                await targetUser.Telegram.SendMessageAsync($"❌ You are banned and cannot join @{chat.MainUsername}.\r\n\r\n💬 Contact @makefoxhelpbot for assistance.");
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            FoxLog.LogException(ex);
+                                        }
+
+                                        await _client.Messages_HideChatJoinRequest(chat, user, !isBanned);
+                                    }
+                                }
+
+                                break;
+
                             case UpdateUser uu:
                                 // Handle user updates here.
                                 break;
