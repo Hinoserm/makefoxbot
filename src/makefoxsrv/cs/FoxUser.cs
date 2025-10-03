@@ -418,7 +418,7 @@ namespace makefoxsrv
                     }
                 }
 
-                if (!tuser.flags.HasFlag(User.Flags.min) && tuser.access_hash != user
+                //if (!tuser.flags.HasFlag(User.Flags.min) && tuser.access_hash != user
 
                 if (user != null && user.Username != tuser.username)
                 {
