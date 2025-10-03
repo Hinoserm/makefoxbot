@@ -724,6 +724,7 @@ namespace makefoxsrv
 
         public async Task UpdateTimestamps()
         {
+            this.lastAccessed = DateTime.Now;
             using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await SQL.OpenAsync();
@@ -731,7 +732,8 @@ namespace makefoxsrv
                 using (var cmd = new MySqlCommand())
                 {
                     cmd.Connection = SQL;
-                    cmd.CommandText = "UPDATE users SET date_last_seen = CURRENT_TIMESTAMP() WHERE id = " + this.UID;
+                    cmd.CommandText = "UPDATE users SET date_last_seen = @now WHERE id = " + this.UID;
+                    cmd.Parameters.AddWithValue("now", this.lastAccessed);
                     await cmd.ExecuteNonQueryAsync();
                 }
             }

@@ -245,6 +245,9 @@ namespace makefoxsrv
                 var user = await FoxUser.GetByTelegramUser(t.User, true);
                 if (user is null)
                     throw new Exception("Unable to locate or create new user.");
+
+                await user.UpdateTimestamps();
+
                 if (user.GetAccessLevel() == AccessLevel.BANNED)
                     throw new Exception("You are banned from using this bot.");
 
