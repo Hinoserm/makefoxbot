@@ -418,6 +418,8 @@ namespace makefoxsrv
                     }
                 }
 
+                if (!tuser.flags.HasFlag(User.Flags.min) && tuser.access_hash != user
+
                 if (user != null && user.Username != tuser.username)
                 {
                     // Telegram username changed, a db update is required

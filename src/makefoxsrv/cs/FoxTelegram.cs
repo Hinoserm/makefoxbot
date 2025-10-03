@@ -1120,7 +1120,7 @@ namespace makefoxsrv
                                 INSERT INTO telegram_users
                                 (id, access_hash, active, type, language, username, firstname, lastname, bio, flags, flags2, date_added, date_updated, photo_id, photo, last_full_update)
                                 VALUES 
-                                (@id, @access_hash, @active, @type, @language, @username, @firstname, @lastname, @bio, @flags, @flags2, @date_updated, @date_updated, @photo_id, @photo, @last_full_update)
+                                (@id, @access_hash_always, @active, @type, @language, @username, @firstname, @lastname, @bio, @flags, @flags2, @date_updated, @date_updated, @photo_id, @photo, @last_full_update)
                                 ON DUPLICATE KEY UPDATE 
                                     access_hash = COALESCE(@access_hash, access_hash),
                                     active = COALESCE(@active, active),
@@ -1140,7 +1140,8 @@ namespace makefoxsrv
                             ";
 
                             cmd.Parameters.AddWithValue("id", user.ID);
-                            cmd.Parameters.AddWithValue("access_hash", user.access_hash != 0 ? user.access_hash : null);
+                            cmd.Parameters.AddWithValue("access_hash_always", user.access_hash);
+                            cmd.Parameters.AddWithValue("access_hash", user.flags.HasFlag(User.Flags.min) ? null : user.access_hash);
                             cmd.Parameters.AddWithValue("active", user.IsActive);
                             cmd.Parameters.AddWithValue("type", user.IsBot ? "BOT" : "USER");
                             cmd.Parameters.AddWithValue("language", user.lang_code);
