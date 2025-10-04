@@ -59,7 +59,8 @@ namespace makefoxsrv
             });
         }
 
-        public static async Task HandleLeaveGroup(FoxTelegram t, Message message, string? argument)
+        [BotCommand(cmd: "admin", sub: "leavegroup", adminOnly: true)]
+        public static async Task HandleLeaveGroup(FoxTelegram t, FoxUser user, Message message, string? argument)
         {
             if (String.IsNullOrEmpty(argument))
             {
