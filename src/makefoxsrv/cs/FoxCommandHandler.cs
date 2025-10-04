@@ -137,6 +137,15 @@ namespace makefoxsrv
                 rest = text[(firstWs + 1)..]; // keep newlines intact
             }
 
+            // Initialize FoxContext for this command
+            FoxContextManager.Current = new FoxContext
+            {
+                Message = message,
+                Command = command,
+                Argument = rest,
+                Telegram = t
+            };
+
             // Handle @botname
             var c = command.Split('@', 2);
             if (c.Length == 2)
@@ -246,6 +255,8 @@ namespace makefoxsrv
                 if (user is null)
                     throw new Exception("Unable to locate or create new user.");
 
+                FoxContextManager.Current.User = user;
+
                 await user.UpdateTimestamps();
 
                 if (user.GetAccessLevel() == AccessLevel.BANNED)
@@ -259,16 +270,34 @@ namespace makefoxsrv
                     throw new Exception("Commands are not permitted in this topic.");
 
                 var invokeArgs = await BuildArguments(entry.Method, t, user, message, args, cmd, subInput);
-                var task = (Task?)entry.Method.Invoke(null, invokeArgs);
-                if (task is null)
-                    throw new Exception($"Command handler {entry.Method.Name} did not return a Task.");
-                await task;
+
+                await user.LockAsync();
+
+                try
+                {
+                    var task = (Task?)entry.Method.Invoke(null, invokeArgs);
+                    if (task is null)
+                        throw new Exception($"Command handler {entry.Method.Name} did not return a Task.");
+                    await task;
+                }
+                catch
+                {
+                    throw;
+                }
+                finally
+                {
+                    user.Unlock();
+                }
             }
             catch (Exception ex)
             {
                 await t.SendMessageAsync(
                     text: $"❌ Error: {ex.Message}",
                     replyToMessage: message);
+            }
+            finally
+            {
+                FoxContextManager.Clear();
             }
 
             return true;
