@@ -60,77 +60,6 @@ namespace makefoxsrv
             public string? ExceptionJson { get; set; }
         }
 
-        public static async Task CreateTodayPartition()
-        {
-            try
-            {
-                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-                await SQL.OpenAsync();
-
-                var today = DateTime.Today;
-                var partitionName = $"p{today:yyyyMMdd}";
-                var cutoffDate = today.AddDays(1).ToString("yyyy-MM-dd");
-
-                var alterSql = $@"
-                    ALTER TABLE log ADD PARTITION (
-                        PARTITION {partitionName}
-                        VALUES LESS THAN (TO_DAYS('{cutoffDate}'))
-                    );
-                ";
-
-                using var alterCmd = new MySqlCommand(alterSql, SQL);
-                await alterCmd.ExecuteNonQueryAsync();
-            }
-            catch (Exception ex)
-            {
-                LogToFile($"Error creating today's partition: {ex.Message}\n{ex.StackTrace}");
-            }
-        }
-
-        [Cron(hours: 1)]
-        public static async Task CheckAndBuildTomorrowPartition()
-        {
-            try
-            {
-                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
-                await SQL.OpenAsync();
-
-                var tomorrow = DateTime.Today.AddDays(1);
-                var partitionName = $"p{tomorrow:yyyyMMdd}";
-                var cutoffDate = tomorrow.AddDays(1).ToString("yyyy-MM-dd");
-
-                // Check if tomorrow's partition already exists
-                var checkSql = @"
-                    SELECT COUNT(*)
-                    FROM information_schema.PARTITIONS
-                    WHERE TABLE_SCHEMA = DATABASE()
-                      AND TABLE_NAME = 'log'
-                      AND PARTITION_NAME = @pname;
-                ";
-
-                using var checkCmd = new MySqlCommand(checkSql, SQL);
-                checkCmd.Parameters.AddWithValue("@pname", partitionName);
-                var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync());
-
-                if (exists == 0)
-                {
-                    var alterSql = $@"
-                        ALTER TABLE log ADD PARTITION (
-                            PARTITION {partitionName}
-                            VALUES LESS THAN (TO_DAYS('{cutoffDate}'))
-                        );
-                    ";
-
-                    using var alterCmd = new MySqlCommand(alterSql, SQL);
-                    await alterCmd.ExecuteNonQueryAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                LogToFile($"Partition maintenance error: {ex.Message}\n{ex.StackTrace}");
-            }
-        }
-
         // Call this once at application startup
         public static void StartLoggingThread(CancellationToken? cancellationToken = null)
         {
@@ -149,8 +78,6 @@ namespace makefoxsrv
             logWorkerTask = Task.Run(async () =>
             {
                 WriteLine("Started logging task.");
-
-                await CreateTodayPartition();
 
                 while (keepLogging)
                 {

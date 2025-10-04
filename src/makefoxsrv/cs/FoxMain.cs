@@ -298,6 +298,8 @@ namespace makefoxsrv
             }
             FoxLog.WriteLine("done.");
 
+            await FoxDB.CheckAndCreatePartitionsAsync();
+
             FoxLog.StartLoggingThread();
 
             try

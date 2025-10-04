@@ -41,6 +41,150 @@ namespace makefoxsrv
     internal class FoxDB
     {
 
+        public static async Task CheckAndCreatePartitionsAsync()
+        {
+            try
+            {
+                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+                await SQL.OpenAsync();
+
+                // Find all partitioned tables in this database
+                const string findTablesSql = @"
+                    SELECT DISTINCT TABLE_NAME
+                    FROM information_schema.PARTITIONS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND PARTITION_NAME IS NOT NULL
+                ";
+
+                var tableNames = new List<string>();
+                using (var cmd = new MySqlCommand(findTablesSql, SQL))
+                using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                        tableNames.Add(reader.GetString(0));
+                }
+
+                var days = new[] { DateTime.Today, DateTime.Today.AddDays(1) };
+
+                foreach (var table in tableNames)
+                {
+                    foreach (var day in days)
+                    {
+                        var partitionName = $"p{day:yyyyMMdd}";
+                        var cutoffDate = day.AddDays(1).ToString("yyyy-MM-dd");
+
+                        if (!await PartitionExistsAsync(table, partitionName))
+                        {
+                            var alterSql = $@"
+                                ALTER TABLE `{table}` ADD PARTITION (
+                                    PARTITION {partitionName}
+                                    VALUES LESS THAN (TO_DAYS('{cutoffDate}'))
+                                );
+                            ";
+
+                            using var alterCmd = new MySqlCommand(alterSql, SQL);
+                            await alterCmd.ExecuteNonQueryAsync();
+
+                            FoxLog.WriteLine($"Added partition \"{partitionName}\" to table \"{table}\"", LogLevel.INFO);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex, $"Startup partition maintenance error: {ex.Message}");
+                throw;
+            }
+        }
+
+        [Cron(hours: 1)]
+        public static async Task CronBuildTomorrowsPartitionsAsync()
+        {
+            try
+            {
+                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+                await SQL.OpenAsync();
+
+                const string findTablesSql = @"
+                    SELECT DISTINCT TABLE_NAME
+                    FROM information_schema.PARTITIONS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND PARTITION_NAME IS NOT NULL
+                ";
+
+                var tableNames = new List<string>();
+                using (var cmd = new MySqlCommand(findTablesSql, SQL))
+                using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                        tableNames.Add(reader.GetString(0));
+                }
+
+                var tomorrow = DateTime.Today.AddDays(1);
+                var partitionName = $"p{tomorrow:yyyyMMdd}";
+                var cutoffDate = tomorrow.AddDays(1).ToString("yyyy-MM-dd");
+
+                foreach (var table in tableNames)
+                {
+                    try
+                    {
+                        if (!await PartitionExistsAsync(table, partitionName))
+                        {
+                            var alterSql = $@"
+                                ALTER TABLE `{table}` ADD PARTITION (
+                                    PARTITION {partitionName}
+                                    VALUES LESS THAN (TO_DAYS('{cutoffDate}'))
+                                );
+                            ";
+                            using var alterCmd = new MySqlCommand(alterSql, SQL);
+                            await alterCmd.ExecuteNonQueryAsync();
+
+                            FoxLog.WriteLine($"[CRON] Added partition \"{partitionName}\" to table \"{table}\"", LogLevel.INFO);
+                        }
+                    }
+                    catch (Exception tableEx)
+                    {
+                        FoxLog.LogException(tableEx, $"Partition maintenance failed for table \"{table}\"");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex, $"Cron partition maintenance error: {ex.Message}");
+            }
+        }
+
+        private static async Task<bool> PartitionExistsAsync(string table, string partitionName)
+        {
+            try
+            {
+                using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
+                await SQL.OpenAsync();
+
+                const string checkSql = @"
+                    SELECT COUNT(*)
+                    FROM information_schema.PARTITIONS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = @tname
+                      AND PARTITION_NAME = @pname;
+                ";
+
+                using var checkCmd = new MySqlCommand(checkSql, SQL);
+                checkCmd.Parameters.AddWithValue("@tname", table);
+                checkCmd.Parameters.AddWithValue("@pname", partitionName);
+
+                var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync());
+                return exists > 0;
+            }
+            catch (Exception ex)
+            {
+                FoxLog.LogException(ex, $"Partition existence check failed for {table}/{partitionName}: {ex.Message}");
+                return false;
+            }
+        }
+
+
+
         public static async Task SaveObjectAsync<T>(T obj, string tableName)
         {
             using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
