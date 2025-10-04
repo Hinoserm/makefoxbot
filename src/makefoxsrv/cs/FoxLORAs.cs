@@ -524,8 +524,16 @@ namespace makefoxsrv
 
                 var scored = new List<(int Score, LoraInfo Info)>();
 
+                var workers = FoxWorker.GetWorkers();
+
+                // Merge all worker-loaded LORAs into a single set
+                var allLoaded = new HashSet<string>(
+                    workers.Values.SelectMany(w => w.LoadedLoras)
+                );
+
+                // Filter to only LORAs that exist in that set
                 var loraList = _lorasByHash.Values
-                    .Where(l => l.Workers.Count > 0)
+                    .Where(l => allLoaded.Contains(l.Name ?? ""))
                     .ToList();
 
                 foreach (var info in loraList)
