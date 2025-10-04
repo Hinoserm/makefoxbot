@@ -187,10 +187,6 @@ namespace makefoxsrv
                     if (t is null)
                         throw new Exception("Telegram object not initalized!");
 
-                    // Fetch and store embeddings for the image.
-
-                    var embeddingTask = DoEmbeddingAndStoreAsync(q);
-
                     // If the user already has queue items that are sending, we need to add a brief delay so they don't overlap.
                     // Make sure we don't count this one.
 
@@ -210,41 +206,32 @@ namespace makefoxsrv
 
                         var falsePositive = false;
 
-                        try
-                        {
-                            var finished = await Task.WhenAny(embeddingTask, Task.Delay(TimeSpan.FromSeconds(3)));
+                        // Fetch and store embeddings for the image.
 
-                            if (finished == embeddingTask)
-                            {
-                                // Completed in time
-                                var (promptEmbedding, tagsEmbedding) = embeddingTask.Result;
+                        var (promptEmbedding, tagsEmbedding) = await DoEmbeddingAndStoreAsync(q);
 
-                                using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
-                                await conn.OpenAsync();
+                        //try
+                        //{
 
-                                using var cmd = conn.CreateCommand();
-                                cmd.CommandText = @"
-                                    UPDATE queue_embeddings
-                                    SET safety_status = 'UNSAFE'
-                                    WHERE qid = @qid";
+                        //    using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                        //    await conn.OpenAsync();
 
-                                cmd.Parameters.AddWithValue("@qid", q.ID);
+                        //    using var cmd = conn.CreateCommand();
+                        //    cmd.CommandText = @"
+                        //        UPDATE queue_embeddings
+                        //        SET safety_status = 'UNSAFE'
+                        //        WHERE qid = @qid";
 
-                                await cmd.ExecuteNonQueryAsync();
+                        //    cmd.Parameters.AddWithValue("@qid", q.ID);
 
-                                //falsePositive = await IsFalsePositiveAsync(tagsEmbedding, 0.8);
-                            }
-                            else
-                            {
-                                // Timed out
-                                // Decide what you want to do when embeddings are missing
-                                // e.g. assume unsafe, log, etc.
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            FoxLog.LogException(ex, $"Failed to mark unsafe embedding for {q.ID}: {ex.Message}");
-                        }
+                        //    await cmd.ExecuteNonQueryAsync();
+
+                        //    //falsePositive = await IsFalsePositiveAsync(tagsEmbedding, 0.8);
+                        //}
+                        //catch (Exception ex)
+                        //{
+                        //    FoxLog.LogException(ex, $"Failed to mark unsafe embedding for {q.ID}: {ex.Message}");
+                        //}
 
                         if (!falsePositive)
                         {
