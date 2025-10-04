@@ -533,7 +533,7 @@ namespace makefoxsrv
 
                 // Filter to only LORAs that exist in that set
                 var loraList = _lorasByHash.Values
-                    .Where(l => allLoaded.Contains(l.Name ?? ""))
+                    .Where(l => allLoaded.Contains(l.Filename ?? ""))
                     .ToList();
 
                 foreach (var info in loraList)
