@@ -429,7 +429,7 @@ namespace makefoxsrv
                                 Model = new
                                 {
                                     type = "string",
-                                    description = "The name of the model to use to generate the image.  Currently supported values: \"yiffymix_v52XL\", \"molKeunKemoXL\", \"indigoFurryMixXL_noobaiEPS\""
+                                    description = "The name of the model to use to generate the image.  Currently supported values: \"yiffymix_v52XL\", \"molKeunMix_deepnavyV2EPS\", \"novaFurryXL_V110\", \"willysNoobRealism_vPredV10\""
                                 }
 
                             },
