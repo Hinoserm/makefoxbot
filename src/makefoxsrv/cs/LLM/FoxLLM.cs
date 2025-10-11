@@ -494,16 +494,17 @@ namespace makefoxsrv
                     stream = false,
                     reasoning = new {
                         enabled = false
-                    }
-                /* provider = new
-                {
-                    order = new[]
+                    },
+                    user = user.UID.ToString(),
+                    /* provider = new
                     {
-                        "DeepInfra"
-                    }
-                } */
-                /*allow_fallbacks = false */
-            };
+                        order = new[]
+                        {
+                            "DeepInfra"
+                        }
+                    } */
+                    /*allow_fallbacks = false */
+                };
 
                 // Serialize the request body to JSON
                 string jsonContent = Newtonsoft.Json.JsonConvert.SerializeObject(requestBody, new JsonSerializerSettings
