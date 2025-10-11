@@ -85,9 +85,12 @@ namespace makefoxsrv
                 var cmd = new MySqlCommand(@"
                     SELECT id, type, date_added
                     FROM images
-                    WHERE user_id = @uid
+                    WHERE user_id = @uid AND
+                        hidden = 0 AND
+                        flagged = 0 AND
+                        (type = 'INPUT' OR type = 'OUTPUT')
                     ORDER BY date_added DESC
-                    LIMIT 2;
+                    LIMIT 4;
                 ", conn);
 
                 cmd.Parameters.AddWithValue("@uid", user.UID);

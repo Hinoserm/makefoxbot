@@ -100,6 +100,15 @@ namespace makefoxsrv
             if (floodWait > DateTime.Now)
                 sb.AppendLine($"FLOOD_WAIT until {floodWait}");
 
+            (decimal InputCost, decimal OutputCost, decimal TotalCost, int InputTokens, int OutputTokens) = await FoxLLM.CalculateUserLLMCostAsync(user);
+
+            if (InputTokens + OutputTokens > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"LLM Usage: {InputTokens} input tokens, {OutputTokens} output tokens");
+                sb.AppendLine($"LLM Cost: ${InputCost + OutputCost:F4} (${InputCost:F4} input, ${OutputCost:F4} output)");
+            }
+
             return sb.ToString();
         }
 

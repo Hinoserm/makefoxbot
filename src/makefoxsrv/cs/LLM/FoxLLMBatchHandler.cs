@@ -29,9 +29,9 @@ namespace makefoxsrv
 
         private static readonly ConcurrentDictionary<ulong, UserState> _states = new();
 
-        private const double BaseDelaySeconds = 2.0;
-        private const double IncrementSeconds = 0.3;
-        private const double MaxDelaySeconds = 6.0;
+        private const double BaseDelaySeconds = 8.0;
+        private const double IncrementSeconds = 0.6;
+        private const double MaxDelaySeconds = 15.0;
 
         public static void StartCleanupLoop(TimeSpan interval, TimeSpan idleTimeout, CancellationToken token)
             => _ = Task.Run(() => CleanupLoopAsync(interval, idleTimeout, token), token);
