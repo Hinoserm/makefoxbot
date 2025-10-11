@@ -455,7 +455,7 @@ namespace makefoxsrv
 
                 string llmModel = "x-ai/grok-4-fast"; // "meta-llama/llama-3.3-70b-instruct"; // "x-ai/grok-2-1212"; //"mistralai/mistral-large-2411"; //"google/gemini-2.0-flash-001"; //"meta-llama/llama-3.3-70b-instruct"; //"meta-llama/llama-3.3-70b-instruct";
 
-                var maxTokens = 812;
+                var maxTokens = 4096;
 
                 StringBuilder userDetails = new StringBuilder();
 

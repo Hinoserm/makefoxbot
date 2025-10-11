@@ -291,9 +291,7 @@ namespace makefoxsrv
                 string finalText;
                 if (rowType == "func")
                 {
-                    continue;
-
-                    //finalText = FormatFunctionCall(functionName, rawParamsJson);
+                    finalText = FormatFunctionCall(functionName, rawParamsJson);
                 }
                 else
                 {
