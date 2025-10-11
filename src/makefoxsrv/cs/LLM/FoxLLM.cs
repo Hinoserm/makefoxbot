@@ -506,7 +506,12 @@ namespace makefoxsrv
             };
 
                 // Serialize the request body to JSON
-                string jsonContent = Newtonsoft.Json.JsonConvert.SerializeObject(requestBody);
+                string jsonContent = Newtonsoft.Json.JsonConvert.SerializeObject(requestBody, new JsonSerializerSettings
+                {
+                    Formatting = Newtonsoft.Json.Formatting.None,
+                    NullValueHandling = NullValueHandling.Ignore
+                });
+
                 var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
                 // Send the POST request

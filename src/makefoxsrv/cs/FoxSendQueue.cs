@@ -327,7 +327,9 @@ namespace makefoxsrv
 
                     bool addWatermark = !(q.User.CheckAccessLevel(AccessLevel.PREMIUM));
 
-                    var inputImage = await FoxTelegram.Client.UploadFileAsync(ConvertImageToJpeg(new MemoryStream(OutputImage.Image), 80, 1280, addWatermark), $"{FoxTelegram.Client.User.username}_smimage_{q.ID}.jpg");
+                    using var jpegImage = ConvertImageToJpeg(new MemoryStream(OutputImage.Image), 80, 1280, addWatermark);
+
+                    var inputImage = await FoxTelegram.Client.UploadFileAsync(jpegImage, $"{FoxTelegram.Client.User.username}_smimage_{q.ID}.jpg");
 
                     //var msg = await FoxTelegram.Client.SendMediaAsync(t.Peer, "", inputImage, null, (int)q.reply_msg);
 
@@ -424,6 +426,7 @@ namespace makefoxsrv
         private static MemoryStream ConvertImageToJpeg(MemoryStream inputImageStream, int quality = 85, uint? maxDimension = 1280, bool addWatermark = true)
         {
             var outputStream = new MemoryStream();
+
             using (Image<Rgba32> image = Image.Load<Rgba32>(inputImageStream))
             {
                 if (maxDimension is not null)

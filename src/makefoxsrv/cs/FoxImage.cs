@@ -1,6 +1,9 @@
 ﻿using MySqlConnector;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -259,6 +262,21 @@ namespace makefoxsrv
             }
         }
 
+        /// <summary>
+        /// Loads a new Image<Rgb24> from raw data.
+        /// Caller is responsible for disposing.
+        /// </summary>
+        public Image<Rgb24> GetRGBImage()
+        {
+            lock (_lock)
+            {
+                if (this.Image is null)
+                    throw new InvalidOperationException("Image data is null");
+
+                return SixLabors.ImageSharp.Image.Load<Rgb24>(Image);
+            }
+        }
+
         private void PopulateDimensions()
         {
             lock (_lock)
@@ -439,6 +457,39 @@ namespace makefoxsrv
             _cache.Put(img.ID, img);
 
             return img;
+        }
+
+        public byte[] GetImageAsJpeg(int quality = 85, uint? maxDimension = null)
+        {
+            using (var image = this.GetRGBImage())
+            {
+                if (maxDimension is not null)
+                {
+                    (uint newWidth, uint newHeight) = FoxImage.CalculateLimitedDimensions((uint)image.Width, (uint)image.Height, maxDimension.Value);
+
+                    image.Mutate(x => x.Resize(new ResizeOptions
+                    {
+                        Size = new Size((int)newWidth, (int)newHeight),
+                        Mode = ResizeMode.Max
+                    }));
+                }
+
+                using var outputStream = new MemoryStream();
+
+                image.Metadata.ExifProfile = null;
+                image.Metadata.IccProfile = null;
+
+                var encoder = new JpegEncoder
+                {
+                    Quality = quality,
+                    ColorType = JpegEncodingColor.Rgb
+                };
+
+                image.SaveAsJpeg(outputStream, encoder);
+                outputStream.Position = 0;
+
+                return outputStream.ToArray();
+            }
         }
 
         public static string GetImageExtension(byte[] imageData)
