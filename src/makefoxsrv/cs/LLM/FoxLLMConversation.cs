@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.IO;
 using MySqlConnector;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -346,6 +347,26 @@ namespace makefoxsrv
         /// </summary>
         public static async Task<long> InsertConversationMessageAsync(FoxUser user, string role, string content, TL.Message? message)
         {
+            // Log to file for debugging
+
+            var logDir = Path.Combine("..", "logs", "llm");
+            Directory.CreateDirectory(logDir);
+
+            var logFile = Path.Combine(logDir, $"{user.UID}.log");
+
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            var prefix = $"[{timestamp}] ({role.ToUpperInvariant()}) ";
+
+            var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            var formatted = new System.Text.StringBuilder();
+
+            foreach (var line in lines)
+                formatted.Append(prefix).Append(line).Append("\r\n");
+
+            await File.AppendAllTextAsync(logFile, formatted.ToString(), System.Text.Encoding.UTF8);
+           
+            // Save to database
+
             await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
             await conn.OpenAsync();
 

@@ -115,7 +115,7 @@ namespace makefoxsrv
             await FoxGenerate.Generate(t, settings, message, user, imgType);
         }
 
-        private static async Task<bool> Check(FoxTelegram t, FoxUser user, Message replyToMessage, FoxUserSettings settings)
+        private static async Task<bool> Check(FoxTelegram t, FoxUser user, Message? replyToMessage, FoxUserSettings settings)
         {
             //if (settings.regionalPrompting)
             //    throw new Exception("Regional prompting is currently unavailable due to a software issue.");
@@ -308,7 +308,7 @@ namespace makefoxsrv
         }
 
 
-        public static async Task<FoxQueue?> Generate(FoxTelegram t, FoxUserSettings settings, Message replyToMessage, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG, bool enhanced = false, FoxQueue? originalTask = null, Message? editMessage = null)
+        public static async Task<FoxQueue?> Generate(FoxTelegram t, FoxUserSettings settings, Message? replyToMessage, FoxUser user, FoxQueue.QueueType imgType = FoxQueue.QueueType.TXT2IMG, bool enhanced = false, FoxQueue? originalTask = null, Message? editMessage = null)
         {
             if (originalTask is null)
                 settings.regionalPrompting = DetectRegionalPrompting(settings.Prompt ?? "") || DetectRegionalPrompting(settings.NegativePrompt ?? "");

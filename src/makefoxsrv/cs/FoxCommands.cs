@@ -62,7 +62,7 @@ namespace makefoxsrv
             if (FoxTelegram.Client is null)
                 throw new Exception("FoxTelegram.Client is null");
 
-            if (message.message is null || message.message.Length < 2)
+            if (message.message is null || message.message.Length < 1)
                 return;
 
             var args = message.message.Split([' ', '\n'], 2);
@@ -73,10 +73,11 @@ namespace makefoxsrv
                 {
                     var llmUser = await FoxUser.GetByTelegramUser(t.User, false);
 
-                    if (llmUser is not null)
+                    if (llmUser is not null && llmUser.CheckAccessLevel(AccessLevel.PREMIUM))
                     {
                         FoxContextManager.Current.User = llmUser;
-                        await FoxLLM.ProcessLLMRequest(t, llmUser, message); // Send to LLM
+                        await FoxLLMBatchHandler.AddMessageAsync(t, llmUser, message, CancellationToken.None);
+                        //await FoxLLM.ProcessLLMRequest(t, llmUser, message); // Send to LLM
                     }
                 }
                 return; // Not a command, skip it.
