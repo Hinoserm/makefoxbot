@@ -29,7 +29,7 @@ namespace makefoxsrv
 
         private static readonly ConcurrentDictionary<ulong, UserState> _states = new();
 
-        private const double BaseDelaySeconds = 8.0;
+        private const double BaseDelaySeconds = 2.0;
         private const double IncrementSeconds = 0.6;
         private const double MaxDelaySeconds = 15.0;
 

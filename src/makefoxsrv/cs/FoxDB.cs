@@ -185,7 +185,7 @@ namespace makefoxsrv
 
 
 
-        public static async Task SaveObjectAsync<T>(T obj, string tableName)
+        public static async Task SaveObjectAsync<T>(T obj, string tableName, string keyColumn = "id")
         {
             using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
             {
@@ -218,7 +218,7 @@ namespace makefoxsrv
 
                 // Find the property or field marked with DbColumn("id")
                 var idMember = obj.GetType().GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                    .FirstOrDefault(m => m.GetCustomAttribute<DbColumnAttribute>()?.Name == "id");
+                    .FirstOrDefault(m => m.GetCustomAttribute<DbColumnAttribute>()?.Name == keyColumn);
 
                 if (idMember != null)
                 {

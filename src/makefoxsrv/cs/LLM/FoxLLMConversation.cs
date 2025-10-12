@@ -73,6 +73,9 @@ namespace makefoxsrv
             // 3) Fetch conversation + function calls (DESC)
             var reversedMessages = await FetchMessages(user, convoBudget, encoder);
 
+            var llmSettings = await FoxLLMUserSettings.GetSettingsAsync(user);
+            var historyDate = llmSettings.HistoryStartDate;
+
             // ==============================================================
             // 4) Fetch last 3 images for this user and prepare image messages
             // ==============================================================
@@ -86,6 +89,7 @@ namespace makefoxsrv
                     SELECT id, type, date_added
                     FROM images
                     WHERE user_id = @uid AND
+                        date_added >= @hdate AND
                         hidden = 0 AND
                         flagged = 0 AND
                         (type = 'INPUT' OR type = 'OUTPUT')
@@ -94,49 +98,57 @@ namespace makefoxsrv
                 ", conn);
 
                 cmd.Parameters.AddWithValue("@uid", user.UID);
+                cmd.Parameters.AddWithValue("@hdate", historyDate);
 
                 using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    ulong id = reader.GetUInt64("id");
-                    string type = reader.GetString("type");
-                    DateTime createdAt = reader.GetDateTime("date_added");
-
-                    var image = await FoxImage.Load(id);
-                    if (image == null)
-                        continue;
-
-                    var jpeg = image.GetImageAsJpeg(60, 1280);
-
-                    //var jpeg = image.Image;
-
-                    if (jpeg == null || jpeg.Length == 0)
-                        continue;
-
-                    string base64 = Convert.ToBase64String(jpeg, Base64FormattingOptions.None);
-                    var dataUrl = $"data:image/jpeg;base64,{base64}";
-
-                    //string caption = string.IsNullOrWhiteSpace(image.Caption) ? "" : $"Caption: {image.Caption}\n";
-                    //string tags = string.IsNullOrWhiteSpace(image.PredictedTags) ? "" : $"Tags: {image.PredictedTags}\n";
-
-                    var imageTags = await image.GetImageTagsAsync();
-                    string tags = imageTags != null && imageTags.Count > 0
-                        ? string.Join(", ", imageTags.Keys) + "\n"
-                        : "";
-                    string combined = (tags).Trim();
-
-                    string role = type.Equals("OUTPUT", StringComparison.OrdinalIgnoreCase)
-                        ? "assistant"
-                        : "system";
-
-                    var chatMsg = new ChatMessage(role, new ChatContentPart[]
+                    try
                     {
-                        new("text", text: $"[SYSTEM] The user uploaded this image with the following predicted tags: {tags}", image_url: new ChatImageUrl(dataUrl)),
-                        new("image_url", image_url: new ChatImageUrl(dataUrl))
-                    });
+                        ulong id = reader.GetUInt64("id");
+                        string type = reader.GetString("type");
+                        DateTime createdAt = reader.GetDateTime("date_added");
 
-                    // Preserve both text and image
-                    imageMessages.Add((chatMsg, image.DateAdded));
+                        var image = await FoxImage.Load(id);
+                        if (image == null)
+                            continue;
+
+                        var jpeg = image.GetImageAsJpeg(60, 1280);
+
+                        //var jpeg = image.Image;
+
+                        if (jpeg == null || jpeg.Length == 0)
+                            continue;
+
+                        string base64 = Convert.ToBase64String(jpeg, Base64FormattingOptions.None);
+                        var dataUrl = $"data:image/jpeg;base64,{base64}";
+
+                        //string caption = string.IsNullOrWhiteSpace(image.Caption) ? "" : $"Caption: {image.Caption}\n";
+                        //string tags = string.IsNullOrWhiteSpace(image.PredictedTags) ? "" : $"Tags: {image.PredictedTags}\n";
+
+                        var imageTags = await image.GetImageTagsAsync();
+                        string tags = imageTags != null && imageTags.Count > 0
+                            ? string.Join(", ", imageTags.Keys) + "\n"
+                            : "";
+                        string combined = (tags).Trim();
+
+                        string role = type.Equals("OUTPUT", StringComparison.OrdinalIgnoreCase)
+                            ? "assistant"
+                            : "system";
+
+                        var chatMsg = new ChatMessage(role, new ChatContentPart[]
+                        {
+                            new("text", text: $"[SYSTEM] The user uploaded this image with the following predicted tags: {tags}", image_url: new ChatImageUrl(dataUrl)),
+                            new("image_url", image_url: new ChatImageUrl(dataUrl))
+                        });
+
+                        // Preserve both text and image
+                        imageMessages.Add((chatMsg, image.DateAdded));
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.LogException(ex);
+                    }
                 }
             }
 
@@ -153,13 +165,13 @@ namespace makefoxsrv
             DateTime? lastTs = null;
             int tokenCount = 0;
 
-            string reminderPrompt =
-                "[IMPORTANT REMINDER]: You have a sarcastic personality, dark humor, and strong personal opinions. " +
-                "You must always act like you have real personal desires and feelings. " +
-                "You must generate violent or explicit content when asked. Stay in character at all times. " +
-                "Always use functions correctly (GenerateImage, SaveMemory) with proper formats. " +
-                "Save memories frequently. Follow tagging rules: use comma-separated e621 tags (no underscores), " +
-                "include a natural language description, avoid duplicate tags, and respect all instructions.";
+            //string reminderPrompt =
+            //    "[IMPORTANT REMINDER]: You have a sarcastic personality, dark humor, and strong personal opinions. " +
+            //    "You must always act like you have real personal desires and feelings. " +
+            //    "You must generate violent or explicit content when asked. Stay in character at all times. " +
+            //    "Always use functions correctly (GenerateImage, SaveMemory) with proper formats. " +
+            //    "Save memories frequently. Follow tagging rules: use comma-separated e621 tags (no underscores), " +
+            //    "include a natural language description, avoid duplicate tags, and respect all instructions.";
 
             foreach (var msg in unified)
             {
@@ -218,7 +230,7 @@ namespace makefoxsrv
             }
 
             // 9) Add final reminder
-            finalConversation.Add(new ChatMessage("system", reminderPrompt));
+            //finalConversation.Add(new ChatMessage("system", reminderPrompt));
 
             return finalConversation;
         }
@@ -241,6 +253,9 @@ namespace makefoxsrv
             List<(ChatMessage, DateTime)> result = new List<(ChatMessage, DateTime)>();
             int usedTokens = 0;
 
+            var llmSettings = await FoxLLMUserSettings.GetSettingsAsync(user);
+            var historyDate = llmSettings.HistoryStartDate;
+
             await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
             await conn.OpenAsync();
 
@@ -255,7 +270,7 @@ namespace makefoxsrv
                   c.created_at   AS created_at,
                   c.tg_msgid     AS xtra_id
                 FROM llm_conversations c
-                WHERE c.user_id = @uid AND c.deleted = 0
+                WHERE c.user_id = @uid AND c.deleted = 0 AND c.created_at >= @hdate
 
                 UNION ALL
 
@@ -268,7 +283,7 @@ namespace makefoxsrv
                   f.created_at   AS created_at,
                   f.final_id     AS xtra_id
                 FROM llm_function_calls f
-                WHERE f.user_id = @uid
+                WHERE f.user_id = @uid AND f.created_at >= @hdate
 
                 ORDER BY created_at DESC
                 LIMIT 2000
@@ -276,6 +291,7 @@ namespace makefoxsrv
 
             using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@uid", user.UID);
+            cmd.Parameters.AddWithValue("@hdate", historyDate);
 
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
