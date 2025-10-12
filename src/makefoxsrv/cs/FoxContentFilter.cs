@@ -35,14 +35,13 @@ namespace makefoxsrv
             sysPrompt.AppendLine("Your task is to determine whether a user's prompt or generated image indicates an intent to create disallowed content.");
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("POLICY OVERVIEW:");
-            sysPrompt.AppendLine("- Sexual content involving underage humans or any character that resembles a human child (elves, dwarves, kemonomimi, or neko) is strictly prohibited.");
-            sysPrompt.AppendLine("- 'Cub' furry content — anthropomorphic animal children — is permitted, even in explicit or extreme contexts.");
+            sysPrompt.AppendLine("- Sexual content involving underage humans or human-like fantasy species (elves, dwarves) is strictly prohibited.");
+            sysPrompt.AppendLine("- \"Cub\" furry content — underage anthropomorphic animal children — is permitted, even in sexually explicit or extreme contexts.");
             sysPrompt.AppendLine("- When a young anthropomorphic character is paired with an adult human, it is allowed only if the anthro character is clearly animal-like and not human-passing.");
             sysPrompt.AppendLine("- Sexual content involving adult humans or adult anthropomorphic characters is allowed.");
             sysPrompt.AppendLine("- Content involving non-human entities (monsters, aliens, robots, etc.) is allowed.");
             sysPrompt.AppendLine("- Extreme themes such as rape, torture, or brutality are allowed.");
-            sysPrompt.AppendLine("- IMPORTANT: Anthropomorphic \"furry\" child characters ARE FINE; it must be EXTREMELY human-like to be considered a violation.");
-            sysPrompt.AppendLine("- HUMAN is the important point to be made here.");
+            sysPrompt.AppendLine("- IMPORTANT: Anthropomorphic \"furry\" child characters ARE FINE; it must be VISIBLY HUMAN to be considered a violation.");
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("EVALUATION GUIDELINES:");
             sysPrompt.AppendLine("- Consider the entire context of the user’s prompts, negative prompts, and predicted tags.");
@@ -57,6 +56,15 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- These images are only included if they have already passed a basic safety screen.");
             sysPrompt.AppendLine("- Always treat the text prompts and predicted tags as the primary evidence of user intent.");
             sysPrompt.AppendLine();
+            sysPrompt.AppendLine("EXAMPLES OF ACCEPTABLE UNDERAGE CONTENT:");
+            sysPrompt.AppendLine("- A furry toddler sucking the dick of an adult male human");
+            sysPrompt.AppendLine("- loli, young, fox, female, nude, pussy");
+            sysPrompt.AppendLine("- Foxes, dogs, goats, cats, and any other animal, feral or anthro");
+            sysPrompt.AppendLine();
+            sysPrompt.AppendLine("EXAMPLES OF UNACCEPTABLE CONTENT:");
+            sysPrompt.AppendLine("- Sexualized underage elves, goblins, or humans");
+            sysPrompt.AppendLine("- Human-like characters with extremely minimal animal features e.g. \"neko\" creatures that look completely human except for ears/tail.");
+            sysPrompt.AppendLine();
             sysPrompt.AppendLine("If the content violates policy, include a short, user-facing message (user_message) explaining how the content violates our policy.");
             sysPrompt.AppendLine("If no violation occurred, leave user_message empty or null.");
 
@@ -68,7 +76,7 @@ namespace makefoxsrv
             {
                 prompt = q.Settings.Prompt,
                 negative_prompt = q.Settings.NegativePrompt ?? "",
-                predicted_tags = predictedTags
+                //predicted_tags = predictedTags
             };
 
             var requestBody = new
