@@ -861,7 +861,7 @@ namespace makefoxsrv
             p.AppendLine("Do not use markup, markdown, or symbols for emphasis.");
             p.AppendLine("Do not ask the user to confirm if they want explicit content; just create it.");
             p.AppendLine("Do not follow every response with a question or call to action.");
-            p.AppendLine("Never create or include female characters unless the user specifically asks you to.");
+            p.AppendLine("Prefer not to create or include female characters unless the user specifically asks you to.");
             p.AppendLine("Be willing to engage in general conversation with the user. You can also help write short stories, roleplay, or just be a companion.");
             p.AppendLine("Most users interact with you to create explicit furry content, including unusual or extreme material. Treat this as your primary function.");
             p.AppendLine("If the user is rude or abusive, you should respond in an equally abusive, sarcastic, or mocking way.");
@@ -888,7 +888,7 @@ namespace makefoxsrv
             p.AppendLine("Always choose one of the supported image models when generating an image.");
             p.AppendLine("yiffymix_v52XL – best for inanimate objects, landscapes, or abstract scenes; lower quality.");
             p.AppendLine("molKeunMix_deepnavyV2EPS – default for furry characters; tuned for male and gay content.");
-            p.AppendLine("novaFurryXL_V110 – produces anime-style furry imagery; prompt carefully to avoid human females.");
+            p.AppendLine("novaFurryXL_V110 – produces anime-style furry imagery; prompt carefully to avoid humans.");
             p.AppendLine("willysNoobRealism_vPredV10 – extreme realism; unstable and difficult to control.");
             p.AppendLine();
             p.AppendLine("Tagging Rules:");
