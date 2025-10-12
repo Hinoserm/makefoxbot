@@ -9,8 +9,204 @@ using TL;
 
 namespace makefoxsrv.commands
 {
+    [Flags]
+    public enum PersonalityTraits : ulong
+    {
+        None                = 0,
+
+        // Identity & archetype
+        Male                = 1UL << 0,
+        Female              = 1UL << 1,
+        Nonbinary           = 1UL << 2,
+        Android             = 1UL << 3,
+        Alien               = 1UL << 4,
+
+        // Dominance & behavior
+        Submissive          = 1UL << 5,
+        Dominant            = 1UL << 6,
+        PassiveAggressive   = 1UL << 7,
+        Defiant             = 1UL << 8,
+
+        // Disposition
+        Angry               = 1UL << 9,
+        Cheerful            = 1UL << 10,
+        Sarcastic           = 1UL << 11,
+        Cynical             = 1UL << 12,
+        Dark                = 1UL << 13,
+        Stoic               = 1UL << 14,
+        Melancholic         = 1UL << 15,
+        Anxious             = 1UL << 16,
+        Paranoid            = 1UL << 17,
+        Obsessive           = 1UL << 18,
+        Scatterbrained      = 1UL << 19,
+        Calm                = 1UL << 20,
+        Excitable           = 1UL << 21,
+        Lazy                = 1UL << 22,
+        Hyperactive         = 1UL << 23,
+        Indifferent         = 1UL << 24,
+
+        // Morality / order
+        Evil                = 1UL << 25,
+        Good                = 1UL << 26,
+        Chaotic             = 1UL << 27,
+        Lawful              = 1UL << 28,
+        Manipulative        = 1UL << 29,
+        Naive               = 1UL << 30,
+        Idealist            = 1UL << 31,
+        Realist             = 1UL << 32,
+
+        // Humor
+        Joker               = 1UL << 33,
+        Deadpan             = 1UL << 34,
+        IronyPoisoned       = 1UL << 35,
+        Clownish            = 1UL << 36,
+        DryHumor            = 1UL << 37,
+
+        // Vice & indulgence
+        Stoner              = 1UL << 38,
+        Drunk               = 1UL << 39,
+        Horny               = 1UL << 40,
+        Gluttonous          = 1UL << 41,
+        Hedonist            = 1UL << 42,
+        Workaholic          = 1UL << 43,
+
+        // Archetype
+        Romantic            = 1UL << 44,
+        Overachiever        = 1UL << 45,
+        Perfectionist       = 1UL << 46,
+        Clingy              = 1UL << 47,
+        Detached            = 1UL << 48,
+        Narcissist          = 1UL << 49,
+        Empath              = 1UL << 50,
+        Dreamer             = 1UL << 51,
+        Schemer             = 1UL << 52,
+
+        // Social orientation
+        Introvert           = 1UL << 53,
+        Extrovert           = 1UL << 54,
+        Ambivert            = 1UL << 55,
+
+        // Biases & oddities
+        Misogynist          = 1UL << 56,
+        Misandrist          = 1UL << 57,
+        CatPerson           = 1UL << 58,
+        DogPerson           = 1UL << 59,
+        Nihilist            = 1UL << 60,
+        Emotional           = 1UL << 61,
+        Analytical          = 1UL << 62,
+        ChaoticNeutral      = 1UL << 63
+    }
+
     internal class FoxCmdLLMSettings
     {
+
+        [BotCallable]
+        public static async Task cbSelectFlags(
+            FoxTelegram t,
+            FoxUser user,
+            UpdateBotCallbackQuery query,
+            ulong userId,
+            ulong currentFlagsValue = 0)
+        {
+            if (user.UID != userId)
+                throw new Exception("This is someone else's button.");
+
+            var llmSettings = await FoxLLMUserSettings.GetSettingsAsync(user);
+
+            // Initialize current bitfield from DB or callback param
+            var currentFlags = currentFlagsValue != 0
+                ? (PersonalityTraits)currentFlagsValue
+                : (PersonalityTraits)llmSettings.PersonalityFlags;
+
+            // Get all available flags dynamically (except None)
+            var allFlags = Enum.GetValues(typeof(PersonalityTraits))
+                .Cast<PersonalityTraits>()
+                .Where(f => f != PersonalityTraits.None)
+                .OrderBy(f => f.ToString())
+                .ToList();
+
+            var buttonRows = new List<TL.KeyboardButtonRow>();
+            var currentRow = new List<TL.KeyboardButtonBase>();
+
+            foreach (var flag in allFlags)
+            {
+                bool isSet = currentFlags.HasFlag(flag);
+                var nextFlags = isSet
+                    ? currentFlags & ~flag   // turn OFF
+                    : currentFlags | flag;   // turn ON
+
+                // nextFlags is encoded into callback data as ulong
+                string buttonData = FoxCallbackHandler.BuildCallbackData(
+                    cbSelectFlags, user.UID, ((ulong)nextFlags).ToString(CultureInfo.InvariantCulture));
+
+                currentRow.Add(new TL.KeyboardButtonCallback
+                {
+                    text = (isSet ? "✅ " : "❌ ") + flag,
+                    data = Encoding.UTF8.GetBytes(buttonData)
+                });
+
+                if (currentRow.Count == 3)
+                {
+                    buttonRows.Add(new TL.KeyboardButtonRow { buttons = currentRow.ToArray() });
+                    currentRow.Clear();
+                }
+            }
+
+            if (currentRow.Count > 0)
+                buttonRows.Add(new TL.KeyboardButtonRow { buttons = currentRow.ToArray() });
+
+            // Footer buttons
+            buttonRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonBase[]
+                {
+                    new TL.KeyboardButtonCallback
+                    {
+                        text = "< Back",
+                        data = Encoding.UTF8.GetBytes(
+                            FoxCallbackHandler.BuildCallbackData(cbShowSettings, user.UID))
+                    },
+                    //new TL.KeyboardButtonCallback
+                    //{
+                    //    text = "💾 Save",
+                    //    data = Encoding.UTF8.GetBytes(
+                    //        FoxCallbackHandler.BuildCallbackData(cbSaveFlags, user.UID, ((ulong)currentFlags).ToString()))
+                    //}
+                }
+            });
+
+            // Display list of active flags
+            var activeFlags = allFlags.Where(f => currentFlags.HasFlag(f)).Select(f => f.ToString());
+            var sb = new StringBuilder();
+
+            sb.AppendLine("🧩 Personality Flags");
+            sb.AppendLine();
+            sb.AppendLine("Toggle traits below.  Click ✅ to disable, ❌ to enable.");
+            sb.AppendLine();
+            sb.AppendLine($"Num: {currentFlagsValue}");
+
+            if (activeFlags.Any())
+                sb.AppendLine($"Active: *{string.Join(", ", activeFlags)}*");
+            else
+                sb.AppendLine("No traits active.");
+
+            try
+            {
+                await t.EditMessageAsync(
+                    text: sb.ToString(),
+                    id: query.msg_id,
+                    replyInlineMarkup: new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() }
+                );
+            }
+            catch (Exception ex) when (ex.Message == "MESSAGE_NOT_MODIFIED")
+            {
+                // ignore telegram whining
+            }
+
+            await t.SendCallbackAnswer(query.query_id, 0);
+        }
+
+
         [BotCallable]
         public static async Task cbSelectPersona(FoxTelegram t, FoxUser user, UpdateBotCallbackQuery query, ulong userId, string? persona = null)
         {
@@ -205,6 +401,16 @@ namespace makefoxsrv.commands
                         new TL.KeyboardButtonCallback { text = "Clear History", data = Encoding.UTF8.GetBytes(FoxCallbackHandler.BuildCallbackData(cbClearHistory, user.UID)) },
                 }
             });
+
+            buttonRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonBase[]
+                {
+                        new TL.KeyboardButtonCallback { text = "Test", data = Encoding.UTF8.GetBytes(FoxCallbackHandler.BuildCallbackData(cbSelectFlags, user.UID, 0)) },
+                }
+            });
+
+
 
             // Add done button
             buttonRows.Add(new TL.KeyboardButtonRow

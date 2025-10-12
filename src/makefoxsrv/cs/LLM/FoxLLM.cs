@@ -832,7 +832,7 @@ namespace makefoxsrv
 
             cmd.Connection = SQL;
             cmd.CommandText = "SELECT system_prompt FROM llm_personalities WHERE name = @name LIMIT 1";
-            cmd.Parameters.AddWithValue("name", llmSettings.SelectedPersona);
+            cmd.Parameters.AddWithValue("name", llmSettings.SelectedPersona.ToUpper());
             var result = await cmd.ExecuteScalarAsync();
 
             if (result is not string persona || string.IsNullOrEmpty(persona))

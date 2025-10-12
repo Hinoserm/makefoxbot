@@ -1,4 +1,5 @@
-﻿using System;
+﻿using makefoxsrv.commands;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,6 +26,8 @@ namespace makefoxsrv
 
         [DbColumn("history_start_date")]
         private DateTime? _historyStartDate;
+
+        public PersonalityTraits PersonalityFlags;
 
         public DateTime HistoryStartDate
         {

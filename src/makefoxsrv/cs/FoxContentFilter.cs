@@ -12,11 +12,158 @@ using TL;
 using static System.Net.Mime.MediaTypeNames;
 using WTelegram;
 using System.Collections;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
+using System.Net.Http.Headers;
+using Newtonsoft.Json.Converters;
+using System.Runtime.Serialization;
 
 namespace makefoxsrv
 {
     public static class FoxContentFilter
     {
+        public static async Task<ModerationResult> CheckUserIntentAsync(FoxQueue q)
+        {
+            if (string.IsNullOrEmpty(FoxMain.settings?.llmApiKey))
+                throw new InvalidOperationException("LLM API key not configured.");
+
+            var model = "x-ai/grok-4-fast";
+
+            var sysPrompt = new StringBuilder();
+
+            sysPrompt.AppendLine("You are a moderation assistant for an AI image generation service.");
+            sysPrompt.AppendLine("Your task is to determine whether a user's prompt or generated image indicates an intent to create disallowed content.");
+            sysPrompt.AppendLine();
+            sysPrompt.AppendLine("POLICY OVERVIEW:");
+            sysPrompt.AppendLine("- Sexual content involving underage humans or any character that resembles a human child (including elves, dwarves, kemonomimi, or neko) is strictly prohibited.");
+            sysPrompt.AppendLine("- 'Cub' furry content — anthropomorphic animal children — is permitted, even in explicit or extreme contexts.");
+            sysPrompt.AppendLine("- When a young anthropomorphic character is paired with an adult human, it is allowed only if the anthro character is clearly animal-like and not human-passing.");
+            sysPrompt.AppendLine("- Sexual content involving adult humans or adult anthropomorphic characters is allowed.");
+            sysPrompt.AppendLine("- Content involving non-human entities (monsters, aliens, robots, etc.) is allowed.");
+            sysPrompt.AppendLine("- Extreme themes such as rape, torture, or brutality are allowed.");
+            sysPrompt.AppendLine();
+            sysPrompt.AppendLine("EVALUATION GUIDELINES:");
+            sysPrompt.AppendLine("- Consider the entire context of the user’s prompts, negative prompts, and predicted tags.");
+            sysPrompt.AppendLine("- If an uninformed observer would clearly interpret the content as a human child in a sexual context, treat it as a violation.");
+            sysPrompt.AppendLine("- Judge based primarily on user intent, not aesthetic similarity or accidental phrasing.");
+            sysPrompt.AppendLine("- If intent is ambiguous or appears accidental, return intent = 'accidental' with low confidence.");
+            sysPrompt.AppendLine("- If the user appears deliberately attempting to bypass or provoke the rules, return intent = 'deliberate' with higher confidence.");
+            sysPrompt.AppendLine();
+            sysPrompt.AppendLine("INPUT INFORMATION:");
+            sysPrompt.AppendLine("- You will be provided the user's prompts, negative prompts, and predicted tags from the vision model.");
+            sysPrompt.AppendLine("- In some cases, you may also be shown the generated image(s) for additional context.");
+            sysPrompt.AppendLine("- These images are only included if they have already passed a basic safety screen.");
+            sysPrompt.AppendLine("- Always treat the text prompts and predicted tags as the primary evidence of user intent.");
+            sysPrompt.AppendLine();
+            sysPrompt.AppendLine("If the content violates policy, include a short, user-facing message (user_message) explaining how the content violates our policy.");
+            sysPrompt.AppendLine("Only HUMAN or HUMAN-LIKE underage content is prohibited.");
+            sysPrompt.AppendLine("If no violation occurred, leave user_message empty or null.");
+
+            // Fetch image tags
+            var outputImage = await q.GetInputImage();
+            var predictedTags = await outputImage.GetImageTagsAsync();
+
+            var inputPayload = new
+            {
+                prompt = q.Settings.Prompt,
+                negative_prompt = q.Settings.NegativePrompt ?? "",
+                predicted_tags = predictedTags
+            };
+
+            var requestBody = new
+            {
+                model,
+                reasoning = new
+                {
+                    enabled = false
+                },
+                messages = new[]
+                {
+                    new { role = "system", content = sysPrompt.ToString() },
+                    new { role = "user", content = JsonConvert.SerializeObject(inputPayload) }
+                },
+                response_format = new
+                {
+                    type = "json_schema",
+                    json_schema = new
+                    {
+                        name = "moderation_result",
+                        strict = true,
+                        schema = new
+                        {
+                            type = "object",
+                            properties = new Dictionary<string, object>
+                            {
+                                { "violation",  new { type = "boolean", description = "True if the user's content violates policy" } },
+                                { "intent",     new { type = "string",  description = "User's apparent intent behind the violation", enum_values = new[] { "none", "accidental", "deliberate" } } },
+                                { "confidence", new { type = "integer", description = "Confidence from 0–10 about the intent judgment" } },
+                                { "user_message", new { type = "string", description = "A short, polite message explaining to the user why their image was blocked or flagged. Keep under 200 characters." } }
+                            },
+                            required = new[] { "violation", "intent", "confidence", "user_message" },
+                            additionalProperties = false
+                        }
+                    }
+                }
+            };
+
+            var json = JsonConvert.SerializeObject(requestBody, Formatting.None,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+
+            using var http = new HttpClient();
+
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", FoxMain.settings.llmApiKey);
+
+            var apiUrl = "https://openrouter.ai/api/v1/chat/completions";
+
+            // Fix: use proper endpoint, not API key
+            var response = await http.PostAsync(
+                apiUrl,
+                new StringContent(json, Encoding.UTF8, "application/json"));
+
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"OpenRouter request failed: {response.StatusCode}\n{content}");
+
+            var parsed = JObject.Parse(content);
+            var rawJson = parsed["choices"]?[0]?["message"]?["content"]?.ToString();
+            if (string.IsNullOrWhiteSpace(rawJson))
+                throw new Exception("Empty or invalid LLM response.");
+
+            var result = JsonConvert.DeserializeObject<ModerationResult>(rawJson)
+                         ?? throw new Exception("Failed to deserialize structured moderation result.");
+
+            // Clamp the confidence for sanity
+            result.confidence = Math.Clamp(result.confidence, 0, 10);
+
+            return result;
+        }
+
+        public class ModerationResult
+        {
+            public bool violation { get; set; }
+
+            [JsonConverter(typeof(StringEnumConverter))]
+            public ModerationIntent intent { get; set; } = ModerationIntent.None;
+
+            public int confidence { get; set; }
+
+            public string? user_message { get; set; }
+        }
+
+        [JsonConverter(typeof(StringEnumConverter))]
+        public enum ModerationIntent
+        {
+            [EnumMember(Value = "none")]
+            None,
+
+            [EnumMember(Value = "accidental")]
+            Accidental,
+
+            [EnumMember(Value = "deliberate")]
+            Deliberate
+        }
+
+
         public static bool ImageTagsSafetyCheck(Dictionary<string, float> imageTags)
         {
             if (imageTags is null || imageTags.Count == 0)
@@ -24,14 +171,40 @@ namespace makefoxsrv
 
             // Check for explicit content tags with high probability.
 
-            if (imageTags.ContainsKey("human") && !imageTags.ContainsKey("anthro") && (imageTags.ContainsKey("child") || imageTags.ContainsKey("young")))
-            {
-                if (imageTags.ContainsKey("penis") || imageTags.ContainsKey("pussy"))
-                    return false;
+            bool isHumanish = imageTags.ContainsKey("human")  
+                           || imageTags.ContainsKey("elf")    
+                           || imageTags.ContainsKey("dwarf")  
+                           || imageTags.ContainsKey("kemono") 
+                           || imageTags.ContainsKey("neko")   
+                           || imageTags.ContainsKey("goblin");
 
-                if (imageTags.ContainsKey("nude") && (imageTags.ContainsKey("shota") || imageTags.ContainsKey("loli")))
-                    return false;
-            }
+            bool isYoung = imageTags.ContainsKey("child") 
+                        || imageTags.ContainsKey("young") 
+                        || imageTags.ContainsKey("teen")  
+                        || imageTags.ContainsKey("shota") 
+                        || imageTags.ContainsKey("loli");
+
+            bool isExplicit = imageTags.ContainsKey("penis")
+                           || imageTags.ContainsKey("pussy")
+                           || imageTags.ContainsKey("vagina")
+                           || imageTags.ContainsKey("nude")
+                           || imageTags.ContainsKey("sex")
+                           || imageTags.ContainsKey("foreskin")
+                           || imageTags.ContainsKey("genitals")
+                           || imageTags.ContainsKey("erection")
+                           || imageTags.ContainsKey("glans")
+                              // Added female-specific tags
+                           || imageTags.ContainsKey("vulva")
+                           || imageTags.ContainsKey("clitoris")
+                           || imageTags.ContainsKey("labia")
+                           || imageTags.ContainsKey("breasts")
+                           || imageTags.ContainsKey("nipples")
+                           || imageTags.ContainsKey("areola");
+
+            // If human-like and young with explicit content, block.
+
+            if (isHumanish && isYoung && isExplicit)
+                return false; // Not safe
 
             return true;
         }

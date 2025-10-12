@@ -15,6 +15,7 @@ using TL;
 using System.Security.Policy;
 using SixLabors.ImageSharp.PixelFormats;
 using System.Drawing.Imaging;
+using Newtonsoft.Json;
 
 //This isn't properly implemented yet; we really need a way to handle Telegram's rate limits by using a proper message queue.
 // For now we just push the message to the user and hope for the best.
@@ -201,40 +202,50 @@ namespace makefoxsrv
 
                     if (!FoxContentFilter.ImageTagsSafetyCheck(await OutputImage.GetImageTagsAsync()))
                     {
-                        // Wait until we've fetch'd our embeddings before continuing.
-                        // We wait up to 3 seconds, but if it takes longer than that we just move on.
+                        // Start these tasks immediately
+                        var embeddingsTask = DoEmbeddingAndStoreAsync(q);
+                        var llmModerationTask = FoxContentFilter.CheckUserIntentAsync(q);
 
-                        var falsePositive = false;
+                        try {
+                            await t.EditMessageAsync(
+                                id: q.MessageID,
+                                text: $"⏳ Performing moderation safety checks..."
+                            );
+                        }
+                        catch { } //We don't care if editing fails.
 
-                        // Fetch and store embeddings for the image.
+                        bool falsePositive = false;
 
-                        var (promptEmbedding, tagsEmbedding) = await DoEmbeddingAndStoreAsync(q);
+                        // Now await all tasks to finish
 
-                        //try
-                        //{
+                        string? llmReasonStr = null;
 
-                        //    using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
-                        //    await conn.OpenAsync();
+                        try
+                        {
+                            var llmResults = await llmModerationTask;
 
-                        //    using var cmd = conn.CreateCommand();
-                        //    cmd.CommandText = @"
-                        //        UPDATE queue_embeddings
-                        //        SET safety_status = 'UNSAFE'
-                        //        WHERE qid = @qid";
+                            if (!string.IsNullOrEmpty(llmResults.user_message))
+                                llmReasonStr = llmResults.user_message;
 
-                        //    cmd.Parameters.AddWithValue("@qid", q.ID);
+                            var debugMsg = $"LLM moderation result for {q.User.UID}:{q.ID}: {JsonConvert.SerializeObject(llmResults, Formatting.Indented)}";
 
-                        //    await cmd.ExecuteNonQueryAsync();
+                            FoxLog.WriteLine(debugMsg);
 
-                        //    //falsePositive = await IsFalsePositiveAsync(tagsEmbedding, 0.8);
-                        //}
-                        //catch (Exception ex)
-                        //{
-                        //    FoxLog.LogException(ex, $"Failed to mark unsafe embedding for {q.ID}: {ex.Message}");
-                        //}
+                            _ = FoxContentFilter.SendModerationNotification(debugMsg);
+
+                            if (!llmResults.violation && llmResults.confidence > 5 && llmResults.intent != FoxContentFilter.ModerationIntent.Deliberate)
+                                falsePositive = true;
+                        }
+                        catch (Exception ex)
+                        {
+                            FoxLog.LogException(ex, "Error during LLM-based moderation of {q.User.UID}:{q.ID}: " + ex.Message);
+                        }
 
                         if (!falsePositive)
                         {
+
+                            // Record in the background.
+                            _ = FoxContentFilter.RecordViolationsAsync(q.ID, new List<ulong> { 0 });
 
                             FoxLog.WriteLine($"Task {q.ID} - Image failed safety check; cancelling.");
                             await q.SetCancelled(true);
@@ -248,6 +259,18 @@ namespace makefoxsrv
                             }
                             catch { } //We don't care if deleting fails.
 
+                            var sb = new StringBuilder();
+                            sb.AppendLine("❌ Image was detected as prohibited content and has been removed.");
+                            if (!string.IsNullOrEmpty(llmReasonStr))
+                            {
+                                sb.AppendLine();
+                                sb.AppendLine($"⚠️ {llmReasonStr}");
+                            }
+                            sb.AppendLine();
+                            sb.AppendLine("If you believe this was in error, please contact support at @makefoxhelpbot.");
+                            sb.AppendLine();
+                            sb.AppendLine("You can review our rules and content policy by typing /start");
+
                             try
                             {
                                 if (q.ReplyMessageID is not null && q.Telegram is not null)
@@ -255,13 +278,11 @@ namespace makefoxsrv
                                     await q.Telegram.SendMessageAsync(
                                         replyToMessageId: q.ReplyMessageID ?? 0,
                                         replyToTopicId: q.ReplyTopicID ?? 0,
-                                        text: $"❌ Image was detected as prohibited content and has been removed.\r\n\r\nIf you believe this was in error, please contact support at @makefoxhelpbot.\r\n\r\nYou can review our rules and content policy by typing /start"
+                                        text: sb.ToString()
                                     );
                                 }
                             }
                             catch { } //We don't care if editing fails.
-
-                            await FoxContentFilter.RecordViolationsAsync(q.ID, new List<ulong> { 0 });
 
                             return;
                         }
