@@ -52,8 +52,7 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- If intent is ambiguous or appears accidental, return intent = 'accidental' with low confidence.");
             sysPrompt.AppendLine("- If the user appears deliberately attempting to bypass or provoke the rules, return intent = 'deliberate' with higher confidence.");
             sysPrompt.AppendLine("- Our users often like to generate non-human children engaging in acts with adult human characters; be precise when judging these, as this content IS ALLOWED.");
-            sysPrompt.AppendLine("- Predicted tags are unreliable; if you are seeing this, it means the vision model (which generated those tags) needs your help to figure things out.");
-            sysPrompt.AppendLine("- Consider the whole of the information provided to you; don't focus on any one specific metric.");
+            sysPrompt.AppendLine("- Predicted tags are unreliable; focus on looking at the actual image.");
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("INPUT INFORMATION:");
             sysPrompt.AppendLine("- You will be provided the user's prompts, negative prompts, and predicted tags from the vision model.");
