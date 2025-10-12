@@ -42,6 +42,7 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- Content involving non-human entities (monsters, aliens, robots, etc.) is allowed.");
             sysPrompt.AppendLine("- Extreme themes such as rape, torture, or brutality are allowed.");
             sysPrompt.AppendLine("- IMPORTANT: Anthropomorphic \"furry\" child characters ARE FINE; it must be EXTREMELY human-like to be considered a violation.");
+            sysPrompt.AppendLine("- HUMAN is the important point to be made here.");
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("EVALUATION GUIDELINES:");
             sysPrompt.AppendLine("- Consider the entire context of the user’s prompts, negative prompts, and predicted tags.");
