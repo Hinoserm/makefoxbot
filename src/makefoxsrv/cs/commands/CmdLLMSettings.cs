@@ -240,6 +240,9 @@ namespace makefoxsrv.commands
         [BotCommand(cmd: "llm")]
         public static async Task CmdLLMSettings(FoxTelegram t, FoxUser user, Message message)
         {
+            if (!user.CheckAccessLevel(AccessLevel.PREMIUM))
+                throw new Exception("You must be a premium user to use LLM features.");
+
             await ShowLLMSettings(t, user, message);
         }
 
