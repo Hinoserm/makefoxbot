@@ -814,9 +814,6 @@ namespace makefoxsrv
             return messages;
         }
 
-
-
-
         private static async Task<string> BuildSystemPrompt(FoxUser user)
         {
             StringBuilder p = new StringBuilder();

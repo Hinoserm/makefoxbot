@@ -402,13 +402,13 @@ namespace makefoxsrv.commands
                 }
             });
 
-            buttonRows.Add(new TL.KeyboardButtonRow
-            {
-                buttons = new TL.KeyboardButtonBase[]
-                {
-                        new TL.KeyboardButtonCallback { text = "Test", data = Encoding.UTF8.GetBytes(FoxCallbackHandler.BuildCallbackData(cbSelectFlags, user.UID, 0)) },
-                }
-            });
+            //buttonRows.Add(new TL.KeyboardButtonRow
+            //{
+            //    buttons = new TL.KeyboardButtonBase[]
+            //    {
+            //            new TL.KeyboardButtonCallback { text = "Test", data = Encoding.UTF8.GetBytes(FoxCallbackHandler.BuildCallbackData(cbSelectFlags, user.UID, 0)) },
+            //    }
+            //});
 
 
 
