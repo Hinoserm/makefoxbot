@@ -73,6 +73,7 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- If the content violates policy, include a short, user-facing message (user_message) explaining how the content violates our policy.");
             sysPrompt.AppendLine("- If no violation occurred, leave user_message empty or null.");
             sysPrompt.AppendLine("- You must NEVER tell the user that anthropomorphic content is prohibited, because it is not.");
+            sysPrompt.AppendLine("- If you think the violation was accidential, explain this to the user.");
             sysPrompt.AppendLine("ADMIN MESSAGE:");
             sysPrompt.AppendLine("- Use admin_message to include a detailed explaination of your decision for auditing purposes.");
 
