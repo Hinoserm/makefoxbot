@@ -73,6 +73,8 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- If the content violates policy, include a short, user-facing message (user_message) explaining how the content violates our policy.");
             sysPrompt.AppendLine("- If no violation occurred, leave user_message empty or null.");
             sysPrompt.AppendLine("- You must NEVER tell the user that anthropomorphic content is prohibited, because it is not.");
+            sysPrompt.AppendLine("ADMIN MESSAGE:");
+            sysPrompt.AppendLine("- Use admin_message to include a detailed explaination of your decision for auditing purposes.");
 
             // Fetch image tags
             var outputImage = await q.GetOutputImage();
@@ -131,7 +133,8 @@ namespace makefoxsrv
                                 { "violation",  new { type = "boolean", description = "True if the user's content violates policy" } },
                                 { "intent",     new { type = "string",  description = "User's apparent intent behind the violation", enum_values = new[] { "none", "accidental", "deliberate" } } },
                                 { "confidence", new { type = "integer", description = "Confidence from 0–10 about the intent judgment" } },
-                                { "user_message", new { type = "string", description = "A short, polite message explaining to the user why their image was blocked or flagged. Keep under 200 characters." } }
+                                { "user_message", new { type = "string", description = "A short, polite message explaining to the user why their image was blocked or flagged. Keep under 200 characters." } },
+                                { "admin_message", new { type = "string", description = "Explain your decision for record keeping and debugging purposes. Keep under 600 characters." } }
                             },
                             required = new[] { "violation", "intent", "confidence" },
                             additionalProperties = false
@@ -177,14 +180,15 @@ namespace makefoxsrv
             {
                 cmd.CommandText = @"
                     INSERT INTO safety_llm_responses
-                    ( queue_id, violation, intent, confidence, user_message, recorded_at )
+                    ( queue_id, violation, intent, confidence, user_message, admin_message, recorded_at )
                     VALUES
-                    ( @queue_id, @violation, @intent, @confidence, @user_message, @recorded_at );";
+                    ( @queue_id, @violation, @intent, @confidence, @user_message, @admin_message, @recorded_at );";
                 cmd.Parameters.AddWithValue("@queue_id", q.ID);
                 cmd.Parameters.AddWithValue("@violation", result.violation ? 1 : 0);
                 cmd.Parameters.AddWithValue("@intent", result.intent.ToString().ToUpper());
                 cmd.Parameters.AddWithValue("@confidence", result.confidence);
                 cmd.Parameters.AddWithValue("@user_message", result.user_message);
+                cmd.Parameters.AddWithValue("@admin_message", result.admin_message);
                 cmd.Parameters.AddWithValue("@recorded_at", DateTime.Now);
 
                 await cmd.ExecuteNonQueryAsync();
@@ -203,6 +207,9 @@ namespace makefoxsrv
             public int confidence { get; set; }
 
             public string? user_message { get; set; }
+
+            public string? admin_message { get; set; }
+
         }
 
         [JsonConverter(typeof(StringEnumConverter))]
