@@ -200,92 +200,43 @@ namespace makefoxsrv
                         await Task.Delay(500 * sendingItemsCount);
                     }
 
-                    if (!FoxContentFilter.ImageTagsSafetyCheck(await OutputImage.GetImageTagsAsync()))
+                    (bool isSafe, string? reasonMsg) = await FoxContentFilter.PerformSafetyChecks(q);
+
+                    if (!isSafe)
                     {
-                        // Start these tasks immediately
-                        var embeddingsTask = DoEmbeddingAndStoreAsync(q);
-                        var llmModerationTask = FoxContentFilter.CheckUserIntentAsync(q);
+                        try
+                        {
 
-                        try {
-                            await t.EditMessageAsync(
-                                id: q.MessageID,
-                                text: $"⏳ Performing moderation safety checks..."
-                            );
+                            await FoxTelegram.Client.DeleteMessages(t.Peer, new int[] { q.MessageID });
                         }
-                        catch { } //We don't care if editing fails.
+                        catch { } //We don't care if deleting fails.
 
-                        bool falsePositive = false;
-
-                        // Now await all tasks to finish
-
-                        string? llmReasonStr = null;
+                        var sb = new StringBuilder();
+                        sb.AppendLine("❌ Image was detected as prohibited content and has been removed.");
+                        if (!string.IsNullOrEmpty(reasonMsg))
+                        {
+                            sb.AppendLine();
+                            sb.AppendLine($"⚠️ {reasonMsg}");
+                        }
+                        sb.AppendLine();
+                        sb.AppendLine("If you believe this was in error, please contact support at @makefoxhelpbot.");
+                        sb.AppendLine();
+                        sb.AppendLine("You can review our rules and content policy by typing /start");
 
                         try
                         {
-                            var llmResults = await llmModerationTask;
-
-                            if (!string.IsNullOrEmpty(llmResults.user_message))
-                                llmReasonStr = llmResults.user_message;
-
-                            var debugMsg = $"LLM moderation result for {q.User.UID}:{q.ID}: {JsonConvert.SerializeObject(llmResults, Formatting.Indented)}";
-
-                            FoxLog.WriteLine(debugMsg);
-
-                            _ = FoxContentFilter.SendModerationNotification(debugMsg);
-
-                            if (!llmResults.violation && llmResults.confidence > 5 && llmResults.intent != FoxContentFilter.ModerationIntent.Deliberate)
-                                falsePositive = true;
-                        }
-                        catch (Exception ex)
-                        {
-                            FoxLog.LogException(ex, "Error during LLM-based moderation of {q.User.UID}:{q.ID}: " + ex.Message);
-                        }
-
-                        if (!falsePositive)
-                        {
-
-                            // Record in the background.
-                            _ = FoxContentFilter.RecordViolationsAsync(q.ID, new List<ulong> { 0 });
-
-                            FoxLog.WriteLine($"Task {q.ID} - Image failed safety check; cancelling.");
-                            await q.SetCancelled(true);
-
-                            OutputImage.Flagged = true;
-                            await OutputImage.Save();
-
-                            try
+                            if (q.ReplyMessageID is not null && q.Telegram is not null)
                             {
-                                await FoxTelegram.Client.DeleteMessages(t.Peer, new int[] { q.MessageID });
+                                await q.Telegram.SendMessageAsync(
+                                    replyToMessageId: q.ReplyMessageID ?? 0,
+                                    replyToTopicId: q.ReplyTopicID ?? 0,
+                                    text: sb.ToString()
+                                );
                             }
-                            catch { } //We don't care if deleting fails.
-
-                            var sb = new StringBuilder();
-                            sb.AppendLine("❌ Image was detected as prohibited content and has been removed.");
-                            if (!string.IsNullOrEmpty(llmReasonStr))
-                            {
-                                sb.AppendLine();
-                                sb.AppendLine($"⚠️ {llmReasonStr}");
-                            }
-                            sb.AppendLine();
-                            sb.AppendLine("If you believe this was in error, please contact support at @makefoxhelpbot.");
-                            sb.AppendLine();
-                            sb.AppendLine("You can review our rules and content policy by typing /start");
-
-                            try
-                            {
-                                if (q.ReplyMessageID is not null && q.Telegram is not null)
-                                {
-                                    await q.Telegram.SendMessageAsync(
-                                        replyToMessageId: q.ReplyMessageID ?? 0,
-                                        replyToTopicId: q.ReplyTopicID ?? 0,
-                                        text: sb.ToString()
-                                    );
-                                }
-                            }
-                            catch { } //We don't care if editing fails.
-
-                            return;
                         }
+                        catch { } //We don't care if editing fails.
+
+                        return; // Safety check failed and user notified.
                     }
 
                     try

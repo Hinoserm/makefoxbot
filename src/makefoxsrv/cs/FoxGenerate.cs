@@ -329,7 +329,7 @@ namespace makefoxsrv
 
             FoxContextManager.Current.Queue = q;
 
-            var violatedRules = FoxContentFilter.CheckPrompt(settings.Prompt, settings.NegativePrompt);
+            var violatedRules = FoxContentFilter.CheckPrompt(settings?.Prompt ?? "", settings?.NegativePrompt);
 
             if (violatedRules is not null && violatedRules.Count() > 0)
             {

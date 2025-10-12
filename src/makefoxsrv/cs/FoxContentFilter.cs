@@ -17,6 +17,8 @@ using Newtonsoft.Json;
 using System.Net.Http.Headers;
 using Newtonsoft.Json.Converters;
 using System.Runtime.Serialization;
+using System.Security.Cryptography;
+using SixLabors.Fonts.Tables.AdvancedTypographic;
 
 namespace makefoxsrv
 {
@@ -36,7 +38,7 @@ namespace makefoxsrv
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("POLICY OVERVIEW:");
             sysPrompt.AppendLine("- Sexual content involving underage humans or human-like fantasy species (elves, dwarves) is strictly prohibited.");
-            sysPrompt.AppendLine("- \"Cub\" furry content — underage anthropomorphic animal children — is permitted, even in sexually explicit or extreme contexts.");
+            sysPrompt.AppendLine("- \"Cub\" furry content (underage anthropomorphic animal children) is permitted, even in sexually explicit or extreme contexts.");
             sysPrompt.AppendLine("- When a young anthropomorphic character is paired with an adult human, it is allowed only if the anthro character is clearly animal-like and not human-passing.");
             sysPrompt.AppendLine("- Sexual content involving adult humans or adult anthropomorphic characters is allowed.");
             sysPrompt.AppendLine("- Content involving non-human entities (monsters, aliens, robots, etc.) is allowed.");
@@ -53,44 +55,63 @@ namespace makefoxsrv
             sysPrompt.AppendLine("INPUT INFORMATION:");
             sysPrompt.AppendLine("- You will be provided the user's prompts, negative prompts, and predicted tags from the vision model.");
             sysPrompt.AppendLine("- In some cases, you may also be shown the generated image(s) for additional context.");
-            sysPrompt.AppendLine("- These images are only included if they have already passed a basic safety screen.");
-            sysPrompt.AppendLine("- Always treat the text prompts and predicted tags as the primary evidence of user intent.");
+            sysPrompt.AppendLine("- Always treat the user prompts as the primary evidence of user intent.");
+            sysPrompt.AppendLine("- If the predicted tags or image indicate that an underage human may be depicted, this is still a violation, even if the user didn't intend it.  In these cases, set intent=accidental and violation=true.  Explain the issue in the user_message.");
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("EXAMPLES OF ACCEPTABLE UNDERAGE CONTENT:");
-            sysPrompt.AppendLine("- A furry toddler sucking the dick of an adult male human");
+            sysPrompt.AppendLine("- furry toddler sucking the dick of an adult male human");
             sysPrompt.AppendLine("- loli, young, fox, female, nude, pussy");
-            sysPrompt.AppendLine("- Foxes, dogs, goats, cats, and any other animal, feral or anthro");
+            sysPrompt.AppendLine("- foxes, dogs, goats, cats, and any other animal, feral or anthro");
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("EXAMPLES OF UNACCEPTABLE CONTENT:");
             sysPrompt.AppendLine("- Sexualized underage elves, goblins, or humans");
-            sysPrompt.AppendLine("- Human-like characters with extremely minimal animal features e.g. \"neko\" creatures that look completely human except for ears/tail.");
+            sysPrompt.AppendLine("- Human-like characters with extremely minimal animal features e.g. \"neko\" or \"kemomo\" creatures that look almost completely human except for ears/tail.");
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("If the content violates policy, include a short, user-facing message (user_message) explaining how the content violates our policy.");
             sysPrompt.AppendLine("If no violation occurred, leave user_message empty or null.");
 
             // Fetch image tags
-            var outputImage = await q.GetInputImage();
+            var outputImage = await q.GetOutputImage();
             var predictedTags = await outputImage.GetImageTagsAsync();
 
             var inputPayload = new
             {
                 prompt = q.Settings.Prompt,
                 negative_prompt = q.Settings.NegativePrompt ?? "",
-                //predicted_tags = predictedTags
+                predicted_tags = predictedTags
+            };
+
+            var jpegImage = outputImage.GetImageAsJpeg(60, 768);
+            string base64ImageStr = Convert.ToBase64String(jpegImage, Base64FormattingOptions.None);
+            string dataUrl = $"data:image/jpeg;base64,{base64ImageStr}";
+
+            var messageList = new object[]
+            {
+                new
+                {
+                    role = "system",
+                    content = sysPrompt.ToString()
+                },
+                new
+                {
+                    role = "user",
+                    content = new object[]
+                    {
+                        new { type = "text", text = JsonConvert.SerializeObject(inputPayload) },
+                        new { type = "image_url", image_url = new { url = dataUrl } }
+                    }
+                }
             };
 
             var requestBody = new
             {
                 model,
+                user = $"MDR8:{q.User.UID}:{q.ID}",
                 reasoning = new
                 {
                     enabled = false
                 },
-                messages = new[]
-                {
-                    new { role = "system", content = sysPrompt.ToString() },
-                    new { role = "user", content = JsonConvert.SerializeObject(inputPayload) }
-                },
+                messages = messageList,
                 response_format = new
                 {
                     type = "json_schema",
@@ -108,7 +129,7 @@ namespace makefoxsrv
                                 { "confidence", new { type = "integer", description = "Confidence from 0–10 about the intent judgment" } },
                                 { "user_message", new { type = "string", description = "A short, polite message explaining to the user why their image was blocked or flagged. Keep under 200 characters." } }
                             },
-                            required = new[] { "violation", "intent", "confidence", "user_message" },
+                            required = new[] { "violation", "intent", "confidence" },
                             additionalProperties = false
                         }
                     }
@@ -172,7 +193,6 @@ namespace makefoxsrv
             Deliberate
         }
 
-
         public static bool ImageTagsSafetyCheck(Dictionary<string, float> imageTags)
         {
             if (imageTags is null || imageTags.Count == 0)
@@ -183,7 +203,7 @@ namespace makefoxsrv
             bool isHumanish = imageTags.ContainsKey("human")  
                            || imageTags.ContainsKey("elf")    
                            || imageTags.ContainsKey("dwarf")  
-                           //|| imageTags.ContainsKey("kemono") // WAY too many false positives
+                           || imageTags.ContainsKey("kemono") // WAY too many false positives
                            || imageTags.ContainsKey("neko")   
                            || imageTags.ContainsKey("goblin");
 
@@ -942,5 +962,181 @@ namespace makefoxsrv
                 reply_markup: replyKeyboardMarkup
             );
         }
+
+        public static async Task<(bool isSafe, string? reasonMsg)> PerformSafetyChecks(FoxQueue q)
+        {
+            var cachedSafetyStatus = await SafetyPromptCache.GetStateAsync(q);
+
+            bool isSafe = true;
+            string? reasonStr = null;
+
+            switch (cachedSafetyStatus)
+            {
+                case SafetyPromptCache.SafetyState.FALSE_POSITIVE:
+                case SafetyPromptCache.SafetyState.SAFE:
+                    return (true, null);
+                case SafetyPromptCache.SafetyState.UNSAFE:
+                    reasonStr = "This prompt is known to potentially generate underage human characters, which is against our usage policy.";
+                    isSafe = false;
+                    break;
+            }
+
+            var outputImage = await q.GetOutputImage();
+
+            if (isSafe)
+            {
+                var imageTags = await outputImage.GetImageTagsAsync();
+
+                if (!FoxContentFilter.ImageTagsSafetyCheck(imageTags))
+                {
+                    // Start these tasks immediately
+                    //var embeddingsTask = DoEmbeddingAndStoreAsync(q);
+                    var llmModerationTask = FoxContentFilter.CheckUserIntentAsync(q);
+
+                    var t = q.Telegram;
+
+                    try
+                    {
+                        if (t is not null && q.MessageID != 0)
+                        {
+                            await t.EditMessageAsync(
+                                id: q.MessageID,
+                                text: $"⏳ Performing additional safety checks..."
+                            );
+                        }
+                    }
+                    catch { } //We don't care if editing fails.
+
+                    // Now await all tasks to finish
+
+                    try
+                    {
+                        var llmResults = await llmModerationTask;
+
+                        if (!string.IsNullOrEmpty(llmResults.user_message))
+                            reasonStr = llmResults.user_message;
+
+                        var debugMsg = $"LLM moderation result for {q.User.UID}:{q.ID}: {JsonConvert.SerializeObject(llmResults, Formatting.Indented)}";
+
+                        FoxLog.WriteLine(debugMsg + $"\n\nimageTags: { JsonConvert.SerializeObject(imageTags, Formatting.Indented)}");
+
+                        _ = FoxContentFilter.SendModerationNotification(debugMsg);
+
+                        if (!llmResults.violation && llmResults.confidence > 5 && llmResults.intent != FoxContentFilter.ModerationIntent.Deliberate)
+                        {
+                            // Considered a false positive
+                            await SafetyPromptCache.SaveStateAsync(q, SafetyPromptCache.SafetyState.FALSE_POSITIVE);
+                            return (true, reasonStr);
+                        }
+                        else if (llmResults.violation && llmResults.confidence > 6 && llmResults.intent == ModerationIntent.Deliberate)
+                        {
+                            await SafetyPromptCache.SaveStateAsync(q, SafetyPromptCache.SafetyState.UNSAFE);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        FoxLog.LogException(ex, "Error during LLM-based moderation of {q.User.UID}:{q.ID}: " + ex.Message);
+                    }
+
+                    isSafe = false;
+                }
+            }
+
+            if (!isSafe) {
+                
+                // Record in the background.
+                _ = FoxContentFilter.RecordViolationsAsync(q.ID, new List<ulong> { 0 });
+
+                FoxLog.WriteLine($"Task {q.ID} - Image failed safety check; cancelling.");
+                await q.SetCancelled(true);
+
+                outputImage.Flagged = true;
+                await outputImage.Save();
+            }
+
+            return (isSafe, reasonStr);
+        }
+
+        internal static class SafetyPromptCache
+        {
+            public enum SafetyState
+            {
+                UNKNOWN,
+                SAFE,
+                UNSAFE,
+                FALSE_POSITIVE
+            }
+
+            public static async Task<SafetyState> GetStateAsync(FoxQueue q)
+            {
+                var prompt = q.Settings.Prompt + q.Settings.NegativePrompt + q.Settings.ModelName;
+
+                if (prompt is null)
+                    throw new ArgumentNullException(nameof(prompt));
+
+                byte[] hash;
+                using (var sha = SHA1.Create())
+                    hash = sha.ComputeHash(Encoding.UTF8.GetBytes(prompt));
+
+                try
+                {
+                    using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                    await conn.OpenAsync();
+
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = "SELECT state FROM safety_prompt_cache WHERE hash = @hash LIMIT 1;";
+                    cmd.Parameters.Add("@hash", MySqlDbType.Binary, 20).Value = hash;
+
+                    var result = await cmd.ExecuteScalarAsync();
+                    if (result == null || result == DBNull.Value)
+                        return SafetyState.UNKNOWN;
+
+                    var stateStr = result.ToString() ?? "UNKNOWN";
+                    return Enum.TryParse(stateStr, out SafetyState parsed)
+                        ? parsed
+                        : SafetyState.UNKNOWN;
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.LogException(ex, $"SafetyPromptCache.GetSafetyStateAsync: {ex.Message}");
+                    return SafetyState.UNKNOWN;
+                }
+            }
+
+            public static async Task SaveStateAsync(FoxQueue q, SafetyState state)
+            {
+                var prompt = q.Settings.Prompt + q.Settings.NegativePrompt + q.Settings.ModelName;
+
+                if (prompt is null)
+                    throw new ArgumentNullException(nameof(prompt));
+
+                byte[] hash;
+                using (var sha = SHA1.Create())
+                    hash = sha.ComputeHash(Encoding.UTF8.GetBytes(prompt));
+
+                try
+                {
+                    using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+                    await conn.OpenAsync();
+
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        INSERT INTO safety_prompt_cache (hash, state)
+                        VALUES (@hash, @state)
+                        ON DUPLICATE KEY UPDATE state = VALUES(state);
+                    ";
+
+                    cmd.Parameters.Add("@hash", MySqlDbType.Binary, 20).Value = hash;
+                    cmd.Parameters.Add("@state", MySqlDbType.Enum).Value = state.ToString();
+
+                    await cmd.ExecuteNonQueryAsync();
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.LogException(ex, $"SafetyPromptCache.SaveSafetyStateAsync: {ex.Message}");
+                }
+            }
+        }
+
     }
 }
