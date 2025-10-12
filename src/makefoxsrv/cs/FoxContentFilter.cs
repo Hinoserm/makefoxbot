@@ -173,14 +173,15 @@ namespace makefoxsrv
             {
                 cmd.CommandText = @"
                     INSERT INTO safety_llm_responses
-                    ( queue_id, violation, intent, confidence, user_message )
+                    ( queue_id, violation, intent, confidence, user_message, recorded_at )
                     VALUES
-                    ( @queue_id, @violation, @intent, @confidence, @user_message );";
+                    ( @queue_id, @violation, @intent, @confidence, @user_message, @recorded_at );";
                 cmd.Parameters.AddWithValue("@queue_id", q.ID);
                 cmd.Parameters.AddWithValue("@violation", result.violation ? 1 : 0);
                 cmd.Parameters.AddWithValue("@intent", result.intent.ToString().ToUpper());
                 cmd.Parameters.AddWithValue("@confidence", result.confidence);
                 cmd.Parameters.AddWithValue("@user_message", result.user_message);
+                cmd.Parameters.AddWithValue("@recorded_at", DateTime.Now);
 
                 await cmd.ExecuteNonQueryAsync();
             }
