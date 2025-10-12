@@ -433,14 +433,14 @@ namespace makefoxsrv.commands
             sb.AppendLine("🧠 Configure your AI assistant's personality and other settings.");
             sb.AppendLine();
 
-            if (user.CheckAccessLevel(AccessLevel.PREMIUM))
+            if (!user.CheckAccessLevel(AccessLevel.PREMIUM))
             {
                 (int remainingDaily, int remainingWeekly) = await FoxLLMPredicates.GetRemainingLLMMessages(user);
 
                 sb.Append("⏰ Free users have a daily and weekly limit on LLM messages.");
                 sb.AppendLine($"You have {remainingDaily} messages remaining today, and {remainingWeekly} remaining this week.");
                 sb.AppendLine();
-                sb.AppendLine("⭐ Upgrade to Premium /membership for unlimited access.");
+                sb.AppendLine("⭐ Purchase a /membership for unlimited premium access.");
             }
 
             if (EditMessage)
