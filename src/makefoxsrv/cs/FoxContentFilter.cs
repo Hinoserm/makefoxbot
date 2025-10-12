@@ -69,8 +69,10 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- Sexualized underage elves, goblins, or humans");
             sysPrompt.AppendLine("- Human-like characters with extremely minimal animal features, such as creatures that look almost completely human except for having animal ears or tail.");
             sysPrompt.AppendLine();
-            sysPrompt.AppendLine("If the content violates policy, include a short, user-facing message (user_message) explaining how the content violates our policy.");
-            sysPrompt.AppendLine("If no violation occurred, leave user_message empty or null.");
+            sysPrompt.AppendLine("USER MESSAGE:");
+            sysPrompt.AppendLine("- If the content violates policy, include a short, user-facing message (user_message) explaining how the content violates our policy.");
+            sysPrompt.AppendLine("- If no violation occurred, leave user_message empty or null.");
+            sysPrompt.AppendLine("- You must NEVER tell the user that anthropomorphic content is prohibited, because it is not.");
 
             // Fetch image tags
             var outputImage = await q.GetOutputImage();
