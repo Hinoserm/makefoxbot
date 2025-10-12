@@ -429,12 +429,24 @@ namespace makefoxsrv.commands
                 }
             });
 
-            var msgStr = "🧠 LLM Settings";
+            var sb = new StringBuilder();
+            sb.AppendLine("🧠 Configure your AI assistant's personality and other settings.");
+            sb.AppendLine();
+
+            if (user.CheckAccessLevel(AccessLevel.PREMIUM))
+            {
+                (int remainingDaily, int remainingWeekly) = await FoxLLMPredicates.GetRemainingLLMMessages(user);
+
+                sb.Append("⏰ Free users have a daily and weekly limit on LLM messages.");
+                sb.AppendLine($"You have {remainingDaily} messages remaining today, and {remainingWeekly} remaining this week.");
+                sb.AppendLine();
+                sb.AppendLine("⭐ Upgrade to Premium /membership for unlimited access.");
+            }
 
             if (EditMessage)
             {
                 await t.EditMessageAsync(
-                    text: msgStr,
+                    text: sb.ToString(),
                     id: message.ID,
                     replyInlineMarkup: new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() }
                 );
@@ -442,7 +454,7 @@ namespace makefoxsrv.commands
             else
             {
                 await t.SendMessageAsync(
-                    text: msgStr,
+                    text: sb.ToString(),
                     replyToMessage: message,
                     replyInlineMarkup: new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() }
                 );
@@ -454,8 +466,8 @@ namespace makefoxsrv.commands
         [BotCommand(cmd: "llm")]
         public static async Task CmdLLMSettings(FoxTelegram t, FoxUser user, Message message)
         {
-            if (!user.CheckAccessLevel(AccessLevel.PREMIUM))
-                throw new Exception("You must be a premium user to use LLM features.");
+            //if (!user.CheckAccessLevel(AccessLevel.PREMIUM))
+            //    throw new Exception("You must be a premium user to use LLM features.");
 
             await ShowLLMSettings(t, user, message);
         }

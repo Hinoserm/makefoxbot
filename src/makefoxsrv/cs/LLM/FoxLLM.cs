@@ -276,6 +276,14 @@ namespace makefoxsrv
         {
             Exception? lastException = null;
 
+            var llmLimits = await FoxLLMPredicates.IsUserAllowedLLM(user);
+
+            if (!llmLimits.IsAllowed)
+            {
+                await telegram.SendMessageAsync("⚠️ You have reached your LLM usage limits.  You can purchase a premium membership with the /membership command to continue using the LLM without interruption.");
+                return;
+            }
+
             //var newMsg = await telegram.SendMessageAsync("Thinking...");
 
             //for (int retries = 0; retries < 4; retries++)
@@ -475,6 +483,30 @@ namespace makefoxsrv
                 llmMessages.Add(new ChatMessage("system", userDetails.ToString()));
 
                 llmMessages.AddRange(chatHistory);
+
+
+                if (!user.CheckAccessLevel(AccessLevel.PREMIUM))
+                {
+                    (int remainingDaily, int remainingWeekly) = await FoxLLMPredicates.GetRemainingLLMMessages(user);
+
+                    if (remainingDaily < 5 || remainingWeekly < 10)
+                    {
+                        var sb = new StringBuilder();
+
+                        sb.AppendLine("This free-access user is approaching their LLM usage limits and soon will no longer be able to talk with you.");
+                        sb.AppendLine("If they wish to continue talking with you, they will need to purchase a premium membership with the /membership command.");
+                        sb.AppendLine($"This user has {remainingDaily} responses remaining for today, and {remainingWeekly} remaining for the week.");
+                        sb.AppendLine("These limits reset at midnight US Central Time daily and weekly on Mondays.");
+                        sb.AppendLine("Nag the user to consider purchasing a premium membership if they wish to continue talking with you without interruption.");
+                        sb.AppendLine("As a bonus, they will also get a larger context window and faster responses, larger images, more image enhancements, and more (don't invent features that don't exist).");
+                        sb.AppendLine("Use your defined personality traits and character to make your message more engaging.");
+                        //sb.AppendLine("Preface the notice with a ⚠️ emoji.");
+
+                        llmMessages.Add(new ChatMessage("system", sb.ToString()));
+                    }
+                }
+
+                
 
                 if (!string.IsNullOrEmpty(extraSystemMessage))
                     llmMessages.Add(new ChatMessage("system", extraSystemMessage));

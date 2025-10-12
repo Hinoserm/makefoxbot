@@ -73,7 +73,7 @@ namespace makefoxsrv
                 {
                     var llmUser = await FoxUser.GetByTelegramUser(t.User, false);
 
-                    if (llmUser is not null && llmUser.CheckAccessLevel(AccessLevel.PREMIUM))
+                    if (llmUser is not null && llmUser.CheckAccessLevel(AccessLevel.BASIC))
                     {
                         FoxContextManager.Current.User = llmUser;
                         await FoxLLMBatchHandler.AddMessageAsync(t, llmUser, message, CancellationToken.None);
