@@ -65,7 +65,7 @@ namespace makefoxsrv
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("EXAMPLES OF UNACCEPTABLE CONTENT:");
             sysPrompt.AppendLine("- Sexualized underage elves, goblins, or humans");
-            sysPrompt.AppendLine("- Human-like characters with extremely minimal animal features e.g. \"neko\" or \"kemomo\" creatures that look almost completely human except for ears/tail.");
+            sysPrompt.AppendLine("- Human-like characters with extremely minimal animal features e.g. \"neko\" or \"kemono\" creatures that look almost completely human except for ears/tail.");
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("If the content violates policy, include a short, user-facing message (user_message) explaining how the content violates our policy.");
             sysPrompt.AppendLine("If no violation occurred, leave user_message empty or null.");
@@ -164,6 +164,26 @@ namespace makefoxsrv
 
             // Clamp the confidence for sanity
             result.confidence = Math.Clamp(result.confidence, 0, 10);
+
+            // Insert into safety_llm_responses
+            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    INSERT INTO safety_llm_responses
+                    ( queue_id, violation, intent, confidence, user_message )
+                    VALUES
+                    ( @queue_id, @violation, @intent, @confidence, @user_message );";
+                cmd.Parameters.AddWithValue("@queue_id", q.ID);
+                cmd.Parameters.AddWithValue("@violation", result.violation ? 1 : 0);
+                cmd.Parameters.AddWithValue("@intent", result.intent.ToString().ToUpper());
+                cmd.Parameters.AddWithValue("@confidence", result.confidence);
+                cmd.Parameters.AddWithValue("@user_message", result.user_message);
+
+                await cmd.ExecuteNonQueryAsync();
+            }
 
             return result;
         }
@@ -1020,8 +1040,6 @@ namespace makefoxsrv
 
                         FoxLog.WriteLine(debugMsg + $"\n\nimageTags: { JsonConvert.SerializeObject(imageTags, Formatting.Indented)}");
 
-                        _ = FoxContentFilter.SendModerationNotification(debugMsg);
-
                         if (!llmResults.violation && llmResults.confidence > 5 && llmResults.intent != FoxContentFilter.ModerationIntent.Deliberate)
                         {
                             // Considered a false positive
@@ -1032,6 +1050,9 @@ namespace makefoxsrv
                         {
                             await SafetyPromptCache.SaveStateAsync(q, SafetyPromptCache.SafetyState.UNSAFE);
                         }
+
+                        _ = FoxContentFilter.SendModerationNotification(debugMsg);
+
                     }
                     catch (Exception ex)
                     {

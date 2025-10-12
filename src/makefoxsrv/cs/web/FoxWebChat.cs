@@ -39,7 +39,7 @@ namespace makefoxsrv
 
             long chatId = FoxJsonHelper.GetLong(jsonMessage, "ChatID", false)!.Value;
 
-            int msgCount = FoxJsonHelper.GetInt(jsonMessage, "Count", true) ?? 30;
+            int msgCount = FoxJsonHelper.GetInt(jsonMessage, "Count", true) ?? 300;
 
             if (session?.user is null)
                 throw new Exception("User not logged in.");
@@ -109,6 +109,32 @@ namespace makefoxsrv
                                 Text = reader.GetString("message_text"),
                                 Username = toUser.Username ?? ($"#{toUser.TelegramID}"),
                                 Date = reader.GetDateTime("date_added")
+                            };
+
+                            messageList.Add(message);
+                        }
+                    }
+                }
+
+                using (var cmd = new MySqlCommand())
+                {
+                    cmd.Connection = SQL;
+                    cmd.CommandText = "SELECT * FROM llm_conversations WHERE user_id = @uid AND role = 'assistant' ORDER BY created_at DESC LIMIT " + msgCount;
+                    cmd.Parameters.AddWithValue("uid", toUser.UID);
+
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            var message = new Message
+                            {
+                                FromUID = null,
+                                ToUID = toUser.UID,
+                                TgPeer = null,
+                                Text = reader.GetString("content"),
+                                Username = "LLM",
+                                Date = reader.GetDateTime("created_at"),
+                                isOutgoing = true
                             };
 
                             messageList.Add(message);

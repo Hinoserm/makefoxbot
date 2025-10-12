@@ -390,6 +390,14 @@ namespace makefoxsrv.commands
             {
                 buttons = new TL.KeyboardButtonBase[]
                 {
+                        new TL.KeyboardButtonCallback { text = "Disable", data = System.Text.Encoding.UTF8.GetBytes(personaButtonData) },
+                }
+            });
+
+            buttonRows.Add(new TL.KeyboardButtonRow
+            {
+                buttons = new TL.KeyboardButtonBase[]
+                {
                         new TL.KeyboardButtonCallback { text = "Set Personality", data = System.Text.Encoding.UTF8.GetBytes(personaButtonData) },
                 }
             });
