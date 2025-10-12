@@ -183,7 +183,7 @@ namespace makefoxsrv
             bool isHumanish = imageTags.ContainsKey("human")  
                            || imageTags.ContainsKey("elf")    
                            || imageTags.ContainsKey("dwarf")  
-                           || imageTags.ContainsKey("kemono") 
+                           //|| imageTags.ContainsKey("kemono") // WAY too many false positives
                            || imageTags.ContainsKey("neko")   
                            || imageTags.ContainsKey("goblin");
 
