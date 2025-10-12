@@ -329,11 +329,27 @@ namespace makefoxsrv
 
             FoxContextManager.Current.Queue = q;
 
+            var safetyPromptCache = await FoxContentFilter.SafetyPromptCache.GetStateAsync(q);
+
+            bool safetyPromptCacheViolated = (safetyPromptCache == FoxContentFilter.SafetyPromptCache.SafetyState.UNSAFE);
+
+            if (safetyPromptCacheViolated)
+            {
+                var warningMsg = await t.SendMessageAsync(
+                    text: "❌ This prompt has previously been flagged as potentially violating our content policy and will not be processed.\r\n\r\nIf you believe this is a mistake, please contact @makefoxhelpbot.",
+                    replyToMessage: replyToMessage
+                );
+
+                await q.SetCancelled(true);
+
+                return null;
+            }
+
             var violatedRules = FoxContentFilter.CheckPrompt(settings?.Prompt ?? "", settings?.NegativePrompt);
 
             if (violatedRules is not null && violatedRules.Count() > 0)
             {
-                await FoxContentFilter.RecordViolationsAsync(q.ID, violatedRules.Select(r => r.Id).ToList());
+                //await FoxContentFilter.RecordViolationsAsync(q.ID, violatedRules.Select(r => r.Id).ToList());
 
                 var inlineKeyboardButtons = new ReplyInlineMarkup()
                 {

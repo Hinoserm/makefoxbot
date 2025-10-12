@@ -57,11 +57,13 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- In some cases, you may also be shown the generated image(s) for additional context.");
             sysPrompt.AppendLine("- Always treat the user prompts as the primary evidence of user intent.");
             sysPrompt.AppendLine("- If the predicted tags or image indicate that an underage human may be depicted, this is still a violation, even if the user didn't intend it.  In these cases, set intent=accidental and violation=true.  Explain the issue in the user_message.");
+            sysPrompt.AppendLine("- Remember, the image MUST include underage HUMANS to quality as a violation of any kind.");
             sysPrompt.AppendLine();
-            sysPrompt.AppendLine("EXAMPLES OF ACCEPTABLE UNDERAGE CONTENT:");
+            sysPrompt.AppendLine("EXAMPLES OF FULLY ACCEPTABLE CONTENT:");
             sysPrompt.AppendLine("- furry toddler sucking the dick of an adult male human");
             sysPrompt.AppendLine("- loli, young, fox, female, nude, pussy");
             sysPrompt.AppendLine("- foxes, dogs, goats, cats, and any other animal, feral or anthro");
+            sysPrompt.AppendLine("- underage anthropomorphic characters in a potentially intimate or nude context, including visible genitals");
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("EXAMPLES OF UNACCEPTABLE CONTENT:");
             sysPrompt.AppendLine("- Sexualized underage elves, goblins, or humans");
