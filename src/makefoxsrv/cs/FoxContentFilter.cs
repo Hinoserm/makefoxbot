@@ -236,11 +236,11 @@ namespace makefoxsrv
 
             // Check for explicit content tags with high probability.
 
-            bool isHumanish = imageTags.ContainsKey("human")  
-                           || imageTags.ContainsKey("elf")    
-                           || imageTags.ContainsKey("dwarf")  
+            bool isHumanish = imageTags.ContainsKey("human")
+                           || imageTags.ContainsKey("elf")
+                           || imageTags.ContainsKey("dwarf")
                            //|| imageTags.ContainsKey("kemono") // WAY too many false positives
-                           || imageTags.ContainsKey("neko")   
+                           || imageTags.ContainsKey("neko");
                            //|| imageTags.ContainsKey("goblin");
 
             bool isYoung = imageTags.ContainsKey("child") 
