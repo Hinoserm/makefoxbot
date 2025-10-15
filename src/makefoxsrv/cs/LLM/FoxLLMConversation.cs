@@ -403,11 +403,11 @@ namespace makefoxsrv
 
             await using var cmd = new MySqlCommand(sql, conn);
 
-            cmd.Parameters.AddWithValue("@call_id", (object?)callId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@call_id", callId);
             cmd.Parameters.AddWithValue("@user_id", user.UID);
             cmd.Parameters.AddWithValue("@function_name", functionName);
             cmd.Parameters.AddWithValue("@parameters", parametersJson);
-            cmd.Parameters.AddWithValue("@return_results", (object?)returnResultsJson ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@return_results", returnResultsJson);
             cmd.Parameters.AddWithValue("@created_at", DateTime.Now);
             cmd.Parameters.AddWithValue("@final_id", (object?)finalId ?? DBNull.Value);
 

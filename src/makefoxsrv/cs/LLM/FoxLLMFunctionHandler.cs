@@ -183,8 +183,6 @@ namespace makefoxsrv
             if (toolCalls == null || !toolCalls.Any())
                 return;
 
-            List<FoxLLMConversation.ChatMessage> functionResults = new();
-
             bool doRunLLM = false;
 
             var payload = new
@@ -287,20 +285,8 @@ namespace makefoxsrv
                         ? Newtonsoft.Json.JsonConvert.SerializeObject(ConvertTuples(finalResult), Newtonsoft.Json.Formatting.Indented)
                         : null;
 
-                    // Store the tool call itself
-                    string? toolContent = jsonResult ?? "{}";
 
                     await FoxLLMConversation.SaveFunctionCallAsync(user, callId, functionName, argumentsJson ?? "{}", jsonResult);
-
-                    var toolMessage = ChatMessage.ToolMessage(
-                        callId,
-                        functionName,
-                        argumentsJson,
-                        toolContent,
-                        DateTime.Now
-                    );
-
-                    functionResults.Add(toolMessage);
 
                     // mark for possible follow-up call
                     doRunLLM = true;
@@ -334,16 +320,6 @@ namespace makefoxsrv
                         argumentsJson ?? "{}",
                         jsonError
                     );
-
-                    var toolMessage = ChatMessage.ToolMessage(
-                        callId,
-                        functionName ?? "[Unknown]",
-                        argumentsJson,
-                        jsonError,
-                        DateTime.Now
-                    );
-
-                    functionResults.Add(toolMessage);
 
                     doRunLLM = true;
                 }
