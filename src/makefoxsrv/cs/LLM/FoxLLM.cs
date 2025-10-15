@@ -166,7 +166,7 @@ namespace makefoxsrv
                 // Build dynamic function schemas using reflection
                 var functionTools = FoxLLMFunctionHandler.BuildToolSchema();
 
-                Console.WriteLine(functionTools.ToString(Newtonsoft.Json.Formatting.Indented));
+                //Console.WriteLine(functionTools.ToString(Newtonsoft.Json.Formatting.Indented));
 
                 // Used to determine if the LLM outputted something useful (or made a function call).
                 // If not, we'll need to delete the message from the conversation history and throw an error.
@@ -319,7 +319,7 @@ namespace makefoxsrv
                     if (!string.IsNullOrEmpty(assistantReply?.Trim()))
                     {
                         outputCheckCounter++;
-                        FoxLog.WriteLine($"LLM Output: {assistantReply}");
+                        //FoxLog.WriteLine($"LLM Output: {assistantReply}");
 
                         var convResponseId = await FoxLLMConversation.InsertConversationMessageAsync(user, "assistant", assistantReply, null);
 
