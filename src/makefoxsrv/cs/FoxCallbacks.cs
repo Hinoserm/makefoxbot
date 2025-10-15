@@ -649,7 +649,7 @@ namespace makefoxsrv
 
                     var invoice = await FoxPayments.Invoice.Create(user);
                     invoice.Days = 365;    // 1 Year Membership
-                    invoice.Amount = 5000; // $50 USD
+                    invoice.Amount = 6500; // $65 USD
                     invoice.Currency = "USD";
                     await invoice.Save();
 
@@ -662,7 +662,7 @@ namespace makefoxsrv
                     });
 
                     var sentMessage = await t.SendMessageAsync(
-                        text: "For a limited time, purchase 365 days of membership at HALF OFF the normal price!",
+                        text: "For a limited time, purchase 365 days of membership at a great discounted price!",
                         replyInlineMarkup: new TL.ReplyInlineMarkup { rows = buttonRows.ToArray() },
                         disableWebPagePreview: true,
                         replyToMessageId: query.msg_id
