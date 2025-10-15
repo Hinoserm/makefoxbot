@@ -91,6 +91,13 @@ namespace makefoxsrv
         public T? Get(ulong id) => GetInternal(id, slide: true);
 
         /// <summary>
+        /// Retrieves an item from the cache and counts as an access. 
+        /// If sliding expiration is enabled, this call will refresh the expiry.
+        /// Returns <c>null</c> if the item is expired or missing.
+        /// </summary>
+        public T? Get(long id) => GetInternal((ulong)id, slide: true);
+
+        /// <summary>
         /// Retrieves an item from the cache without extending its lifetime. 
         /// Useful for inspection (e.g., enumeration) where you don't want 
         /// iteration itself to keep entries alive. 
@@ -122,6 +129,8 @@ namespace makefoxsrv
         {
             _cache[id] = new CacheEntry(value, _ttl, _sliding);
         }
+
+        public void Put(long id, T value) => Put((ulong)id, value);
 
 
         /// <summary>
