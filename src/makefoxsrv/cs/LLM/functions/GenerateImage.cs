@@ -37,17 +37,6 @@ namespace makefoxsrv.llm.functions
 
             // Generate the image
             var result = await FoxGenerate.Generate(t, settings, null, user);
-
-            // Log the generation in your LLM conversation history
-            await FoxLLMConversation.InsertFunctionCallAsync(user, nameof(GenerateImage),
-                Newtonsoft.Json.JsonConvert.SerializeObject(new
-                {
-                    Prompt,
-                    NegativePrompt,
-                    Width,
-                    Height,
-                    Model
-                }), (long?)result?.ID);
         }
     }
 }

@@ -561,24 +561,5 @@ namespace makefoxsrv
                 await cmd.ExecuteNonQueryAsync();
             }
         }
-
-        public static async Task InsertFunctionCallAsync(FoxUser user, string functionName, string parametersJson, long? finalId)
-        {
-            await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
-            await conn.OpenAsync();
-
-            var cmd = new MySqlCommand(@"
-                INSERT INTO llm_function_calls (user_id, function_name, parameters, final_id, created_at)
-                VALUES (@uid, @fn, @pj, @fid, @now);
-            ", conn);
-
-            cmd.Parameters.AddWithValue("@uid", user.UID);
-            cmd.Parameters.AddWithValue("@fn", functionName);
-            cmd.Parameters.AddWithValue("@pj", parametersJson);
-            cmd.Parameters.AddWithValue("@fid", finalId);
-            cmd.Parameters.AddWithValue("@now", DateTime.Now);
-
-            await cmd.ExecuteNonQueryAsync();
-        }
     }
 }
