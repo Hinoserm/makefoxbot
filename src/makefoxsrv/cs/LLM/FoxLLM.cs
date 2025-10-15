@@ -166,7 +166,7 @@ namespace makefoxsrv
                 // Build dynamic function schemas using reflection
                 var functionTools = FoxLLMFunctionHandler.BuildToolSchema();
 
-                Console.WriteLine(functionTools.ToString(Newtonsoft.Json.Formatting.Indented));
+                //Console.WriteLine(functionTools.ToString(Newtonsoft.Json.Formatting.Indented));
 
                 // Used to determine if the LLM outputted something useful (or made a function call).
                 // If not, we'll need to delete the message from the conversation history and throw an error.
