@@ -153,7 +153,7 @@ namespace makefoxsrv
 
             if (model is null || model.GetWorkersRunningModel().Count < 1)
             {
-                throw new Exception("There are no workers available to handle your currently selected model ({settings.ModelName}).  This can happen if the server was recently restarted or if a model was uninstalled.\r\n\r\nPlease try again in a moment or select a different /model.");
+                throw new Exception("There are no workers available to handle your currently selected model ({settings.ModelName}).  This can happen if the server was recently restarted.  Please choose a new model or try again shortly.");
             }
 
             if (FoxQueue.CheckWorkerAvailability(settings) is null)

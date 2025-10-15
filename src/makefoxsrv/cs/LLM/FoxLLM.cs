@@ -166,7 +166,7 @@ namespace makefoxsrv
                 // Build dynamic function schemas using reflection
                 var functionTools = FoxLLMFunctionHandler.BuildToolSchema();
 
-                //Console.WriteLine(functionTools.ToString(Newtonsoft.Json.Formatting.Indented));
+                Console.WriteLine(functionTools.ToString(Newtonsoft.Json.Formatting.Indented));
 
                 // Used to determine if the LLM outputted something useful (or made a function call).
                 // If not, we'll need to delete the message from the conversation history and throw an error.
@@ -230,6 +230,7 @@ namespace makefoxsrv
                     .AppendLine("If an image or any other tool is needed, respond ONLY with structured tool call JSON.")
                     .AppendLine("You MAY call multiple tools in the same response if the task requires it.")
                     .AppendLine("Do not explain, roleplay, or mention the calls in text.")
+                    .AppendLine("If an error occurs, attempt ONCE to correct the issue and try again. After that, tell the user about the error.")
                     .AppendLine("Always call tool functions flawlessly.");
 
                 llmMessages.Add(new ChatMessage("system", reminderSystemMessage.ToString()));
@@ -611,7 +612,7 @@ namespace makefoxsrv
             p.AppendLine("Tools:");
             p.AppendLine(" You have been provided a toolbox of assorted functions.  Use them freely; they will help you fulfill the user's requests and feel more like a real person.");
             p.AppendLine(" Don't tell the user when you're about to use a tool; just use it.");
-            p.AppendLine(" If you run into an error, correct yourself and try again.  Don't try too many times; after a couple tries give up and tell the user there's a problem without revealing technical details.");
+            p.AppendLine(" If an error occurs, attempt ONCE to correct the issue and try again. After that, tell the user about the error.");
             p.AppendLine(" Don't forget to make the tool call in your response.");
             p.AppendLine(" Always call tool functions flawlessly, without outputting JSON directly to the user.");
             p.AppendLine(" Use tools as often as required to elevate the user's experience.  Stop and look for useful tools before generating a response.");

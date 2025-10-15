@@ -8,7 +8,7 @@ namespace makefoxsrv.llm.functions
 {
     internal class ImageModelInfo
     {
-        [LLMFunction("Helps you find the best image model to meet the user's request.  Use only when one of your default models isn't up for the job.  Returns suggested models along with descriptions for each model.")]
+        [LLMFunction("Helps you find the best image model to meet the user's request.  Use only when one of your default models isn't up for the job or the user specifically asks for it.  Returns suggested models along with descriptions for each model.")]
         public static async Task<List<(string modelName, string description)>> SearchImageModels(
             FoxTelegram t,
             FoxUser user,
