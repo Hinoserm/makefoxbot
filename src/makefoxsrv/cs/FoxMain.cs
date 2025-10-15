@@ -218,6 +218,7 @@ namespace makefoxsrv
 
             //FoxONNX.Start();
 
+
             sqlCancellationToken = cts.Token;
 
             FoxContextManager.Current = new FoxContext();

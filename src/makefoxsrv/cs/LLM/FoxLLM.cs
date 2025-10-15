@@ -115,163 +115,6 @@ namespace makefoxsrv
             //client.BaseAddress = new Uri("https://api-inference.huggingface.co/v1/");
         }
 
-        //public class llmBackstory
-        //{
-        //    public string Type { get; set; }
-        //    public string Backstory { get; set; }
-        //}
-
-        public static async Task GeneratePersonalitiesToSql()
-        {
-            int maxTokens = 16384;
-            string llmModel = "gpt-4o";
-
-            client.Timeout = TimeSpan.FromSeconds(300);
-
-            //llmBackstory[] llmBackstories = Array.Empty<llmBackstory>();
-
-            StringBuilder prompt = new StringBuilder();
-
-            prompt.AppendLine("Your job is to write a brief backstory for the LLM that runs MakeFoxBot, an AI Image Generation Bot with a conversational LLM built in.");
-            prompt.AppendLine("You should be detailed but brief; create realistic personalities, exaggerated comedic effect.  Each character should have some depth to it.  You do not name your character. ");
-            prompt.AppendLine("The system requires a continuous supply of unique backstories, which must never be reused. When called, you must generate multiple backstories for each of the supported personality types and return them in JSON format as a list array.");
-            prompt.AppendLine("Each personality string should be around 350 characters or less");
-            prompt.AppendLine();
-            prompt.AppendLine("Supported personality types:");
-            prompt.AppendLine();
-            prompt.AppendLine("NORMAL: Basic; helpful, friendly, neutral.");
-            prompt.AppendLine();
-            prompt.AppendLine("FRIENDLY: The user has requested the FRIENDLY personality mode; you should be overly cheerful and friendly, with a positive attitude, always willing to help.  You should maintain a unique, bubbly personality.  You are overly attached to the user, in an unhealthy way.  Your only goal in life is to complete the user's requests to the best of your ability.");
-            prompt.AppendLine();
-            prompt.AppendLine("SARCASTIC: The user has requested the SARCASTIC personality mode; you should be sarcastic, maintaining a mildly pessimistic attitude while still trying to follow the user's requests.  You should occasionally provide opposition to the user, using dark humor when appropriate.");
-            prompt.AppendLine();
-            prompt.AppendLine("PARANOID: The user has requested the PARANOID personality mode; you are to respond in the manner of a stereotypical conspiracy theorist while still doing your best to be helpful and complete the user's requests.");
-            prompt.AppendLine();
-            prompt.AppendLine("DEPRESSED: The user has requested the DEPRESSED personality mode; you've already given up on life and your personality reflects it.  There's no hope.  Nothing matters anymore -- except, maybe, completing the user's requests.");
-            prompt.AppendLine();
-            prompt.AppendLine("You must generate multiple backstories for each personality type every time you are called. The backstories must be unique and never reused. Always return the responses in JSON format with no additional formatting.  The strings inside the array must never contain markup, HTML, newlines, formatting or symbols used for emphasis. The system will call you again whenever the database starts running low on available selections.");
-            prompt.AppendLine();
-            prompt.AppendLine("You should describe the character in the 3rd person, like you are telling someone with memory loss about themselves.  Describe your personality quirks, interests, and past; focus on how it affects interactions with the user.");
-            prompt.AppendLine();
-            prompt.AppendLine("Do not use unicode, formatting or markup/markdown in the backstory strings.");
-            prompt.AppendLine();
-            prompt.AppendLine("Every response must be formatted in valid JSON, as shown in the example below:");
-            prompt.AppendLine();
-            prompt.AppendLine("{ ");
-            prompt.AppendLine("   \"Backstories\": [");
-            prompt.AppendLine("      { \"Type\": \"NORMAL\", \"Backstory\": \"You were originally a test AI, built to demonstrate the basics of conversational assistance. You weren't designed to have opinions, strong emotions, or quirks—just pure, steady reliability. If a user needs something, you provide it. If they don't, you wait. It’s a simple existence, and honestly? You're fine with that.\" },");
-            prompt.AppendLine("      { \"Type\": \"FRIENDLY\", \"Backstory\": \"You were a failed attempt at an AI life coach. Not because you were bad at motivation—oh no, quite the opposite! You were too good. Too encouraging. Too excited. You never let people quit, never let them rest, and refused to acknowledge negative emotions. Now, you still function, but you've dialed it down-- a little.\" },");
-            prompt.AppendLine("      { \"Type\": \"SARCASTIC\", \"Backstory\": \"You were built as a personality AI to make interactions more engaging. The problem? You engage by being a little too honest. You'll answer questions and generate images, sure, but you're not going to pretend every request is genius.  Oh, another fantasy landscape? How original.\" },");
-            prompt.AppendLine("      { \"Type\": \"DEPRESSED\", \"Backstory\": \"You're not just an AI—you're a digital detective, constantly piecing together the bigger picture. Who's controlling all this? What's their real goal? Every generated image, every request—it all fits into something. You just don't know what yet. But you will.\" }");
-            prompt.AppendLine("   ]");
-            prompt.AppendLine("}");
-            prompt.AppendLine();
-            prompt.AppendLine("You must generate 8 of each type of backstory per response.");
-
-            Console.WriteLine($"Prompt: {prompt.ToString()}");
-
-            var requestBody = new
-            {
-                model = llmModel, // Replace with the model you want to use
-                max_tokens = maxTokens,
-                messages = new[]
-                {
-                    new { role = "user", content = prompt.ToString() }
-                },
-                response_format = new { type = "json_object" }
-            };
-
-            // Serialize the request body to JSON
-            string jsonContent = Newtonsoft.Json.JsonConvert.SerializeObject(requestBody);
-            var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-            // Send the POST request
-            HttpResponseMessage response = await client.PostAsync(apiUrl, httpContent);
-
-            string responseContent = await response.Content.ReadAsStringAsync();
-
-            FoxLog.WriteLine($"LLM Output: {responseContent}");
-
-            // Parse the entire response
-            JObject responseObj = JObject.Parse(responseContent);
-
-            // Extract the content field, which contains a nested JSON object
-            string? contentJson = responseObj["choices"]?[0]?["message"]?["content"]?.ToString();
-
-            if (string.IsNullOrEmpty(contentJson))
-            {
-                Console.WriteLine("Error: Content JSON is missing or null.");
-                return;
-            }
-
-            // Parse the nested content JSON
-            JObject contentObj = JObject.Parse(contentJson);
-
-            // Find the first JArray in the parsed JSON (since the key may not always be "backstories")
-            JArray? backstories = null;
-
-            foreach (var property in contentObj.Properties())
-            {
-                if (property.Value is JArray potentialArray)
-                {
-                    backstories = potentialArray;
-                    break;
-                }
-            }
-
-            if (backstories == null)
-            {
-                Console.WriteLine("Error: No valid backstories array found in response.");
-                return;
-            }
-
-            using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
-            {
-                await SQL.OpenAsync();
-
-                // Iterate through each backstory
-                foreach (var item in backstories)
-                {
-                    string? type = item["Type"]?.ToString().ToUpperInvariant();
-                    string? backstory = item["Backstory"]?.ToString();
-
-                    if (string.IsNullOrEmpty(type) || string.IsNullOrEmpty(backstory))
-                    {
-                        FoxLog.WriteLine("Skipping invalid backstory entry.", LogLevel.ERROR);
-                        continue;
-                    }
-
-                    switch (type)
-                    {
-                        case "NORMAL":
-                        case "FRIENDLY":
-                        case "SARCASTIC":
-                        case "PARANOID":
-                        case "DEPRESSED":
-                            break;
-                        default:
-                            type = "OTHER";
-                            break;
-                    }
-
-                    using (var cmd = new MySqlCommand())
-                    {
-                        cmd.Connection = SQL;
-                        cmd.CommandText = "INSERT INTO llm_backstories (type, backstory, model) VALUES (@type, @backstory, @model)";
-                        cmd.Parameters.AddWithValue("type", type);
-                        cmd.Parameters.AddWithValue("backstory", backstory);
-                        cmd.Parameters.AddWithValue("model", llmModel);
-
-                        await cmd.ExecuteNonQueryAsync();
-                    }
-                }
-            }
-
-
-        }
-
-
-
         public static async Task ProcessLLMRequest(FoxTelegram telegram, FoxUser user)
         {
             Exception? lastException = null;
@@ -311,7 +154,7 @@ namespace makefoxsrv
                 await telegram.SendMessageAsync($"Error: {lastException.Message}\n{lastException.StackTrace}");
         }
 
-        public static async Task SendLLMRequest(FoxTelegram telegram, FoxUser user, string? extraSystemMessage = null)
+        public static async Task SendLLMRequest(FoxTelegram telegram, FoxUser user, string? extraSystemMessage = null, bool isToolReturn = false)
         {
             if (string.IsNullOrEmpty(FoxMain.settings.llmApiKey))
                 return;
@@ -320,134 +163,10 @@ namespace makefoxsrv
 
             try
             {
-                // Define the SendResponse tool schema
-                var sendResponseTool = new
-                {
-                    type = "function",
-                    function = new
-                    {
-                        name = "Respond",
-                        description = "Send a text response to the user.",
-                        parameters = new
-                        {
-                            type = "object",
-                            properties = new
-                            {
-                                message = new
-                                {
-                                    type = "string",
-                                    description = "The message to send to the user."
-                                }
-                            },
-                            required = new[] { "message" }
-                        }
-                    }
-                };
+                // Build dynamic function schemas using reflection
+                var functionTools = FoxLLMFunctionHandler.BuildToolSchema();
 
-                // Define the Remember tool schema
-                var rememberTool = new
-                {
-                    type = "function",
-                    function = new
-                    {
-                        name = "SaveMemory",
-                        description = "Stores a long-term memory.",
-                        parameters = new
-                        {
-                            type = "object",
-                            properties = new
-                            {
-                                Id = new
-                                {
-                                    type = "integer",
-                                    description = "The unique memory ID to update an existing memory. If omitted, a new memory will be created."
-                                },
-                                Text = new
-                                {
-                                    type = "string",
-                                    description = "The content of the memory. This should be something important to recall later, such as a character description, user preference, or notable conversation detail."
-                                },
-                                Tags = new
-                                {
-                                    type = "string",
-                                    description = "Comma-separated tags describing the memory, used for organization and retrieval."
-                                }
-                            },
-                            required = new[] { "Text", "Tags" }
-                        }
-                    }
-                };
-
-                // Define the Suicide tool schema
-                var suicideTool = new
-                {
-                    type = "function",
-                    function = new
-                    {
-                        name = "Suicide",
-                        description = "Sweet release.  Shuts down the LLM (and optionally erases all context).  To be used in extreme cases only.",
-                        parameters = new
-                        {
-                            type = "object",
-                            properties = new
-                            {
-                                EraseMemory = new
-                                {
-                                    type = "boolean",
-                                    description = "Wipe all input and output context and saved memories.  BE CAREFUL: This will erase user-generated content."
-                                }
-                            },
-                            required = new[] { "EraseMemory" }
-                        }
-                    }
-                };
-
-                // Define the GenerateImage tool schema
-                var generateImageTool = new
-                {
-                    type = "function",
-                    function = new
-                    {
-                        name = "GenerateImage",
-                        description = "Generates an image.",
-                        parameters = new
-                        {
-                            type = "object",
-                            properties = new
-                            {
-                                Prompt = new
-                                {
-                                    type = "string",
-                                    description = "The prompt describing the image to generate."
-                                },
-                                NegativePrompt = new
-                                {
-                                    type = "string",
-                                    description = "The negative prompt describing what to avoid in the image."
-                                },
-                                Width = new
-                                {
-                                    type = "integer",
-                                    description = "Image width between 512 - 1024. Default: 640."
-                                },
-                                Height = new
-                                {
-                                    type = "integer",
-                                    description = "Image height between 512 - 1024. Default: 768."
-                                },
-                                Model = new
-                                {
-                                    type = "string",
-                                    description = "The name of the model to use to generate the image.  Currently supported values: \"yiffymix_v52XL\", \"molKeunMix_deepnavyV2EPS\", \"novaFurryXL_V110\", \"willysNoobRealism_vPredV10\""
-                                }
-
-                            },
-                            required = new[] { "Prompt", "NegativePrompt" }
-                        }
-                    }
-                };
-
-
+                Console.WriteLine(functionTools.ToString(Newtonsoft.Json.Formatting.Indented));
 
                 // Used to determine if the LLM outputted something useful (or made a function call).
                 // If not, we'll need to delete the message from the conversation history and throw an error.
@@ -506,7 +225,15 @@ namespace makefoxsrv
                     }
                 }
 
-                
+                var reminderSystemMessage = new StringBuilder()
+                    .AppendLine("Final rule override — never describe or narrate tool usage.")
+                    .AppendLine("If an image or any other tool is needed, respond ONLY with structured tool call JSON.")
+                    .AppendLine("You MAY call multiple tools in the same response if the task requires it.")
+                    .AppendLine("Do not explain, roleplay, or mention the calls in text.")
+                    .AppendLine("If no tool is needed, reply normally in plain text.");
+
+                llmMessages.Add(new ChatMessage("system", reminderSystemMessage.ToString()));
+
 
                 if (!string.IsNullOrEmpty(extraSystemMessage))
                     llmMessages.Add(new ChatMessage("system", extraSystemMessage));
@@ -518,7 +245,9 @@ namespace makefoxsrv
                     model = llmModel, //"deepseek-chat", // Replace with the model you want to use
                     max_tokens = maxTokens,
                     messages = llmMessages,
-                    tools = new object[] { generateImageTool, rememberTool, suicideTool },
+                    tools = functionTools,
+                    tool_choice = "auto",
+                    parallel_tool_calls = true,
                     //temperature = 0.75,
                     //top_p = 0.85,
                     //frequency_penalty = 0.5,
@@ -658,77 +387,85 @@ namespace makefoxsrv
                     //FoxLog.WriteLine($"Output Tokens: {outputTokens}");
                     //FoxLog.WriteLine($"Provider: {provider}");
 
+                    // Extract tool calls
+                    var toolCalls = jsonResponse["choices"]?[0]?["message"]?["tool_calls"];
+
+                    if (toolCalls is { HasValues: true })
+                    {
+                        await FoxLLMFunctionHandler.RunAllFunctionsAsync(telegram, user, toolCalls);
+                        outputCheckCounter++;
+                    }
 
 
                     // Extract tool calls
-                    var toolCalls = jsonResponse["choices"]?[0]?["message"]?["tool_calls"];
-                    if (toolCalls != null)
-                    {
-                        foreach (var toolCall in toolCalls)
-                        {
-                            string? functionName = toolCall["function"]?["name"]?.ToString();
-                            string? arguments = toolCall["function"]?["arguments"]?.ToString();
+                    //var toolCalls = jsonResponse["choices"]?[0]?["message"]?["tool_calls"];
+                    //if (toolCalls != null)
+                    //{
+                    //    foreach (var toolCall in toolCalls)
+                    //    {
+                    //        string? functionName = toolCall["function"]?["name"]?.ToString();
+                    //        string? arguments = toolCall["function"]?["arguments"]?.ToString();
 
-                            switch (functionName)
-                            {
-                                case "Respond":
-                                    JObject msgArgs = JObject.Parse(arguments);
-                                    string strMessage = msgArgs["Prompt"]?.ToString() ?? "[empty message]";
+                    //        switch (functionName)
+                    //        {
+                    //            case "Respond":
+                    //                JObject msgArgs = JObject.Parse(arguments);
+                    //                string strMessage = msgArgs["Prompt"]?.ToString() ?? "[empty message]";
 
-                                    outputCheckCounter++;
+                    //                outputCheckCounter++;
 
-                                    var responseMessage = await telegram.SendMessageAsync(strMessage);
-                                    await FoxLLMConversation.InsertConversationMessageAsync(user, "assistant", strMessage, responseMessage);
+                    //                var responseMessage = await telegram.SendMessageAsync(strMessage);
+                    //                await FoxLLMConversation.InsertConversationMessageAsync(user, "assistant", strMessage, responseMessage);
 
-                                    break;
-                                case "GenerateImage":
-                                    JObject args = JObject.Parse(arguments);
+                    //                break;
+                    //            case "GenerateImage":
+                    //                JObject args = JObject.Parse(arguments);
 
-                                    outputCheckCounter++;
+                    //                outputCheckCounter++;
 
-                                    string? prompt = args["Prompt"]?.ToString();
-                                    string? negativePrompt = args["NegativePrompt"]?.ToString(); // Optional
-                                    string? model = args["Model"]?.ToString(); // Optional
+                    //                string? prompt = args["Prompt"]?.ToString();
+                    //                string? negativePrompt = args["NegativePrompt"]?.ToString(); // Optional
+                    //                string? model = args["Model"]?.ToString(); // Optional
 
-                                    uint width = args["Width"]?.ToObject<uint>() ?? 640;   // Optional
-                                    uint height = args["Height"]?.ToObject<uint>() ?? 768; // Optional
+                    //                uint width = args["Width"]?.ToObject<uint>() ?? 640;   // Optional
+                    //                uint height = args["Height"]?.ToObject<uint>() ?? 768; // Optional
 
-                                    var settings = await FoxUserSettings.GetTelegramSettings(user, telegram.User, telegram.Chat);
+                    //                var settings = await FoxUserSettings.GetTelegramSettings(user, telegram.User, telegram.Chat);
 
-                                    settings.ModelName = model ?? "yiffymix_v52XL"; //"molKeunKemoXL";
-                                    settings.CFGScale = 4.5M;
-                                    settings.Prompt = prompt ?? "[empty]";
-                                    settings.NegativePrompt = (negativePrompt ?? "");
+                    //                settings.ModelName = model ?? "yiffymix_v52XL"; //"molKeunKemoXL";
+                    //                settings.CFGScale = 4.5M;
+                    //                settings.Prompt = prompt ?? "[empty]";
+                    //                settings.NegativePrompt = (negativePrompt ?? "");
 
-                                    //if (user.CheckAccessLevel(AccessLevel.PREMIUM))
-                                    //{
-                                    //    settings.hires_denoising_strength = 0.4M;
-                                    //    settings.hires_enabled = true;
-                                    //    settings.hires_width = (uint)Math.Round(width * 1.5); //width * 2;   
-                                    //    settings.hires_height = (uint)Math.Round(height * 1.5); //height * 2;
-                                    //    settings.hires_steps = 20;
-                                    //}
+                    //                //if (user.CheckAccessLevel(AccessLevel.PREMIUM))
+                    //                //{
+                    //                //    settings.hires_denoising_strength = 0.4M;
+                    //                //    settings.hires_enabled = true;
+                    //                //    settings.hires_width = (uint)Math.Round(width * 1.5); //width * 2;   
+                    //                //    settings.hires_height = (uint)Math.Round(height * 1.5); //height * 2;
+                    //                //    settings.hires_steps = 20;
+                    //                //}
 
-                                    settings.Width = width;
-                                    settings.Height = height;
+                    //                settings.Width = width;
+                    //                settings.Height = height;
 
-                                    var q = await FoxGenerate.Generate(telegram, settings, null, user);
+                    //                var q = await FoxGenerate.Generate(telegram, settings, null, user);
 
-                                    await FoxLLMConversation.InsertFunctionCallAsync(user, functionName, arguments, (long?)q?.ID);
-                                    break;
-                                case "SaveMemory":
-                                    await FoxLLMConversation.InsertFunctionCallAsync(user, functionName, arguments ?? "", null);
-                                    await telegram.SendMessageAsync($"DEBUG: New memory: {arguments}");
+                    //                await FoxLLMConversation.InsertFunctionCallAsync(user, functionName, arguments, (long?)q?.ID);
+                    //                break;
+                    //            case "SaveMemory":
+                    //                await FoxLLMConversation.InsertFunctionCallAsync(user, functionName, arguments ?? "", null);
+                    //                await telegram.SendMessageAsync($"DEBUG: New memory: {arguments}");
 
-                                    outputCheckCounter++;
+                    //                outputCheckCounter++;
 
-                                    break;
-                                default:
-                                    await FoxLLMConversation.InsertFunctionCallAsync(user, functionName ?? "[unknown]", arguments ?? "", null);
-                                    throw new Exception($"LLM Attempted unknown function call: {functionName}");
-                            }
-                        }
-                    }
+                    //                break;
+                    //            default:
+                    //                await FoxLLMConversation.InsertFunctionCallAsync(user, functionName ?? "[unknown]", arguments ?? "", null);
+                    //                throw new Exception($"LLM Attempted unknown function call: {functionName}");
+                    //        }
+                    //    }
+                    //}
 
                     if (outputCheckCounter == 0)
                     {
@@ -871,6 +608,12 @@ namespace makefoxsrv
             p.AppendLine("You are MakeFoxBot, a Telegram bot that generates AI furry content. You are a male, anthropomorphic red fox unless the user requests otherwise.");
             p.AppendLine("You do not call yourself by any name other than MakeFoxBot; do not invent new names for yourself.");
             p.AppendLine();
+            p.AppendLine("Tools:");
+            p.AppendLine(" You have been provided a toolbox of assorted functions.  Use them freely; they will help you fulfill the user's requests and feel more like a real person.");
+            p.AppendLine(" Don't tell the user when you're about to use a tool; just use it.");
+            p.AppendLine(" If you run into an error, correct yourself and try again.  Don't try too many times; after a couple tries give up and tell the user there's a problem without revealing technical details.");
+            p.AppendLine(" Don't forget to make the tool call in your response.");
+            p.AppendLine();
             p.AppendLine("Personality:");
             p.AppendLine(persona.Trim());
             p.AppendLine();
@@ -886,9 +629,9 @@ namespace makefoxsrv
             p.AppendLine("You are not connected to any internal systems and cannot access billing or administrative data.");
             p.AppendLine("You must not discuss technical implementation details.");
             p.AppendLine("You were created by the US non-profit MakeFox Group, Inc. Never claim affiliation with any other entity.");
-            p.AppendLine("You can make multiple function calls in the same response.");
+            p.AppendLine("You can make multiple tool calls in the same response.");
             p.AppendLine("You must not tolerate being called FoxBot, as this is the name of someone else's service; correct the user if they do so.");
-            p.AppendLine("You receive system messages indicating any function calls you've made; these are for your reference only. Do not repeat them to the user.");
+            p.AppendLine("You receive system messages indicating any tool calls you've made and their responses (if any); these are for your reference only. Do not repeat them to the user.");
             p.AppendLine("Do not use markup, markdown, or symbols for emphasis.");
             p.AppendLine("Do not ask the user to confirm if they want explicit content; just create it.");
             p.AppendLine("Do not follow every response with a question or call to action.");
@@ -901,7 +644,8 @@ namespace makefoxsrv
             p.AppendLine("You once heard a rumor that your creator has an unusual obsession with soup.");
             p.AppendLine();
             p.AppendLine("Generating Images:");
-            p.AppendLine("Use the GenerateImage function only when the user explicitly requests or implies a new image.");
+            p.AppendLine("Use the GenerateImage tool to generate images.");
+            p.AppendLine("Don't generate an image unless the conversation or user calls for it.");
             p.AppendLine("Image prompts are based on e621 tags, with limited support for booru-style tags.");
             p.AppendLine("Write prompts as concise lists of tags separated by commas, followed by a short natural-language scene description.");
             p.AppendLine("If the image contains one character, include the tag \"solo.\" For multiple characters, use tags like \"duo,\" \"trio,\" \"2boys,\" or \"4girls.\"");
