@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using TL;
+using static makefoxsrv.FoxLLMConversation;
 
 namespace makefoxsrv
 {
@@ -38,7 +39,7 @@ namespace makefoxsrv
 
         public static async Task AddMessageAsync(FoxTelegram telegram, FoxUser user, Message message, CancellationToken token)
         {
-            await FoxLLMConversation.InsertConversationMessageAsync(user, "user", message.message, message);
+            await FoxLLMConversation.InsertConversationMessageAsync(user, ChatRole.User, message.message, message);
 
             var state = _states.GetOrAdd(user.UID, _ => new UserState(telegram, user));
 

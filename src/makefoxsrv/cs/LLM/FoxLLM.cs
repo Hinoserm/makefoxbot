@@ -34,6 +34,7 @@ using Microsoft.VisualBasic;
 using Stripe.Entitlements;
 using System.Security.Cryptography;
 using makefoxsrv.commands;
+using static makefoxsrv.FoxLLMConversation;
 
 namespace makefoxsrv
 {
@@ -52,7 +53,12 @@ namespace makefoxsrv
         [BotCallable]
         public static async Task cbContinue(FoxTelegram t, FoxUser user, TL.UpdateBotCallbackQuery query, long convId)
         {
-            await SendLLMRequest(t, user, "continue seamlessly from where your last response left off");
+            var sendMsg = new List<FoxLLMConversation.ChatMessage>
+            {
+                new FoxLLMConversation.ChatMessage(FoxLLMConversation.ChatRole.System, "continue seamlessly from where your last response left off")
+            };
+
+            await SendLLMRequest(t, user, sendMsg);
 
             await t.SendCallbackAnswer(query.query_id, 0);
         }
@@ -154,7 +160,7 @@ namespace makefoxsrv
                 await telegram.SendMessageAsync($"Error: {lastException.Message}\n{lastException.StackTrace}");
         }
 
-        public static async Task SendLLMRequest(FoxTelegram telegram, FoxUser user, string? extraSystemMessage = null, bool isToolReturn = false)
+        public static async Task SendLLMRequest(FoxTelegram telegram, FoxUser user, List<FoxLLMConversation.ChatMessage>? extraMessages = null, bool isToolReturn = false)
         {
             if (string.IsNullOrEmpty(FoxMain.settings.llmApiKey))
                 return;
@@ -176,14 +182,14 @@ namespace makefoxsrv
 
                 //var conversationMsgId = await FoxLLMConversation.InsertConversationMessageAsync(user, "user", message.message, message);
 
-                List<ChatMessage> llmMessages = [];
-
-                // Fetch chat history dynamically, directly as a List<object>
-                var chatHistory = await FoxLLMConversation.FetchConversationAsync(user, 12000);
+                List<FoxLLMConversation.ChatMessage> llmMessages = new();
 
                 string llmModel = "x-ai/grok-4-fast"; // "meta-llama/llama-3.3-70b-instruct"; // "x-ai/grok-2-1212"; //"mistralai/mistral-large-2411"; //"google/gemini-2.0-flash-001"; //"meta-llama/llama-3.3-70b-instruct"; //"meta-llama/llama-3.3-70b-instruct";
 
                 var maxTokens = 4096;
+
+                // Fetch chat history dynamically, directly as a List<object>
+                var chatHistory = await FoxLLMConversation.FetchConversationAsync(user, 12000);
 
                 StringBuilder userDetails = new StringBuilder();
 
@@ -198,8 +204,8 @@ namespace makefoxsrv
                 userDetails.AppendLine($" User ID (UID): {user.UID}");
                 userDetails.AppendLine($" Permission Level: {user.GetAccessLevel()}");
 
-                llmMessages.Add(new ChatMessage("system", await BuildSystemPrompt(user)));
-                llmMessages.Add(new ChatMessage("system", userDetails.ToString()));
+                llmMessages.Add(new ChatMessage(ChatRole.System, await BuildSystemPrompt(user)));
+                llmMessages.Add(new ChatMessage(ChatRole.System, userDetails.ToString()));
 
                 llmMessages.AddRange(chatHistory);
 
@@ -221,7 +227,7 @@ namespace makefoxsrv
                         sb.AppendLine("Use your defined personality traits and character to make your message more engaging.");
                         //sb.AppendLine("Preface the notice with a ⚠️ emoji.");
 
-                        llmMessages.Add(new ChatMessage("system", sb.ToString()));
+                        llmMessages.Add(new ChatMessage(ChatRole.System, sb.ToString()));
                     }
                 }
 
@@ -233,11 +239,15 @@ namespace makefoxsrv
                     .AppendLine("If an error occurs, attempt ONCE to correct the issue and try again. After that, tell the user about the error.")
                     .AppendLine("Always call tool functions flawlessly.");
 
-                llmMessages.Add(new ChatMessage("system", reminderSystemMessage.ToString()));
+                llmMessages.Add(new ChatMessage(ChatRole.System, reminderSystemMessage.ToString()));
 
 
-                if (!string.IsNullOrEmpty(extraSystemMessage))
-                    llmMessages.Add(new ChatMessage("system", extraSystemMessage));
+                //if (!string.IsNullOrEmpty(extraSystemMessage))
+                //    llmMessages.Add(new ChatMessage(ChatRole.System, extraSystemMessage));
+
+                if (extraMessages is not null)
+                    llmMessages.AddRange(extraMessages);
+
 
 
                 // Create the request body with system and user prompts
@@ -322,7 +332,7 @@ namespace makefoxsrv
                         outputCheckCounter++;
                         //FoxLog.WriteLine($"LLM Output: {assistantReply}");
 
-                        var convResponseId = await FoxLLMConversation.InsertConversationMessageAsync(user, "assistant", assistantReply, null);
+                        var convResponseId = await FoxLLMConversation.InsertConversationMessageAsync(user, FoxLLMConversation.ChatRole.Assistant, assistantReply, null);
 
                         TL.Message? lastResponseMessage = null;
 
@@ -482,7 +492,7 @@ namespace makefoxsrv
 
                     await telegram.SendMessageAsync($"An LLM Error occurred.  Try re-phrasing your message.");
 
-                    await FoxLLMConversation.InsertConversationMessageAsync(user, "system", errorStr, null);
+                    await FoxLLMConversation.InsertConversationMessageAsync(user, FoxLLMConversation.ChatRole.System, errorStr, null);
                 }
             }
             catch (Exception ex)

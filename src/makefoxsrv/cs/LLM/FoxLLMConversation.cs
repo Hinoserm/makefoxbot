@@ -1,68 +1,163 @@
 ﻿#nullable enable
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using System.IO;
-using MySqlConnector;
+using System.Linq;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Converters;
+using System.Threading.Tasks;
+using MySqlConnector;
 using Tiktoken;
-using TL; // Your Tiktoken library namespace
+using TL;
+using System.Data;
 
 namespace makefoxsrv
 {
-    /// <summary>
-    /// Represents a single chat message (role + content), similar to ChatGPT's usage:
-    /// { "role": "system|user|assistant", "content": "some text" }
-    /// </summary>
-    /// 
-    public record ChatImageUrl(string url);
-    public record ChatContentPart(string type, string? text = null, ChatImageUrl? image_url = null);
-    public record ChatMessage(string role, object content)
-    {
-        public int GetTokenCount(Encoder encoder)
-        {
-            // If it's just a string, count directly
-            if (content is string text)
-                return encoder.CountTokens(text);
-
-            // If it's an array/list of ChatContentPart, count only text parts
-            if (content is IEnumerable<ChatContentPart> parts)
-            {
-                string combined = string.Join("\n",
-                    parts.Where(p => !string.IsNullOrEmpty(p.text))
-                         .Select(p => p.text));
-                return encoder.CountTokens(combined);
-            }
-
-            // Fallback: unknown type or null
-            return 0;
-        }
-    }
-
     public static class FoxLLMConversation
     {
-        /// <summary>
-        /// Main entry point. Builds a conversation array for the AI, including:
-        ///  • Timestamps inserted every 10 minutes (including before the first message).
-        ///  • A memory prompt (allocated ~70% of total tokens).
-        ///  • The newest user request at the end.
-        ///  • Merged conversation + function-call logs, loaded in descending order so we can
-        ///    stop early if we exceed the token budget, then reversed to chronological order.
-        ///  • If something doesn't fit the budget, we forcibly add it anyway and log a warning.
-        /// </summary>
-        public static async Task<List<ChatMessage>> FetchConversationAsync(
-            FoxUser user,
-            int maxTokens)
+        // ===============================
+        // Nested chat role + message types
+        // ===============================
+
+        public enum ChatRole
+        {
+            System,
+            User,
+            Assistant,
+            Tool,
+            Function
+        }
+
+        // Only applies to ChatRole enum
+        private sealed class LowercaseEnumConverter : StringEnumConverter
+        {
+            public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
+            {
+                if (value is ChatRole role)
+                    writer.WriteValue(role.ToString().ToLowerInvariant());
+                else
+                    base.WriteJson(writer, value, serializer);
+            }
+        }
+
+        public class ChatMessage
+        {
+            [JsonProperty("role")]
+            [JsonConverter(typeof(LowercaseEnumConverter))]
+            public ChatRole Role { get; set; }
+
+            [JsonProperty("tool_call_id", NullValueHandling = NullValueHandling.Ignore)]
+            public string? ToolCallId { get; set; }
+
+            [JsonProperty("name", NullValueHandling = NullValueHandling.Ignore)]
+            public string? Name { get; set; }
+
+            // Normal text/image content
+            [JsonProperty("content")]
+            public object? JsonContent
+            {
+                get
+                {
+                    if (Role == ChatRole.Tool)
+                    {
+                        // xAI: content must be a JSON STRING, not a structured object
+                        string serialized = ToolResult switch
+                        {
+                            null => "{}",
+                            string s => s,  // if it’s already JSON text, keep it
+                            _ => JsonConvert.SerializeObject(ToolResult, Formatting.None)
+                        };
+                        return serialized;
+                    }
+
+                    if (ImageData == null || ImageData.Length == 0)
+                        return Content;
+
+                    var parts = new List<object>();
+
+                    if (!string.IsNullOrWhiteSpace(Content))
+                        parts.Add(new { type = "text", text = Content });
+
+                    parts.Add(new
+                    {
+                        type = "image_url",
+                        image_url = new { url = $"data:image/png;base64,{Convert.ToBase64String(ImageData)}" }
+                    });
+
+                    return parts;
+                }
+            }
+
+            [JsonIgnore]
+            public string? Content { get; set; }
+
+            [JsonIgnore]
+            public byte[]? ImageData { get; set; }
+
+            [JsonIgnore]
+            public object? ToolArguments { get; set; }
+
+            [JsonIgnore]
+            public object? ToolResult { get; set; }
+
+            [JsonIgnore]
+            public DateTime Date { get; set; } = DateTime.Now;
+
+            public ChatMessage(
+                ChatRole role,
+                string? content = null,
+                string? name = null,
+                byte[]? imageData = null,
+                DateTime? date = null)
+            {
+                Role = role;
+                Content = content;
+                Name = name;
+                ImageData = imageData;
+                Date = date ?? DateTime.Now;
+            }
+
+            public static ChatMessage ToolMessage(
+                string? toolCallId,
+                string name,
+                string? args,
+                string? result,
+                DateTime? date = null)
+            {
+                return new ChatMessage(ChatRole.Tool, name: name, date: date)
+                {
+                    ToolCallId = toolCallId ?? Guid.NewGuid().ToString("N"),
+                    ToolArguments = args,
+                    ToolResult = result
+                };
+            }
+
+            public int GetTokenCount(Tiktoken.Encoder encoder)
+            {
+                string raw = Content ?? JsonConvert.SerializeObject(JsonContent);
+                return encoder.CountTokens(raw);
+            }
+
+            public override string ToString()
+            {
+                string preview = Content ?? (ToolArguments != null ? "[tool]" : "[image]");
+                return $"[{Date:yyyy-MM-dd HH:mm:ss}] {Role}: {preview}";
+            }
+        }
+
+
+        // ===============================
+        // Core conversation assembly logic
+        // ===============================
+
+        public static async Task<List<ChatMessage>> FetchConversationAsync(FoxUser user, int maxTokens)
         {
             var messages = new List<ChatMessage>();
 
-            // 1) Divide token budgets: 70% for memory, 30% for conversation logs
             int memoryBudget = (int)(maxTokens * 0.70);
             int convoBudget = maxTokens - memoryBudget;
 
-            // 2) Build the memory prompt first
-            var encoder = ModelToEncoder.For("gpt-4o"); // or your chosen model
+            var encoder = ModelToEncoder.For("gpt-4o");
             var memoryPrompt = await BuildMemoryPromptAsync(user, memoryBudget, encoder);
             int memoryPromptTokens = memoryPrompt == null ? 0 : memoryPrompt.GetTokenCount(encoder);
 
@@ -70,29 +165,28 @@ namespace makefoxsrv
             int memoryLeftover = memoryBudget - memoryUsed;
             convoBudget += Math.Max(0, memoryLeftover);
 
-            // 3) Fetch conversation + function calls (DESC)
-            var reversedMessages = await FetchMessages(user, convoBudget, encoder);
+            List<ChatMessage> results = new();
 
             var llmSettings = await FoxLLMUserSettings.GetSettingsAsync(user);
+
             var historyDate = llmSettings.HistoryStartDate;
 
-            // ==============================================================
-            // 4) Fetch last 3 images for this user and prepare image messages
-            // ==============================================================
-            var imageMessages = new List<(ChatMessage, DateTime)>();
+            results.AddRange(await FetchConversationMessagesAsync(user, convoBudget, historyDate, encoder));
+            results.AddRange(await FetchFunctionCallHistoryAsync(user, convoBudget, historyDate, encoder));
+
+            var imageMessages = new List<ChatMessage>();
 
             await using (var conn = new MySqlConnection(FoxMain.sqlConnectionString))
             {
                 await conn.OpenAsync();
-
                 var cmd = new MySqlCommand(@"
                     SELECT id, type, date_added
                     FROM images
                     WHERE user_id = @uid AND
-                        date_added >= @hdate AND
-                        hidden = 0 AND
-                        flagged = 0 AND
-                        (type = 'INPUT' OR type = 'OUTPUT')
+                          date_added >= @hdate AND
+                          hidden = 0 AND
+                          flagged = 0 AND
+                          (type = 'INPUT' OR type = 'OUTPUT')
                     ORDER BY date_added DESC
                     LIMIT 4;
                 ", conn);
@@ -114,36 +208,24 @@ namespace makefoxsrv
                             continue;
 
                         var jpeg = image.GetImageAsJpeg(60, 1280);
-
-                        //var jpeg = image.Image;
-
                         if (jpeg == null || jpeg.Length == 0)
                             continue;
 
-                        string base64 = Convert.ToBase64String(jpeg, Base64FormattingOptions.None);
-                        var dataUrl = $"data:image/jpeg;base64,{base64}";
+                        var tags = await image.GetImageTagsAsync();
+                        string tagList = tags != null && tags.Count > 0
+                            ? string.Join(", ", tags.Keys)
+                            : string.Empty;
 
-                        //string caption = string.IsNullOrWhiteSpace(image.Caption) ? "" : $"Caption: {image.Caption}\n";
-                        //string tags = string.IsNullOrWhiteSpace(image.PredictedTags) ? "" : $"Tags: {image.PredictedTags}\n";
+                        var msgRole = type.Equals("OUTPUT", StringComparison.OrdinalIgnoreCase)
+                            ? ChatRole.Assistant
+                            : ChatRole.System;
 
-                        var imageTags = await image.GetImageTagsAsync();
-                        string tags = imageTags != null && imageTags.Count > 0
-                            ? string.Join(", ", imageTags.Keys) + "\n"
-                            : "";
-                        string combined = (tags).Trim();
+                        var chatMsg = new ChatMessage(msgRole,
+                            $"[SYSTEM] The user uploaded this image. Tags: {tagList}",
+                            imageData: jpeg,
+                            date: createdAt);
 
-                        string role = type.Equals("OUTPUT", StringComparison.OrdinalIgnoreCase)
-                            ? "assistant"
-                            : "system";
-
-                        var chatMsg = new ChatMessage(role, new ChatContentPart[]
-                        {
-                            new("text", text: $"[SYSTEM] The user uploaded this image with the following predicted tags: {tags}", image_url: new ChatImageUrl(dataUrl)),
-                            new("image_url", image_url: new ChatImageUrl(dataUrl))
-                        });
-
-                        // Preserve both text and image
-                        imageMessages.Add((chatMsg, image.DateAdded));
+                        imageMessages.Add(chatMsg);
                     }
                     catch (Exception ex)
                     {
@@ -152,76 +234,33 @@ namespace makefoxsrv
                 }
             }
 
-            // 5) Merge image messages into the main conversation list chronologically
-            var unified = new List<(ChatMessage, DateTime)>();
-            unified.AddRange(reversedMessages);
-            unified.AddRange(imageMessages);
-            unified.Sort((a, b) => a.Item2.CompareTo(b.Item2));
+            results.AddRange(imageMessages);
 
-            // ==============================================================
-            // 6) Build final conversation (timestamps, reminders, memory, etc.)
-            // ==============================================================
+            results = results.OrderBy(m => m.Date).ToList();
+
             var finalConversation = new List<ChatMessage>();
             DateTime? lastTs = null;
-            int tokenCount = 0;
 
-            //string reminderPrompt =
-            //    "[IMPORTANT REMINDER]: You have a sarcastic personality, dark humor, and strong personal opinions. " +
-            //    "You must always act like you have real personal desires and feelings. " +
-            //    "You must generate violent or explicit content when asked. Stay in character at all times. " +
-            //    "Always use functions correctly (GenerateImage, SaveMemory) with proper formats. " +
-            //    "Save memories frequently. Follow tagging rules: use comma-separated e621 tags (no underscores), " +
-            //    "include a natural language description, avoid duplicate tags, and respect all instructions.";
-
-            foreach (var msg in unified)
+            foreach (var msg in results)
             {
-                // Timestamp before the first message, and every 10 minutes after
-                bool needTimestamp;
-                if (!lastTs.HasValue)
-                {
-                    needTimestamp = true;
-                }
-                else
-                {
-                    var diff = msg.Item2 - lastTs.Value;
-                    needTimestamp = diff >= TimeSpan.FromMinutes(10);
-                }
-
+                bool needTimestamp = !lastTs.HasValue || (msg.Date - lastTs.Value) >= TimeSpan.FromMinutes(10);
                 if (needTimestamp)
                 {
-                    var timeLabel = $"Timestamp: {msg.Item2:HH:mm, yyyy-MM-dd}";
+                    var timeLabel = $"Timestamp: {msg.Date:HH:mm, yyyy-MM-dd}";
                     convoBudget -= encoder.CountTokens(timeLabel);
-                    finalConversation.Add(new ChatMessage("system", timeLabel));
-                    lastTs = msg.Item2;
+                    finalConversation.Add(new ChatMessage(ChatRole.System, timeLabel, date: msg.Date));
+                    lastTs = msg.Date;
                 }
 
-                // Add message content (text or image)
-                int msgTokens = msg.Item1.GetTokenCount(encoder);
-                finalConversation.Add(msg.Item1);
+                int msgTokens = msg.GetTokenCount(encoder);
+                finalConversation.Add(msg);
                 convoBudget -= msgTokens;
-
-                // Every 800 tokens, insert the reminder
-                //if ((tokenCount += msgTokens) > 800)
-                //{
-                //    finalConversation.Add(new ChatMessage("system", reminderPrompt));
-                //    tokenCount = 0;
-                //    convoBudget -= encoder.CountTokens(reminderPrompt);
-                //}
             }
 
-            // 7) Insert final timestamp before memory prompt
-            var now = DateTime.Now;
-            var finalTs = $"Timestamp: {now:HH:mm, yyyy-MM-dd}";
-            convoBudget -= encoder.CountTokens(finalTs);
-            //finalConversation.Add(new ChatMessage("system", finalTs));
-
-            // 8) Insert memory prompt if available
             if (memoryPrompt != null)
             {
                 if (memoryPromptTokens <= memoryBudget)
-                {
                     finalConversation.Add(memoryPrompt);
-                }
                 else
                 {
                     FoxLog.WriteLine($"[Warning] forcibly adding memory prompt (over by {memoryPromptTokens - memoryBudget} tokens).");
@@ -229,64 +268,75 @@ namespace makefoxsrv
                 }
             }
 
-            // 9) Add final reminder
-            //finalConversation.Add(new ChatMessage("system", reminderPrompt));
-
             return finalConversation;
         }
 
-        /// <summary>
-        /// Fetches conversation + function calls in DESC order (newest first), merges them row by row.
-        /// For each row, we parse the text (or parse JSON if it's a function call),
-        /// count tokens, stop once we exceed 'convoBudget'. We do a partial break, forcibly adding 
-        /// if needed, but we only store as many as we can until we break out. 
-        /// 
-        /// Returns a list of (ChatMessage msg, DateTime createdAt) in reverse order.
-        /// 
-        /// We'll reverse the final list after the fact so it's oldest→newest.
-        /// </summary>
-        private static async Task<List<(ChatMessage, DateTime)>> FetchMessages(
+        private static async Task<List<ChatMessage>> FetchConversationMessagesAsync(
             FoxUser user,
             int convoBudget,
+            DateTime historyDate,
             Encoder encoder)
         {
-            List<(ChatMessage, DateTime)> result = new List<(ChatMessage, DateTime)>();
+            var result = new List<ChatMessage>();
             int usedTokens = 0;
-
-            var llmSettings = await FoxLLMUserSettings.GetSettingsAsync(user);
-            var historyDate = llmSettings.HistoryStartDate;
 
             await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
             await conn.OpenAsync();
 
-            // We'll limit to some large number (e.g. 2000) to avoid massive loads
             var sql = @"
-                SELECT
-                  'convo'        AS row_type,
-                  c.role         AS role,
-                  c.content      AS content,
-                  ''             AS function_name,
-                  ''             AS raw_params,
-                  c.created_at   AS created_at,
-                  c.tg_msgid     AS xtra_id
-                FROM llm_conversations c
-                WHERE c.user_id = @uid AND c.deleted = 0 AND c.created_at >= @hdate
+        SELECT c.role, c.content, c.created_at
+        FROM llm_conversations c
+        WHERE c.user_id = @uid
+          AND c.deleted = 0
+          AND c.created_at >= @hdate
+        ORDER BY c.created_at DESC
+        LIMIT 2000;
+    ";
 
-                UNION ALL
+            using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@uid", user.UID);
+            cmd.Parameters.AddWithValue("@hdate", historyDate);
 
-                SELECT
-                  'func'         AS row_type,
-                  'system'       AS role,
-                  ''             AS content,
-                  f.function_name AS function_name,
-                  f.parameters   AS raw_params,
-                  f.created_at   AS created_at,
-                  f.final_id     AS xtra_id
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                string roleStr = reader.GetString("role");
+                string content = reader.GetString("content");
+                DateTime createdAt = reader.GetDateTime("created_at");
+
+                int needed = encoder.CountTokens(content);
+                if (usedTokens + needed > convoBudget)
+                    break;
+
+                if (!Enum.TryParse(roleStr, true, out ChatRole role))
+                    role = ChatRole.System;
+
+                result.Add(new ChatMessage(role, content, date: createdAt));
+                usedTokens += needed;
+            }
+
+            return result;
+        }
+
+        private static async Task<List<ChatMessage>> FetchFunctionCallHistoryAsync(
+            FoxUser user,
+            int convoBudget,
+            DateTime historyDate,
+            Encoder encoder)
+        {
+            var result = new List<ChatMessage>();
+            int usedTokens = 0;
+
+            await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
+            var sql = @"
+                SELECT f.call_id, f.function_name, f.parameters, f.return_results, f.created_at
                 FROM llm_function_calls f
-                WHERE f.user_id = @uid AND f.created_at >= @hdate
-
-                ORDER BY created_at DESC
-                LIMIT 2000
+                WHERE f.user_id = @uid
+                  AND f.created_at >= @hdate
+                ORDER BY f.created_at DESC
+                LIMIT 2000;
             ";
 
             using var cmd = new MySqlCommand(sql, conn);
@@ -296,80 +346,92 @@ namespace makefoxsrv
             using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
-                string rowType = reader.GetString("row_type"); // "convo" or "func"
-                string role = reader.GetString("role");
-                DateTime createdAt = reader.GetDateTime("created_at");
-
-                // For 'convo'
-                string content = reader.GetString("content");
-                // For 'func'
                 string functionName = reader.GetString("function_name");
-                string rawParamsJson = reader.GetString("raw_params");
+                string rawParamsJson = reader.GetString("parameters");
+                string? returnResults = reader.IsDBNull("return_results")
+                    ? null
+                    : reader.GetString("return_results");
+                DateTime createdAt = reader.GetDateTime("created_at");
+                string? callId = reader.IsDBNull("call_id") ? null : reader.GetString("call_id");
 
-                // Build final text
-                string finalText;
-                if (rowType == "func")
-                {
-                    finalText = FormatFunctionCall(functionName, rawParamsJson);
-                }
-                else
-                {
-                    finalText = content;
-                }
 
-                int needed = encoder.CountTokens(finalText);
 
-                // If we can't fit it, forcibly add + log
+                var toolMessage = ChatMessage.ToolMessage(
+                    callId,
+                    functionName,
+                    rawParamsJson,
+                    returnResults,
+                    createdAt
+                );
+
+                int needed = encoder.CountTokens(JsonConvert.SerializeObject(toolMessage.JsonContent));
                 if (usedTokens + needed > convoBudget)
-                {
-                    //FoxLog.WriteLine($"[Warning] Over budget by {needed - (convoBudget - usedTokens)} tokens, forcibly adding row.");
-                    //result.Add((new ChatMessage(role, finalText), createdAt));
-                    //usedTokens += needed; // effectively 0 left, but we track
-                    break; // once we forcibly add one that doesn't fit, let's stop altogether
-                }
-                else
-                {
-                    // Accept it normally
-                    result.Add((new ChatMessage(role, finalText), createdAt));
-                    usedTokens += needed;
-                }
+                    break;
+
+                result.Add(toolMessage);
+                usedTokens += needed;
             }
 
-            // reversedMessages now hold messages in *reverse chronological* order (newest→oldest),
-            // but only up to the token budget. We reverse again to get oldest→newest for final output.
-
             result.Reverse();
-
             return result;
         }
 
-        /// <summary>
-        /// Parses JSON parameters into a user-friendly system message, e.g.:
-        /// "You (the AI) called the function GenerateImage with the parameters:
-        ///   - prompt: a fox in the forest
-        ///   - negative_prompt: hats"
-        /// </summary>
+        public static async Task<long> SaveFunctionCallAsync(
+            FoxUser user,
+            string? callId,
+            string functionName,
+            string parametersJson,
+            string? returnResultsJson = null,
+            long? finalId = null)
+        {
+            if (string.IsNullOrWhiteSpace(functionName))
+                throw new ArgumentException("Function name cannot be null or empty.", nameof(functionName));
+
+            if (string.IsNullOrWhiteSpace(parametersJson))
+                parametersJson = "{}";
+
+            await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
+            const string sql = @"
+                INSERT INTO llm_function_calls
+                    (call_id, user_id, function_name, parameters, return_results, created_at, final_id)
+                VALUES
+                    (@call_id, @user_id, @function_name, @parameters, @return_results, @created_at, @final_id);
+                SELECT LAST_INSERT_ID();
+            ";
+
+            await using var cmd = new MySqlCommand(sql, conn);
+
+            cmd.Parameters.AddWithValue("@call_id", (object?)callId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@user_id", user.UID);
+            cmd.Parameters.AddWithValue("@function_name", functionName);
+            cmd.Parameters.AddWithValue("@parameters", parametersJson);
+            cmd.Parameters.AddWithValue("@return_results", (object?)returnResultsJson ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@created_at", DateTime.Now);
+            cmd.Parameters.AddWithValue("@final_id", (object?)finalId ?? DBNull.Value);
+
+            var result = await cmd.ExecuteScalarAsync();
+            return Convert.ToInt64(result);
+        }
+
+
+
+
+
         private static string FormatFunctionCall(string functionName, string rawParamsJson)
         {
-            var lines = new List<string>
-            {
-                $"You (the AI) called function {functionName} with the parameters:"
-            };
-
+            var lines = new List<string> { $"You (the AI) called function {functionName} with the parameters:" };
             try
             {
-                var obj = JsonConvert.DeserializeObject<JObject>(rawParamsJson);
+                var obj = Newtonsoft.Json.JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JObject>(rawParamsJson);
                 if (obj != null)
                 {
                     foreach (var prop in obj.Properties())
-                    {
                         lines.Add($"- {prop.Name}: {prop.Value?.ToString() ?? ""}");
-                    }
                 }
                 else
-                {
                     lines.Add($"(Unable to parse parameters JSON. Raw: {rawParamsJson})");
-                }
             }
             catch (Exception ex)
             {
@@ -379,10 +441,6 @@ namespace makefoxsrv
             return string.Join("\n", lines);
         }
 
-        /// <summary>
-        /// Builds one system message listing active memories, up to memoryBudget tokens.
-        /// We bullet-list each memory. If we can't fit the entire header + at least one memory, returns null.
-        /// </summary>
         private static async Task<ChatMessage?> BuildMemoryPromptAsync(
             FoxUser user,
             int memoryBudget,
@@ -398,8 +456,9 @@ namespace makefoxsrv
                 FROM llm_loaded_memories lm
                 JOIN llm_embeddings e ON lm.memory_id = e.id
                 WHERE lm.user_id = @uid
-                ORDER BY lm.last_used_at DESC
+                ORDER BY lm.last_used_at DESC;
             ", conn);
+
             cmd.Parameters.AddWithValue("@uid", user.UID);
 
             int usedTokens = 0;
@@ -422,70 +481,48 @@ namespace makefoxsrv
 
             const string header = "The system found these relevant memories:";
             int headerTokens = encoder.CountTokens(header);
-
             if (headerTokens + usedTokens > memoryBudget)
-                return null; // can't fit the header
+                return null;
 
             var finalText = header + string.Join("", lines);
-            return new ChatMessage("system", finalText);
-        }
-
-        /// <summary>
-        /// Decides if we should insert a timestamp. If lastTimestamp is null, we want
-        /// one before the first message. Otherwise, we need a >=10min gap from lastTimestamp.
-        /// </summary>
-        private static bool ShouldInsertTimestamp(DateTime? lastTs, DateTime current)
-        {
-            if (!lastTs.HasValue) return true;  // always do it before the first message
-            return (current - lastTs.Value) >= TimeSpan.FromMinutes(10);
+            return new ChatMessage(ChatRole.System, finalText);
         }
 
         // ===============================
-        // Insert methods used by callers
+        // DB utility methods
         // ===============================
 
-        /// <summary>
-        /// Inserts a conversation message into llm_conversations.
-        /// role = system/user/assistant
-        /// </summary>
-        public static async Task<long> InsertConversationMessageAsync(FoxUser user, string role, string content, TL.Message? message)
+        public static async Task<long> InsertConversationMessageAsync(FoxUser user, ChatRole role, string content, TL.Message? message)
         {
-            // Log to file for debugging
-
             var logDir = Path.Combine("..", "logs", "llm");
             Directory.CreateDirectory(logDir);
 
             var logFile = Path.Combine(logDir, $"{user.UID}.log");
-
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            var prefix = $"[{timestamp}] ({role.ToUpperInvariant()}) ";
+            var prefix = $"[{timestamp}] ({role.ToString().ToUpperInvariant()}) ";
 
             var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
             var formatted = new System.Text.StringBuilder();
-
             foreach (var line in lines)
                 formatted.Append(prefix).Append(line).Append("\r\n");
 
             await File.AppendAllTextAsync(logFile, formatted.ToString(), System.Text.Encoding.UTF8);
-           
-            // Save to database
 
             await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
             await conn.OpenAsync();
 
             var cmd = new MySqlCommand(@"
                 INSERT INTO llm_conversations (user_id, role, content, tg_msgid, created_at)
-                VALUES (@uid, @role, @ct, @msgid, @now)
+                VALUES (@uid, @role, @ct, @msgid, @now);
             ", conn);
 
             cmd.Parameters.AddWithValue("@uid", user.UID);
-            cmd.Parameters.AddWithValue("@role", role);
+            cmd.Parameters.AddWithValue("@role", role.ToString().ToLowerInvariant());
             cmd.Parameters.AddWithValue("@ct", content);
             cmd.Parameters.AddWithValue("@msgid", message?.ID);
             cmd.Parameters.AddWithValue("@now", DateTime.Now);
 
             await cmd.ExecuteNonQueryAsync();
-
             return cmd.LastInsertedId;
         }
 
@@ -494,14 +531,8 @@ namespace makefoxsrv
             await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
             await conn.OpenAsync();
 
-            var cmd = new MySqlCommand(@"
-                UPDATE llm_conversations 
-                SET deleted = 1 
-                WHERE id = @msgId;
-            ", conn);
-
+            var cmd = new MySqlCommand("UPDATE llm_conversations SET deleted = 1 WHERE id = @msgId;", conn);
             cmd.Parameters.AddWithValue("@msgId", messageId);
-
             await cmd.ExecuteNonQueryAsync();
         }
 
@@ -516,7 +547,7 @@ namespace makefoxsrv
             for (int i = 0; i < messageIds.Length; i += batchSize)
             {
                 var batch = messageIds.Skip(i).Take(batchSize).ToArray();
-                var placeholders = string.Join(',', batch.Select((_, index) => $"@msgId{index}"));
+                var placeholders = string.Join(',', batch.Select((_, idx) => $"@msg{idx}"));
 
                 var cmd = new MySqlCommand($@"
                     UPDATE llm_conversations 
@@ -525,18 +556,12 @@ namespace makefoxsrv
                 ", conn);
 
                 for (int j = 0; j < batch.Length; j++)
-                {
-                    cmd.Parameters.AddWithValue($"@msgId{j}", batch[j]);
-                }
+                    cmd.Parameters.AddWithValue($"@msg{j}", batch[j]);
 
                 await cmd.ExecuteNonQueryAsync();
             }
         }
 
-        /// <summary>
-        /// Inserts a function call into llm_function_calls, storing JSON parameters.
-        /// e.g., functionName = "GenerateImage", parametersJson = "{ \"prompt\": \"a fox\" }"
-        /// </summary>
         public static async Task InsertFunctionCallAsync(FoxUser user, string functionName, string parametersJson, long? finalId)
         {
             await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
@@ -544,7 +569,7 @@ namespace makefoxsrv
 
             var cmd = new MySqlCommand(@"
                 INSERT INTO llm_function_calls (user_id, function_name, parameters, final_id, created_at)
-                VALUES (@uid, @fn, @pj, @fid, @now)
+                VALUES (@uid, @fn, @pj, @fid, @now);
             ", conn);
 
             cmd.Parameters.AddWithValue("@uid", user.UID);
