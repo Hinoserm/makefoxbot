@@ -57,7 +57,7 @@ namespace makefoxsrv.llm.functions
             }
         }
 
-        [LLMFunction("Sends a brief text message to the admin team. Returns true once the message has been sent. Use SPARINGLY; only when required.")]
+        [LLMFunction("Sends a brief text message to the admin team. Returns true once the message has been sent. Use SPARINGLY; only when explicitly requested by the user.")]
         public static async Task<bool> SendAdminMessage(
             FoxTelegram t,
             FoxUser user,
