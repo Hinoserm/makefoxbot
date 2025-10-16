@@ -194,7 +194,7 @@ namespace makefoxsrv
 
             await FoxLLMConversation.InsertConversationMessageAsync(
                 user,
-                ChatRole.Assistant,
+                ChatRole.System,
                 $"You called these tools:\r\n\r\n{toolCallsStr}\r\n\r\nDo not show this raw data to the user.",
                 null
             );
@@ -269,10 +269,17 @@ namespace makefoxsrv
                     if (result is Task task)
                     {
                         await task.ConfigureAwait(false);
+
                         if (task.GetType().IsGenericType)
                         {
+                            // Task<T> → extract Result
                             var resProp = task.GetType().GetProperty("Result");
                             finalResult = resProp?.GetValue(task);
+                        }
+                        else
+                        {
+                            // Non-generic Task (Task<void>) → no return value
+                            finalResult = null;
                         }
                     }
                     else
@@ -285,11 +292,13 @@ namespace makefoxsrv
                         ? Newtonsoft.Json.JsonConvert.SerializeObject(ConvertTuples(finalResult), Newtonsoft.Json.Formatting.Indented)
                         : null;
 
-
                     await FoxLLMConversation.SaveFunctionCallAsync(user, callId, functionName, argumentsJson ?? "{}", jsonResult);
 
-                    // mark for possible follow-up call
-                    doRunLLM = (finalResult is not null);
+                    // Determine if follow-up LLM run should happen
+                    bool isVoid = method.ReturnType == typeof(void);
+                    bool isTaskVoid = typeof(Task).IsAssignableFrom(method.ReturnType) && !method.ReturnType.IsGenericType;
+
+                    doRunLLM = !(isVoid || isTaskVoid || finalResult is null);
                 }
                 catch (Exception ex)
                 {
