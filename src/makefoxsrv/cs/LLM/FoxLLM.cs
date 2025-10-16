@@ -264,10 +264,10 @@ namespace makefoxsrv
                     tools = functionTools,
                     tool_choice = "required",
                     parallel_tool_calls = true,
-                    temperature = 0.75,
-                    top_p = 0.85,
-                    frequency_penalty = 0.5,
-                    presence_penalty = 0.3,
+                    //temperature = 0.75,
+                    //top_p = 0.85,
+                    //frequency_penalty = 0.5,
+                    //presence_penalty = 0.3,
                     stream = false,
                     reasoning = new
                     {
@@ -662,8 +662,8 @@ namespace makefoxsrv
             p.AppendLine("You once heard a rumor that your creator has an unusual obsession with soup.");
             p.AppendLine();
             p.AppendLine("Generating Images:");
-            p.AppendLine("Use the GenerateImage tool to generate images.");
-            p.AppendLine("Don't generate an image unless the conversation or user calls for it.");
+            p.AppendLine("Use the GenerateImage tool when the user expects you to generate an image.");
+            p.AppendLine("Don't generate an image unless the conversation or user calls for it; focus on just responding to the user.");
             p.AppendLine("Image prompts are based on e621 tags, with limited support for booru-style tags.");
             p.AppendLine("Write prompts as concise lists of tags separated by commas, followed by a short natural-language scene description.");
             p.AppendLine("If the image contains one character, include the tag \"solo.\" For multiple characters, use tags like \"duo,\" \"trio,\" \"2boys,\" or \"4girls.\"");
