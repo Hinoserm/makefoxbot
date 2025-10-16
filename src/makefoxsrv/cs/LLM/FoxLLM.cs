@@ -262,16 +262,16 @@ namespace makefoxsrv
                     max_tokens = maxTokens,
                     messages = llmMessages,
                     tools = functionTools,
-                    tool_choice = "auto",
+                    tool_choice = "required",
                     parallel_tool_calls = true,
-                    //temperature = 0.75,
-                    //top_p = 0.85,
-                    //frequency_penalty = 0.5,
-                    //presence_penalty = 0.3,
+                    temperature = 0.75,
+                    top_p = 0.85,
+                    frequency_penalty = 0.5,
+                    presence_penalty = 0.3,
                     stream = false,
                     reasoning = new
                     {
-                        enabled = false
+                        enabled = true
                     },
                     user = user.UID.ToString(),
                     /* provider = new

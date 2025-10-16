@@ -381,12 +381,19 @@ namespace makefoxsrv
                 DateTime createdAt = reader.GetDateTime("created_at");
                 string? callId = reader.IsDBNull("call_id") ? null : reader.GetString("call_id");
 
+                if (functionName != "SendResponse")
+                {
+                    var sysPromptStr = $"You called {functionName} with the following parameters:\r\n\r\n{rawParamsJson}\r\n\r\nDo not repeat this raw data to the user.";
+
+                    result.Add(new ChatMessage(ChatRole.System, sysPromptStr, date: createdAt));
+                }
+
                 var toolMessage = ChatMessage.ToolMessage(
                     callId,
                     functionName,
                     rawParamsJson,
                     returnResults,
-                    createdAt
+                    createdAt.AddMilliseconds(1)
                 );
 
                 //int needed = encoder.CountTokens(JsonConvert.SerializeObject(toolMessage.JsonContent));

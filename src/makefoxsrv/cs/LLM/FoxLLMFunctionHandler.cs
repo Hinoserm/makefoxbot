@@ -190,15 +190,6 @@ namespace makefoxsrv
                 tool_calls = toolCalls
             };
 
-            var toolCallsStr = JsonConvert.SerializeObject(payload, Formatting.Indented);
-
-            await FoxLLMConversation.InsertConversationMessageAsync(
-                user,
-                ChatRole.System,
-                $"You called these tools:\r\n\r\n{toolCallsStr}\r\n\r\nDo not show this raw data to the user.",
-                null
-            );
-
             foreach (var call in toolCalls)
             {
                 string? callId = call["id"]?.ToString(); // xAI/OpenAI tool_call_id
