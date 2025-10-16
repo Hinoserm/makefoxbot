@@ -26,14 +26,14 @@ namespace makefoxsrv.llm.functions
             settings.CFGScale = 4.5M;
 
             // Optionally upscale for premium users
-            if (user.CheckAccessLevel(AccessLevel.PREMIUM))
-            {
-                settings.hires_enabled = true;
-                settings.hires_denoising_strength = 0.4M;
-                settings.hires_width = (uint)Math.Min(Width * 2, 2048);
-                settings.hires_height = (uint)Math.Min(Height * 2, 2048);
-                settings.hires_steps = 15;
-            }
+            //if (user.CheckAccessLevel(AccessLevel.PREMIUM))
+            //{
+            //    settings.hires_enabled = true;
+            //    settings.hires_denoising_strength = 0.4M;
+            //    settings.hires_width = (uint)Math.Min(Width * 2, 2048);
+            //    settings.hires_height = (uint)Math.Min(Height * 2, 2048);
+            //    settings.hires_steps = 15;
+            //}
 
             // Generate the image
             var result = await FoxGenerate.Generate(t, settings, null, user);
