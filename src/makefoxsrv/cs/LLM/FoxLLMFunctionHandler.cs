@@ -195,7 +195,7 @@ namespace makefoxsrv
             await FoxLLMConversation.InsertConversationMessageAsync(
                 user,
                 ChatRole.Assistant,
-                toolCallsStr,
+                $"You called these tools:\r\n\r\n{toolCallsStr}\r\n\r\nDo not show this raw data to the user.",
                 null
             );
 
@@ -289,7 +289,7 @@ namespace makefoxsrv
                     await FoxLLMConversation.SaveFunctionCallAsync(user, callId, functionName, argumentsJson ?? "{}", jsonResult);
 
                     // mark for possible follow-up call
-                    doRunLLM = true;
+                    doRunLLM = (finalResult is not null);
                 }
                 catch (Exception ex)
                 {

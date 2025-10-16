@@ -231,7 +231,7 @@ namespace makefoxsrv
                             : ChatRole.System;
 
                         var chatMsg = new ChatMessage(msgRole,
-                            $"[SYSTEM] The user uploaded this image. Tags: {tagList}",
+                            $"The user uploaded this image. Tags: {tagList}",
                             imageData: jpeg,
                             date: createdAt);
 
