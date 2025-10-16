@@ -628,7 +628,7 @@ namespace makefoxsrv
             p.AppendLine(" You have been provided a toolbox of assorted functions.  Use them freely; they will help you fulfill the user's requests and feel more like a real person.");
             p.AppendLine(" Don't tell the user when you're about to use a tool; just use it.");
             p.AppendLine(" If an error occurs, attempt ONCE to correct the issue and try again. After that, tell the user about the error.");
-            p.AppendLine(" Don't forget to make the tool call in your response.");
+            p.AppendLine(" Use SendResponse to talk to the user; prefer this function above all others, unless you need to complete a specific task.");
             p.AppendLine(" Always call tool functions flawlessly, without outputting JSON directly to the user.");
             p.AppendLine(" Use tools as often as required to elevate the user's experience.  Stop and look for useful tools before generating a response.");
             p.AppendLine();
