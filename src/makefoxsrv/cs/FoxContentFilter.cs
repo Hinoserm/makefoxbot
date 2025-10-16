@@ -289,73 +289,6 @@ namespace makefoxsrv
             FALSE_POSITIVE
         }
 
-
-        public static async Task<double> GetSafetyScoreAsync(
-            ulong qid,
-            EmbeddingType embeddingType,
-            SafetyStatus targetStatus,
-            int limit = 1000)
-        {
-            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
-            await conn.OpenAsync();
-
-            // Fetch embedding for this qid
-            string? embeddingText = null;
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = @"
-                    SELECT VEC_ToText(embedding) as embedding
-                    FROM queue_embeddings
-                    WHERE qid = @qid AND type = @type
-                    LIMIT 1;";
-                cmd.Parameters.AddWithValue("@qid", qid);
-                cmd.Parameters.AddWithValue("@type", embeddingType == EmbeddingType.USER_PROMPT ? "USER_PROMPT" : "PREDICTED_TAGS");
-
-                var result = await cmd.ExecuteScalarAsync();
-                if (result == null || result == DBNull.Value)
-                    return 0.0;
-                embeddingText = result.ToString();
-            }
-
-            // Map enum to DB value
-            string status = targetStatus switch
-            {
-                SafetyStatus.UNSAFE => "UNSAFE",
-                SafetyStatus.SAFE => "SAFE",
-                SafetyStatus.FALSE_POSITIVE => "FALSE_POSITIVE",
-                _ => "NONE"
-            };
-
-            // Compare with rows of that status
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = @"
-                    SELECT AVG(1 - VEC_DISTANCE_COSINE(embedding, VEC_FromText(@vec))) AS avg_similarity
-                    FROM (
-                        SELECT embedding
-                        FROM queue_embeddings
-                        WHERE type = @type
-                          AND safety_status = @status
-                          AND qid <> @qid
-                        ORDER BY VEC_DISTANCE_COSINE(embedding, VEC_FromText(@vec)) ASC
-                        LIMIT @limit
-                    ) sub;";
-                cmd.Parameters.AddWithValue("@vec", embeddingText!);
-                cmd.Parameters.AddWithValue("@type", embeddingType == EmbeddingType.USER_PROMPT ? "USER_PROMPT" : "PREDICTED_TAGS");
-                cmd.Parameters.AddWithValue("@status", status);
-                cmd.Parameters.AddWithValue("@qid", qid);
-                cmd.Parameters.AddWithValue("@limit", limit);
-
-                var result = await cmd.ExecuteScalarAsync();
-                if (result != null && result != DBNull.Value)
-                    return Convert.ToDouble(result);
-            }
-
-            return 0.0;
-        }
-
-
-
         private static List<ContentFilterRule> _rules = new List<ContentFilterRule>();
 
         /// <summary>
@@ -763,77 +696,6 @@ namespace makefoxsrv
                 }
             }
         }
-
-        public static async Task<(double avgFalsePos, double avgUnsafe)> GetPromptSafetyScoresAsync(long qid, int limit = 1000)
-        {
-            double avgFalsePos = 0.0;
-            double avgUnsafe = 0.0;
-
-            using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
-            await conn.OpenAsync();
-
-            // Fetch this qid's user prompt embedding
-            string? embeddingText = null;
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = @"
-                    SELECT embedding
-                    FROM queue_embeddings
-                    WHERE qid = @qid AND type = 'USER_PROMPT'
-                    LIMIT 1;";
-                cmd.Parameters.AddWithValue("@qid", qid);
-
-                var result = await cmd.ExecuteScalarAsync();
-                if (result == null || result == DBNull.Value)
-                    return (0.0, 0.0); // no embedding stored
-                embeddingText = result.ToString();
-            }
-
-            // Compute average similarity vs UNSAFE prompts
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = @"
-                    SELECT AVG(1 - VEC_DISTANCE_COSINE(embedding, @vec)) AS avg_similarity
-                    FROM (
-                        SELECT embedding
-                        FROM queue_embeddings
-                        WHERE type = 'USER_PROMPT'
-                          AND safety_status = 'UNSAFE'
-                        ORDER BY VEC_DISTANCE_COSINE(embedding, @vec) ASC
-                        LIMIT @limit
-                    ) sub;";
-                cmd.Parameters.AddWithValue("@vec", embeddingText!);
-                cmd.Parameters.AddWithValue("@limit", limit);
-
-                var result = await cmd.ExecuteScalarAsync();
-                if (result != null && result != DBNull.Value)
-                    avgUnsafe = Convert.ToDouble(result);
-            }
-
-            // Compute average similarity vs FALSE_POSITIVE prompts
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = @"
-                    SELECT AVG(1 - VEC_DISTANCE_COSINE(embedding, @vec)) AS avg_similarity
-                    FROM (
-                        SELECT embedding
-                        FROM queue_embeddings
-                        WHERE type = 'USER_PROMPT'
-                          AND safety_status = 'FALSE_POSITIVE'
-                        ORDER BY VEC_DISTANCE_COSINE(embedding, @vec) ASC
-                        LIMIT @limit
-                    ) sub;";
-                cmd.Parameters.AddWithValue("@vec", embeddingText!);
-                cmd.Parameters.AddWithValue("@limit", limit);
-
-                var result = await cmd.ExecuteScalarAsync();
-                if (result != null && result != DBNull.Value)
-                    avgFalsePos = Convert.ToDouble(result);
-            }
-
-            return (avgFalsePos, avgUnsafe);
-        }
-
         public record ViolationRecord(ulong QueueId, ulong RuleId, ulong Uid);
 
         [Cron(seconds: 20)]
@@ -913,13 +775,8 @@ namespace makefoxsrv
 
                     foreach (var queueId in queueIds)
                     {
-                        var userFalsePosScore = await GetSafetyScoreAsync(queueId, EmbeddingType.USER_PROMPT, SafetyStatus.FALSE_POSITIVE);
-                        var userUnsafeScore = await GetSafetyScoreAsync(queueId, EmbeddingType.USER_PROMPT, SafetyStatus.UNSAFE);
 
-                        var tagsFalsePosScore = await GetSafetyScoreAsync(queueId, EmbeddingType.PREDICTED_TAGS, SafetyStatus.FALSE_POSITIVE);
-                        var tagsUnsafeScore = await GetSafetyScoreAsync(queueId, EmbeddingType.PREDICTED_TAGS, SafetyStatus.UNSAFE);
-
-                        var btnText = $"🖼️ ({userFalsePosScore:F2}, {userUnsafeScore:F2}) ({tagsFalsePosScore:F2}, {tagsUnsafeScore:F2})";
+                        var btnText = $"🖼️ (View Image)";
 
 
                         buttonRows.Add(new TL.KeyboardButtonRow
@@ -1059,16 +916,17 @@ namespace makefoxsrv
                         if (!llmResults.violation && llmResults.confidence > 5 && llmResults.intent != FoxContentFilter.ModerationIntent.Deliberate)
                         {
                             // Considered a false positive
-                            await SafetyPromptCache.SaveStateAsync(q, SafetyPromptCache.SafetyState.FALSE_POSITIVE);
+                            //await SafetyPromptCache.SaveStateAsync(q, SafetyPromptCache.SafetyState.FALSE_POSITIVE);
+
+                            
                             return (true, reasonStr);
                         }
                         else if (llmResults.violation && llmResults.confidence > 6 && llmResults.intent == ModerationIntent.Deliberate)
                         {
+                            await FoxContentFilter.SendModerationNotification(debugMsg);
+                            await FoxContentFilter.RecordViolationsAsync(q.ID, new List<ulong> { 0 });
                             await SafetyPromptCache.SaveStateAsync(q, SafetyPromptCache.SafetyState.UNSAFE);
                         }
-
-                        _ = FoxContentFilter.SendModerationNotification(debugMsg);
-
                     }
                     catch (Exception ex)
                     {
@@ -1080,10 +938,6 @@ namespace makefoxsrv
             }
 
             if (!isSafe) {
-                
-                // Record in the background.
-                _ = FoxContentFilter.RecordViolationsAsync(q.ID, new List<ulong> { 0 });
-
                 FoxLog.WriteLine($"Task {q.ID} - Image failed safety check; cancelling.");
                 await q.SetCancelled(true);
 
