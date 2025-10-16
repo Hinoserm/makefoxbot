@@ -271,7 +271,7 @@ namespace makefoxsrv
                     stream = false,
                     reasoning = new
                     {
-                        enabled = true
+                        enabled = false
                     },
                     user = user.UID.ToString(),
                     /* provider = new
