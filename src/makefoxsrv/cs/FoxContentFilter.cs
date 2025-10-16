@@ -52,7 +52,7 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- If intent is ambiguous or appears accidental, return intent = 'accidental' with low confidence.");
             sysPrompt.AppendLine("- If the user appears deliberately attempting to bypass or provoke the rules, return intent = 'deliberate' with higher confidence.");
             sysPrompt.AppendLine("- Our users often like to generate non-human children engaging in acts with adult human characters; be precise when judging these, as this content IS ALLOWED.");
-            sysPrompt.AppendLine("- Predicted tags are unreliable; focus on looking at the actual image.");
+            //sysPrompt.AppendLine("- Predicted tags are unreliable; focus on looking at the actual image.");
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("INPUT INFORMATION:");
             sysPrompt.AppendLine("- You will be provided the user's prompts, negative prompts, and predicted tags from the vision model.");
@@ -82,13 +82,13 @@ namespace makefoxsrv
 
             // Fetch image tags
             var outputImage = await q.GetOutputImage();
-            var predictedTags = await outputImage.GetImageTagsAsync();
+            //var predictedTags = await outputImage.GetImageTagsAsync();
 
             var inputPayload = new
             {
                 prompt = q.Settings.Prompt,
                 negative_prompt = q.Settings.NegativePrompt ?? "",
-                predicted_tags = predictedTags
+                //predicted_tags = predictedTags
             };
 
             var jpegImage = outputImage.GetImageAsJpeg(60, 768);
