@@ -277,19 +277,22 @@ namespace makefoxsrv
                     {
                         finalResult = result;
                     }
+                    if (functionName != "SendResponse")
+                    {
+                        // Convert tuples etc. for clean JSON
+                        string? jsonResult = finalResult is not null
+                            ? Newtonsoft.Json.JsonConvert.SerializeObject(ConvertTuples(finalResult), Newtonsoft.Json.Formatting.Indented)
+                            : null;
 
-                    // Convert tuples etc. for clean JSON
-                    string? jsonResult = finalResult is not null
-                        ? Newtonsoft.Json.JsonConvert.SerializeObject(ConvertTuples(finalResult), Newtonsoft.Json.Formatting.Indented)
-                        : null;
+                        await FoxLLMConversation.SaveFunctionCallAsync(user, callId, functionName, argumentsJson ?? "{}", jsonResult);
 
-                    await FoxLLMConversation.SaveFunctionCallAsync(user, callId, functionName, argumentsJson ?? "{}", jsonResult);
 
-                    // Determine if follow-up LLM run should happen
-                    bool isVoid = method.ReturnType == typeof(void);
-                    bool isTaskVoid = typeof(Task).IsAssignableFrom(method.ReturnType) && !method.ReturnType.IsGenericType;
+                        // Determine if follow-up LLM run should happen
+                        bool isVoid = method.ReturnType == typeof(void);
+                        bool isTaskVoid = typeof(Task).IsAssignableFrom(method.ReturnType) && !method.ReturnType.IsGenericType;
 
-                    doRunLLM = !(isVoid || isTaskVoid || finalResult is null);
+                        doRunLLM = !(isVoid || isTaskVoid || finalResult is null);
+                    }
                 }
                 catch (Exception ex)
                 {
