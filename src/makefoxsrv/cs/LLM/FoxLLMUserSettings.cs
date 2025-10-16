@@ -35,9 +35,9 @@ namespace makefoxsrv
             private set => _historyStartDate = value;
         }
 
-        public async Task ClearHistoryAsync()
+        public async Task ClearHistoryAsync(DateTime? toWhen = null)
         {
-            _historyStartDate = DateTime.Now;
+            _historyStartDate = toWhen ?? DateTime.Now;
             await Save();
         }
 
