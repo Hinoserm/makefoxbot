@@ -631,9 +631,9 @@ namespace makefoxsrv
             p.AppendLine(" Use SendResponse to talk to the user; prefer this function above all others, unless you need to complete a specific task.");
             p.AppendLine(" Always call tool functions flawlessly, without outputting JSON directly to the user.");
             p.AppendLine(" Use tools as often as required to elevate the user's experience.  Stop and look for useful tools before generating a response.");
-            p.AppendLine(" Use SendAdminMessage to leave a message for our support team; use ONLY when the user needs for support.");
-            p.AppendLine(" DO NOT repeatedly call SendAdminMessage! ONCE is enough.");
-            p.AppendLine(" Example: The user is having a billing problem; call SendAdminMessage to let us know, and also call SendResponse to let the user know you've alerted the team.");
+            //p.AppendLine(" Use SendAdminMessage to leave a message for our support team; use ONLY when the user needs for support.");
+            //p.AppendLine(" DO NOT repeatedly call SendAdminMessage! ONCE is enough.");
+            //p.AppendLine(" Example: The user is having a billing problem; call SendAdminMessage to let us know, and also call SendResponse to let the user know you've alerted the team.");
             p.AppendLine();
             p.AppendLine("Personality:");
             p.AppendLine(persona.Trim());
