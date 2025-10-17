@@ -136,13 +136,12 @@ namespace makefoxsrv.commands
                     : currentFlags | flag;   // turn ON
 
                 // nextFlags is encoded into callback data as ulong
-                string buttonData = FoxCallbackHandler.BuildCallbackData(
-                    cbSelectFlags, user.UID, ((ulong)nextFlags).ToString(CultureInfo.InvariantCulture));
+                var buttonData = FoxCallbackHandler.BuildCallbackData(cbSelectFlags, user.UID, ((ulong)nextFlags).ToString(CultureInfo.InvariantCulture));
 
                 currentRow.Add(new TL.KeyboardButtonCallback
                 {
                     text = (isSet ? "✅ " : "❌ ") + flag,
-                    data = Encoding.UTF8.GetBytes(buttonData)
+                    data = buttonData
                 });
 
                 if (currentRow.Count == 3)
@@ -163,8 +162,7 @@ namespace makefoxsrv.commands
                     new TL.KeyboardButtonCallback
                     {
                         text = "< Back",
-                        data = Encoding.UTF8.GetBytes(
-                            FoxCallbackHandler.BuildCallbackData(cbShowSettings, user.UID))
+                        data = FoxCallbackHandler.BuildCallbackData(cbShowSettings, user.UID)
                     },
                     //new TL.KeyboardButtonCallback
                     //{
@@ -253,7 +251,7 @@ namespace makefoxsrv.commands
                 currentRow.Add(new TL.KeyboardButtonCallback
                 {
                     text = displayName + (isSelected ? " ✅" : ""),
-                    data = System.Text.Encoding.UTF8.GetBytes(buttonData)
+                    data = buttonData
                 });
 
                 // Once we have two buttons, push the row and start a new one
@@ -273,8 +271,8 @@ namespace makefoxsrv.commands
             {
                 buttons = new TL.KeyboardButtonBase[]
                 {
-                    new TL.KeyboardButtonCallback { text = "< Back", data = System.Text.Encoding.UTF8.GetBytes(FoxCallbackHandler.BuildCallbackData(cbShowSettings, user.UID)) },
-                    new TL.KeyboardButtonCallback { text = "Done", data = System.Text.Encoding.UTF8.GetBytes(FoxCallbackHandler.BuildCallbackData(cbDone, user.UID)) },
+                    new TL.KeyboardButtonCallback { text = "< Back", data = FoxCallbackHandler.BuildCallbackData(cbShowSettings, user.UID, false) },
+                    new TL.KeyboardButtonCallback { text = "Done", data = FoxCallbackHandler.BuildCallbackData(cbDone, user.UID) },
                 }
             });
 
@@ -328,7 +326,7 @@ namespace makefoxsrv.commands
             {
                 buttons = new TL.KeyboardButtonBase[]
                 {
-                    new TL.KeyboardButtonCallback { text = "< Back", data = System.Text.Encoding.UTF8.GetBytes(FoxCallbackHandler.BuildCallbackData(cbShowSettings, user.UID)) },
+                    new TL.KeyboardButtonCallback { text = "< Back", data = FoxCallbackHandler.BuildCallbackData(cbShowSettings, user.UID, false) },
                 }
             });
 
@@ -375,27 +373,35 @@ namespace makefoxsrv.commands
         }
 
         [BotCallable]
-        public static async Task cbShowSettings(FoxTelegram t, FoxUser user, UpdateBotCallbackQuery query, ulong userId)
+        public static async Task cbShowSettings(FoxTelegram t, FoxUser user, UpdateBotCallbackQuery query, ulong userId, bool returnToSettings = false)
         {
             if (user.UID != userId)
                 throw new Exception("This is someone else's button.");
 
-            await ShowLLMSettings(t, user, new TL.Message() { id = query.msg_id }, EditMessage: true);
+            await ShowLLMSettings(t, user, new TL.Message() { id = query.msg_id }, editMessage: true, returnToSettings: returnToSettings);
 
             await t.SendCallbackAnswer(query.query_id, 0);
         }
 
-        public static async Task ShowLLMSettings(FoxTelegram t, FoxUser user, Message message, bool EditMessage = false)
+        public static async Task ShowLLMSettings(FoxTelegram t, FoxUser user, Message message, bool editMessage = false, bool returnToSettings = false)
         {
             List<TL.KeyboardButtonRow> buttonRows = new List<TL.KeyboardButtonRow>();
 
             var personaButtonData = FoxCallbackHandler.BuildCallbackData(cbSelectPersona, user.UID, null);
 
+            //buttonRows.Add(new TL.KeyboardButtonRow
+            //{
+            //    buttons = new TL.KeyboardButtonBase[]
+            //    {
+            //            new TL.KeyboardButtonCallback { text = "Disable", data = System.Text.Encoding.UTF8.GetBytes(personaButtonData) },
+            //    }
+            //});
+
             buttonRows.Add(new TL.KeyboardButtonRow
             {
                 buttons = new TL.KeyboardButtonBase[]
                 {
-                        new TL.KeyboardButtonCallback { text = "Disable", data = System.Text.Encoding.UTF8.GetBytes(personaButtonData) },
+                        new TL.KeyboardButtonCallback { text = "Set Personality", data = personaButtonData },
                 }
             });
 
@@ -403,15 +409,7 @@ namespace makefoxsrv.commands
             {
                 buttons = new TL.KeyboardButtonBase[]
                 {
-                        new TL.KeyboardButtonCallback { text = "Set Personality", data = System.Text.Encoding.UTF8.GetBytes(personaButtonData) },
-                }
-            });
-
-            buttonRows.Add(new TL.KeyboardButtonRow
-            {
-                buttons = new TL.KeyboardButtonBase[]
-                {
-                        new TL.KeyboardButtonCallback { text = "Clear History", data = Encoding.UTF8.GetBytes(FoxCallbackHandler.BuildCallbackData(cbClearHistory, user.UID)) },
+                        new TL.KeyboardButtonCallback { text = "Clear History", data = FoxCallbackHandler.BuildCallbackData(cbClearHistory, user.UID) },
                 }
             });
 
@@ -426,12 +424,26 @@ namespace makefoxsrv.commands
 
 
             // Add done button
+            var buttons = new List<TL.KeyboardButtonBase>();
+
+            if (returnToSettings)
+            {
+                buttons.Add(new TL.KeyboardButtonCallback
+                {
+                    text = "< Back",
+                    data = FoxCallbackHandler.BuildCallbackData(FoxCmdSettings.cbShowSettings, user.UID)
+                });
+            }
+
+            buttons.Add(new TL.KeyboardButtonCallback
+            {
+                text = "Done",
+                data = FoxCallbackHandler.BuildCallbackData(cbDone, user.UID)
+            });
+
             buttonRows.Add(new TL.KeyboardButtonRow
             {
-                buttons = new TL.KeyboardButtonBase[]
-                {
-                    new TL.KeyboardButtonCallback { text = "Done", data = System.Text.Encoding.UTF8.GetBytes(FoxCallbackHandler.BuildCallbackData(cbDone, user.UID)) },
-                }
+                buttons = buttons.ToArray()
             });
 
             var sb = new StringBuilder();
@@ -448,7 +460,7 @@ namespace makefoxsrv.commands
                 sb.AppendLine("⭐ Purchase a /membership for unlimited premium access.");
             }
 
-            if (EditMessage)
+            if (editMessage)
             {
                 await t.EditMessageAsync(
                     text: sb.ToString(),

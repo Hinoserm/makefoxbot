@@ -52,8 +52,8 @@ namespace makefoxsrv.commands
                 {
                     buttons = new TL.KeyboardButtonBase[]
                     {
-                        new TL.KeyboardButtonCallback { text = "🔒 Ban", data = System.Text.Encoding.UTF8.GetBytes(banButtonData) },
-                        new TL.KeyboardButtonCallback { text = "🔓 Unban", data = System.Text.Encoding.UTF8.GetBytes(unbanButtonData) }
+                        new TL.KeyboardButtonCallback { text = "🔒 Ban", data = banButtonData },
+                        new TL.KeyboardButtonCallback { text = "🔓 Unban", data = unbanButtonData }
                     }
                 });
 
@@ -65,7 +65,7 @@ namespace makefoxsrv.commands
                     {
                         buttons = new TL.KeyboardButtonBase[]
                         {
-                            new TL.KeyboardButtonCallback { text = "💰 Show Payments", data = System.Text.Encoding.UTF8.GetBytes(paymentsButtonData) },
+                            new TL.KeyboardButtonCallback { text = "💰 Show Payments", data = paymentsButtonData },
                         }
                     });
                 }

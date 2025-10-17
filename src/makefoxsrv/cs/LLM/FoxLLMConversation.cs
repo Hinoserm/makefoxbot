@@ -383,7 +383,7 @@ namespace makefoxsrv
 
                 if (functionName != "SendResponse")
                 {
-                    var sysPromptStr = $"You called {functionName} with the following parameters:\r\n\r\n{rawParamsJson}\r\n\r\nDo not repeat this raw data to the user.";
+                    var sysPromptStr = $"You called {functionName} with the following parameters:\r\n\r\n{rawParamsJson}\r\n\r\nDo not show this raw data to the user.  Do not repeat this call.  This data is for your own reference only.";
 
                     result.Add(new ChatMessage(ChatRole.System, sysPromptStr, date: createdAt));
                 }

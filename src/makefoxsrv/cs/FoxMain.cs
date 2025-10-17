@@ -86,6 +86,9 @@ public interface IMySettings
     [Option(Alias = "LLM.API_KEY")]
     string? llmApiKey { get; }
 
+    [Option(Alias = "LLM.XAI_API_KEY")]
+    string? xaiApiKey { get; }
+
     [Option(Alias = "CivitAI.API_KEY")]
     string? CivitaiApiKey { get; }
 }

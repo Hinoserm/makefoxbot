@@ -182,7 +182,7 @@ namespace makefoxsrv.commands
                 {
                     buttons = new TL.KeyboardButtonCallback[]
                     {
-                        new TL.KeyboardButtonCallback { text = premiumBtnText, data = System.Text.Encoding.UTF8.GetBytes(premiumBtnData) }
+                        new TL.KeyboardButtonCallback { text = premiumBtnText, data = premiumBtnData }
                     }
                 });
             }
@@ -208,7 +208,7 @@ namespace makefoxsrv.commands
                         new TL.KeyboardButtonCallback
                         {
                             text = (selectedCategory == category.Name ? "✅ " : "") + $"{category.Name} ({category.Count})",
-                            data = System.Text.Encoding.UTF8.GetBytes(buttonData)
+                            data = buttonData
                         }
                     }
                 });
@@ -278,7 +278,7 @@ namespace makefoxsrv.commands
                 {
                     buttons = new TL.KeyboardButtonCallback[]
                     {
-                        new TL.KeyboardButtonCallback { text = premiumBtnText, data = System.Text.Encoding.UTF8.GetBytes(premiumBtnData) }
+                        new TL.KeyboardButtonCallback { text = premiumBtnText, data = premiumBtnData }
                     }
                 });
             }
@@ -304,7 +304,7 @@ namespace makefoxsrv.commands
                 {
                     buttons = new TL.KeyboardButtonCallback[]
                     {
-                    new TL.KeyboardButtonCallback { text = buttonLabel, data = System.Text.Encoding.UTF8.GetBytes(buttonData) }
+                    new TL.KeyboardButtonCallback { text = buttonLabel, data = buttonData }
                     }
                 });
             }
@@ -318,7 +318,7 @@ namespace makefoxsrv.commands
                     buttons = new TL.KeyboardButtonCallback[]
                     {
                         new TL.KeyboardButtonCallback { text = "❌ Cancel", data = System.Text.Encoding.UTF8.GetBytes("/model cancel") },
-                        new TL.KeyboardButtonCallback { text = "⬅️ Back", data = System.Text.Encoding.UTF8.GetBytes(buttonData) }
+                        new TL.KeyboardButtonCallback { text = "⬅️ Back", data = buttonData }
                     }
                 });
             }

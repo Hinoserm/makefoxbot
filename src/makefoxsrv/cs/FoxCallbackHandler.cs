@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using Tiktoken.Core;
 using TL;
 
 namespace makefoxsrv
@@ -86,7 +87,7 @@ namespace makefoxsrv
         // =========================
         // Build callback payload
         // =========================
-        public static string BuildCallbackData(MethodInfo method, params object?[] args)
+        public static byte[] BuildCallbackData(MethodInfo method, params object?[] args)
         {
             if (!_reverse.TryGetValue(method, out var funcId))
                 throw new InvalidOperationException("Method not registered as BotCallable");
@@ -136,10 +137,10 @@ namespace makefoxsrv
                 }
             }
 
-            return "/x " + funcId + ":" + string.Join(",", tokens);
+            return System.Text.Encoding.UTF8.GetBytes("/x " + funcId + ":" + string.Join(",", tokens));
         }
 
-        public static string BuildCallbackData(Delegate del, params object?[] args)
+        public static byte[] BuildCallbackData(Delegate del, params object?[] args)
             => BuildCallbackData(del.Method, args);
 
         // =========================

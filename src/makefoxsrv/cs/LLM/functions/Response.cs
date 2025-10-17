@@ -57,23 +57,23 @@ namespace makefoxsrv.llm.functions
             }
         }
 
-        //[LLMFunction("Sends a brief text message to the admin team. Returns true once the message has been sent. CALL ONLY ONCE PER ISSUE; DO NOT REPEAT. Use SPARINGLY; the admin team is grumpy and will not take kindly to interruptions.")]
-        //public static async Task<bool> SendAdminMessage(
-        //    FoxTelegram t,
-        //    FoxUser user,
-        //    [LLMParam("Text you wish to send.")] string Message
-        //    )
+        [LLMFunction("Sends a brief text message to the admin team.  Use SPARINGLY; the admin team is grumpy and will not take kindly to interruptions.")]
+        public static async Task<string> SendAdminMessage(
+            FoxTelegram t,
+            FoxUser user,
+            [LLMParam("Text you wish to send.")] string Message
+            )
 
-        //{
-        //    if (!string.IsNullOrEmpty(Message?.Trim()))
-        //    {
-        //        await FoxContentFilter.SendModerationNotification($"Message from LLM for user {user.UID}:\r\n{Message}");
+        {
+            if (!string.IsNullOrEmpty(Message?.Trim()))
+            {
+                await FoxContentFilter.SendModerationNotification($"Message from LLM for user {user.UID}:\r\n{Message}");
 
-        //        await Task.Delay(2000);
-        //        return true;
-        //    }
+                await Task.Delay(4000);
+                return "Ticket created; enqueued message:\r\n\r\n{Message}";
+            }
 
-        //    return false;
-        //}
+            return "Unable to create ticket.  Do not try again.";
+        }
     }
 }
