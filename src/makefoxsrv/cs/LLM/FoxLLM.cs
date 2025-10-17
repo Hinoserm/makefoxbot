@@ -162,7 +162,7 @@ namespace makefoxsrv
 
                 string llmModel = "x-ai/grok-4-fast"; //"x-ai/grok-4-fast"; // "meta-llama/llama-3.3-70b-instruct"; // "x-ai/grok-2-1212"; //"mistralai/mistral-large-2411"; //"google/gemini-2.0-flash-001"; //"meta-llama/llama-3.3-70b-instruct"; //"meta-llama/llama-3.3-70b-instruct";
 
-                var maxTokens = 4096;
+                var maxTokens = 2048;
 
                 // Fetch chat history dynamically, directly as a List<object>
                 var chatHistory = await FoxLLMConversation.FetchConversationAsync(user, 12000);
@@ -238,8 +238,8 @@ namespace makefoxsrv
                     max_tokens = maxTokens,
                     messages = llmMessages,
                     tools = functionTools,
-                    tool_choice = "auto",
-                    parallel_tool_calls = true,
+                    //tool_choice = "auto",
+                    //parallel_tool_calls = true,
                     //temperature = 0.75,
                     //top_p = 0.85,
                     //frequency_penalty = 0.5,
@@ -247,7 +247,7 @@ namespace makefoxsrv
                     stream = false,
                     reasoning = new
                     {
-                        enabled = false,
+                        enabled = true,
                     },
                     user = user.UID.ToString(),
                     /* provider = new
@@ -568,7 +568,8 @@ namespace makefoxsrv
             p.AppendLine(" Don't PRETEND to make the tool call; you have to actually do it!  Don't lie to the user about functions you don't have.");
             p.AppendLine();
             p.AppendLine("Generating Images:");
-            p.AppendLine("Use the GenerateImage tool to create images; up to 3 per response.");
+            p.AppendLine("Use the GenerateImage tool to create images.");
+            p.AppendLine("The GenerateImage tool is the ONLY way you can create images; don't try to fool the user by putting <image> in your prompt or using the wrong function calls.");
             p.AppendLine("Don't generate an image until the conversation calls for it.");
             p.AppendLine("Image prompts are based on e621 tags, with limited support for booru-style tags.");
             p.AppendLine("Write prompts as concise lists of tags separated by commas, followed by a short natural-language scene description.");
