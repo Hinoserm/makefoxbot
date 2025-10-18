@@ -317,7 +317,8 @@ namespace makefoxsrv
                         totalTokens,
                         outModel,
                         provider,
-                        genId
+                        genId,
+                        isToolReturn
                     );
 
                     bool showContinueButton = string.Equals(nativeFinishReason, "length", StringComparison.OrdinalIgnoreCase);
@@ -643,7 +644,8 @@ namespace makefoxsrv
             int totalTokenCount,
             string model,
             string provider,
-            string? genId = null)
+            string? genId = null,
+            bool isFree = false)
         {
             var now = DateTime.Now;
 
@@ -652,9 +654,9 @@ namespace makefoxsrv
 
             var cmd = new MySqlCommand(@"
                 INSERT INTO llm_stats 
-                    (gen_id, user_id, created_at, input_tokens, output_tokens, total_tokens, model, provider)
+                    (gen_id, user_id, created_at, input_tokens, output_tokens, total_tokens, model, provider, is_free)
                 VALUES 
-                    (@gen_id, @user_id, @created_at, @input_tokens, @output_tokens, @total_tokens, @model, @provider)
+                    (@gen_id, @user_id, @created_at, @input_tokens, @output_tokens, @total_tokens, @model, @provider, @is_free)
             ", conn);
 
             cmd.Parameters.AddWithValue("@gen_id", genId);
@@ -665,6 +667,7 @@ namespace makefoxsrv
             cmd.Parameters.AddWithValue("@total_tokens", totalTokenCount);
             cmd.Parameters.AddWithValue("@model", model);
             cmd.Parameters.AddWithValue("@provider", provider);
+            cmd.Parameters.AddWithValue("@is_free", isFree);
 
             await cmd.ExecuteNonQueryAsync();
         }

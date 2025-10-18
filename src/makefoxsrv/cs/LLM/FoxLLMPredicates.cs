@@ -21,6 +21,7 @@ namespace makefoxsrv
                 FROM llm_stats
                 WHERE user_id = @uid
                   AND created_at >= CURDATE()
+                  AND is_free = 0
             ", sql);
 
             cmd.Parameters.AddWithValue("@uid", user.UID);
@@ -39,6 +40,7 @@ namespace makefoxsrv
                 FROM llm_stats
                 WHERE user_id = @uid
                   AND YEARWEEK(created_at, 1) = YEARWEEK(CURDATE(), 1)
+                  AND is_free = 0
             ", sql);
 
             cmd.Parameters.AddWithValue("@uid", user.UID);
