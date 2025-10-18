@@ -136,7 +136,12 @@ namespace makefoxsrv
                 await telegram.SendMessageAsync($"Error: {lastException.Message}\n{lastException.StackTrace}");
         }
 
-        public static async Task SendLLMRequest(FoxTelegram telegram, FoxUser user, List<FoxLLMConversation.ChatMessage>? extraMessages = null, bool isToolReturn = false, int maxRecursion = 3)
+        public static async Task SendLLMRequest(
+            FoxTelegram telegram,
+            FoxUser user,
+            List<FoxLLMConversation.ChatMessage>? extraMessages = null,
+            bool isToolReturn = false, int maxRecursion = 3,
+            JToken? reasoningDetails = null)
         {
             if (string.IsNullOrEmpty(FoxMain.settings.llmApiKey))
                 return;
@@ -162,10 +167,13 @@ namespace makefoxsrv
 
                 string llmModel = "x-ai/grok-4-fast"; //"x-ai/grok-4-fast"; // "meta-llama/llama-3.3-70b-instruct"; // "x-ai/grok-2-1212"; //"mistralai/mistral-large-2411"; //"google/gemini-2.0-flash-001"; //"meta-llama/llama-3.3-70b-instruct"; //"meta-llama/llama-3.3-70b-instruct";
 
-                var maxTokens = 2048;
+                bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM);
+
+                var maxOutputTokens = 2048;
+                var maxInputTokens = isPremium ? 30000 : 8000;
 
                 // Fetch chat history dynamically, directly as a List<object>
-                var chatHistory = await FoxLLMConversation.FetchConversationAsync(user, 12000);
+                var chatHistory = await FoxLLMConversation.FetchConversationAsync(user, maxInputTokens);
 
                 StringBuilder userDetails = new StringBuilder();
 
@@ -235,9 +243,10 @@ namespace makefoxsrv
                 var requestBody = new
                 {
                     model = llmModel, //"deepseek-chat", // Replace with the model you want to use
-                    max_tokens = maxTokens,
+                    max_tokens = maxOutputTokens,
                     messages = llmMessages,
                     tools = functionTools,
+                    reasoning_details = reasoningDetails,
                     //tool_choice = "auto",
                     //parallel_tool_calls = true,
                     //temperature = 0.75,
@@ -245,10 +254,12 @@ namespace makefoxsrv
                     //frequency_penalty = 0.5,
                     //presence_penalty = 0.3,
                     stream = false,
-                    reasoning = new
-                    {
-                        enabled = true,
-                    },
+                    reasoning_effort = "low",
+                    use_encrypted_content = false,
+                    //reasoning = new
+                    //{
+                    //    enabled = true,
+                    //},
                     user = user.UID.ToString(),
                     /* provider = new
                     {
@@ -263,7 +274,7 @@ namespace makefoxsrv
                 // Serialize the request body to JSON
                 string jsonContent = Newtonsoft.Json.JsonConvert.SerializeObject(requestBody, new JsonSerializerSettings
                 {
-                    Formatting = Newtonsoft.Json.Formatting.None,
+                    Formatting = Newtonsoft.Json.Formatting.Indented,
                     NullValueHandling = NullValueHandling.Ignore
                 });
 
@@ -382,10 +393,11 @@ namespace makefoxsrv
 
                     // Extract tool calls
                     var toolCalls = jsonResponse["choices"]?[0]?["message"]?["tool_calls"];
+                    var reasoningDetailsResult = jsonResponse["choices"]?[0]?["message"]?["reasoning_details"];
 
                     if (toolCalls is { HasValues: true })
                     {
-                        await FoxLLMFunctionHandler.RunAllFunctionsAsync(telegram, user, toolCalls);
+                        await FoxLLMFunctionHandler.RunAllFunctionsAsync(telegram, user, toolCalls, reasoningDetailsResult);
                         outputCheckCounter++;
                     }
 
@@ -485,7 +497,7 @@ namespace makefoxsrv
                     {
                         FoxLog.WriteLine($"LLM Error for {user.UID}, retrying {maxRecursion}.  Error: {errorStr}");
 
-                        await SendLLMRequest(telegram, user, extraMessages, true, maxRecursion - 1);
+                        await SendLLMRequest(telegram, user, extraMessages, true, maxRecursion - 1, reasoningDetails);
                         return;
                     }
                     else

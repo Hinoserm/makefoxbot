@@ -176,7 +176,7 @@ namespace makefoxsrv
         }
 
 
-        public static async Task RunAllFunctionsAsync(FoxTelegram t, FoxUser user, JToken? toolCalls)
+        public static async Task RunAllFunctionsAsync(FoxTelegram t, FoxUser user, JToken? toolCalls, JToken? reasoningDetails = null)
         {
             Console.WriteLine(toolCalls?.ToString(Newtonsoft.Json.Formatting.Indented));
 
@@ -331,7 +331,7 @@ namespace makefoxsrv
             // After loop
             if (doRunLLM)
             {
-                await FoxLLM.SendLLMRequest(t, user, null, true);
+                await FoxLLM.SendLLMRequest(t, user, isToolReturn: true, reasoningDetails: reasoningDetails);
             }
         }
 

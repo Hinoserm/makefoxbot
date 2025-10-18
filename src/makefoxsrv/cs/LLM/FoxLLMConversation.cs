@@ -45,6 +45,7 @@ namespace makefoxsrv
 
         public class ChatMessage
         {
+            [DbColumn("role")]
             [JsonProperty("role")]
             [JsonConverter(typeof(LowercaseEnumConverter))]
             public ChatRole Role { get; set; }
@@ -54,8 +55,6 @@ namespace makefoxsrv
 
             [JsonProperty("name", NullValueHandling = NullValueHandling.Ignore)]
             public string? Name { get; set; }
-
-            
 
             // Normal text/image content
             [JsonProperty("content")]
@@ -198,7 +197,7 @@ namespace makefoxsrv
                       AND (i.type = 'INPUT' OR i.type = 'OUTPUT')
                       AND (ti.telegram_chatid IS NULL)
                     ORDER BY i.date_added DESC
-                    LIMIT 10;
+                    LIMIT 4;
                 ", conn);
 
                 cmd.Parameters.AddWithValue("@uid", user.UID);
@@ -282,7 +281,7 @@ namespace makefoxsrv
                         try
                         {
                             FoxLog.WriteLine($"[FetchConversation] Exceeded max tokens ({totalTokens + tok}/{maxTokens}), condensing and retrying...");
-                            await CondenseConversationAsync(user, keepRecentTokens: 2000);
+                            await CondenseConversationAsync(user, keepRecentTokens: 4000);
                             return await FetchConversationAsync(user, maxTokens, recursionsAllowed - 1);
                         }
                         catch (Exception ex)
@@ -448,7 +447,7 @@ namespace makefoxsrv
             var encoder = ModelToEncoder.For("gpt-4o");
 
             // 1. Fetch full history (up to ~50k tokens)
-            var fullHistory = await FetchConversationAsync(user, 30000, 0);
+            var fullHistory = await FetchConversationAsync(user, 50000, 0);
             if (fullHistory.Count == 0)
                 return;
 
@@ -533,7 +532,7 @@ namespace makefoxsrv
                 model = "x-ai/grok-4-fast",
                 user = $"CONDENSE:{user.UID}",
                 reasoning = new { enabled = false },
-                max_tokens = 20000,
+                max_tokens = 30000,
                 response_format = new
                 {
                     type = "json_schema",
