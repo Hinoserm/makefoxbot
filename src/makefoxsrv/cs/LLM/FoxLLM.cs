@@ -249,7 +249,7 @@ namespace makefoxsrv
                     reasoning_details = reasoningDetails,
                     //tool_choice = "auto",
                     //parallel_tool_calls = true,
-                    //temperature = 0.75,
+                    //temperature = 0.75, 
                     //top_p = 0.85,
                     //frequency_penalty = 0.5,
                     //presence_penalty = 0.3,
