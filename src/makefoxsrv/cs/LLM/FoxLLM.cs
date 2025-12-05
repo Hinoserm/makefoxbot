@@ -312,9 +312,9 @@ namespace makefoxsrv
                     // Now record the stats
                     await RecordStatsToDatabaseAsync(
                         user,
-                        inputTokens,
-                        outputTokens,
-                        totalTokens,
+                        (ulong)inputTokens,
+                        (ulong)outputTokens,
+                        (ulong)totalTokens,
                         outModel,
                         provider,
                         genId,
@@ -639,9 +639,9 @@ namespace makefoxsrv
 
         private static async Task RecordStatsToDatabaseAsync(
             FoxUser user,
-            int inputTokenCount,
-            int outputTokenCount,
-            int totalTokenCount,
+            ulong inputTokenCount,
+            ulong outputTokenCount,
+            ulong totalTokenCount,
             string model,
             string provider,
             string? genId = null,
@@ -672,7 +672,7 @@ namespace makefoxsrv
             await cmd.ExecuteNonQueryAsync();
         }
 
-        public static async Task<(decimal InputCost, decimal OutputCost, decimal TotalCost, int InputTokens, int OutputTokens)>
+        public static async Task<(decimal InputCost, decimal OutputCost, decimal TotalCost, ulong InputTokens, ulong OutputTokens)>
             CalculateUserLLMCostAsync(FoxUser? user)
         {
             await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
@@ -695,13 +695,13 @@ namespace makefoxsrv
 
             await using var reader = await cmd.ExecuteReaderAsync();
 
-            int totalInput = 0;
-            int totalOutput = 0;
+            ulong totalInput = 0;
+            ulong totalOutput = 0;
 
             if (await reader.ReadAsync())
             {
-                totalInput = reader.GetInt32("total_input");
-                totalOutput = reader.GetInt32("total_output");
+                totalInput = reader.GetUInt64("total_input");
+                totalOutput = reader.GetUInt64("total_output");
             }
 
             decimal inputCost = (decimal)totalInput / 1_000_000m * 0.20m;

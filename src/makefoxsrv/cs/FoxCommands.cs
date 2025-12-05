@@ -919,13 +919,17 @@ namespace makefoxsrv
 
                 sb.AppendLine("Global Stats:\n");
 
-                (decimal InputCost, decimal OutputCost, decimal TotalCost, int InputTokens, int OutputTokens) = await FoxLLM.CalculateUserLLMCostAsync(null);
-
-                if (InputTokens + OutputTokens > 0)
+                if (user.CheckAccessLevel(AccessLevel.ADMIN))
                 {
-                    sb.AppendLine($"LLM Usage: {InputTokens} input tokens, {OutputTokens} output tokens");
-                    sb.AppendLine($"LLM Cost: ${InputCost + OutputCost:F4} (${InputCost:F4} input, ${OutputCost:F4} output)");
-                    sb.AppendLine();
+
+                    (decimal InputCost, decimal OutputCost, decimal TotalCost, ulong InputTokens, ulong OutputTokens) = await FoxLLM.CalculateUserLLMCostAsync(null);
+
+                    if (InputTokens + OutputTokens > 0)
+                    {
+                        sb.AppendLine($"LLM Usage: {InputTokens} input tokens, {OutputTokens} output tokens");
+                        sb.AppendLine($"LLM Cost: ${InputCost + OutputCost:F4} (${InputCost:F4} input, ${OutputCost:F4} output)");
+                        sb.AppendLine();
+                    }
                 }
 
                 using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))
