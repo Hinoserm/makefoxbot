@@ -1,4 +1,5 @@
-﻿using makefoxsrv.commands;
+﻿using AsyncKeyedLock;
+using makefoxsrv.commands;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -11,7 +12,7 @@ namespace makefoxsrv
     internal class FoxLLMUserSettings
     {
         private static readonly FoxCache<FoxLLMUserSettings> _cache = new FoxCache<FoxLLMUserSettings>(TimeSpan.FromHours(32));
-        private static readonly ConcurrentDictionary<ulong, SemaphoreSlim> _cacheLocks = new();
+        private static readonly AsyncKeyedLocker<ulong> _cacheLocks = new();
 
         public static int CacheCount()
         {
@@ -52,12 +53,9 @@ namespace makefoxsrv
             if (cached is not null)
                 return cached;
 
-            var sem = _cacheLocks.GetOrAdd(uid, _ => new SemaphoreSlim(1, 1));
-            await sem.WaitAsync();
+            using var _ = _cacheLocks.LockAsync(uid);
 
-            try
-            {
-                cached = _cache.Get(uid);
+            cached = _cache.Get(uid);
                 if (cached is not null)
                     return cached;
 

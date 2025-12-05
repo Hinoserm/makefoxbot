@@ -1,4 +1,5 @@
-﻿using MySqlConnector;
+﻿using AsyncKeyedLock;
+using MySqlConnector;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,7 +30,7 @@ namespace makefoxsrv
 {
     public class FoxUser
     {
-        private static readonly ConcurrentDictionary<ulong, SemaphoreSlim> _cacheLocks = new();
+        private static readonly AsyncKeyedLocker<ulong> _cacheLocks = new();
         private static FoxCache<FoxUser> _userCacheByUID = new(TimeSpan.FromHours(24));
 
         public ulong UID;
@@ -309,67 +310,58 @@ namespace makefoxsrv
         {
             FoxUser? user = _userCacheByUID.Get(uid);
 
-            if (user is not null) {
+            if (user is not null)
+            {
                 user.lastAccessed = DateTime.Now;
 
                 return user;
             }
 
-            var sem = _cacheLocks.GetOrAdd(uid, _ => new SemaphoreSlim(1, 1));
-            await sem.WaitAsync();
+            using var _ = _cacheLocks.LockAsync(uid);
+
+            user = _userCacheByUID.Get(uid);
+
+            if (user is not null)
+            {
+                user.lastAccessed = DateTime.Now;
+
+                return user;
+            }
 
             try
             {
-                user = _userCacheByUID.Get(uid);
-
-                if (user is not null)
+                using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
                 {
-                    user.lastAccessed = DateTime.Now;
+                    await SQL.OpenAsync();
 
-                    return user;
-                }
-
-                try
-                {
-                    using (var SQL = new MySqlConnection(FoxMain.sqlConnectionString))
+                    using (var cmd = new MySqlCommand("SELECT * FROM users WHERE id = @id", SQL))
                     {
-                        await SQL.OpenAsync();
+                        cmd.Parameters.AddWithValue("@id", uid);
 
-                        using (var cmd = new MySqlCommand("SELECT * FROM users WHERE id = @id", SQL))
+                        using (var r = await cmd.ExecuteReaderAsync())
                         {
-                            cmd.Parameters.AddWithValue("@id", uid);
-
-                            using (var r = await cmd.ExecuteReaderAsync())
+                            if (await r.ReadAsync())
                             {
-                                if (await r.ReadAsync())
-                                {
-                                    user = CreateFromRow(r);
-                                }
+                                user = CreateFromRow(r);
                             }
                         }
                     }
                 }
-                catch
-                {
-                    // In case of any error, return null.
-                    return null;
-                }
-
-                if (user is not null)
-                {
-                    _userCacheByUID.Put((ulong)uid, user);
-                    if (user.TelegramID is not null && user.TelegramID != 0)
-                        _telegramToUid[user.TelegramID.Value] = user.UID;
-                }
-
-                return user;
             }
-            finally
+            catch
             {
-                sem.Release();
-                if (sem.CurrentCount == 1)
-                    _cacheLocks.TryRemove(uid, out _);
+                // In case of any error, return null.
+                return null;
             }
+
+            if (user is not null)
+            {
+                _userCacheByUID.Put((ulong)uid, user);
+                if (user.TelegramID is not null && user.TelegramID != 0)
+                    _telegramToUid[user.TelegramID.Value] = user.UID;
+            }
+
+            return user;
         }
 
         public async Task SetUsername(string? newUsername)
@@ -774,7 +766,8 @@ namespace makefoxsrv
                 (this.accessLevel == AccessLevel.BASIC && this.datePremiumExpires.HasValue && this.datePremiumExpires.Value >= DateTime.Now))
             {
                 return AccessLevel.PREMIUM;
-            } else
+            }
+            else
                 return this.accessLevel;
         }
 
@@ -845,14 +838,17 @@ namespace makefoxsrv
 
             try
             {
-                if (!silent && t is not null) {
+                if (!silent && t is not null)
+                {
 
                     if (reasonMessage is null)
                     {
                         await t.SendMessageAsync(
                             text: $"⛔ You have been banned from using this service due to a content policy violation.  I will no longer respond to your commands.\r\n\r\n📞 You may contact @makefoxhelpbot for support."
                         );
-                    } else {
+                    }
+                    else
+                    {
                         await t.SendMessageAsync(
                             text: $"⛔ You have been banned from using this service.  I will no longer respond to your commands.\r\n\r\nReason: {reasonMessage}\r\n\r\n📞 You may contact @makefoxhelpbot for support."
                         );

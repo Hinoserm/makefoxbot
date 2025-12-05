@@ -1,4 +1,5 @@
-﻿using MySqlConnector;
+﻿using AsyncKeyedLock;
+using MySqlConnector;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Png;
@@ -24,7 +25,7 @@ namespace makefoxsrv
         }
 
         private static readonly FoxCache<FoxImage> _cache = new FoxCache<FoxImage>(TimeSpan.FromHours(1));
-        private static readonly ConcurrentDictionary<ulong, SemaphoreSlim> _cacheLocks = new();
+        private static readonly AsyncKeyedLocker<ulong> _cacheLocks = new();
 
         public static int CacheCount()
         {
@@ -582,31 +583,21 @@ namespace makefoxsrv
             if (cached is not null)
                 return cached;
 
-            var sem = _cacheLocks.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
-            await sem.WaitAsync();
+            using var _ = _cacheLocks.LockAsync(id);
 
-            try
+            cached = _cache.Get(id);
+            if (cached is not null)
+                return cached;
+
+            var img = await FoxDB.LoadObjectAsync<FoxImage>("images", "id = @id", new Dictionary<string, object?> { { "id", id } });
+
+            if (img != null)
             {
-                cached = _cache.Get(id);
-                if (cached is not null)
-                    return cached;
-
-                var img = await FoxDB.LoadObjectAsync<FoxImage>("images", "id = @id", new Dictionary<string, object?> { { "id", id } });
-
-                if (img != null)
-                {
-                    img._isDirty = false;
-                    _cache.Put(id, img);
-                }
-
-                return img;
+                img._isDirty = false;
+                _cache.Put(id, img);
             }
-            finally
-            {
-                sem.Release();
-                if (sem.CurrentCount == 1)
-                    _cacheLocks.TryRemove(id, out _);
-            }
+
+            return img;
         }
 
         private static string GenerateSHA1Hash(byte[] input)
