@@ -63,7 +63,7 @@ namespace makefoxsrv.commands
             {
                 buttons = new TL.KeyboardButtonCallback[]
                 {
-                    new() { text = "✨💰 💳 $65 (356 Days) SALE 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate promo50") }
+                    new() { text = "✨💰 💳 $65 (365 Days) SALE 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate promo50") }
                 }
             });
 
@@ -148,7 +148,7 @@ namespace makefoxsrv.commands
             );
 
             pSession.TelegramMessageId = sentMessage.ID;
-            pSession.TelegramPeerId = sentMessage.peer_id;
+            pSession.TelegramPeerId = sentMessage.Peer.ID;
             await pSession.Save();
         }
 

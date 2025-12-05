@@ -662,11 +662,11 @@ namespace makefoxsrv
                     case UpdateChannel uc:
                         tlPeerID = uc.channel_id;
                         break;
-                    case UpdateChannelPinnedTopics ucpts:
-                        tlPeerID = ucpts.channel_id;
+                    case UpdatePinnedForumTopics ucpts:
+                        tlPeerID = ucpts.peer.ID;
                         break;
-                    case UpdateChannelPinnedTopic ucpt:
-                        tlPeerID = ucpt.channel_id;
+                    case UpdatePinnedForumTopic ucpt:
+                        tlPeerID = ucpt.peer.ID;
                         break;
                     case UpdateBotChatInviteRequester ubcir:
                         tlPeerID = ubcir.peer.ID;
@@ -822,8 +822,8 @@ namespace makefoxsrv
                                 switch (unm.message)
                                 {
                                     case Message m:
-                                        updates.Users.TryGetValue(m.from_id ?? m.peer_id, out user);
-                                        updates.Chats.TryGetValue(m.peer_id, out chat);
+                                        updates.Users.TryGetValue(m.From?.ID ?? m.Peer.ID, out user);
+                                        updates.Chats.TryGetValue(m.Peer.ID, out chat);
 
                                         //FoxLog.WriteLine(FoxStrings.SerializeToJson(m));
                                         //FoxLog.WriteLine(m.message.Count().ToString());
@@ -852,8 +852,8 @@ namespace makefoxsrv
                                         {
                                             case MessageActionPaymentSentMe payment:
 
-                                                updates.Users.TryGetValue(ms.from_id ?? ms.peer_id, out user);
-                                                updates.Chats.TryGetValue(ms.peer_id, out chat);
+                                                updates.Users.TryGetValue(ms.From?.ID ?? ms.Peer.ID, out user);
+                                                updates.Chats.TryGetValue(ms.Peer.ID, out chat);
 
                                                 if (user is null)
                                                     throw new Exception("Invalid telegram user");

@@ -669,7 +669,7 @@ namespace makefoxsrv
                     );
 
                     invoice.TelegramMessageId = sentMessage.ID;
-                    invoice.TelegramPeerId = sentMessage.peer_id;
+                    invoice.TelegramPeerId = sentMessage.Peer.ID;
                     await invoice.Save();
 
                     break;

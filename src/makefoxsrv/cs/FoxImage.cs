@@ -673,13 +673,13 @@ namespace makefoxsrv
                                     var rmsg = await FoxTelegram.Client.Channels_GetMessages(channel, new InputMessage[] { mrh.reply_to_msg_id });
 
                                     if (rmsg is not null && rmsg.Messages is not null && rmsg.Messages.First() is not null && rmsg.Messages.First().From is not null)
-                                        userId = rmsg.Messages.First().From;
+                                        userId = rmsg.Messages.First().From.ID;
                                     break;
                                 case Chat chat:
                                     var crmsg = await FoxTelegram.Client.Messages_GetMessages(new InputMessage[] { mrh.reply_to_msg_id });
 
                                     if (crmsg is not null && crmsg.Messages is not null && crmsg.Messages.First() is not null && crmsg.Messages.First().From is not null)
-                                        userId = crmsg.Messages.First().From;
+                                        userId = crmsg.Messages.First().From.ID;
                                     break;
                             }
                         }
