@@ -22,7 +22,8 @@ namespace makefoxsrv
 {
     internal class FoxAdmin
     {
-        public static async Task HandleRunArchiver(FoxTelegram t, Message message, string? argument)
+        [BotCommand(cmd: "admin", sub: "archive", adminOnly: true)]
+        public static async Task HandleRunArchiver(FoxTelegram t, FoxUser user, Message message, string? argument)
         {
             if (!Directory.Exists("../data/archive/images"))
             {
