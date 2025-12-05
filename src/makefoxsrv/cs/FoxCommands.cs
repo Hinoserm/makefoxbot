@@ -913,23 +913,19 @@ namespace makefoxsrv
             // Only show global stats if no user was specified
             if (string.IsNullOrEmpty(argument))
             {
-                (ulong imageCount, ulong imageBytes) = await FoxImage.GetImageStatsAsync();
+                (ulong imageCount, ulong imageBytes, DateTime oldestImage) = await FoxImage.GetImageStatsAsync();
                 long userCount = 0;
-                DateOnly oldestImage = DateOnly.FromDateTime(DateTime.Now);
 
                 sb.AppendLine("Global Stats:\n");
 
-                if (user.CheckAccessLevel(AccessLevel.ADMIN))
+                (decimal InputCost, decimal OutputCost, decimal TotalCost, ulong InputTokens, ulong OutputTokens) = await FoxLLM.CalculateUserLLMCostAsync(null);
+
+                if (InputTokens + OutputTokens > 0)
                 {
-
-                    (decimal InputCost, decimal OutputCost, decimal TotalCost, ulong InputTokens, ulong OutputTokens) = await FoxLLM.CalculateUserLLMCostAsync(null);
-
-                    if (InputTokens + OutputTokens > 0)
-                    {
-                        sb.AppendLine($"LLM Usage: {InputTokens} input tokens, {OutputTokens} output tokens");
+                    sb.AppendLine($"LLM Usage: {InputTokens} input tokens, {OutputTokens} output tokens");
+                    if (user.CheckAccessLevel(AccessLevel.ADMIN))
                         sb.AppendLine($"LLM Cost: ${InputCost + OutputCost:F4} (${InputCost:F4} input, ${OutputCost:F4} output)");
-                        sb.AppendLine();
-                    }
+                    sb.AppendLine();
                 }
 
                 using (var connection = new MySqlConnection(FoxMain.sqlConnectionString))

@@ -79,29 +79,39 @@ namespace makefoxsrv
         // Cache these so we don't have to keep hitting the db.
         private static ulong? _totalImageCount = null;
         private static ulong? _totalImageSize = null;
+        private static DateTime? _oldestImage = null;
 
-        public static async Task<(ulong totalImages, ulong imageSizeMB)> GetImageStatsAsync()
+        public static async Task<(ulong totalImages, ulong imageSizeMB, DateTime oldestImage)> GetImageStatsAsync()
         {
-            if (_totalImageCount.HasValue && _totalImageSize.HasValue)
-                return (_totalImageCount.Value, _totalImageSize.Value);
+            if (_totalImageCount.HasValue && _totalImageSize.HasValue && _oldestImage.HasValue)
+                return (_totalImageCount.Value, _totalImageSize.Value, _oldestImage.Value);
 
             using var SQL = new MySqlConnection(FoxMain.sqlConnectionString);
             await SQL.OpenAsync();
-            using (var cmd = new MySqlCommand("SELECT COUNT(id) AS total_images, SUM(filesize) AS total_size FROM images", SQL))
+            using (var cmd = new MySqlCommand(@"
+                SELECT
+                    COUNT(id) AS total_images,
+                    SUM(filesize) AS total_size,
+                    MIN(date_added) AS oldest_image
+                FROM images", SQL))
             {
                 using var reader = await cmd.ExecuteReaderAsync();
                 if (await reader.ReadAsync())
                 {
                     _totalImageCount = Convert.ToUInt64(reader["total_images"]);
                     _totalImageSize = Convert.ToUInt64(reader["total_size"]);
+
+                    var raw = reader["oldest_image"];
+                    _oldestImage = raw == DBNull.Value ? DateTime.Now : Convert.ToDateTime(raw);
                 }
                 else
                 {
                     _totalImageCount = 0;
                     _totalImageSize = 0;
+                    _oldestImage = DateTime.Now;
                 }
             }
-            return (_totalImageCount.Value, _totalImageSize.Value);
+            return (_totalImageCount.Value, _totalImageSize.Value, _oldestImage.Value);
         }
 
         public class TgInfo
