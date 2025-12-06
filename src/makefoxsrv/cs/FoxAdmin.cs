@@ -275,15 +275,17 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: $"ℹ️ User {findUser.UID} is not a member of any groups.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
             }
             else
             {
-                var groupList = string.Join("\n", groups.Values);
+                var groupList = string.Join("\n",
+                    groups.Select(kvp => $"{kvp.Key} - {kvp.Value}")
+                );
                 await t.SendMessageAsync(
                     text: $"📋 User {findUser.UID} is a member of the following groups:\n{groupList}",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
             }
         }
