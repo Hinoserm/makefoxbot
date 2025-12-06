@@ -348,7 +348,9 @@ namespace makefoxsrv
             using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
             if (!reader.HasRows)
-                throw new Exception("No workers available in the database.");
+                return;
+
+                //throw new Exception("No workers available in the database.");
 
             var setupTasks = new List<Task>();
 
@@ -419,7 +421,8 @@ namespace makefoxsrv
         public static void StartWorkers()
         {
             if (workers.Count() < 1)
-                    throw new Exception("No workers available.");
+                return;
+                //throw new Exception("No workers available.");
 
             foreach (var worker in workers.Values)
             {

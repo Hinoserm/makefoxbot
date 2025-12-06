@@ -116,10 +116,10 @@ namespace makefoxsrv
             var requestBody = new
             {
                 model,
-                user = $"MDR8:{q.User.UID}:{q.ID}",
+                user = $"MDR8R:{q.User.UID}:{q.ID}",
                 reasoning = new
                 {
-                    enabled = false
+                    enabled = true
                 },
                 messages = messageList,
                 response_format = new
