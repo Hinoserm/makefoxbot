@@ -414,7 +414,20 @@ namespace makefoxsrv
                 if (recvUser is null)
                     throw new Exception("Unknown UID in payment request!");
 
-                var days = 30;
+
+                var days = 10;
+
+                if (payment.currency == "XTR")
+                {
+                    if (payment.total_amount >= 800)
+                    {
+                        days = 30;
+                    }
+                    else
+                    {
+                        days = 10;
+                    }
+                }
 
                 await recvUser.RecordPayment(PaymentTypes.TELEGRAM, (int)payment.total_amount, payment.currency, days, payload, payment.charge.id, payment.charge.provider_charge_id, ms.id);
                 FoxLog.WriteLine($"Payment recorded for user {recvUID} by {user.UID}: ({payment.total_amount}, {payment.currency}, {days}, {payload}, {payment.charge.id}, {payment.charge.provider_charge_id})");

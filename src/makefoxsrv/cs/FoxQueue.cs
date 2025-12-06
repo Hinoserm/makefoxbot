@@ -1097,7 +1097,7 @@ namespace makefoxsrv
         }
 
         [Cron(seconds: 10)]
-        private async Task CronUpdateQueueMessages(CancellationToken cancellationToken)
+        public async Task CronUpdateQueueMessages(CancellationToken cancellationToken)
         {
             List<(FoxQueue item, int priority, DateTime dateStarted)> tasks;
 

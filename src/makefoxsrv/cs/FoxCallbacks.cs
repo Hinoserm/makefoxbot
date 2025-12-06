@@ -688,7 +688,7 @@ namespace makefoxsrv
                     {
                         buttons = new TL.KeyboardButtonBuy[]
                         {
-                            new() { text = "⭐ 800 Stars (30 Days)",  }
+                            new() { text = "⭐ 400 Stars (10 Days)",  }
                         }
                     });
 
@@ -702,7 +702,7 @@ namespace makefoxsrv
                     });
 
                     var prices = new TL.LabeledPrice[] {
-                        new TL.LabeledPrice { label = $"30 Day Membership", amount = 800 },
+                        new TL.LabeledPrice { label = $"10 Day Membership", amount = 400 },
                     };
 
                     var inputInvoice = new TL.InputMediaInvoice
@@ -723,7 +723,7 @@ namespace makefoxsrv
 
                     await t.SendMessageAsync(
                         media: inputInvoice,
-                        text: "30 Days Membership",
+                        text: "10 Days Membership",
                         replyInlineMarkup: inlineKeyboard,
                         disableWebPagePreview: true
                     );
