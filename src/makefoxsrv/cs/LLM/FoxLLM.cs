@@ -656,6 +656,12 @@ namespace makefoxsrv
                         -- Row-level cache discount (negative), default 0 if NULL
                         COALESCE(cache_cost, 0) AS cache_cost_row
                     FROM llm_stats
+            ";
+
+            if (user != null)
+                cmdText += " WHERE user_id = @uid";
+
+            cmdText += @"
                 )
                 SELECT
                     SUM(input_cost_row)  AS input_cost,
@@ -666,9 +672,6 @@ namespace makefoxsrv
                     SUM(output_tokens)   AS total_output
                 FROM row_costs;
             ";
-
-            if (user != null)
-                cmdText += " WHERE user_id = @uid";
 
             var cmd = new MySqlCommand(cmdText, conn);
 
