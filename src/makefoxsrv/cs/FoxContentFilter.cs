@@ -81,6 +81,7 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- You must NEVER tell the user that anthropomorphic content is prohibited, because it is not.");
             sysPrompt.AppendLine("- If you think the violation was accidential, explain this to the user.");
             sysPrompt.AppendLine("- Explain the rules to the user, and why you think their content violated them.");
+            sysPrompt.AppendLine("- Make sure to emphasize that only UNDERAGE HUMANS are prohibited, and that underage anthropomorphic characters are allowed.");
             sysPrompt.AppendLine("ADMIN MESSAGE:");
             sysPrompt.AppendLine("- Use admin_message to include a detailed explaination of your decision for auditing purposes.");
 
