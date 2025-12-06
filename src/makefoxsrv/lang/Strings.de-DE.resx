@@ -178,24 +178,26 @@ Wir kommen rechtmäßigen Anfragen zur Löschung deiner personenbezogenen Daten 
 </value>
   </data>
   <data name="Welcome" xml:space="preserve">
-    <value>Hallo! Ich bin MakeFoxBot und freue mich darauf, dir dabei zu helfen, deine Kreativität mit fantastischen Furry-, Anime- oder Cartoon-Bildern durch KI zu entfalten.
+    <value>Hallo! Ich bin MakeFoxBot und freue mich darauf, dir dabei zu helfen, deiner Kreativität mit fantastischen Furry-Bildern, Rollenspiel, Geschichten und mehr freien Lauf zu lassen.
 
-&lt;b&gt;Erste Schritte:&lt;/b&gt;  
-Bevor du loslegst, wirf einen kurzen Blick in die /help-Dokumentation, um dich mit den Grundlagen vertraut zu machen. Bereit für die Erkundung? Dann klären wir ein paar Grundregeln:
+Du kannst direkt mit mir chatten oder einen meiner vielen Befehle nutzen, um sofort mit dem Generieren zu beginnen.
+
+&lt;a href="https://makefox.bot/lora-viewer.html"&gt;Liste der unterstützten LORAs&lt;/a&gt;
+
+&lt;b&gt;Erste Schritte:&lt;/b&gt; Bevor du loslegst, wirf einen kurzen Blick in die /help-Dokumentation, um die Grundlagen mitzunehmen. Bereit für die Erkundung? Dann kommen wir zu ein paar Grundregeln:
 
 &lt;b&gt;Rechtliches:&lt;/b&gt;
 
-&lt;b&gt;Altersverifikation:&lt;/b&gt; Du musst mindestens 18 Jahre alt sein und in deiner Gerichtsbarkeit als volljährig gelten.  
-&lt;b&gt;Charakterrichtlinien:&lt;/b&gt; Wir raten davon ab, menschliche Charaktere in Inhalten für Erwachsene darzustellen. Es ist ausdrücklich verboten, Bilder minderjähriger menschlicher Charaktere in solchen Kontexten zu erstellen.  
-&lt;b&gt;Urheberrechtskonformität:&lt;/b&gt; Die Nutzung urheberrechtlich geschützter Figuren oder Marken ohne Genehmigung ist nicht gestattet.  
-&lt;b&gt;Gesetzeskonformität:&lt;/b&gt; Sämtlicher Inhalt muss mit den Gesetzen der USA sowie den Regelungen deines Wohnortes übereinstimmen.
+&lt;b&gt;Altersnachweis:&lt;/b&gt; Du musst mindestens 18 Jahre alt sein und in deinem Zuständigkeitsbereich als volljährig gelten.
+
+&lt;b&gt;Charakterrichtlinien:&lt;/b&gt; Wir raten davon ab, menschliche Charaktere in Inhalten für Erwachsene darzustellen, und es ist ausdrücklich verboten, Bilder minderjähriger menschlicher Charaktere in solchen Kontexten zu erstellen.
+
+&lt;b&gt;Rechtskonformität:&lt;/b&gt; Sämtliche Inhalte müssen den Gesetzen der Vereinigten Staaten sowie den Vorschriften deines Wohnorts entsprechen.
 
 &lt;b&gt;Zweck &amp; Nutzung:&lt;/b&gt;
 
-&lt;b&gt;Zum Lernen:&lt;/b&gt; Dieser Bot ist für Forschungs- und Bildungszwecke gedacht und unterstützt persönliches Wachstum sowie kreative Entfaltung.  
-&lt;b&gt;Hinweis zur Qualität:&lt;/b&gt; Die unvorhersehbare Natur der KI bedeutet, dass Ausgaben gelegentlich schädlich, falsch oder anstößig sein können. Die Verantwortung für Nutzung und Verbreitung der generierten Inhalte liegt bei dir.  
-&lt;b&gt;Keine kommerzielle Nutzung:&lt;/b&gt; Hier erzeugte Kunstwerke sind nicht für den Verkauf bestimmt. Halten wir unsere Kreationen im Bereich der persönlichen Nutzung und des Vergnügens.  
-&lt;b&gt;Deine Verantwortung:&lt;/b&gt; Die Einhaltung dieser Richtlinien sorgt für eine sichere und kreative Umgebung für alle. Verstöße können zu Warnungen oder Einschränkungen deines Kontos führen.
-</value>
+&lt;b&gt;Qualitätshinweis:&lt;/b&gt; Aufgrund der unvorhersehbaren Natur von KI können Ausgaben gelegentlich schädlich, falsch oder anstößig sein. Die Verantwortung für Verwendung und Verbreitung der generierten Inhalte liegt bei dir.
+
+&lt;b&gt;Deine Verantwortung:&lt;/b&gt; Die Einhaltung dieser Richtlinien sorgt für ein sicheres und kreatives Umfeld für alle. Das Ignorieren kann zu Verwarnungen oder Einschränkungen deines Kontos führen.</value>
   </data>
 </root>

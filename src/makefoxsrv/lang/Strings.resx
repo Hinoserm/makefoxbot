@@ -175,22 +175,26 @@ We will comply with lawful requests to remove your personal information.  If you
     <value>&lt;b&gt;You have acknowleged your acceptance of these terms.  Thank you!&lt;/b&gt;</value>
   </data>
   <data name="Welcome" xml:space="preserve">
-    <value>Hello! I’m MakeFoxBot, excited to help you unleash your creativity with fantastic furry, anime, or cartoon images through AI.
+    <value>Hello! I’m MakeFoxBot, excited to help you unleash your creativity with fantastic furry images, roleplay, stories and more!
+
+You can chat to me directly, or use one of my many commands to start generating now.
+
+&lt;a href="https://makefox.bot/lora-viewer.html"&gt;Supported LORAs List&lt;/a&gt;
 
 &lt;b&gt;Getting Started:&lt;/b&gt; Before diving in, a quick look over the /help documentation will set you up with the basics. Ready to explore? Let's cover some ground rules:
 
 &lt;b&gt;Legal Bits:&lt;/b&gt;
 
 &lt;b&gt;Age Verification:&lt;/b&gt; You must be at least 18 years old and recognized as a legal adult in your jurisdiction.
+
 &lt;b&gt;Character Guidelines:&lt;/b&gt; We discourage depicting human characters in mature content, and it's explicitly forbidden to create images of underage human characters in such contexts.
-&lt;b&gt;Copyright Compliance:&lt;/b&gt; Using copyrighted characters or trademarks without authorization is off-limits.
+
 &lt;b&gt;Legal Compliance:&lt;/b&gt; All content must comply with U.S. laws and the regulations of your locality.
 
 &lt;b&gt;Purpose &amp;amp; Use:&lt;/b&gt;
 
-&lt;b&gt;For Learning:&lt;/b&gt; This bot is intended for research and educational purposes, aiding personal growth and creative exploration.
 &lt;b&gt;Quality Disclaimer:&lt;/b&gt; The unpredictable nature of AI means outputs might sometimes be harmful, incorrect, or offensive. Responsibility for the use and distribution of generated content rests with you.
-&lt;b&gt;No Commercial Use:&lt;/b&gt; Artwork created here is not for sale. Let's keep our creations in the realm of personal use and enjoyment.
+
 &lt;b&gt;Your Responsibility:&lt;/b&gt; Adhering to these guidelines ensures a safe and creative environment for everyone. Ignoring them could lead to warnings or restrictions on your account.</value>
     <comment>Default first message when user types /start.</comment>
   </data>

@@ -174,23 +174,26 @@ Cumpliremos con solicitudes legales para eliminar tu información personal. Si n
     <value>&lt;b&gt;Has reconocido tu aceptación de estos términos. ¡Gracias!&lt;/b&gt;</value>
   </data>
   <data name="Welcome" xml:space="preserve">
-    <value>Hola. Soy MakeFoxBot, listo para ayudarte a desatar tu creatividad con increíbles imágenes de estilo furry, anime o caricatura generadas por IA.
+    <value>Hola. Soy MakeFoxBot y estoy listo para ayudarte a desatar tu creatividad con imágenes furry fantásticas, rol, historias y más.
 
-&lt;b&gt;Cómo empezar:&lt;/b&gt;
-Antes de sumergirte, una rápida revisión de la documentación en /help te dará las bases. ¿Listo para explorar? Repasemos algunas reglas:
+Puedes hablar conmigo directamente o usar alguno de mis comandos para empezar a generar ahora mismo.
+
+&lt;a href="https://makefox.bot/lora-viewer.html"&gt;Lista de LORAs compatibles&lt;/a&gt;
+
+&lt;b&gt;Primeros pasos:&lt;/b&gt; Antes de lanzarte, un vistazo rápido a la documentación de /help te dará lo básico. ¿Listo para explorar? Vamos con algunas reglas:
 
 &lt;b&gt;Aspectos legales:&lt;/b&gt;
 
 &lt;b&gt;Verificación de edad:&lt;/b&gt; Debes tener al menos 18 años y ser reconocido como adulto legal en tu jurisdicción.
-&lt;b&gt;Directrices sobre personajes:&lt;/b&gt; Desaconsejamos representar personajes humanos en contenido para adultos, y está estrictamente prohibido crear imágenes de personajes humanos menores de edad en tales contextos.
-&lt;b&gt;Cumplimiento de derechos de autor:&lt;/b&gt; No se permite usar personajes o marcas registradas con copyright sin autorización.
-&lt;b&gt;Cumplimiento legal:&lt;/b&gt; Todo el contenido debe cumplir con las leyes de los Estados Unidos y las regulaciones de tu localidad.
+
+&lt;b&gt;Directrices de personajes:&lt;/b&gt; Desaconsejamos representar personajes humanos en contenido para adultos y está estrictamente prohibido crear imágenes de personajes humanos menores de edad en ese contexto.
+
+&lt;b&gt;Cumplimiento legal:&lt;/b&gt; Todo el contenido debe cumplir con las leyes de Estados Unidos y las normativas de tu localidad.
 
 &lt;b&gt;Propósito y uso:&lt;/b&gt;
 
-&lt;b&gt;Para aprendizaje:&lt;/b&gt; Este bot está destinado a fines de investigación y educativos, fomentando el crecimiento personal y la exploración creativa.
-&lt;b&gt;Descargo de responsabilidad sobre calidad:&lt;/b&gt; La naturaleza impredecible de la IA significa que las salidas pueden ser dañinas, incorrectas u ofensivas. La responsabilidad por el uso y la distribución del contenido generado recae en ti.
-&lt;b&gt;Sin uso comercial:&lt;/b&gt; El arte creado aquí no es para la venta. Mantengamos nuestras creaciones en el ámbito del uso personal y disfrute.
-&lt;b&gt;Tu responsabilidad:&lt;/b&gt; Cumplir con estas pautas garantiza un entorno seguro y creativo para todos. Ignorarlas podría resultar en advertencias o restricciones en tu cuenta.</value>
+&lt;b&gt;Aviso de calidad:&lt;/b&gt; La naturaleza impredecible de la IA significa que las salidas pueden ser dañinas, incorrectas u ofensivas. La responsabilidad por el uso y distribución del contenido generado recae en ti.
+
+&lt;b&gt;Tu responsabilidad:&lt;/b&gt; Cumplir con estas directrices garantiza un entorno seguro y creativo para todos. Ignorarlas puede provocar advertencias o restricciones en tu cuenta.</value>
   </data>
 </root>
