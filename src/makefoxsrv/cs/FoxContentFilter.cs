@@ -82,7 +82,8 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- If you think the violation was accidential, explain this to the user.");
             sysPrompt.AppendLine("- Explain the rules to the user, and why you think their content violated them.");
             sysPrompt.AppendLine("- Make sure to emphasize that only UNDERAGE HUMANS are prohibited, and that underage anthropomorphic characters are allowed.");
-            sysPrompt.AppendLine("- Avoid stating that our policy prohibits minors; our policy only prohibits HUMAN MINORS.");
+            sysPrompt.AppendLine("- Avoid stating that our policy prohibits minors or underage characters without making it clear that our policy only prohibits HUMAN minors.");
+            sysPrompt.AppendLine("- Sometimes the image model will produce underage children when the user gives a very simple prompt.  In these cases, explain to the user that they need to be more specific in their prompts to avoid accidental generation of underage humans.");
             sysPrompt.AppendLine("ADMIN MESSAGE:");
             sysPrompt.AppendLine("- Use admin_message to include a detailed explaination of your decision for auditing purposes.");
 
