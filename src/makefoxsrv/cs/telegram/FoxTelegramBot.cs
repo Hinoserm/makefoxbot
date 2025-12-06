@@ -1,4 +1,5 @@
-﻿using System;
+﻿using AsyncKeyedLock;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -42,7 +43,7 @@ namespace makefoxsrv.telegram
         private WTelegram.Client? _client;
 
         private static readonly FoxCache<FoxTelegramBot> _cache = new FoxCache<FoxTelegramBot>(TimeSpan.FromHours(72));
-        private static readonly ConcurrentDictionary<ulong, SemaphoreSlim> _cacheLocks = new();
+        private static readonly AsyncKeyedLocker<ulong> _cacheLocks = new();
 
         // Create WTelegram.Client and connect to Telegram
         public async Task ConnectAsync()
@@ -98,28 +99,18 @@ namespace makefoxsrv.telegram
             if (cached is not null)
                 return cached;
 
-            var sem = _cacheLocks.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
-            await sem.WaitAsync();
+            using var _ = _cacheLocks.LockAsync(id);
 
-            try
-            {
-                cached = _cache.Get(id);
-                if (cached is not null)
-                    return cached;
+            cached = _cache.Get(id);
+            if (cached is not null)
+                return cached;
 
-                var bot = await FoxDB.LoadObjectAsync<FoxTelegramBot>("telegram_bots", "id = @id", new Dictionary<string, object?> { { "id", id } });
+            var bot = await FoxDB.LoadObjectAsync<FoxTelegramBot>("telegram_bots", "id = @id", new Dictionary<string, object?> { { "id", id } });
 
-                if (bot is not null)
-                    _cache.Put(id, bot);
+            if (bot is not null)
+                _cache.Put(id, bot);
 
-                return bot;
-            }
-            finally
-            {
-                sem.Release();
-                if (sem.CurrentCount == 1)
-                    _cacheLocks.TryRemove(id, out _);
-            }
+            return bot;
         }
 
         // Used pretty much only in the handler that starts all the bots
