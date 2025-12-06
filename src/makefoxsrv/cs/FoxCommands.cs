@@ -924,7 +924,7 @@ namespace makefoxsrv
                 {
                     sb.AppendLine($"LLM Usage: {InputTokens} input tokens, {OutputTokens} output tokens");
                     if (user.CheckAccessLevel(AccessLevel.ADMIN))
-                        sb.AppendLine($"LLM Cost: ${InputCost + OutputCost:F4} (${InputCost:F4} input, ${OutputCost:F4} output)");
+                        sb.AppendLine($"LLM Cost: ${TotalCost:F4} (${InputCost:F4} input, ${OutputCost:F4} output)");
                     sb.AppendLine();
                 }
 

@@ -106,7 +106,7 @@ namespace makefoxsrv
             {
                 sb.AppendLine();
                 sb.AppendLine($"LLM Usage: {InputTokens} input tokens, {OutputTokens} output tokens");
-                sb.AppendLine($"LLM Cost: ${InputCost + OutputCost:F4} (${InputCost:F4} input, ${OutputCost:F4} output)");
+                sb.AppendLine($"LLM Cost: ${TotalCost:F4}");
             }
 
             return sb.ToString();

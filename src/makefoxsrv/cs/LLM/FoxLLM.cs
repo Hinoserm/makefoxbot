@@ -629,10 +629,42 @@ namespace makefoxsrv
             await conn.OpenAsync();
 
             var cmdText = @"
-                SELECT 
-                    COALESCE(SUM(input_tokens), 0) AS total_input,
-                    COALESCE(SUM(output_tokens), 0) AS total_output
-                FROM llm_stats
+                WITH row_costs AS (
+                    SELECT
+                        input_tokens,
+                        output_tokens,
+
+                        -- Row-level input cost: stored if present, else estimated from tokens
+                        COALESCE(
+                            prompt_cost,
+                            input_tokens / 1000000.0 * 0.20
+                        ) AS input_cost_row,
+
+                        -- Row-level output cost: stored if present, else estimated from tokens
+                        COALESCE(
+                            output_cost,
+                            output_tokens / 1000000.0 * 0.50
+                        ) AS output_cost_row,
+
+                        -- Row-level total cost: stored if present, else sum of the two
+                        COALESCE(
+                            total_cost,
+                            COALESCE(prompt_cost, input_tokens / 1000000.0 * 0.20) +
+                            COALESCE(output_cost, output_tokens / 1000000.0 * 0.50)
+                        ) AS total_cost_row,
+
+                        -- Row-level cache discount (negative), default 0 if NULL
+                        COALESCE(cache_cost, 0) AS cache_cost_row
+                    FROM llm_stats
+                )
+                SELECT
+                    SUM(input_cost_row)  AS input_cost,
+                    SUM(output_cost_row) AS output_cost,
+                    SUM(total_cost_row) * 1.05 * 1.0825 AS total_cost,
+                    SUM(cache_cost_row)  AS cache_cost,
+                    SUM(input_tokens)    AS total_input,
+                    SUM(output_tokens)   AS total_output
+                FROM row_costs;
             ";
 
             if (user != null)
@@ -648,15 +680,19 @@ namespace makefoxsrv
             ulong totalInput = 0;
             ulong totalOutput = 0;
 
+            decimal inputCost = 0;
+            decimal outputCost = 0;
+            decimal totalCost = 0;
+
             if (await reader.ReadAsync())
             {
                 totalInput = reader.GetUInt64("total_input");
                 totalOutput = reader.GetUInt64("total_output");
-            }
 
-            decimal inputCost = (decimal)totalInput / 1_000_000m * 0.20m;
-            decimal outputCost = (decimal)totalOutput / 1_000_000m * 0.50m;
-            decimal totalCost = inputCost + outputCost;
+                inputCost = reader.GetDecimal("input_cost");
+                outputCost = reader.GetDecimal("output_cost");
+                totalCost = reader.GetDecimal("total_cost");
+            }
 
             return (inputCost, outputCost, totalCost, totalInput, totalOutput);
         }
