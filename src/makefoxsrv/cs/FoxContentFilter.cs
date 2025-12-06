@@ -82,6 +82,7 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- If you think the violation was accidential, explain this to the user.");
             sysPrompt.AppendLine("- Explain the rules to the user, and why you think their content violated them.");
             sysPrompt.AppendLine("- Make sure to emphasize that only UNDERAGE HUMANS are prohibited, and that underage anthropomorphic characters are allowed.");
+            sysPrompt.AppendLine("- Avoid stating that our policy prohibits minors; our policy only prohibits HUMAN MINORS.");
             sysPrompt.AppendLine("ADMIN MESSAGE:");
             sysPrompt.AppendLine("- Use admin_message to include a detailed explaination of your decision for auditing purposes.");
 
