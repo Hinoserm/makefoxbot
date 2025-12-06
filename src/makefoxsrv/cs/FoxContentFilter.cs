@@ -840,7 +840,6 @@ namespace makefoxsrv
             }
         }
 
-        // Stub method: implement your actual message-sending logic here.
         public static async Task SendModerationNotification(string messageText, TL.ReplyInlineMarkup? replyKeyboardMarkup = null)
         {
             var moderationGroupId = FoxSettings.Get<long>("ModerationGroupID");

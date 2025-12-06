@@ -118,80 +118,84 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="Lang.AnswerCallbackMsg" xml:space="preserve">
-    <value>Language set!</value>
+    <value>Sprache eingestellt.</value>
   </data>
   <data name="Moderation.Denied" xml:space="preserve">
-    <value>❌ Image was detected as prohibited content and has been removed.
+    <value>❌ Das Bild wurde als verbotener Inhalt erkannt und entfernt.
 
 {ReasonMsg:isnull:|⚠️ {ReasonMsg}
 
-}If you believe this was in error, please contact support at @makefoxhelpbot.
+}Wenn Sie glauben, dass dies ein Fehler war, kontaktieren Sie bitte den Support unter @makefoxhelpbot.
 
-You can review our rules and content policy by typing /start</value>
+Sie können unsere Regeln und Inhaltsrichtlinien einsehen, indem Sie /start eingeben.</value>
   </data>
   <data name="Query.Info" xml:space="preserve">
     <value>{Id:isnull:|ID: {Id}\n}🖤Prompt: {Prompt}
-🐊Negative: {NegativePrompt}
-🖥️ Size: {Size}
-🪜Sampler: {Sampler} ({Steps} steps)
-🧑‍🎨CFG Scale: {CfgScale}{DenoisingStrength:isnull:|\n👂Denoising Strength: {DenoisingStrength}}
-🧠Model: {ModelName}
+🐊Negativ: {NegativePrompt}
+🖥️ Größe: {Size}
+🪜Sampler: {Sampler} ({Steps} Schritte)
+🧑‍🎨CFG-Skala: {CfgScale}{DenoisingStrength:isnull:|\n👂Denoising-Stärke: {DenoisingStrength}}
+🧠Modell: {ModelName}
 {VariationSeed:isnull:🌱Seed: {Seed}|🌱Seed: {Seed} ({VariationSeed}@{VariationPercent}%)}
-{WorkerName:isnull:|👷Worker: {WorkerName}\n}⏳Render Time: {RenderTime}{Date:isnull:|\n📅Date: {Date}}</value>
+{WorkerName:isnull:|👷Worker: {WorkerName}\n}⏳Renderzeit: {RenderTime}{Date:isnull:|\n📅Datum: {Date}}
+</value>
   </data>
   <data name="Terms.AgreeButton" xml:space="preserve">
-    <value>📝 I Understand &amp; Agree</value>
-    <comment>Button shown when the user needs to agree to the terms of service to continue.</comment>
+    <value>📝 Ich verstehe und stimme zu</value>
   </data>
   <data name="Terms.AgreeClicked" xml:space="preserve">
-    <value>You have acknolwedged your acceptance of the terms of service.
+    <value>Du hast deine Zustimmung zu den Nutzungsbedingungen bestätigt.
 
-Thank you!</value>
+Danke!
+</value>
   </data>
   <data name="Terms.AgreePrompt" xml:space="preserve">
-    <value>&lt;b&gt;Click the button below to acknowledge your understanding and agreement with these terms.&lt;/b&gt;</value>
+    <value>&lt;b&gt;Klicke auf die Schaltfläche unten, um dein Verständnis und deine Zustimmung zu diesen Bedingungen zu bestätigen.&lt;/b&gt;</value>
   </data>
   <data name="Terms.Message" xml:space="preserve">
-    <value>Before you may continue, you must review and agree to the following terms of service:
+    <value>Bevor du fortfahren kannst, musst du die folgenden Nutzungsbedingungen prüfen und ihnen zustimmen:
 
-&lt;b&gt;Age Verification:&lt;/b&gt; You must be at least 18 years old and recognized as a legal adult in your jurisdiction.
+&lt;b&gt;Altersverifikation:&lt;/b&gt; Du musst mindestens 18 Jahre alt sein und in deiner Gerichtsbarkeit als volljährige Person gelten.
 
-&lt;b&gt;Character Guidelines:&lt;/b&gt; We discourage the depiction of realistic human characters that could be mistaken for real people.  It is explicitly forbidden to create images of underage human characters of any sort.
+&lt;b&gt;Richtlinien für Charaktere:&lt;/b&gt; Wir raten von der Darstellung realistisch wirkender menschlicher Charaktere ab, die mit echten Personen verwechselt werden könnten. Es ist ausdrücklich verboten, Bilder minderjähriger menschlicher Charaktere jeglicher Art zu erstellen.
 
-&lt;b&gt;Copyright Compliance:&lt;/b&gt; Creation of images using copyrighted characters or trademarks without authorization is prohibited.
+&lt;b&gt;Urheberrechtskonformität:&lt;/b&gt; Das Erstellen von Bildern mit urheberrechtlich geschützten Figuren oder Marken ohne Genehmigung ist untersagt.
 
-&lt;b&gt;Legal Compliance:&lt;/b&gt; Ensure that all content generated abides by the laws and regulations of your locality.
+&lt;b&gt;Gesetzeskonformität:&lt;/b&gt; Stelle sicher, dass sämtlicher erzeugter Inhalt den Gesetzen und Vorschriften deines Wohnortes entspricht.
 
-Failure to comply with these rules may result in account warnings or restrictions.</value>
-    <comment>Message shown when the user has not agreed to the terms of service.</comment>
+Ein Verstoß gegen diese Regeln kann zu Warnungen oder Einschränkungen deines Kontos führen.
+</value>
   </data>
   <data name="Terms.PrivacyPolicy" xml:space="preserve">
-    <value>&lt;b&gt;Privacy Policy&lt;/b&gt;
-We collect and store all images sent or created using the bot, as well as your Telegram username, first name, last name, Telegram ID, and any other information generated through normal use of the service. We may have to share your data with 3rd party payment processors when you make a purchase or donation, but otherwise we don't share or sell your data. Your data is used solely to enhance and provide our services.
+    <value>&lt;b&gt;Datenschutzerklärung&lt;/b&gt;
+Wir erfassen und speichern alle Bilder, die über den Bot gesendet oder mit ihm erstellt werden, ebenso wie deinen Telegram-Benutzernamen, Vor- und Nachnamen, deine Telegram-ID sowie alle weiteren Informationen, die während der normalen Nutzung des Dienstes entstehen. Wir müssen deine Daten möglicherweise mit externen Zahlungsabwicklern teilen, wenn du einen Kauf oder eine Spende tätigst, aber abgesehen davon geben wir deine Daten nicht weiter und verkaufen sie nicht. Deine Daten werden ausschließlich verwendet, um unsere Dienste bereitzustellen und zu verbessern.
 
-We will comply with lawful requests to remove your personal information.  If you need support, please contact @makefoxhelpbot.</value>
+Wir kommen rechtmäßigen Anfragen zur Löschung deiner personenbezogenen Daten nach. Wenn du Unterstützung benötigst, kontaktiere bitte @makefoxhelpbot.
+</value>
   </data>
   <data name="Terms.UserAgreed" xml:space="preserve">
-    <value>&lt;b&gt;You have acknowleged your acceptance of these terms.  Thank you!&lt;/b&gt;</value>
+    <value>&lt;b&gt;Du hast deine Zustimmung zu diesen Bedingungen bestätigt. Danke!&lt;/b&gt;
+</value>
   </data>
   <data name="Welcome" xml:space="preserve">
-    <value>Hello! I’m MakeFoxBot, excited to help you unleash your creativity with fantastic furry, anime, or cartoon images through AI.
+    <value>Hallo! Ich bin MakeFoxBot und freue mich darauf, dir dabei zu helfen, deine Kreativität mit fantastischen Furry-, Anime- oder Cartoon-Bildern durch KI zu entfalten.
 
-&lt;b&gt;Getting Started:&lt;/b&gt; Before diving in, a quick look over the /help documentation will set you up with the basics. Ready to explore? Let's cover some ground rules:
+&lt;b&gt;Erste Schritte:&lt;/b&gt;  
+Bevor du loslegst, wirf einen kurzen Blick in die /help-Dokumentation, um dich mit den Grundlagen vertraut zu machen. Bereit für die Erkundung? Dann klären wir ein paar Grundregeln:
 
-&lt;b&gt;Legal Bits:&lt;/b&gt;
+&lt;b&gt;Rechtliches:&lt;/b&gt;
 
-&lt;b&gt;Age Verification:&lt;/b&gt; You must be at least 18 years old and recognized as a legal adult in your jurisdiction.
-&lt;b&gt;Character Guidelines:&lt;/b&gt; We discourage depicting human characters in mature content, and it's explicitly forbidden to create images of underage human characters in such contexts.
-&lt;b&gt;Copyright Compliance:&lt;/b&gt; Using copyrighted characters or trademarks without authorization is off-limits.
-&lt;b&gt;Legal Compliance:&lt;/b&gt; All content must comply with U.S. laws and the regulations of your locality.
+&lt;b&gt;Altersverifikation:&lt;/b&gt; Du musst mindestens 18 Jahre alt sein und in deiner Gerichtsbarkeit als volljährig gelten.  
+&lt;b&gt;Charakterrichtlinien:&lt;/b&gt; Wir raten davon ab, menschliche Charaktere in Inhalten für Erwachsene darzustellen. Es ist ausdrücklich verboten, Bilder minderjähriger menschlicher Charaktere in solchen Kontexten zu erstellen.  
+&lt;b&gt;Urheberrechtskonformität:&lt;/b&gt; Die Nutzung urheberrechtlich geschützter Figuren oder Marken ohne Genehmigung ist nicht gestattet.  
+&lt;b&gt;Gesetzeskonformität:&lt;/b&gt; Sämtlicher Inhalt muss mit den Gesetzen der USA sowie den Regelungen deines Wohnortes übereinstimmen.
 
-&lt;b&gt;Purpose &amp;amp; Use:&lt;/b&gt;
+&lt;b&gt;Zweck &amp; Nutzung:&lt;/b&gt;
 
-&lt;b&gt;For Learning:&lt;/b&gt; This bot is intended for research and educational purposes, aiding personal growth and creative exploration.
-&lt;b&gt;Quality Disclaimer:&lt;/b&gt; The unpredictable nature of AI means outputs might sometimes be harmful, incorrect, or offensive. Responsibility for the use and distribution of generated content rests with you.
-&lt;b&gt;No Commercial Use:&lt;/b&gt; Artwork created here is not for sale. Let's keep our creations in the realm of personal use and enjoyment.
-&lt;b&gt;Your Responsibility:&lt;/b&gt; Adhering to these guidelines ensures a safe and creative environment for everyone. Ignoring them could lead to warnings or restrictions on your account.</value>
-    <comment>Default first message when user types /start.</comment>
+&lt;b&gt;Zum Lernen:&lt;/b&gt; Dieser Bot ist für Forschungs- und Bildungszwecke gedacht und unterstützt persönliches Wachstum sowie kreative Entfaltung.  
+&lt;b&gt;Hinweis zur Qualität:&lt;/b&gt; Die unvorhersehbare Natur der KI bedeutet, dass Ausgaben gelegentlich schädlich, falsch oder anstößig sein können. Die Verantwortung für Nutzung und Verbreitung der generierten Inhalte liegt bei dir.  
+&lt;b&gt;Keine kommerzielle Nutzung:&lt;/b&gt; Hier erzeugte Kunstwerke sind nicht für den Verkauf bestimmt. Halten wir unsere Kreationen im Bereich der persönlichen Nutzung und des Vergnügens.  
+&lt;b&gt;Deine Verantwortung:&lt;/b&gt; Die Einhaltung dieser Richtlinien sorgt für eine sichere und kreative Umgebung für alle. Verstöße können zu Warnungen oder Einschränkungen deines Kontos führen.
+</value>
   </data>
 </root>

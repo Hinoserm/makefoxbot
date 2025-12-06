@@ -803,36 +803,12 @@ namespace makefoxsrv
                 //    sizeString += $" (upscaled from {q.Settings.width}x{q.Settings.height})";
 
                 // Build the main message
-                sb.AppendLine($"🖤Prompt: {q.Settings.Prompt}");
-                sb.AppendLine($"🐊Negative: {q.Settings.NegativePrompt}");
-                sb.AppendLine($"🖥️ Size: {sizeString}");
-                sb.AppendLine($"🪜Sampler: {q.Settings.Sampler} ({q.Settings.steps} steps)");
-                sb.AppendLine($"🧑‍🎨CFG Scale: {q.Settings.CFGScale}");
-                if (q.Type == FoxQueue.QueueType.IMG2IMG)
-                    sb.AppendLine($"👂Denoising Strength: {q.Settings.DenoisingStrength}");
-                sb.AppendLine($"🧠Model: {q.Settings.ModelName}");
-
-                if (q.Settings.variation_seed is not null && q.Settings.variation_strength is not null)
-                {
-                    var variation_percent = (int)(q.Settings.variation_strength * 100);
-
-                    sb.AppendLine($"🌱Seed: {q.Settings.Seed} ({q.Settings.variation_seed}@{variation_percent}%)");
-                }
-                else
-                    sb.AppendLine($"🌱Seed: {q.Settings.Seed}");
-
-                if (q.WorkerID is not null)
-                {
-                    string workerName = await FoxWorker.GetWorkerName(q.WorkerID);
-                    sb.AppendLine($"👷Worker: {workerName}");
-                }
-
-                sb.AppendLine($"⏳Render Time: {GPUTime.ToPrettyFormat()}");
+                var infoStr = await FoxMessages.BuildQueryInfoString(user, q, showId: false, showDate: false);
 
                 try
                 {
                     await t.EditMessageAsync(
-                        text: sb.ToString(),
+                        text: infoStr,
                         id: query.msg_id,
                         replyInlineMarkup: inlineKeyboardButtons
                     );

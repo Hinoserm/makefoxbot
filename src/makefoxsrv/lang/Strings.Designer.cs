@@ -70,6 +70,37 @@ namespace makefoxsrv.lang {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to ❌ Image was detected as prohibited content and has been removed.
+        ///
+        ///{ReasonMsg:isnull:|⚠️ {ReasonMsg}
+        ///
+        ///}If you believe this was in error, please contact support at @makefoxhelpbot.
+        ///
+        ///You can review our rules and content policy by typing /start.
+        /// </summary>
+        internal static string Moderation_Denied {
+            get {
+                return ResourceManager.GetString("Moderation.Denied", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {Id:isnull:|ID: {Id}\n}🖤Prompt: {Prompt}
+        ///🐊Negative: {NegativePrompt}
+        ///🖥️ Size: {Size}
+        ///🪜Sampler: {Sampler} ({Steps} steps)
+        ///🧑‍🎨CFG Scale: {CfgScale}{DenoisingStrength:isnull:|\n👂Denoising Strength: {DenoisingStrength}}
+        ///🧠Model: {ModelName}
+        ///{VariationSeed:isnull:🌱Seed: {Seed}|🌱Seed: {Seed} ({VariationSeed}@{VariationPercent}%)}
+        ///{WorkerName:isnull:|👷Worker: {WorkerName}\n}⏳Render Time: {RenderTime}{Date:isnull:|\n📅Date: {Date}}.
+        /// </summary>
+        internal static string Query_Info {
+            get {
+                return ResourceManager.GetString("Query.Info", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to 📝 I Understand &amp; Agree.
         /// </summary>
         internal static string Terms_AgreeButton {

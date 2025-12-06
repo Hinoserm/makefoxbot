@@ -1,9 +1,11 @@
-﻿using System;
+﻿using SmartFormat;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Resources;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -13,6 +15,7 @@ namespace makefoxsrv
     {
         private readonly FoxUser user;
         private static ResourceManager resourceManager = new ResourceManager("makefoxsrv.lang.Strings", Assembly.GetExecutingAssembly());
+        private static readonly SmartFormatter formatter = Smart.CreateDefaultSmartFormat();
 
         public static Dictionary<string, (string CultureInfoName, string EmojiFlag)> languageLookup { get; private set; } = new Dictionary<string, (string CultureInfoName, string EmojiFlag)>()
         {
@@ -151,6 +154,39 @@ namespace makefoxsrv
                 throw new Exception($"Localization key '{key}' not found for language '{localeName}'.");
 
             return text;
+        }
+
+        // Named args via anonymous or typed object
+        public string Get(string key, object? templateData)
+        {
+            if (key is null)
+                throw new ArgumentNullException(nameof(key));
+
+            var format = resourceManager.GetString(key, localeCulture);
+
+            if (format is null)
+                throw new Exception($"Localization key '{key}' not found for language '{localeName}'.");
+
+            if (templateData is null)
+                return format;
+
+            return formatter.Format(format, templateData);
+        }
+
+        // Optional: named args via dictionary
+        public string Get(string key, IReadOnlyDictionary<string, object?> values)
+        {
+            if (key is null)
+                throw new ArgumentNullException(nameof(key));
+            if (values is null)
+                throw new ArgumentNullException(nameof(values));
+
+            var format = resourceManager.GetString(key, localeCulture);
+
+            if (format is null)
+                throw new Exception($"Localization key '{key}' not found for language '{localeName}'.");
+
+            return formatter.Format(format, values);
         }
     }
 }

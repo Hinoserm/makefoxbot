@@ -211,17 +211,12 @@ namespace makefoxsrv
                         }
                         catch { } //We don't care if deleting fails.
 
-                        var sb = new StringBuilder();
-                        sb.AppendLine("❌ Image was detected as prohibited content and has been removed.");
-                        if (!string.IsNullOrEmpty(reasonMsg))
+                        string? reason = string.IsNullOrWhiteSpace(reasonMsg) ? null : reasonMsg;
+
+                        string msgStr = q.User.Strings.Get("Moderation.Denied", new
                         {
-                            sb.AppendLine();
-                            sb.AppendLine($"⚠️ {reasonMsg}");
-                        }
-                        sb.AppendLine();
-                        sb.AppendLine("If you believe this was in error, please contact support at @makefoxhelpbot.");
-                        sb.AppendLine();
-                        sb.AppendLine("You can review our rules and content policy by typing /start");
+                            ReasonMsg = reason
+                        });
 
                         try
                         {
@@ -230,7 +225,7 @@ namespace makefoxsrv
                                 await q.Telegram.SendMessageAsync(
                                     replyToMessageId: q.ReplyMessageID ?? 0,
                                     replyToTopicId: q.ReplyTopicID ?? 0,
-                                    text: sb.ToString()
+                                    text: msgStr
                                 );
                             }
                         }

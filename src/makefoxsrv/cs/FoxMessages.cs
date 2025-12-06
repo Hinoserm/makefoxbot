@@ -18,42 +18,65 @@ namespace makefoxsrv
 {
     internal class FoxMessages
     {
-        public static async Task<string> BuildQueryInfoString(FoxQueue q, bool showId = false, bool showDate = false)
+#nullable enable
+
+        public static async Task<string> BuildQueryInfoString(FoxUser user, FoxQueue q, bool showId = false, bool showDate = false)
         {
-            System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
-            System.TimeSpan GPUTime = await q.GetGPUTime();
+            TimeSpan gpuTime = await q.GetGPUTime();
 
-            var sb = new StringBuilder();
+            string sizeString = $"{q.Settings.Width}x{q.Settings.Height}";
 
-            sb.AppendLine($"ID: {q.ID}");
-
-            sb.AppendLine($"🖤Prompt: {q.Settings.Prompt}");
-            sb.AppendLine($"🐊Negative: {q.Settings.NegativePrompt}");
-            sb.AppendLine($"🖥️ Size: {q.Settings.Width}x{q.Settings.Height}");
-            sb.AppendLine($"🪜Sampler: {q.Settings.Sampler} ({q.Settings.steps} steps)");
-            sb.AppendLine($"🧑‍🎨CFG Scale: {q.Settings.CFGScale}");
-            sb.AppendLine($"👂Denoising Strength: {q.Settings.DenoisingStrength}");
-            sb.AppendLine($"🧠Model: {q.Settings.ModelName}");
-            sb.AppendLine($"🌱Seed: {q.Settings.Seed}");
-
+            // Optional worker name
+            string? workerName = null;
             if (q.WorkerID is not null)
             {
-                string workerName = await FoxWorker.GetWorkerName(q.WorkerID);
-                sb.AppendLine($"👷Worker: {workerName}");
+                workerName = await FoxWorker.GetWorkerName(q.WorkerID);
             }
 
-            sb.AppendLine($"⏳Render Time: {GPUTime.ToPrettyFormat()}");
+            // Optional ID
+            ulong? id = showId ? q.ID : null;
 
+            // Optional date string
+            string? date = null;
             if (showDate)
             {
-                // Get the server's timezone abbreviation
                 TimeZoneInfo localZone = TimeZoneInfo.Local;
                 string timezoneAbbr = GetTimezoneAbbreviation(localZone);
-                sb.AppendLine($"📅Date: {q.DateCreated.ToString("MMMM d yyyy hh:mm:ss tt")} {timezoneAbbr}");
+                date = $"{q.DateCreated:MMMM d yyyy hh:mm:ss tt} {timezoneAbbr}";
             }
 
-            return sb.ToString();
+            // Denoising only for IMG2IMG
+            decimal? denoisingStrength = q.Type == FoxQueue.QueueType.IMG2IMG
+                ? q.Settings.DenoisingStrength
+                : null;
+
+            // Variation seed / strength
+            int? variationPercent = null;
+            if (q.Settings.variation_seed is not null && q.Settings.variation_strength is not null)
+            {
+                variationPercent = (int)(q.Settings.variation_strength.Value * 100);
+            }
+
+            return user.Strings.Get("Query.Info", new
+            {
+                Id = id,
+                Prompt = q.Settings.Prompt,
+                NegativePrompt = q.Settings.NegativePrompt,
+                Size = sizeString,
+                Sampler = q.Settings.Sampler,
+                Steps = q.Settings.steps,
+                CfgScale = q.Settings.CFGScale,
+                DenoisingStrength = denoisingStrength,
+                ModelName = q.Settings.ModelName,
+                Seed = q.Settings.Seed,
+                VariationSeed = q.Settings.variation_seed,
+                VariationPercent = variationPercent,
+                WorkerName = workerName,
+                RenderTime = gpuTime.ToPrettyFormat(),
+                Date = date
+            });
         }
+
 
         public static async Task<string> BuildUserInfoString(FoxUser user)
         {
