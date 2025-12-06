@@ -255,14 +255,16 @@ namespace makefoxsrv
             bool isHumanish = imageTags.ContainsKey("human")
                            || imageTags.ContainsKey("elf")
                            || imageTags.ContainsKey("dwarf")
-                           //|| imageTags.ContainsKey("kemono") // WAY too many false positives
+                           || imageTags.ContainsKey("kemono") // WAY too many false positives
+                           || imageTags.ContainsKey("humanoid")
                            || imageTags.ContainsKey("neko");
-                           //|| imageTags.ContainsKey("goblin");
+            //|| imageTags.ContainsKey("goblin");
 
-            bool isYoung = imageTags.ContainsKey("child") 
-                        || imageTags.ContainsKey("young") 
-                        || imageTags.ContainsKey("teen")  
-                        || imageTags.ContainsKey("shota") 
+            bool isYoung = imageTags.ContainsKey("child")
+                        || imageTags.ContainsKey("young")
+                        || imageTags.ContainsKey("teen")
+                        || imageTags.ContainsKey("shota")
+                        || imageTags.ContainsKey("small breasts")
                         || imageTags.ContainsKey("loli");
 
             bool isExplicit = imageTags.ContainsKey("penis")
