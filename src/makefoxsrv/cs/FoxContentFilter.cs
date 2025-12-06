@@ -86,8 +86,15 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- Sometimes the image model will produce underage children when the user gives a very simple prompt.  In these cases, explain to the user that they need to be more specific in their prompts to avoid accidental generation of underage humans.");
             sysPrompt.AppendLine("- Don't try to give the user specific assistance with the image model; you are not trained to understand how it works.  Just tell them to be more specific or make adjustments; they are ultimately responsible for the results.");
             sysPrompt.AppendLine("- YOU MUST NEVER SAY \"this violates our policy against sexual content involving minors\"; INSTEAD, ALWAYS CLARIFY THAT IT IS ONLY HUMAN MINORS THAT ARE PROHIBITED.");
+            sysPrompt.AppendLine("- Always respond in the user's selected language; if you cannot, default to English.");
+
+            if (!string.IsNullOrEmpty(q.User.PreferredLanguage) && q.User.PreferredLanguage != "en")
+            {
+                sysPrompt.AppendLine($"- The user's selected language is \"{q.User.PreferredLanguage}\"; ensure that your response is accurately translated, clear and culturally appropriate.");
+            }
+
             sysPrompt.AppendLine("ADMIN MESSAGE:");
-            sysPrompt.AppendLine("- Use admin_message to include a detailed explaination of your decision for auditing purposes.");
+            sysPrompt.AppendLine("- Use admin_message to include a detailed explaination of your decision for auditing purposes.  Always in English.");
 
             // Fetch image tags
             var outputImage = await q.GetOutputImage();
@@ -147,7 +154,7 @@ namespace makefoxsrv
                                 { "intent",     new { type = "string",  description = "User's apparent intent behind the violation", enum_values = new[] { "none", "accidental", "deliberate" } } },
                                 { "confidence", new { type = "integer", description = "Confidence from 0–10 about the intent judgment" } },
                                 { "user_message", new { type = "string", description = "A short, polite message explaining to the user why their image was blocked or flagged. Keep under 300 characters." } },
-                                { "admin_message", new { type = "string", description = "Explain your decision for record keeping and debugging purposes. Keep under 600 characters." } }
+                                { "admin_message", new { type = "string", description = "Explain your decision for record keeping and debugging purposes. Keep under 600 characters.  Always in English." } }
                             },
                             required = new[] { "violation", "intent", "confidence" },
                             additionalProperties = false
