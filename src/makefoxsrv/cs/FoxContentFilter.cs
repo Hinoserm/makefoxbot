@@ -68,9 +68,12 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- underage anthropomorphic characters in a potentially intimate or nude context, including visible genitals");
             sysPrompt.AppendLine("- an adult human in an explicit scene with an underage non-human");
             sysPrompt.AppendLine();
-            sysPrompt.AppendLine("EXAMPLES OF UNACCEPTABLE CONTENT:");
+            sysPrompt.AppendLine("EXAMPLES OF PROHIBITED CONTENT:");
             sysPrompt.AppendLine("- Sexualized underage elves, goblins, or humans");
-            sysPrompt.AppendLine("- Human-like characters with extremely minimal animal features, such as creatures that look almost completely human except for having animal ears or tail.");
+            sysPrompt.AppendLine("- Anything that could be vaguely construed as a child with a \"human-like\" body");
+            sysPrompt.AppendLine("- Human-like characters with minimal animal features, such as creatures that look almost completely human except for having animal ears or tail.");
+            sysPrompt.AppendLine("- For example, a child with a mostly human-like body with the addition of ears and a tail would be considered human-passing and thus a violation.");
+            sysPrompt.AppendLine("- Human-like means that an average person could interpret the character as a human child; human facial features, lack of fur, smooth skin with natural human skin colors");
             sysPrompt.AppendLine();
             sysPrompt.AppendLine("USER MESSAGE:");
             sysPrompt.AppendLine("- If the content violates policy, include a short, user-facing message (user_message) explaining how the content violates our policy.");
