@@ -789,8 +789,6 @@ namespace makefoxsrv
                     }
                 };
 
-                var sb = new StringBuilder();
-
                 System.TimeSpan diffResult = DateTime.Now.Subtract(q.DateCreated);
                 System.TimeSpan GPUTime = await q.GetGPUTime();
 
@@ -816,7 +814,7 @@ namespace makefoxsrv
                 catch (WTException ex) when (ex.Message == "MEDIA_CAPTION_TOO_LONG" || ex.Message == "MESSAGE_ID_INVALID") 
                 {
                     var newmsg = await t.SendMessageAsync(
-                        text: sb.ToString(),
+                        text: infoStr,
                         replyToMessageId: q.MessageID,
                         replyInlineMarkup: inlineKeyboardButtons
                     );
