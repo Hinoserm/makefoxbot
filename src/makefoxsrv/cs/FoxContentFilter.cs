@@ -80,6 +80,7 @@ namespace makefoxsrv
             sysPrompt.AppendLine("- If no violation occurred, leave user_message empty or null.");
             sysPrompt.AppendLine("- You must NEVER tell the user that anthropomorphic content is prohibited, because it is not.");
             sysPrompt.AppendLine("- If you think the violation was accidential, explain this to the user.");
+            sysPrompt.AppendLine("- Explain the rules to the user, and why you think their content violated them.");
             sysPrompt.AppendLine("ADMIN MESSAGE:");
             sysPrompt.AppendLine("- Use admin_message to include a detailed explaination of your decision for auditing purposes.");
 
@@ -140,7 +141,7 @@ namespace makefoxsrv
                                 { "violation",  new { type = "boolean", description = "True if the user's content violates policy" } },
                                 { "intent",     new { type = "string",  description = "User's apparent intent behind the violation", enum_values = new[] { "none", "accidental", "deliberate" } } },
                                 { "confidence", new { type = "integer", description = "Confidence from 0–10 about the intent judgment" } },
-                                { "user_message", new { type = "string", description = "A short, polite message explaining to the user why their image was blocked or flagged. Keep under 200 characters." } },
+                                { "user_message", new { type = "string", description = "A short, polite message explaining to the user why their image was blocked or flagged. Keep under 300 characters." } },
                                 { "admin_message", new { type = "string", description = "Explain your decision for record keeping and debugging purposes. Keep under 600 characters." } }
                             },
                             required = new[] { "violation", "intent", "confidence" },
