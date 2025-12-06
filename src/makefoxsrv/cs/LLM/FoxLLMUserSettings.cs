@@ -53,36 +53,29 @@ namespace makefoxsrv
             if (cached is not null)
                 return cached;
 
-            using var _ = _cacheLocks.LockAsync(uid);
+            using var _ = await _cacheLocks.LockAsync(uid);
 
             cached = _cache.Get(uid);
-                if (cached is not null)
-                    return cached;
+            if (cached is not null)
+                return cached;
 
-                var result = await FoxDB.LoadObjectAsync<FoxLLMUserSettings>("llm_user_settings", "user_id = @uid", new Dictionary<string, object?> { { "uid", uid } });
+            var result = await FoxDB.LoadObjectAsync<FoxLLMUserSettings>("llm_user_settings", "user_id = @uid", new Dictionary<string, object?> { { "uid", uid } });
 
-                if (result is null)
-                {
-                    result = new FoxLLMUserSettings
-                    {
-                        UserId = uid,
-                        SelectedPersona = FoxSettings.Get<string?>("DefaultLLMPersona") ?? "Professor"
-                    };
-
-                    await result.Save();
-                }
-
-                // seed the cache so future Load() calls reuse this object
-                _cache.Put(result.UserId, result);
-
-                return result;
-            }
-            finally
+            if (result is null)
             {
-                sem.Release();
-                if (sem.CurrentCount == 1)
-                    _cacheLocks.TryRemove(uid, out _);
+                result = new FoxLLMUserSettings
+                {
+                    UserId = uid,
+                    SelectedPersona = FoxSettings.Get<string?>("DefaultLLMPersona") ?? "Professor"
+                };
+
+                await result.Save();
             }
+
+            // seed the cache so future Load() calls reuse this object
+            _cache.Put(result.UserId, result);
+
+            return result;
         }
         public async Task Save()
         {

@@ -99,7 +99,7 @@ namespace makefoxsrv.telegram
             if (cached is not null)
                 return cached;
 
-            using var _ = _cacheLocks.LockAsync(id);
+            using var _ = await _cacheLocks.LockAsync(id);
 
             cached = _cache.Get(id);
             if (cached is not null)

@@ -317,7 +317,7 @@ namespace makefoxsrv
                 return user;
             }
 
-            using var _ = _cacheLocks.LockAsync(uid);
+            using var _ = await _cacheLocks.LockAsync(uid);
 
             user = _userCacheByUID.Get(uid);
 
