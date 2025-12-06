@@ -63,7 +63,7 @@ namespace makefoxsrv.commands
             {
                 buttons = new TL.KeyboardButtonCallback[]
                 {
-                    new() { text = "✨💰 💳 $65 (365 Days) SALE 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate promo50") }
+                    new() { text = "✨💰 💳 $85 (365 Days) SALE 💰✨", data = System.Text.Encoding.UTF8.GetBytes("/donate promo50") }
                 }
             });
 

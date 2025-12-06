@@ -649,15 +649,23 @@ namespace makefoxsrv
 
                     var invoice = await FoxPayments.Invoice.Create(user);
                     invoice.Days = 365;    // 1 Year Membership
-                    invoice.Amount = 6500; // $65 USD
+                    invoice.Amount = 8500; // $85 USD
                     invoice.Currency = "USD";
                     await invoice.Save();
 
                     buttonRows.Add(new TL.KeyboardButtonRow
                     {
+                        buttons = new TL.KeyboardButtonUrl[]
+                        {
+                            new() { text = "🔗 Pay in Web Browser", url = $"{FoxMain.settings.WebRootUrl}tgapp/membership.php?id={invoice.UUID}" }
+                        }
+                    });
+
+                    buttonRows.Add(new TL.KeyboardButtonRow
+                    {
                         buttons = new TL.KeyboardButtonWebView[]
                         {
-                            new() { text = "💳 Pay Now", url = $"{FoxMain.settings.WebRootUrl}tgapp/membership.php?id={invoice.UUID}" }
+                            new() { text = "💳 Pay on Telegram", url = $"{FoxMain.settings.WebRootUrl}tgapp/membership.php?id={invoice.UUID}" }
                         }
                     });
 

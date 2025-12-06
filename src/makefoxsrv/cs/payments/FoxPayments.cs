@@ -23,11 +23,11 @@ namespace makefoxsrv
 
             decimal amountInDollars = amountInCents / 100m;
 
-            if (amountInCents == 500)
+            if (amountInCents == 500 || amountInCents < 10)
             {
-                return 7; // Directly return 7 days for $5
+                return 7; // Directly return 7 days for anything less than $10
             }
-            else if (amountInDollars <= 10)
+            else if (amountInDollars == 10)
             {
                 return baseDays;
             }
