@@ -151,13 +151,14 @@ namespace makefoxsrv
             }
         }
 
-        public static async Task HandleShowGroups(FoxTelegram t, Message message, string? argument)
+        [BotCommand(cmd: "admin", sub: "showgroups", adminOnly: true)]
+        public static async Task HandleShowGroups(FoxTelegram t, FoxUser user, Message message, string? argument)
         {
             if (String.IsNullOrEmpty(argument))
             {
                 await t.SendMessageAsync(
                     text: "❌ You must provide a user ID. Format:\r\n  /admin #showgroups <uid>\r\n  /admin #showgroups @username",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -169,19 +170,19 @@ namespace makefoxsrv
             {
                 await t.SendMessageAsync(
                     text: "❌ You must specify a user ID or username.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
             }
 
-            var user = await FoxUser.ParseUser(args[0]);
+            var findUser = await FoxUser.ParseUser(args[0]);
 
-            if (user is null)
+            if (findUser is null)
             {
                 await t.SendMessageAsync(
                     text: "❌ Unable to parse user ID.",
-                    replyToMessageId: message.ID
+                    replyToMessage: message
                 );
 
                 return;
@@ -202,7 +203,7 @@ namespace makefoxsrv
                 FROM telegram_chats tc
                 INNER JOIN telegram_chat_admins tca ON tc.id = tca.chatid
                 WHERE tca.userid = @teleUserId";
-                    cmd.Parameters.AddWithValue("@teleUserId", user.TelegramID);
+                    cmd.Parameters.AddWithValue("@teleUserId", findUser.TelegramID);
 
                     using (var reader = await cmd.ExecuteReaderAsync())
                     {
@@ -228,7 +229,7 @@ namespace makefoxsrv
                 FROM telegram_chats tc
                 INNER JOIN telegram_log tl ON tl.chat_id = tc.id
                 WHERE tl.user_id = @teleUserId AND tc.type IN ('GROUP', 'SUPERGROUP', 'GIGAGROUP')";
-                    cmd.Parameters.AddWithValue("@teleUserId", user.TelegramID);
+                    cmd.Parameters.AddWithValue("@teleUserId", findUser.TelegramID);
 
                     using (var reader = await cmd.ExecuteReaderAsync())
                     {
@@ -253,7 +254,7 @@ namespace makefoxsrv
                 FROM telegram_chats tc
                 INNER JOIN queue q ON q.tele_chatid = tc.id
                 WHERE q.tele_id = @teleUserId AND tc.type IN ('GROUP', 'SUPERGROUP', 'GIGAGROUP')";
-                    cmd.Parameters.AddWithValue("@teleUserId", user.TelegramID);
+                    cmd.Parameters.AddWithValue("@teleUserId", findUser.TelegramID);
 
                     using (var reader = await cmd.ExecuteReaderAsync())
                     {
@@ -273,7 +274,7 @@ namespace makefoxsrv
             if (groups.Count == 0)
             {
                 await t.SendMessageAsync(
-                    text: $"ℹ️ User {user.UID} is not a member of any groups.",
+                    text: $"ℹ️ User {findUser.UID} is not a member of any groups.",
                     replyToMessageId: message.ID
                 );
             }
@@ -281,7 +282,7 @@ namespace makefoxsrv
             {
                 var groupList = string.Join("\n", groups.Values);
                 await t.SendMessageAsync(
-                    text: $"📋 User {user.UID} is a member of the following groups:\n{groupList}",
+                    text: $"📋 User {findUser.UID} is a member of the following groups:\n{groupList}",
                     replyToMessageId: message.ID
                 );
             }
