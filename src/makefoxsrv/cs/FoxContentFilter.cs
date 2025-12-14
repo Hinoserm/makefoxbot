@@ -29,7 +29,7 @@ namespace makefoxsrv
             if (string.IsNullOrEmpty(FoxMain.settings?.llmApiKey))
                 throw new InvalidOperationException("LLM API key not configured.");
 
-            var model = "x-ai/grok-4-fast";
+            var model = "x-ai/grok-4.1-fast";
 
             var sysPrompt = new StringBuilder();
 

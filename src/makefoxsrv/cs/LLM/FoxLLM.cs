@@ -190,7 +190,7 @@ namespace makefoxsrv
 
                 List<FoxLLMConversation.ChatMessage> llmMessages = new();
 
-                string llmModel = "x-ai/grok-4-fast"; //"x-ai/grok-4-fast"; // "meta-llama/llama-3.3-70b-instruct"; // "x-ai/grok-2-1212"; //"mistralai/mistral-large-2411"; //"google/gemini-2.0-flash-001"; //"meta-llama/llama-3.3-70b-instruct"; //"meta-llama/llama-3.3-70b-instruct";
+                string llmModel = "x-ai/grok-4.1-fast"; //"x-ai/grok-4-fast"; // "meta-llama/llama-3.3-70b-instruct"; // "x-ai/grok-2-1212"; //"mistralai/mistral-large-2411"; //"google/gemini-2.0-flash-001"; //"meta-llama/llama-3.3-70b-instruct"; //"meta-llama/llama-3.3-70b-instruct";
 
                 bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM);
 

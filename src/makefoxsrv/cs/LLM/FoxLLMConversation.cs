@@ -529,7 +529,7 @@ namespace makefoxsrv
             // 5. Send request to model
             var request = new
             {
-                model = "x-ai/grok-4-fast",
+                model = "x-ai/grok-4.1-fast",
                 user = $"CONDENSE:{user.UID}",
                 reasoning = new { enabled = false },
                 max_tokens = 30000,
