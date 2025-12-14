@@ -165,7 +165,6 @@ namespace makefoxsrv
             await _client.Messages_UpdatePinnedMessage(
                 peer: _peer,
                 id: messageId
-
             );
         }
 

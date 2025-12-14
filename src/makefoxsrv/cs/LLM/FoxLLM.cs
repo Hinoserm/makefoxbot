@@ -689,12 +689,25 @@ namespace makefoxsrv
 
             if (await reader.ReadAsync())
             {
-                totalInput = reader.GetUInt64("total_input");
-                totalOutput = reader.GetUInt64("total_output");
+                totalInput = reader.IsDBNull("total_input")
+                    ? 0UL
+                    : reader.GetUInt64("total_input");
 
-                inputCost = reader.GetDecimal("input_cost");
-                outputCost = reader.GetDecimal("output_cost");
-                totalCost = reader.GetDecimal("total_cost");
+                totalOutput = reader.IsDBNull("total_output")
+                    ? 0UL
+                    : reader.GetUInt64("total_output");
+
+                inputCost = reader.IsDBNull("input_cost")
+                    ? 0m
+                    : reader.GetDecimal("input_cost");
+
+                outputCost = reader.IsDBNull("output_cost")
+                    ? 0m
+                    : reader.GetDecimal("output_cost");
+
+                totalCost = reader.IsDBNull("total_cost")
+                    ? 0m
+                    : reader.GetDecimal("total_cost");
             }
 
             return (inputCost, outputCost, totalCost, totalInput, totalOutput);
