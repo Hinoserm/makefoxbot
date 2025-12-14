@@ -22,6 +22,19 @@ namespace makefoxsrv
 {
     internal class FoxAdmin
     {
+
+        [BotCommand(cmd: "admin", sub: "sysmsg", adminOnly: true)]
+        [BotCommand(cmd: "admin", sub: "sysmessage", adminOnly: true)]
+        public static async Task HandleSendSysMsg(FoxTelegram t, FoxUser user, Message message, FoxUser destUser, string sysMessage)
+        {
+            await FoxLLMConversation.InsertConversationMessageAsync(destUser, FoxLLMConversation.ChatRole.System, "Note from ADMIN: " + sysMessage);
+
+            await t.SendMessageAsync(
+                text: $"✅ Saved system message to user {destUser.UID}.",
+                replyToMessage: message
+            );
+        }
+
         [BotCommand(cmd: "admin", sub: "archive", adminOnly: true)]
         public static async Task HandleRunArchiver(FoxTelegram t, FoxUser user, Message message, string? argument)
         {
