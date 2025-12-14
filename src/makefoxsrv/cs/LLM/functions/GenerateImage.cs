@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using SixLabors.ImageSharp.Formats;
+using System.Threading.Tasks;
 
 namespace makefoxsrv.llm.functions
 {
@@ -13,6 +14,7 @@ namespace makefoxsrv.llm.functions
             [LLMParam("Width of the generated image, between 512 and 1024. Default: 640", false)] int Width = 640,
             [LLMParam("Height of the generated image, between 512 and 1024. Default: 768", false)] int Height = 768,
             [LLMParam("The name of the model to use.", false)] string? Model = null,
+            //[LLMParam("Quantity of images to generate (up to 3).", false)] int Quantity = 1,
             [LLMParam("An optional list of LORAs to help with image generation.", false)] List<string>? LORAs = null)
         {
             // Fetch current user settings for image generation

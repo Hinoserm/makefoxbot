@@ -289,11 +289,20 @@ namespace makefoxsrv
                     user.Unlock();
                 }
             }
+            catch (FoxUserException ex)
+            {
+                // Don't add emoji or prepend error text.
+                await t.SendMessageAsync(
+                    text: ex.Message,
+                    replyToMessage: message);
+            }
             catch (Exception ex)
             {
                 await t.SendMessageAsync(
                     text: $"❌ Error: {ex.Message}",
                     replyToMessage: message);
+
+                FoxLog.LogException(ex);
             }
             finally
             {

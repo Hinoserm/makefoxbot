@@ -61,12 +61,10 @@ namespace makefoxsrv
             {
                 TimeSpan waitTime = floodWait.Value - DateTime.Now;
 
-                await t.SendMessageAsync(
-                    text: $"❌ Telegram is currently reporting that you've exceeded the image upload rate limit.  This rate limit is outside of our control.\r\n\r\nPlease try again in {waitTime.ToPrettyFormat()}.",
-                    replyToMessageId: message.ID
+                throw new FoxUserException(
+                    message: $"❌ Telegram is currently reporting that you've exceeded the image upload rate limit.  This rate limit is outside of our control.\r\n\r\nPlease try again in {waitTime.ToPrettyFormat()}.",
+                    details: new { RetryWhen = floodWait.Value }
                 );
-
-                return;
             }
 
             if (imgType == FoxQueue.QueueType.IMG2IMG)
@@ -85,37 +83,30 @@ namespace makefoxsrv
                 {
                     if (t.Chat is not null)
                     {
-                        await t.SendMessageAsync(
-                            text: $"❌ Reply to this message with an image, or send an image with @{FoxTelegram.Client.User.username} in the message, then run /img2img again.",
-                            replyToMessageId: message.ID
+                        throw new FoxUserException(
+                            message: $"❌ Reply to this message with an image, or send an image with @{FoxTelegram.Client.User.username} in the message, then run /img2img again."
                         );
                     }
                     else
                     {
-                        await t.SendMessageAsync(
-                            text: "❌You must upload or /select an image first to use img2img functions.",
-                            replyToMessageId: message.ID
+                        throw new FoxUserException(
+                            message: "❌ You must upload or /select an image first to use img2img functions."
                         );
                     }
-
-                    return;
                 }
             }
 
             if (String.IsNullOrEmpty(settings.Prompt))
             {
-                await t.SendMessageAsync(
-                    text: "❌You must specify a prompt!  Please seek /help",
-                    replyToMessage: message
+                throw new FoxUserException(
+                    message: "❌ You must specify a prompt!  Please seek /help"
                 );
-
-                return;
             }
 
             await FoxGenerate.Generate(t, settings, message, user, imgType);
         }
 
-        private static async Task<bool> Check(FoxTelegram t, FoxUser user, Message? replyToMessage, FoxUserSettings settings)
+        private static async Task Check(FoxTelegram t, FoxUser user, FoxUserSettings settings)
         {
             //if (settings.regionalPrompting)
             //    throw new Exception("Regional prompting is currently unavailable due to a software issue.");
@@ -124,28 +115,25 @@ namespace makefoxsrv
 
             if (settings.regionalPrompting && !isPremium)
             {
-                await t.SendMessageAsync(
-                    text: "❌ Regional prompting is a premium feature.\n\nPlease consider a paid /membership",
-                    replyToMessage: replyToMessage
+                throw new FoxUserException(
+                    message: "❌ Regional prompting is a premium feature.\n\nPlease consider a paid /membership",
+                    details: new { Reason = "USER_NOT_PREMIUM" }
                 );
-
-                return false;
             }
 
             if (user.GetAccessLevel() < AccessLevel.ADMIN)
             {
-                int q_limit = isPremium ? 3 : 1;
+                int userQueueLimit = isPremium ? 3 : 1;
+                int userQueueCount = await FoxQueue.GetCount(user);
 
-                if (await FoxQueue.GetCount(user) >= q_limit)
+                if (userQueueCount >= userQueueLimit)
                 {
-                    var plural = q_limit == 1 ? "" : "s";
+                    var plural = userQueueLimit == 1 ? "" : "s";
 
-                    await t.SendMessageAsync(
-                        text: $"❌ Maximum of {q_limit} queued request{plural}.",
-                        replyToMessage: replyToMessage
+                    throw new FoxUserException(
+                        message: $"❌ Maximum of {userQueueLimit} queued request{plural}.",
+                        details: new { UserQueueLimit = userQueueLimit, CurrentUserQueueCount = userQueueCount }
                     );
-
-                    return false;
                 }
             }
 
@@ -153,17 +141,21 @@ namespace makefoxsrv
 
             if (model is null || model.GetWorkersRunningModel().Count < 1)
             {
-                throw new Exception($"There are no workers available to handle your currently selected model ({settings.ModelName}).  This can happen if the server was recently restarted.  Please choose a new model or try again shortly.");
+                throw new FoxUserException(
+                    message: $"❌ There are no workers available to handle your currently selected model ({settings.ModelName}).  This can happen if the server was recently restarted.  Please choose a new model or try again shortly.",
+                    details: new { CurrentModel = settings.ModelName }
+                );
             }
+
+            // Normalize model name
+            settings.ModelName = model.Name;
 
             if (FoxQueue.CheckWorkerAvailability(settings) is null)
             {
-                await t.SendMessageAsync(
-                    text: "❌ No workers are available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
-                    replyToMessage: replyToMessage
+                throw new FoxUserException(
+                    message: "❌ No workers are available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
+                    details: new { CurrentModel = settings.ModelName }
                 );
-
-                return false;
             }
 
             if (!isPremium)
@@ -177,37 +169,43 @@ namespace makefoxsrv
                     var weeklyLimit = modelAllowed.weeklyLimit;
 
                     var reason = modelAllowed.Reason;
-                    string message = "❌ The selected model is not available right now.  Please try a different /model.";
+
+                    FoxLog.WriteLine($"User {user.UID} attempted to use restricted model {model.Name} (reason: {reason.ToString()}");
 
                     if (reason.HasFlag(FoxModel.DenyReason.RestrictedModel))
                     {
-                        message = "❌ This model is currently restricted and cannot be used.  Please try a different /model.";
+                        throw new FoxUserException(
+                            message: "❌ This model is currently restricted and cannot be used.  Please try a different /model.",
+                            details: new { Model = model.Name, Reason = reason }
+                        );
                     }
                     else if (reason.HasFlag(FoxModel.DenyReason.WeeklyLimitReached))
                     {
-                        message =
-                            "❌ You've hit your weekly quota for premium models.\r\n\r\n" +
-                            $"ℹ️ Free users are limited to {weeklyLimit} images across all premium models per week. " +
-                            "Your quota resets every Monday at midnight Central Time (GMT-6).\r\n\r\n" +
-                            "✨ Consider a /membership to unlock additional features, or try a free /model.";
+                        throw new FoxUserException(
+                            message: "❌ You've hit your weekly quota for premium models.\r\n\r\n" +
+                                    $"ℹ️ Free users are limited to {weeklyLimit} images across all premium models per week. " +
+                                     "Your quota resets every Monday at midnight Central Time (GMT-6).\r\n\r\n" +
+                                     "✨ Consider a /membership to unlock additional features, or try a free /model.",
+                            details: new { Model = model.Name, WeeklyLimit = weeklyLimit, Reason = reason }
+                        );
                     }
                     else if (reason.HasFlag(FoxModel.DenyReason.DailyLimitReached))
                     {
-                        message =
-                            "❌ You've reached today's limit for this model.\r\n\r\n" +
-                            $"ℹ️ Each premium model is limited to {dailyLimit} images per day for free users. " +
-                            "This limit resets at midnight Central Time (GMT-6).\r\n\r\n" +
-                            "✨ Consider a /membership to unlock additional features, or try a free /model.";
+                        throw new FoxUserException(
+                            message: "❌ You've reached today's limit for this model.\r\n\r\n" +
+                                    $"ℹ️ Each premium model is limited to {dailyLimit} images per day for free users. " +
+                                     "This limit resets at midnight Central Time (GMT-6).\r\n\r\n" +
+                                     "✨ Consider a /membership to unlock additional features, or try a free /model.",
+                            details: new { Model = model.Name, DailyLimit = dailyLimit, Reason = reason }
+                        );
                     }
 
-                    await t.SendMessageAsync(
-                        text: message,
-                        replyToMessage: replyToMessage
+                    // Always fail, even if we don't know the reason.
+
+                    throw new FoxUserException(
+                        message: "❌ The selected model is not available right now.  Please try a different /model.",
+                        details: new { Model = model.Name, Reason = reason }
                     );
-
-                    FoxLog.WriteLine($"User {user.UID} attempted to use restricted model {model.Name}");
-
-                    return false;
                 }
             }
 
@@ -215,25 +213,35 @@ namespace makefoxsrv
 
             if (missingLoras.Count > 0)
             {
-                var missingLoraNames = string.Join(", ", missingLoras);
+                var missingLoraNames = missingLoras.ToList();
+
                 var suggestions = FoxLORAs.SuggestSimilarLoras(missingLoras);
 
-                var suggestionLines = suggestions.Select(kvp =>
-                    $"→ {kvp.Key}: {string.Join(", ", kvp.Value.Select(v => v.Filename))}");
+                // Flatten suggestions into something sane and machine-usable
+                var suggestionMap = suggestions.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value.Select(v => v.Filename).ToList()
+                );
+
+                var suggestionLines = suggestionMap.Select(kvp =>
+                    $"→ {kvp.Key}: {string.Join(", ", kvp.Value)}"
+                );
 
                 var suggestionText = suggestionLines.Any()
                     ? "\n\nDid you mean:\n" + string.Join("\n", suggestionLines)
                     : "";
 
-                await t.SendMessageAsync(
-                    text: $"❌ The following LORAs are not available: {missingLoraNames}.{suggestionText}",
-                    replyToMessage: replyToMessage
+                throw new FoxUserException(
+                    message:
+                        $"❌ The following LORAs are not available: {string.Join(", ", missingLoraNames)}." +
+                        suggestionText,
+                    details: new
+                    {
+                        MissingLoras = missingLoraNames,
+                        SuggestedMatches = suggestionMap
+                    }
                 );
-
-                return false;
             }
-
-            return true;
         }
 
         public static async Task<FoxQueue?> Enhance(FoxTelegram t, FoxUser user, Message replyToMessage, FoxQueue originalTask)
@@ -246,8 +254,8 @@ namespace makefoxsrv
 
             FoxUserSettings settings = originalTask.Settings.Copy();
 
-            if (!await Check(t, user, replyToMessage, settings))
-                return null;
+            // Perform checks; throws on failure
+            await Check(t, user, settings);
 
             //var msg = await t.SendMessageAsync(
             //    text: "⏳ Upscaling...",
@@ -277,6 +285,16 @@ namespace makefoxsrv
             //}
 
             //(settings.Width, settings.Height) = FoxImage.CalculateLimitedDimensions(settings.Width * 2, settings.Height * 2, 2048);
+
+            // Normalize model name.
+
+            var model = FoxModel.GetModelByName(settings.ModelName);
+
+            if (model is null)
+                throw new Exception("Model unknown or not available.");
+
+            // Normalize the model name
+            settings.ModelName = model.Name;
 
             settings.Seed = -1;
             settings.hires_denoising_strength = 0.33M;
@@ -310,11 +328,16 @@ namespace makefoxsrv
             else
                 settings.regionalPrompting = originalTask.Settings.regionalPrompting;
 
-            if (!await Check(t, user, replyToMessage, settings))
-                return null;
+            // Perform checks; throws on failure
+            await Check(t, user, settings);
 
-            // Check if the user is premium
-            //bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM);
+            var model = FoxModel.GetModelByName(settings.ModelName);
+
+            if (model is null)
+                throw new Exception("Model unknown or not available.");
+
+            // Normalize the model name
+            settings.ModelName = model.Name;
 
             var q = await FoxQueue.Add(t, user, settings, imgType, 0, replyToMessage, enhanced, originalTask, status: FoxQueue.QueueStatus.PAUSED);
             if (q is null)
@@ -330,14 +353,11 @@ namespace makefoxsrv
 
             if (safetyPromptCacheViolated)
             {
-                var warningMsg = await t.SendMessageAsync(
-                    text: "❌ This prompt has previously been flagged as potentially violating our content policy and will not be processed.\r\n\r\nIf you believe this is a mistake, please contact @makefoxhelpbot.",
-                    replyToMessage: replyToMessage
-                );
-
                 await q.SetCancelled(true);
 
-                return null;
+                throw new FoxUserException(
+                    message: "This prompt has previously been flagged as potentially violating our content policy and will not be processed.\r\n\r\nIf you believe this is a mistake, please contact @makefoxhelpbot."
+                );
             }
 
             var violatedRules = FoxContentFilter.CheckPrompt(settings?.Prompt ?? "", settings?.NegativePrompt);

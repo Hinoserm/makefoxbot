@@ -43,12 +43,12 @@ namespace makefoxsrv
         {
             var rootDir = FoxSettings.Get<string?>("LoraPath");
 
-            if (string.IsNullOrEmpty(rootDir) || !Directory.Exists(rootDir))
-            {
-                FoxLog.WriteLine("[LORA] LoraPath is not set or does not exist. Skipping LORA loading.");
-                LorasLoaded = false;
-                return;
-            }
+            //if (string.IsNullOrEmpty(rootDir) || !Directory.Exists(rootDir))
+            //{
+            //    FoxLog.WriteLine("[LORA] LoraPath is not set or does not exist. Skipping LORA loading.");
+            //    LorasLoaded = false;
+            //    return;
+            //}
 
             var imageLoadSemaphore = new SemaphoreSlim(5);
             var imageLoadTasks = new List<Task>();
