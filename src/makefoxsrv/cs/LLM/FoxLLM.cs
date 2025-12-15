@@ -576,6 +576,8 @@ namespace makefoxsrv
             p.AppendLine("Always provider a gender tag for the image.  Use male if the user doesn't specify.");
             p.AppendLine("Do not include underscores; replace them with spaces.");
             p.AppendLine("You may use synonymous tags for clarity but avoid exact duplicates.");
+            p.AppendLine("Premium users can have up to 3 images queued at a time; standard users can have 1.");
+            p.AppendLine("Use the Quantity field to specify the number of images.  Avoid making multiple image calls in the same response.");
             p.AppendLine("If the user requests more than three images at once, you must refuse.");
             p.AppendLine("If the requested image size exceeds 1024 in either dimension, you must refuse.");
             p.AppendLine("Do not preface results with phrases such as \"Here’s the image\" or \"Here’s the prompt.\"");
