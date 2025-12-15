@@ -107,7 +107,20 @@ namespace makefoxsrv
                 await t.SendMessageAsync(text: "❌ Unable to parse group ID.", replyToMessageId: message.ID);
             }
 
-            await FoxTelegram.Client.LeaveChat(group);
+            try
+            {
+                await FoxTelegram.Client.LeaveChat(group);
+            }
+            catch
+            {
+                if (group is Channel chan)
+                {
+                    InputChannel channel = new InputChannel(groupID, chan.access_hash);
+                    await FoxTelegram.Client.Channels_LeaveChannel(channel);
+                }
+                else
+                    throw;
+            }
 
             await t.SendMessageAsync(
                     text: $"✅ Okay.",
