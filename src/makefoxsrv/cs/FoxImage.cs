@@ -873,11 +873,16 @@ namespace makefoxsrv
         private async Task SaveImageTagsAsync()
         {
             if (_imageTags is null || _imageTags.Count == 0)
-                return; // nothing to save
+                return;
 
-            FoxLog.WriteLine($"{this.ID}: {this.GetHashCode()}: Saving {_imageTags.Count} tags for image", LogLevel.DEBUG);
+            FoxLog.WriteLine(
+                $"{this.ID}: {this.GetHashCode()}: Saving {_imageTags.Count} tags for image",
+                LogLevel.DEBUG);
 
             const int maxRetries = 10;
+
+            // enforce deterministic order to avoid index-lock inversion
+            var orderedTags = _imageTags.OrderBy(kv => kv.Key).ToList();
 
             for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
@@ -888,56 +893,65 @@ namespace makefoxsrv
 
                     using var tx = await conn.BeginTransactionAsync();
 
-                    // grab a row-level lock for this id
-                    using (var lockCmd = new MySqlCommand(
-                        "SELECT 1 FROM images_tags WHERE id = @id FOR UPDATE;", conn, tx))
-                    {
-                        lockCmd.Parameters.AddWithValue("@id", this.ID);
-                        await lockCmd.ExecuteScalarAsync();
-                    }
+                    // ---- UPSERT current tags ----
+                    var insertSb = new StringBuilder(
+                        "INSERT INTO images_tags (id, tag, probability) VALUES ");
 
-                    // clear old tags
-                    using (var deleteCmd = new MySqlCommand(
-                        "DELETE FROM images_tags WHERE id = @id;", conn, tx))
-                    {
-                        deleteCmd.Parameters.AddWithValue("@id", this.ID);
-                        await deleteCmd.ExecuteNonQueryAsync();
-                    }
-
-                    // build one big multi-row insert
-                    var sb = new StringBuilder("INSERT INTO images_tags (id, tag, probability) VALUES ");
-                    var insertCmd = new MySqlCommand();
-                    insertCmd.Connection = conn;
+                    using var insertCmd = conn.CreateCommand();
                     insertCmd.Transaction = tx;
 
-                    int i = 0;
-                    foreach (var kv in _imageTags)
+                    for (int i = 0; i < orderedTags.Count; i++)
                     {
-                        if (i > 0) sb.Append(", ");
-                        sb.Append($"(@id{i}, @tag{i}, @prob{i})");
+                        if (i > 0)
+                            insertSb.Append(", ");
 
-                        insertCmd.Parameters.AddWithValue($"@id{i}", this.ID);
-                        insertCmd.Parameters.AddWithValue($"@tag{i}", kv.Key);
-                        insertCmd.Parameters.AddWithValue($"@prob{i}", kv.Value);
+                        insertSb.Append($"(@id, @tag{i}, @prob{i})");
 
-                        i++;
+                        insertCmd.Parameters.AddWithValue($"@tag{i}", orderedTags[i].Key);
+                        insertCmd.Parameters.AddWithValue($"@prob{i}", orderedTags[i].Value);
                     }
-                    sb.Append(";");
 
-                    insertCmd.CommandText = sb.ToString();
+                    insertSb.Append(
+                        " ON DUPLICATE KEY UPDATE probability = VALUES(probability);");
+
+                    insertCmd.Parameters.AddWithValue("@id", this.ID);
+                    insertCmd.CommandText = insertSb.ToString();
+
                     await insertCmd.ExecuteNonQueryAsync();
+
+                    // ---- Delete stale tags ----
+                    var deleteSb = new StringBuilder(
+                        "DELETE FROM images_tags WHERE id = @id AND tag NOT IN (");
+
+                    using var deleteCmd = conn.CreateCommand();
+                    deleteCmd.Transaction = tx;
+                    deleteCmd.Parameters.AddWithValue("@id", this.ID);
+
+                    for (int i = 0; i < orderedTags.Count; i++)
+                    {
+                        if (i > 0)
+                            deleteSb.Append(", ");
+
+                        deleteSb.Append($"@tag{i}");
+                        deleteCmd.Parameters.AddWithValue($"@tag{i}", orderedTags[i].Key);
+                    }
+
+                    deleteSb.Append(");");
+                    deleteCmd.CommandText = deleteSb.ToString();
+
+                    await deleteCmd.ExecuteNonQueryAsync();
 
                     await tx.CommitAsync();
                     return; // success
                 }
-                catch (MySqlException ex) when (ex.Number == 1213) // deadlock victim
+                catch (MySqlException ex) when (ex.Number == 1213) // deadlock
                 {
                     FoxLog.LogException(ex, $"Deadlock saving image tags (attempt {attempt})");
 
                     if (attempt == maxRetries)
-                        return; // after 10 failures, give up silently (regen later)
+                        return;
 
-                    await Task.Delay(50 * attempt); // simple backoff
+                    await Task.Delay(50 * attempt);
                 }
                 catch (Exception ex)
                 {
