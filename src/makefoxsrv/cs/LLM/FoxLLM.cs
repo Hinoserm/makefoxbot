@@ -216,6 +216,22 @@ namespace makefoxsrv
                 llmMessages.Add(new ChatMessage(ChatRole.System, await BuildSystemPrompt(user)));
                 llmMessages.Add(new ChatMessage(ChatRole.System, userDetails.ToString()));
 
+
+                if (!string.IsNullOrEmpty(user.PreferredLanguage) && user.PreferredLanguage != "en")
+                {
+                    var lMsg = new StringBuilder();
+
+                    lMsg.AppendLine($"The user's selected language is \"{user.PreferredLanguage}\".");
+                    lMsg.AppendLine("Ensure that your response is accurately translated, clear and culturally appropriate.");
+                    lMsg.AppendLine("Use idioms and expressions that are natural for this language.");
+                    lMsg.AppendLine("Image prompts must always be in English.");
+                    lMsg.AppendLine("Messages sent to the admin team must always be in English.");
+                    lMsg.AppendLine("You might see condensed conversation history, function responses, system prompts, and errors in English; you should ensure you translate them when responding to the user.");
+                    lMsg.AppendLine("All user-visible text should be in the user's selected language.");
+
+                    llmMessages.Add(new ChatMessage(ChatRole.System, lMsg.ToString()));
+                }
+                
                 llmMessages.AddRange(chatHistory);
 
 
