@@ -245,8 +245,9 @@ namespace makefoxsrv
 
                         sb.AppendLine("This free-access user is approaching their LLM usage limits and soon will no longer be able to talk with you.");
                         sb.AppendLine("If they wish to continue talking with you, they will need to purchase a premium membership with the /membership command.");
-                        sb.AppendLine($"This user has {remainingDaily} responses remaining for today, and {remainingWeekly} remaining for the week.");
+                        //sb.AppendLine($"This user has {remainingDaily} responses remaining for today, and {remainingWeekly} remaining for the week.");
                         sb.AppendLine("These limits reset at midnight US Central Time daily and weekly on Mondays.");
+                        sb.AppendLine("Don't discuss limit numbers, stats, or policies with the user; limits are calculated loosely and may not follow a patterm the user can see.");
                         sb.AppendLine("Nag the user to consider purchasing a premium membership if they wish to continue talking with you without interruption.");
                         sb.AppendLine("As a bonus, they will also get a larger context window and faster responses, larger images, more image enhancements, and more (don't invent features that don't exist).");
                         sb.AppendLine("Use your defined personality traits and character to make your message more engaging.");
