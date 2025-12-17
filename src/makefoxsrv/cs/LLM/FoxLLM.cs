@@ -195,7 +195,7 @@ namespace makefoxsrv
                 bool isPremium = user.CheckAccessLevel(AccessLevel.PREMIUM);
 
                 var maxOutputTokens = 2048;
-                var maxInputTokens = isPremium ? 30000 : 8000;
+                var maxInputTokens = isPremium ? 15000 : 6000;
 
                 // Fetch chat history dynamically, directly as a List<object>
                 var chatHistory = await FoxLLMConversation.FetchConversationAsync(user, maxInputTokens);
@@ -641,8 +641,32 @@ namespace makefoxsrv
             return p.ToString();
         }
 
+        public static async Task<ulong> CountLLMStatsAsync(FoxUser? user, TimeSpan lookback)
+        {
+            await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
+            await conn.OpenAsync();
+
+            var cmdText = @"
+                SELECT COUNT(*) 
+                FROM llm_stats
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL @lookbackSeconds SECOND)
+            ";
+
+            if (user != null)
+                cmdText += " AND user_id = @uid";
+
+            var cmd = new MySqlCommand(cmdText, conn);
+            cmd.Parameters.AddWithValue("@lookbackSeconds", (long)lookback.TotalSeconds);
+
+            if (user != null)
+                cmd.Parameters.AddWithValue("@uid", user.UID);
+
+            var result = await cmd.ExecuteScalarAsync();
+            return Convert.ToUInt64(result);
+        }
+
         public static async Task<(decimal InputCost, decimal OutputCost, decimal TotalCost, ulong InputTokens, ulong OutputTokens)>
-            CalculateUserLLMCostAsync(FoxUser? user)
+            CalculateUserLLMCostAsync(FoxUser? user, TimeSpan? lookback = null)
         {
             await using var conn = new MySqlConnection(FoxMain.sqlConnectionString);
             await conn.OpenAsync();
@@ -680,6 +704,9 @@ namespace makefoxsrv
             if (user != null)
                 cmdText += " WHERE user_id = @uid";
 
+            if (lookback != null)
+                cmdText += " AND created_at >= DATE_SUB(NOW(), INTERVAL @lookbackSeconds SECOND)";
+
             cmdText += @"
                 )
                 SELECT
@@ -696,6 +723,9 @@ namespace makefoxsrv
 
             if (user != null)
                 cmd.Parameters.AddWithValue("@uid", user.UID);
+
+            if (lookback != null)
+                cmd.Parameters.AddWithValue("@lookbackSeconds", (long)lookback.Value.TotalSeconds);
 
             await using var reader = await cmd.ExecuteReaderAsync();
 

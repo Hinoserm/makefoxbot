@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using TL;
@@ -30,7 +31,7 @@ namespace makefoxsrv
 
         private static readonly ConcurrentDictionary<ulong, UserState> _states = new();
 
-        private const double BaseDelaySeconds = 2.0;
+        //private const double BaseDelaySeconds = 2.0;
         private const double IncrementSeconds = 0.6;
         private const double MaxDelaySeconds = 15.0;
 
@@ -77,12 +78,31 @@ namespace makefoxsrv
                 CancellationTokenSource? localCts;
                 double delay;
 
+                ulong userMsgCount = 0;
+
+                try
+                {
+                    if (!s.User.CheckAccessLevel(AccessLevel.ADMIN))
+                        userMsgCount = await FoxLLM.CountLLMStatsAsync(s.User, TimeSpan.FromDays(1));
+                }
+                catch (Exception ex)
+                {
+                    FoxLog.LogException(ex);
+                }
+
                 lock (s)
                 {
                     if (s.Messages.Count == 0 || s.IsProcessing)
                         return;
 
-                    delay = Math.Min(BaseDelaySeconds + (s.Messages.Count - 1) * IncrementSeconds, MaxDelaySeconds);
+                    float baseDelaySeconds =
+                        Math.Min(
+                            35f,
+                            3f + (userMsgCount / 20) * 10f
+                        );
+
+
+                    delay = Math.Min(baseDelaySeconds + (s.Messages.Count - 1) * IncrementSeconds, MaxDelaySeconds);
                     localCts = s.TimerCts;
                 }
 
