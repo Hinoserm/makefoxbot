@@ -97,8 +97,8 @@ namespace makefoxsrv
 
                     float baseDelaySeconds =
                         Math.Min(
-                            35f,
-                            3f + (userMsgCount / 20) * 10f
+                            60f,
+                            3f + (userMsgCount / 20) * 15f
                         );
 
 
