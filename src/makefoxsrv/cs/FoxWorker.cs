@@ -542,7 +542,7 @@ namespace makefoxsrv
             FoxLog.WriteLine($"Worker {this.ID} - Loaded {modelCount} available models.");
         }
 
-        public HashSet<string> LoadedLoras = new HashSet<string>();
+        public HashSet<string> LoadedLoras = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         public async Task LoadLoRAInfo()
         {

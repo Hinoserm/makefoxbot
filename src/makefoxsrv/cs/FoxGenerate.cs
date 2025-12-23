@@ -150,14 +150,6 @@ namespace makefoxsrv
             // Normalize model name
             settings.ModelName = model.Name;
 
-            if (FoxQueue.CheckWorkerAvailability(settings) is null)
-            {
-                throw new FoxUserException(
-                    message: "❌ No workers are available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
-                    details: new { CurrentModel = settings.ModelName }
-                );
-            }
-
             if (!isPremium)
             {
 
@@ -240,6 +232,14 @@ namespace makefoxsrv
                         MissingLoras = missingLoraNames,
                         SuggestedMatches = suggestionMap
                     }
+                );
+            }
+
+            if (FoxQueue.CheckWorkerAvailability(settings) is null)
+            {
+                throw new FoxUserException(
+                    message: "❌ No workers are available to process this task.\n\nPlease reduce your /size, select a different /model, or try again later.",
+                    details: new { CurrentModel = settings.ModelName }
                 );
             }
         }

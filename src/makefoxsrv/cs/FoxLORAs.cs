@@ -112,7 +112,20 @@ namespace makefoxsrv
             LorasLoaded = true;
             _ = LoadHashes();
         }
+        public static HashSet<string> ExtractLoraNames(string prompt)
+        {
+            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            var regex = new Regex(@"<lora:([^:>]+)(?::([^>]+))?>", RegexOptions.IgnoreCase);
+            var matches = regex.Matches(prompt);
+
+            foreach (Match match in matches)
+            {
+                result.Add(match.Groups[1].Value);
+            }
+
+            return result;
+        }
 
         public static string NormalizeLoraTags(string prompt, out List<string> missingLoras)
         {

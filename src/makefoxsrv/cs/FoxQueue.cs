@@ -150,6 +150,28 @@ namespace makefoxsrv
         private FoxImage? _outputImage;
         private FoxImage? _inputImage;
 
+        private HashSet<string>? _loras;
+
+        public HashSet<string> Loras
+        {
+            get
+            {
+                if (_loras != null)
+                    return _loras;
+
+                var result = FoxLORAs.ExtractLoraNames(this.Settings.Prompt);
+
+                if (!string.IsNullOrWhiteSpace(this.Settings.NegativePrompt))
+                {
+                    result.UnionWith(FoxLORAs.ExtractLoraNames(this.Settings.NegativePrompt));
+                }
+
+                _loras = result;
+                return _loras;
+            }
+            private set => _loras = value;
+        }
+
         public CancellationTokenSource stopToken { get; private set; } = new();
 
         private Stopwatch UserNotifyTimer = new Stopwatch();
@@ -289,13 +311,24 @@ namespace makefoxsrv
                 return null; // No workers available for the specified model
             }
 
+            // Extract required LoRAs once
+            var requiredLoras = FoxLORAs.ExtractLoraNames(settings.Prompt);
+
+            if (!string.IsNullOrWhiteSpace(settings.NegativePrompt))
+            {
+                requiredLoras.UnionWith(
+                    FoxLORAs.ExtractLoraNames(settings.NegativePrompt)
+                );
+            }
+
             // Filter out workers based on their enabled status, max image size, steps capacity,
             // the availability of the model, and regional prompting support if required.
             var capableWorkers = workers
                 .Where(worker => (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
                                  && (!worker.MaxImageSteps.HasValue || settings.steps <= worker.MaxImageSteps.Value)
                                  && model.GetWorkersRunningModel().Contains(worker.ID) // Check if the worker has the model loaded
-                                 && (!settings.regionalPrompting || worker.SupportsRegionalPrompter)) // Check regional prompting condition
+                                 && (!settings.regionalPrompting || worker.SupportsRegionalPrompter) // Check regional prompting condition
+                                 && requiredLoras.IsSubsetOf(worker.LoadedLoras))
                 .FirstOrDefault(); // Immediately return the first capable worker found
 
             return capableWorkers; // Could be null if no capable workers are found
@@ -441,6 +474,7 @@ namespace makefoxsrv
                                  && (!worker.MaxImageSize.HasValue || (width * height) <= worker.MaxImageSize.Value)
                                  && (!worker.MaxImageSteps.HasValue || item.Settings.steps <= worker.MaxImageSteps.Value)
                                  && (!item.RegionalPrompting || worker.SupportsRegionalPrompter)
+                                 && item.Loras.IsSubsetOf(worker.LoadedLoras)
                                  && model.GetWorkersRunningModel().Contains(worker.ID))  // Ensure the worker has the model loaded
                 .ToList();
 
